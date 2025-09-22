@@ -174,10 +174,12 @@ textarea:focus {
   align-self: flex-end;
   justify-content: flex-end;
   width: 60vw;
+  height: 98%;
   padding: 10px;
 }
 #graph-group {
   width: 100%; 
+  height: 100%;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -207,7 +209,8 @@ textarea:focus {
 }
 #graph-container {
   width: 100%;
-  margin: 20px;
+  flex-grow: 1;
+  padding: 20px;
 }
 #graph {
   overflow: visible;
@@ -535,7 +538,7 @@ textarea:focus {
   justify-content: space-between;
   align-items: flex-end;
   border: none;
-  padding-top: 8px;
+  padding-top: 10px;
   padding-bottom: 5px;
   width: 100%;
 }
@@ -683,9 +686,15 @@ textarea:focus {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
+}
+#selection-container {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
 }
 .concept-selection-btn {
-  width: 42%;
+  width: 100px;
   height: 10px;
   border-radius: 20px;
   border: 1px solid var(--textlight);
@@ -700,11 +709,9 @@ textarea:focus {
   font-size: 12px;
   cursor: pointer;
 }
-.concept-selection-btn:hover {
+/* .concept-selection-btn:hover {
   font-weight: 700;
-  /* color: white;
-  background-color: var(--text) !; */
-}
+} */
 .reset-dropdown {
   position: relative;
   left: 5px;
@@ -715,4 +722,44 @@ textarea:focus {
 }
 .reset-dropdown:hover {
   color: var(--text);
+}
+.dropdown-container {
+  position: relative;
+  display: inline-block;
+  top: -14px;
+}
+.dropdown-header {
+  display: flex;
+  margin-top: 8px;
+  padding-top: 1px;
+  align-items: flex-start;
+  justify-content: space-around;
+  background-color: transparent;
+  width: 40px;
+  height: 20px;
+  background-color: transparent;
+  border: 1px solid var(--textlight);
+  color: var(--text);
+  border-radius: 16px;
+  z-index: 500;
+}
+.selections-dropdown-content {
+  position: absolute;
+  background-color: transparent;
+  top: 38px;
+  width: 40px;
+  right: 8.5px;
+  z-index: 800;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.selections-dropdown-content p {
+  margin: 0;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+#levels-dropdown {
+  visibility: hidden;
 }

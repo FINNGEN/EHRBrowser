@@ -37,6 +37,9 @@
         const list = props.list
         const treeSelections = props.treeSelections
         const setTreeSelections = props.setTreeSelections
+        const setLevelFilter = props.setLevelFilter
+        const maxLevel = props.maxLevel
+        const fullTreeMax = props.fullTreeMax
         const [graphSectionWidth, setGraphSectionWidth] = useState()
         const margin = 10
 
@@ -53,11 +56,10 @@
                 let gap = 0
                 if (axis === 'x') {
                     let includesMappings = generation.map(node => node.mappings).flat().length > 0
-                    let widen = treeSelections.includes('mappings') && includesMappings ? 100*generation.length : 0
+                    let widen = treeSelections.includes('mappings') && includesMappings ? 150*generation.length : 0
                     gap = (d3.select("#tree").node().getBoundingClientRect().width + widen)/(generation.length) 
-                    if (widen !== 0 && gap < 200) gap = 200
+                    if (widen !== 0 && gap < 250) gap = 250
                     if (widen === 0 && gap < 80) gap = 80
-                    // if (widen !== 0 && node.mappings?.length === 0) gap -= 100
                 }
                 else if (axis === 'y') {
                     if (!treeSelections.includes('mappings')) gap = 20
@@ -129,30 +131,27 @@
             })
             const extent = d3.extent(sums)
             const scaleRadius = d3.scaleLinear().domain([0, extent[1]]).range(extent[1] === 0 ? [0,0] : [8, 24])
-            // get center of svg
+            // get dimensions
             let width = d3.select("#tree").node().getBoundingClientRect().width + margin*2
-            let height = d3.select("#tree").node().getBoundingClientRect().height + margin*2
             let maxLevel = d3.max(nodes.map(d => d.distance))
-            let minLevel = d3.min(nodes.map(d => d.distance))
             let svgHeight = d3.select("#tree").node().getBoundingClientRect().height
             let maxMappings = Math.max(...nodes.map(d => d.mappings).map(mappings => mappings.length))
             let num = (svgHeight/(maxLevel) - 12) < 150 ? 150 : (svgHeight/(maxLevel) - 12)
             let length = maxLevel + 1
-            // let genHeight = Array(maxLevel+1).fill(num)
             let genHeight = Array.from({length}, (_, i) => i * num)
             if (treeSelections.includes('mappings')) {
                 genHeight = genHeight.map((h,i) => {
                     if (i === 0) return 0
                     else {
                         // let max = Math.max(...nodes.filter(d => d.distance === i).map(d => d.mappings).map(mappings => mappings.length))
-                        if ((maxMappings*80)/1.7 > num) return ((maxMappings*80)/1.7) * i
-                        else return h
+                        if ((maxMappings*80)/1.7 > num) return (maxMappings*80)/1.7
+                        else return num
                     }
                 })
-                // console.log('1',genHeight)
-                // let sum = 0
-                // genHeight = genHeight.map((h,i) => sum += h)
-                // console.log('2',genHeight)
+                console.log('1',genHeight)
+                let sum = 0
+                genHeight = genHeight.map((h,i) => sum += h)
+                console.log('2',genHeight)
             }
             let cx = width/2 + margin
             let cy = 50
@@ -170,7 +169,7 @@
             const getMap = d => {
                 let mapPosition = {x: 0, y: 0}
                 if (treeSelections.includes('mappings')) {
-                    mapPosition.x = getPosition(d.source, 'x', cx, cy, d.source.name, nodes) + d.direction*100
+                    mapPosition.x = getPosition(d.source, 'x', cx, cy, d.source.name, nodes) + d.direction*125
                 } else {
                     mapPosition.x = getPosition(d.source, 'x', cx, cy, d.source.name, nodes) + d.direction*(scaleRadius(Math.sqrt(d.source.total_counts)) + 20)
                 }
@@ -414,7 +413,7 @@
                                 .attr('text-anchor', 'middle')
                                 .text(d => {
                                     let concept_info = d.data.concept 
-                                    let maxWidth = Math.round(150/8) 
+                                    let maxWidth = 20
                                     let text = concept_info.concept_name || concept_info.concept_id.toString()
                                     return text.substring(0, maxWidth) + (text.length > maxWidth ? ' ...' : '')
                                 })
@@ -573,7 +572,7 @@
                             update.select('.map-tree-text')
                                 .text(d => {
                                     let concept_info = d.data.concept 
-                                    let maxWidth = Math.round(150/8) 
+                                    let maxWidth = 20
                                     let text = concept_info.concept_name || concept_info.concept_id.toString()
                                     return text.substring(0, maxWidth) + (text.length > maxWidth ? ' ...' : '')
                                 })
@@ -730,15 +729,18 @@
                             .attr('id', d => 'tree-text-' + d.name)
                             .text(d => {
                                 let genLength = 0
+                                let maxWidth = 0
                                 let concept_info = d.data.concept
                                 nodes.forEach(n => n.distance === d.distance ? genLength++ : null)
-                                let maxWidth = 0
-                                let text = concept_info.concept_name
-                                if (genLength === 1) {return text} 
+                                let text = concept_info.concept_name || concept_info.concept_id.toString()
+                                if (treeSelections.includes('mappings') && d.mappings?.length > 0) {
+                                    maxWidth = 20
+                                }
                                 else {
-                                    maxWidth = Math.round((width/genLength)/6)
-                                    return text.substring(0, maxWidth) + (text.length > maxWidth ? ' ...' : '')
+                                    if (genLength === 1) maxWidth = Math.round(width/6)
+                                    else maxWidth = Math.round((width/genLength)/6) < 12 ? 12 : Math.round((width/genLength)/6)
                                 }  
+                                return text.substring(0, maxWidth) + (text.length > maxWidth ? ' ...' : '')
                             })
                             .attr('fill', d => conceptNames.includes(d.name) ? 'black' : color.textlight)
                             .attr('font-weight', d => d.name === sidebarRoot.name ? 700 : 400)
@@ -941,7 +943,7 @@
                                 .attr('text-anchor', 'middle')
                                 .text(d => {
                                     let concept_info = d.data.concept 
-                                    let maxWidth = Math.round(150/8) 
+                                    let maxWidth = 20
                                     let text = concept_info.concept_name || concept_info.concept_id.toString()
                                     return text.substring(0, maxWidth) + (text.length > maxWidth ? ' ...' : '')
                                 })
@@ -1100,7 +1102,7 @@
                             update.select('.map-tree-text')
                                 .text(d => {
                                     let concept_info = d.data.concept 
-                                    let maxWidth = Math.round(150/8) 
+                                    let maxWidth = 20
                                     let text = concept_info.concept_name || concept_info.concept_id.toString()
                                     return text.substring(0, maxWidth) + (text.length > maxWidth ? ' ...' : '')
                                 })
@@ -1226,15 +1228,18 @@
                         update.select('.tree-text')
                             .text(d => {
                                 let genLength = 0
+                                let maxWidth = 0
                                 let concept_info = d.data.concept
                                 nodes.forEach(n => n.distance === d.distance ? genLength++ : null)
-                                let maxWidth = 0
-                                let text = concept_info.concept_name
-                                if (genLength === 1) {return text} 
+                                let text = concept_info.concept_name || concept_info.concept_id.toString()
+                                if (treeSelections.includes('mappings') && d.mappings?.length > 0) {
+                                    maxWidth = 20
+                                }
                                 else {
-                                    maxWidth = Math.round((width/genLength)/6)
-                                    return text.substring(0, maxWidth) + (text.length > maxWidth ? ' ...' : '')
+                                    if (genLength === 1) maxWidth = Math.round(width/6)
+                                    else maxWidth = Math.round((width/genLength)/6) < 12 ? 12 : Math.round((width/genLength)/6)
                                 }  
+                                return text.substring(0, maxWidth) + (text.length > maxWidth ? ' ...' : '')
                             })
                             .attr('font-weight', d => d.name === sidebarRoot.name ? 700 : 400)
                             .attr('fill', d => conceptNames.includes(d.name) ? 'black' : color.textlight)
@@ -3839,10 +3844,10 @@
         // expand and collapse tree
         function handleExpand() {
             if (d3.select('#expand').style('display') === 'block') {
-                d3.select("#graph-section").style('width', "30vw")
+                d3.select("#graph-section").style('width', "40vw")
                 d3.select('#expand').style('display', 'none') 
                 d3.select('#compress').style('display', 'block') 
-                setGraphSectionWidth('30vw')
+                setGraphSectionWidth('40vw')
             } else {
                 d3.select("#graph-section").style('width', "60vw")
                 d3.select('#expand').style('display', 'block')  
@@ -3864,7 +3869,7 @@
             document.addEventListener("mousemove", (e) => {
                 if (!isDragging) return;
                 const newWidth = window.innerWidth - e.clientX;
-                graph.style.width = `${Math.max(window.innerWidth*0.3, Math.min(newWidth, window.innerWidth*0.6))}px`;
+                graph.style.width = `${Math.max(window.innerWidth*0.4, Math.min(newWidth, window.innerWidth*0.6))}px`;
             });
             let resizeTimeout;
             document.addEventListener('mouseup', (e) => {
@@ -3872,13 +3877,54 @@
                     const newWidth = window.innerWidth - e.clientX;
                     clearTimeout(resizeTimeout);
                     resizeTimeout = setTimeout(() => {
-                        setGraphSectionWidth(Math.max(window.innerWidth*0.3, Math.min(newWidth, window.innerWidth*0.6)));
+                        setGraphSectionWidth(Math.max(window.innerWidth*0.4, Math.min(newWidth, window.innerWidth*0.6)));
                     }, 200); 
                     isDragging = false;
                     document.body.style.cursor = 'default';
                 }
             })    
         },[])
+        // dropdowns
+        useEffect(()=>{
+            if (nodes.length > 0) {
+                const levels = Array.from({length: fullTreeMax}, (_, i) => i + 1)
+                d3.select('#levels-dropdown').selectAll('.level').data(levels, d => d)
+                .join(enter => {
+                    enter.append('p')
+                        .classed('level',true)
+                        .attr('id', d => 'level-'+d)
+                        .style('font-weight', d => maxLevel === d ? 700 : 400)
+                        .style('cursor','pointer')
+                        .style('width','100%')
+                        .style('text-align','center')
+                        .style('color', d => maxLevel === d ? color.text : color.textlight)
+                        .on('mouseover', (e,d) => d3.select('#level-'+d).style('color', color.text).style('font-weight',700))
+                        .on('mouseout', (e,d) => d3.select('#level-'+d).style('color', d => maxLevel === d ? color.text : color.textlight).style('font-weight',() => maxLevel === d ? 700 : 400))
+                        .on('click',(e,d) => {
+                            setLevelFilter(d)
+                            d3.select('#open-levels-btn').style('display', 'block')
+                            d3.select('#close-levels-btn').style('display', 'none')  
+                            d3.select('#levels-dropdown').style('visibility','hidden')  
+                            d3.select('#levels-header').style('height','20px').style('border-radius','16px').style('background-color','transparent')
+                        })
+                        .html(d => d)
+                },update =>{
+                    update
+                        .style('font-weight', d => maxLevel === d ? 700 : 400)
+                        .style('color', d => maxLevel === d ? color.text : color.textlight)
+                        .on('mouseover', (e,d) => d3.select('#level-'+d).style('color', color.text).style('font-weight',700))
+                        .on('mouseout', (e,d) => d3.select('#level-'+d).style('color', d => maxLevel === d ? color.text : color.textlight).style('font-weight',() => maxLevel === d ? 700 : 400))
+                        .on('click',(e,d) => {
+                            setLevelFilter(d)
+                            d3.select('#open-levels-btn').style('display', 'block')
+                            d3.select('#close-levels-btn').style('display', 'none')  
+                            d3.select('#levels-dropdown').style('visibility','hidden')  
+                            d3.select('#levels-header').style('height','20px').style('border-radius','16px').style('background-color','transparent')
+                        })
+                        .html(d => d)
+                })
+            }
+        },[maxLevel])
         // call draw functions
         useEffect(()=>{
             if (nodes.length > 0) {
@@ -3900,7 +3946,6 @@
                     // const poset = po.createPoset(matrix,labels)
                     // poset.enrich()
                     // console.log(poset)
-                    // poset.drawHasse(document.querySelector("tree-container"))
                 }
                 else {
                     d3.select('#list-container').style('display','block')
@@ -3925,47 +3970,81 @@
                         </div>
                     </div> 
                     <div id = "concept-selections">
-                        <div className = "concept-selection-btn" id = "add-descendants" style = {{backgroundColor:treeSelections.includes('descendants') ? color.text : 'transparent',color:treeSelections.includes('descendants') ? 'white' : color.text,fontWeight:treeSelections.includes('descendants') ? 700 : 400}} 
-                            onClick = {() => {
-                                if (!treeSelections.includes('descendants')) {
-                                    d3.select('#add-descendants').style('background-color', color.text).style('color','white').style('font-weight',700)
-                                    addConcepts(list)
-                                    let newSelections = treeSelections
-                                    newSelections.push('descendants')
-                                    setTreeSelections(newSelections)
-                                } else {
-                                    d3.select('#add-descendants').style('background-color', 'transparent').style('color',color.text).style('font-weight',400)
-                                    let descendantNames = list.map(d => d.name)
-                                    let filteredConcepts = selectedConcepts.filter(e => !descendantNames.includes(e.name))
-                                    setSelectedConcepts(filteredConcepts) 
-                                    let newSelections = treeSelections.filter(s => s !== 'descendants')  
-                                    setTreeSelections(newSelections)
-                                }
-                                
-                            }}>
-                            Add all descendants
+                        <div id = "selection-container">
+                            <div className = "concept-selection-btn" id = "add-descendants" style = {{backgroundColor:treeSelections.includes('descendants') ? color.text : 'transparent',color:treeSelections.includes('descendants') ? 'white' : color.text,fontWeight:treeSelections.includes('descendants') ? 700 : 400}} 
+                                onMouseOver={() => d3.select('#add-descendants').style('font-weight', 700)}
+                                onMouseOut={() => d3.select('#add-descendants').style('font-weight', () => !treeSelections.includes('descendants') ? 400 : 700)}
+                                onClick = {() => {
+                                    if (!treeSelections.includes('descendants')) {
+                                        d3.select('#add-descendants').style('background-color', color.text).style('color','white').style('font-weight',700)
+                                        addConcepts(list)
+                                        let newSelections = treeSelections
+                                        newSelections.push('descendants')
+                                        setTreeSelections(newSelections)
+                                    } else {
+                                        d3.select('#add-descendants').style('background-color', 'transparent').style('color',color.text).style('font-weight',400)
+                                        let descendantNames = list.map(d => d.name)
+                                        let filteredConcepts = selectedConcepts.filter(e => !descendantNames.includes(e.name))
+                                        setSelectedConcepts(filteredConcepts) 
+                                        let newSelections = treeSelections.filter(s => s !== 'descendants')  
+                                        setTreeSelections(newSelections)
+                                    }
+                                    
+                                }}>
+                                Descendants
+                            </div>
+                            <div className = "concept-selection-btn" id = "add-mappings" style = {{backgroundColor:treeSelections.includes('mappings') ? color.text : 'transparent',color:treeSelections.includes('mappings') ? 'white' : color.text,fontWeight:treeSelections.includes('mappings') ? 700 : 400}}
+                                onMouseOver={() => d3.select('#add-mappings').style('font-weight', 700)}
+                                onMouseOut={() => d3.select('#add-mappings').style('font-weight', () => !treeSelections.includes('mappings') ? 400 : 700)}
+                                onClick = {() => {
+                                    let mappings = list.filter(d => d.relationship !== 'Parent').flatMap(d => d.mappings)
+                                    if (!treeSelections.includes('mappings')) {
+                                        d3.select('#add-mappings').style('background-color', color.text).style('color','white').style('font-weight',700)
+                                        addConcepts(mappings)
+                                        let newSelections = treeSelections
+                                        newSelections.push('mappings')
+                                        setTreeSelections(newSelections)
+                                    } else {
+                                        d3.select('#add-mappings').style('background-color', 'transparent').style('color',color.text).style('font-weight',400)
+                                        let mapNames = mappings.map(d => d.name)
+                                        let filteredConcepts = selectedConcepts.filter(e => !mapNames.includes(e.name))
+                                        setSelectedConcepts(filteredConcepts)   
+                                        let newSelections = treeSelections.filter(s => s !== 'mappings')  
+                                        setTreeSelections(newSelections)
+                                    }
+                                }}>
+                                Mappings
+                            </div>  
+                            <div className="dropdown-container">
+                                <div className = "concept-selection-btn" style = {{border:'none',alignItems:'flex-start'}}>
+                                    <p style = {{paddingRight:2}}>Max level</p>
+                                    <div className = "dropdown-header" id = "levels-header"
+                                        onMouseOver={() => d3.select('#open-levels-btn').style('opacity', 1)}
+                                        onMouseOut={() => d3.select('#open-levels-btn').style('opacity', 0.5)}
+                                        onClick = {() => {
+                                            if (d3.select('#open-levels-btn').style('display') === 'block') {
+                                                d3.select('#open-levels-btn').style('display', 'none')
+                                                d3.select('#close-levels-btn').style('display', 'block') 
+                                                d3.select('#levels-dropdown').style('visibility','visible')
+                                                d3.select('#levels-header').style('height',() => fullTreeMax*31 + 'px').style('border-radius','12px').style('background-color','white')
+                                            } else {
+                                                d3.select('#open-levels-btn').style('display', 'block')
+                                                d3.select('#close-levels-btn').style('display', 'none')  
+                                                d3.select('#levels-dropdown').style('visibility','hidden')  
+                                                d3.select('#levels-header').style('height','20px').style('border-radius','16px').style('background-color','transparent')
+                                            }
+                                        }}
+                                    >
+                                        <p id = "max-level" style = {{marginTop:1,fontWeight:700,padding:'1px 5px 1px 5px'}}>{maxLevel}</p>
+                                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'open-levels-btn' icon={faCaretDown} style = {{display:'block',opacity: 0.5,padding:'1px 5px 1px 5px'}}/>
+                                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'close-levels-btn' icon={faCaretUp} style = {{display:'none',opacity: 1,padding:'2px 5px 1px 5px'}}/>     
+                                    </div>
+                                </div>   
+                                <div className = "selections-dropdown-content" id = "levels-dropdown"></div>  
+                            </div> 
+                            
                         </div>
-                        <div className = "concept-selection-btn" id = "add-mappings" style = {{backgroundColor:treeSelections.includes('mappings') ? color.text : 'transparent',color:treeSelections.includes('mappings') ? 'white' : color.text,fontWeight:treeSelections.includes('mappings') ? 700 : 400}}
-                            onClick = {() => {
-                                let mappings = list.filter(d => d.relationship !== 'Parent').flatMap(d => d.mappings)
-                                if (!treeSelections.includes('mappings')) {
-                                    d3.select('#add-mappings').style('background-color', color.text).style('color','white').style('font-weight',700)
-                                    addConcepts(mappings)
-                                    let newSelections = treeSelections
-                                    newSelections.push('mappings')
-                                    setTreeSelections(newSelections)
-                                } else {
-                                    d3.select('#add-mappings').style('background-color', 'transparent').style('color',color.text).style('font-weight',400)
-                                    let mapNames = mappings.map(d => d.name)
-                                    let filteredConcepts = selectedConcepts.filter(e => !mapNames.includes(e.name))
-                                    setSelectedConcepts(filteredConcepts)   
-                                    let newSelections = treeSelections.filter(s => s !== 'mappings')  
-                                    setTreeSelections(newSelections)
-                                }
-                            }}>
-                            Add all mappings
-                        </div>
-                        <div className = "concept-selection-btn" id = "remove-all" style = {{width: '16%',border:'none'}}
+                        <div className = "concept-selection-btn" id = "remove-all" style = {{width: 65,border:'none'}}
                             onClick = {() => {
                                 d3.select('#add-mappings').style('background-color', 'transparent').style('color',color.text).style('font-weight',400)
                                 d3.select('#add-descendants').style('background-color', 'transparent').style('color',color.text).style('font-weight',400)

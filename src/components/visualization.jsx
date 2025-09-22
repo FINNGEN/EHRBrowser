@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import GraphSection from './visualization/graphSection';
-import SideBar from './visualization/sideBar'
+import GraphSection from './visualization/graphSection.jsx';
+import SideBar from './visualization/sideBar.jsx'
 import graphIconBlack from '../img/graph-icon-black.svg'
 import graphIconWhite from '../img/graph-icon-white.svg'
 import rootIcon from '../img/root-icon.svg'
@@ -24,7 +24,6 @@ function Visualization (props) {
     const setExtent = props.setExtent
     const setRootData = props.setRootData
     const stackData = props.stackData
-    // const lineData = props.lineData
     const conceptNames = props.conceptNames
     const view = props.view
     const setView = props.setView
@@ -36,6 +35,9 @@ function Visualization (props) {
     const rootLine = props.rootLine
     const treeSelections = props.treeSelections
     const setTreeSelections = props.setTreeSelections
+    const setLevelFilter = props.setLevelFilter
+    const maxLevel = props.maxLevel
+    const fullTreeMax = props.fullTreeMax
     const [visible,setVisible] = useState(false)
     const [openFilters,setOpenFilters] = useState(true)
     const hoverTimeout = useRef(null)
@@ -298,6 +300,9 @@ function Visualization (props) {
                 list = {list}
                 treeSelections = {treeSelections}
                 setTreeSelections = {setTreeSelections}
+                setLevelFilter = {setLevelFilter}
+                maxLevel = {maxLevel}
+                fullTreeMax = {fullTreeMax}
             ></SideBar> 
             <GraphSection
                 color = {color}
@@ -316,7 +321,6 @@ function Visualization (props) {
                 openFilters = {openFilters}
                 setOpenFilters = {setOpenFilters}
                 stackData = {stackData}
-                // lineData = {lineData}
                 conceptNames = {conceptNames}
                 generateColor = {generateColor}
                 rootLine = {rootLine}

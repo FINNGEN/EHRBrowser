@@ -24,7 +24,6 @@ function GraphSection (props) {
     const openFilters = props.openFilters
     const setOpenFilters = props.setOpenFilters
     const stackData = props.stackData
-    // const lineData = props.lineData
     const conceptNames = props.conceptNames
     const generateColor = props.generateColor
     const rootLine = props.rootLine
@@ -38,8 +37,9 @@ function GraphSection (props) {
     // DRAWING
     // draw line chart
     function drawGraph(groups, rollup, scaleX, scaleY) {
+        console.log('selected concepts',selectedConcepts)
         // draw root descendant count line
-        function updateLines() {
+        function updateRootLine() {
             d3.select("#graph").selectAll('.lines').data(rootLine, d => d[0])
                 .join(enter => {
                     const geometry = enter.append('g')  
@@ -367,18 +367,18 @@ function GraphSection (props) {
         }
         const stackedData = d3.stack()
             .keys(conceptNames)
-            (rollup)   
+            (rollup)  
         updateStack(stackedData) 
-        updateLabels(groups)
-        updateLines()
+        updateLabels(groups)    
+        updateRootLine()
     }
     // FUNCTIONS
     // get graph
     function getGraph(groups, rollup, width, height, ticks) {
         // x and y scales
-        let maxY = d3.max(rollup, obj => Object.entries(obj).reduce((sum, [key, val]) => key !== 'year' ? sum + val : sum, 0))
+        let maxY = rollup.length > 0 ? d3.max(rollup, obj => Object.entries(obj).reduce((sum, [key, val]) => key !== 'year' ? sum + val : sum, 0)) : Math.max(...rootLine.get(317009).map(arr => arr[2]))
         let scaleX = d3.scaleLinear().domain(extent).range([0, width])
-        let scaleY = d3.scaleLinear().domain([0, maxY]).range([height, 0])
+        let scaleY = d3.scaleLinear().domain([0, maxY*1.05]).range([height, 0])
         // grid lines
         const xAxisGrid = d3.axisBottom(scaleX).tickSize(-height).tickFormat('').ticks(ticks.one).tickSizeOuter(0)
         const yAxisGrid = d3.axisLeft(scaleY).tickSize(-width).tickFormat('').ticks(5).tickSizeOuter(0)
@@ -527,7 +527,7 @@ function GraphSection (props) {
                 .on('click', (e,d) => filterSelect(d.id, 'gender'))
                 .style('height', '15px')
                 .style('cursor','pointer')
-                .style('width', d => scaleWidth(d.sum) + 'px')
+                .style('width', d => d.sum === 0 ? '0px' : scaleWidth(d.sum) + 'px')
                 .style('border-top', '1px solid var(--background)')
                 .style('border-bottom', '1px solid var(--background)')
                 .style('border-left', (d,i) => i === 0 ? '1px solid var(--background)' : 'none')
@@ -539,7 +539,7 @@ function GraphSection (props) {
                 .on('mouseout', (e,d) => filterHover(d.id, 'leave'))
                 .on('click', (e,d) => filterSelect(d.id, 'gender'))
                 .transition()    
-                .style('width', d => scaleWidth(d.sum) + 'px')
+                .style('width', d => d.sum === 0 ? '0px' : scaleWidth(d.sum) + 'px')
                 .style('border-left', (d,i) => i === 0 ? '1px solid var(--background)' : 'none')
                 .style('border-right', (d,i) => i !== 0 ? '1px solid var(--background)' : 'none')
                 .style('background-color', d => graphFilter.gender === d.id ? color.text : color.grey)
@@ -559,7 +559,7 @@ function GraphSection (props) {
                 .on('click', (e,d) => filterSelect(d.id, 'age'))
                 .style('width', '36px')
                 .style('cursor','pointer')
-                .style('height', d => scaleHeight(d.sum) + 'px')
+                .style('height', d => d.sum === 0 ? '0px' : scaleHeight(d.sum) + 'px')
                 .style('background-color', d => graphFilter.age.includes(d.id) ? color.text : color.grey)
                 .style('border-top', '1px solid var(--background)')
                 .style('border-bottom', '1px solid var(--background)')
@@ -579,7 +579,7 @@ function GraphSection (props) {
                 .on('mouseout', (e,d) => filterHover(d.id, 'leave'))
                 .on('click', (e,d) => filterSelect(d.id, 'age'))
                 .transition()    
-                .style('height', d => scaleHeight(d.sum) + 'px')
+                .style('height', d => d.sum === 0 ? '0px' : scaleHeight(d.sum) + 'px')
                 .style('background-color', d => graphFilter.age.includes(d.id) ? color.text : color.grey)
                 .style('border-left', d => {
                     if (!graphFilter.age.includes(d.id-1) || d.id === 0) return '1px solid var(--background)'
@@ -645,26 +645,24 @@ function GraphSection (props) {
     useEffect(() => {
         const updateGraph = () => {
             if (graphContainerRef.current) {
-                const containerWidth = graphContainerRef.current.offsetWidth
+                const containerWidth = graphContainerRef.current.offsetWidth * 0.9 
                 if (containerWidth < window.innerWidth*0.5) d3.select('#graph-filters').style('display','none')
                 else d3.select('#graph-filters').style('display','flex')
-                const containerHeight = containerWidth / 2.8
+                const containerHeight = graphContainerRef.current.offsetHeight * 0.9 
                 graphContainerRef.current.style.height = `${containerHeight}px`
                 const width = containerWidth + (margin * 2)
                 const height = containerHeight + (margin * 2)
                 const ticks1 = ((extent[1]-extent[0])/(Math.round((extent[1]-extent[0])/10)))*Math.round((extent[1]-extent[0])/10)
                 const rollup = stackData
                 const groups = d3.group(selectedConcepts, d => d.name)
-                // start counts at 0
-                // groups.forEach(e => e.unshift([e[0][0], e[0][1] - 1, 0]))
                 const ticks2 = width < 400 ? Math.round(width/60) : ticks1 < 10 || !ticks1 ? Math.round(extent[1]-extent[0]) : 10
                 const ticks = {one:ticks1,two:ticks2}
-                let maxHeightSubheader = document.getElementById('graph-section').clientHeight - document.getElementById('graph-selections').clientHeight - height - margin
+                let maxHeightSubheader = document.getElementById('graph-section').clientHeight*0.15
                 document.getElementById("graph-labels").style.maxHeight = `${maxHeightSubheader}px`
                 d3.select("#graph")
-                    .attr("width", '95%')
-                    .attr("height", '95%')
-                    .attr("viewBox", `${-margin/2} ${0} ${width} ${height}`)
+                    .attr("width", '94%')
+                    .attr("height", '94%')
+                    .attr("viewBox", `${-margin} ${0} ${width} ${height}`)
                     .attr("preserveAspectRatio", "xMidYMid meet")
                     .append("g")
                     .attr("transform", `translate(${margin}, ${margin})`)
@@ -685,7 +683,7 @@ function GraphSection (props) {
                 resizeObserver.unobserve(graphContainerRef.current);
             }
         }
-    }, [stackData, rootLine, extent])
+    }, [stackData, rootLine, extent, openFilters])
 
     return (
         <div id = "graph-section">
@@ -696,7 +694,7 @@ function GraphSection (props) {
                     <span id = "counts"></span>
                 </div>
             </div>
-            <div style = {{width:'100%'}}>
+            <div style = {{width:'100%',height:'100%',display:'flex',flexDirection:'column'}}>
                 <div id = "graph-selections">
                     <div style = {{display:'flex',alignItems:'center'}}>
                         <div style = {{paddingRight:5}}><h2 style = {{marginBottom:3}}>Record Counts</h2></div>
@@ -743,7 +741,9 @@ function GraphSection (props) {
                                 }}
                             />
                         </div> 
-                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'open-btn' icon={faCaretDown} style = {{display:'none'}}
+                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'open-btn' icon={faCaretDown} style = {{display:'none',opacity: 0.5}}
+                        onMouseOver={() => d3.select('#open-btn').style('opacity', 1)}
+                        onMouseOut={() => d3.select('#open-btn').style('opacity', 0.5)}
                         onClick = {() => {
                             d3.selectAll('.filter-viz').style('display', 'flex')
                             d3.select('#open-btn').style('display', 'none')
