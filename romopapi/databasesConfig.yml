@@ -1,0 +1,68 @@
+BQ5k:
+  cohortTableHandler:
+    database:
+      databaseId: BQ5k
+      databaseName: bigquery5k
+      databaseDescription: BigQuery database
+    connection:
+      connectionDetailsSettings:
+          dbms: bigquery
+          drv: bigrquery::bigquery()
+          project: atlas-development-270609
+          billing: atlas-development-270609
+          bigint: integer64
+      tempEmulationSchema: atlas-development-270609.sandbox
+    cdm:
+        cdmDatabaseSchema: atlas-development-270609.etl_sam_r12_5k_omop
+        vocabularyDatabaseSchema: atlas-development-270609.etl_sam_r12_5k_omop
+        resultsDatabaseSchema: atlas-development-270609.sandbox
+    cohortTable:
+        cohortDatabaseSchema: atlas-development-270609.sandbox
+        cohortTableName: hadesextras_test_cohort_table_<timestamp>
+BQ500k:
+  cohortTableHandler:
+    database:
+      databaseId: BQ500k
+      databaseName: bigquery500k
+      databaseDescription: BigQuery database with 500k patients
+    connection:
+      connectionDetailsSettings:
+          dbms: bigquery
+          drv: bigrquery::bigquery()
+          project: atlas-development-270609
+          billing: atlas-development-270609
+          bigint: integer64
+      tempEmulationSchema: atlas-development-270609.sandbox
+    cdm:
+        cdmDatabaseSchema: atlas-development-270609.etl_sam_dev_omop
+        vocabularyDatabaseSchema: atlas-development-270609.etl_sam_dev_omop
+        resultsDatabaseSchema: atlas-development-270609.sandbox
+    cohortTable:
+        cohortDatabaseSchema: atlas-development-270609.sandbox
+        cohortTableName: hadesextras_test_cohort_table_<timestamp>
+DF13:
+  cohortTableHandler:
+    database:
+      databaseId: DF13
+      databaseName: FinnGen DF13
+      databaseDescription: FinnGen database 13
+    connection:
+      connectionDetailsSettings:
+        dbms: bigquery
+        drv: bigrquery::bigquery()
+        project: <sandboxProject>
+        billing: <sandboxProject>
+        bigint: integer64
+      tempEmulationSchema: <sandboxProject>.sandbox #needed for creating tmp table in BigQuery
+    cdm:
+      cdmDatabaseSchema: finngen-production-library.finngen_omop_r13
+      vocabularyDatabaseSchema: finngen-production-library.finngen_omop_r13
+      resultsDatabaseSchema: <sandboxProject>.sandbox
+    cohortTable:
+      cohortDatabaseSchema: <sandboxProject>.sandbox
+      cohortTableName: co2_d13_<sessionManager>_<timestamp>
+  atlasConfig:
+    webapiurl: https://ohdsi-webapi.app.finngen.fi/WebAPI
+    sourcekey: FINNGEN_CDM_R13
+    resultsshchema: finngen-production-library.finngen_omop_result_r13
+    regexPersonSourceValue: ^FG[A-Z0-9]{8}$
