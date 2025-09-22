@@ -1,127 +1,50 @@
->cd /build
+# EHR Browser
 
-# Run build in local host
+EHR Browser is a web tool that connects to a OMOP-CDM instance and allows to browse the vocabulary graph and visualize how a concept is constructed and used over time. 
 
-python 3
-python -m http.server 8080
+Given a concept, the EHR Browser will show the descendant graph of the concept and, optionally, the nodes' mapped concepts. 
+The record counts over time for each concept in the graph are also shown.
+This allows to explore how each descendant or mapped concept contributes to the concept's record counts over time.
+In addition, for complex graphs, the EHR Browser allows to prune the graph by level or concept class.
+Clicking any concept in view will open that concept to be explored. 
 
-python 2 
-python -m SimpleHTTPServer 8080
+Use cases:
+- What are the descendants of a concept in the database?
+- How each descendant contributes to the record counts of a concept, over time, gender and age?
+- What non-standard concepts map to a standard concept and its descendants?
+- How each source concept contributes to the record counts of a concept, over time, gender and age?
 
-follow the address in localhost
-http://localhost:8080
 
-––––––––––
->cd /
+# Demo
 
-# Getting Started with Create React App
+A live demo is available at:
+http://ehr.finngen.fi/
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+This contains a limited set of concepts.
+   | Concept ID | Vocabulary | Description |
+   |------------|-------------|
+   | 317009     | Snomed | Asthma |
+   | 45596282   | ICD10 | Asthma |
+   | 21601855   | ATC level 4 | C10AA (Statins) |
+   | 320136     | SNOMED | Disorder of respiratory system |
 
-## Available Scripts
 
-In the project directory, you can run:
 
-### `npm start`
+# Deployment
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+ see dev/README.md for instructions on how to deploy the EHR Browser in a local OMOP-CDM instance.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
 
-### `npm test`
+# Development
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
-
-### `npm run build`
-
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+see dev/README.md for instructions on how to develop the EHR Browser.
 
 
 
 
-# Run Docker
 
-## FinnGen Eunomia
 
-```
-docker run --rm -p 8080:8080 -p 8585:8585 -e ROMOPAPI_DATABASE=Eunomia-Finngen ehr_browser 
-```
 
-## Atlas Development
 
-```
-docker run --rm  -p 8585:8585 -p 8080:8080 -e ROMOPAPI_DATABASE=AtlasDevelopment-BQ5k -e GCP_SERVICE_KEY=/keys/atlas-development-270609-410deaacc58b.json -v /Users/javier/keys:/keys ehr_browser
-```
-```
-docker run --rm  -p 8585:8585 -p 8080:8080 -e ROMOPAPI_DATABASE=AtlasDevelopment-BQ5k -e GCP_SERVICE_KEY=/keys/atlas-development-270609-410deaacc58b.json -v /Users/javier/keys:/keys -e REBUILD_COUNTS_TABLE=TRUE ehr_browser
-```
 
-## Sandbox DF13
-
-```
-docker pull eu.gcr.io/finngen-sandbox-v3-containers/ehr_browser
-```
-
-```
-docker run --rm -p 8080:8080 -p 8585:8585 -e ROMOPAPI_DATABASE=Sandbox-DF13 -e SANDBOX_PROJECT="$SANDBOX_PROJECT" -e SESSION_MANAGER="$SESSION_MANAGER" ehr_browser 
-```
-
-Optionally add the flag `-e REBUILD_COUNTS_TABLE=TRUE` to rebuild the counts table
-
-for example:
-```
-docker run --rm -p 8080:8080 -p 8585:8585 -e ROMOPAPI_DATABASE=Sandbox-DF13 -e SANDBOX_PROJECT="$SANDBOX_PROJECT" -e SESSION_MANAGER="$SESSION_MANAGER" -e REBUILD_COUNTS_TABLE=TRUE  eu.gcr.io/finngen-sandbox-v3-containers/ehr_browser:dev 
-```
-
-Browser:
-http://localhost:8080/?conceptIds=<conceptId>
 
