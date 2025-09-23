@@ -125,3 +125,40 @@ docker run --rm -p 8080:8080 -p 8585:8585 -e ROMOPAPI_DATABASE=Sandbox-DF13 -e S
 Browser:
 http://localhost:8080/?conceptIds=<conceptId>
 
+
+
+# deploy demo to Google Cloud Run
+
+gcloud services enable artifactregistry.googleapis.com
+
+gcloud artifacts repositories create ehr-browser-repo \
+  --repository-format=docker \
+  --location=europe-west1 \
+  --description="Docker repo for EHR Browser"
+
+# push to Google Artifact Registry
+gcloud auth configure-docker europe-west1-docker.pkg.dev
+docker tag ehr_browser europe-west1-docker.pkg.dev/atlas-development-270609/ehr-browser-repo/ehr_browser:latest
+docker push europe-west1-docker.pkg.dev/atlas-development-270609/ehr-browser-repo/ehr_browser:latest
+
+
+gcloud run deploy ehr-browser-demo \
+  --image europe-west1-docker.pkg.dev/atlas-development-270609/ehr-browser-repo/ehr_browser:latest \
+  --platform managed \
+  --region europe-west1 \
+  --allow-unauthenticated\
+  --port 8080
+
+
+https://ehr-browser-demo-xxxxxx-uc.a.run.app
+
+
+gcloud run services list --region europe-west1
+
+
+gcloud logs read "projects/atlas-development-270609/logs/run.googleapis.com%2Frequests" \
+  --region europe-west1 \
+  --limit 50
+
+  gcloud run services delete your-service \
+  --region europe-west1

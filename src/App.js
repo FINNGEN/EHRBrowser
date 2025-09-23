@@ -44,7 +44,8 @@ function App() {
   // fetch data
   async function getData(id) {
     console.log('get',id)
-    const res = await fetch(`http://127.0.0.1:8585/getCodeCounts?conceptId=${id}`)
+    const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://127.0.0.1:8585'
+    const res = await fetch(`${apiBaseUrl}/getCodeCounts?conceptId=${id}`)
     const data = await res.json()
     console.log('data',data)
     return data
@@ -139,7 +140,8 @@ function App() {
     const conceptId = params.get('conceptIds')
     setLoaded(true)
     setRoot(conceptId ? parseInt(conceptId) : null)
-    fetch(`http://127.0.0.1:8585/getListOfConcepts`)
+    const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://127.0.0.1:8585'
+    fetch(`${apiBaseUrl}/getListOfConcepts`)
       .then(res=> res.json())
       .then(data=>{
         console.log('list of concepts',data)

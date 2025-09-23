@@ -15,18 +15,21 @@ Use cases:
 - How each source concept contributes to the record counts of a concept, over time, gender and age?
 
 
+![EHR Browser](img/image.png)
+
 # Demo
 
 A live demo is available at:
-http://ehr.finngen.fi/
+https://ehr-browser.onrender.com/
 
-This contains a limited set of concepts.
-   | Concept ID | Vocabulary | Description |
-   |------------|-------------|
-   | 317009     | Snomed | Asthma |
-   | 45596282   | ICD10 | Asthma |
-   | 21601855   | ATC level 4 | C10AA (Statins) |
-   | 320136     | SNOMED | Disorder of respiratory system |
+This contains a limited set of concepts that work.
+
+| Concept ID | Vocabulary | Description |
+|------------|-------------|-------------|
+| 317009     | Snomed | Asthma |
+| 45596282   | ICD10 | Asthma |
+| 21601855   | ATC level 4 | C10AA (Statins) |
+| 320136     | SNOMED | Disorder of respiratory system |
 
 
 
