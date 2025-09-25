@@ -13,7 +13,6 @@
     import { faArrowRight } from '@fortawesome/free-solid-svg-icons';
     import * as d3 from "d3";
     import textures from 'textures';
-    import po from '../../po.js';
 
     function SideBar (props) {
         const color = props.color
@@ -37,10 +36,15 @@
         const list = props.list
         const treeSelections = props.treeSelections
         const setTreeSelections = props.setTreeSelections
+        const levelFilter = props.levelFilter
         const setLevelFilter = props.setLevelFilter
         const maxLevel = props.maxLevel
         const fullTreeMax = props.fullTreeMax
+        const allClasses = props.allClasses
+        const classFilter = props.classFilter
+        const setClassFilter = props.setClassFilter
         const [graphSectionWidth, setGraphSectionWidth] = useState()
+        const [zoomCompleted, setZoomCompleted] = useState(false)
         const margin = 10
 
         // TREE AND LIST FUNCTIONS        
@@ -62,7 +66,7 @@
                     if (widen === 0 && gap < 80) gap = 80
                 }
                 else if (axis === 'y') {
-                    if (!treeSelections.includes('mappings')) gap = 20
+                    if (!treeSelections.includes('mappings') && mapRoot !== node.name) gap = 20
                     else gap = 80
                 } else {
                     gap = (d3.select("#tree").node().getBoundingClientRect().height/generation.length)/15 + 5
@@ -77,16 +81,42 @@
         }   
         function hoverNode(d, mode) {
             if (mode === "enter") {
-                if ((!conceptNames.includes(d.name)) || (selectedConcepts.length > 1 && conceptNames.includes(d.name))) {
+                if (!conceptNames.includes(d.name)) {
                     if (!nodes.map(e => e.name).includes(d.name)) {
-                        d3.select("#map-total-counts-" + d.name).transition('circleText').attr('visibility', 'hidden')
-                        d3.select("#map-button-symbol-" + d.name).transition('circleText').attr('visibility', 'visibile')
-                    } else {
-                        d3.select("#total-counts-" + d.name).transition('circleText').attr('visibility', 'hidden')
-                        d3.select("#button-symbol-" + d.name).transition('circleText').attr('visibility', 'visibile')    
+                        d3.select('#map-tree-circle-' + d.name).attr('stroke',d.color).attr('fill',d.color)
+                        d3.select('#map-tree-text-'+d.name).attr('fill','black')
+                        d3.select('#map-vocabulary-'+d.name).attr('fill',color.textlight)
+                        d3.select('#map-alt-text-'+d.name).attr('fill',color.text)
+                    }
+                    else {
+                        d3.select('#tree-circle-' + d.name).attr('stroke',d.color).attr('fill',d.color)
+                        d3.select('#tree-text-'+d.name).attr('fill','black')
+                        d3.select('#node-vocabulary-'+d.name).attr('fill',color.textlight)
+                        d3.select('#alt-text-'+d.name).attr('fill',color.text)
                     }
                 }
+                if (!nodes.map(e => e.name).includes(d.name)) {
+                    d3.select("#map-total-counts-" + d.name).transition('circleText').attr('visibility', 'hidden')
+                    d3.select("#map-button-symbol-" + d.name).transition('circleText').attr('visibility', 'visibile')
+                } else {
+                    d3.select("#total-counts-" + d.name).transition('circleText').attr('visibility', 'hidden')
+                    d3.select("#button-symbol-" + d.name).transition('circleText').attr('visibility', 'visibile')    
+                }
             } else {
+                if (!conceptNames.includes(d.name)) {
+                    if (!nodes.map(e => e.name).includes(d.name)) {
+                        d3.select('#map-tree-circle-' + d.name).attr('stroke',color.textlightest).attr('fill','white')
+                        d3.select('#map-tree-text-'+d.name).attr('fill',color.textlight)
+                        d3.select('#map-vocabulary-'+d.name).attr('fill',color.textlightest)
+                        d3.select('#map-alt-text-'+d.name).attr('fill',color.textlight)
+                    }
+                    else {
+                        d3.select('#tree-circle-' + d.name).attr('stroke',color.textlightest).attr('fill','white')
+                        d3.select('#tree-text-'+d.name).attr('fill',color.textlight)
+                        d3.select('#node-vocabulary-'+d.name).attr('fill',color.textlightest)
+                        d3.select('#alt-text-'+d.name).attr('fill',color.textlight)
+                    }
+                }
                 if (!nodes.map(e => e.name).includes(d.name)) {
                     d3.select("#map-total-counts-" + d.name).transition('circleText').attr('visibility', 'visible')
                     d3.select("#map-button-symbol-" + d.name).transition('circleText').attr('visibility', 'hidden') 
@@ -115,9 +145,9 @@
                 (svgWidth - padding) / width,
                 (svgHeight - padding) / height
             )
-            const translateX = (svgWidth - width * scale) / 2 - x * scale + (padding/2)
-            const translateY = (svgHeight - height * scale) / 2 - y * scale + (padding/2)
-            d3.select('#tree-graphics').attr("transform", `translate(${translateX},${translateY}) scale(${scale})`)
+            const translateX = (svgWidth - width * scale) / 2 - x * scale 
+            const translateY = (svgHeight - height * scale) / 2 - y * scale + padding
+            d3.select('#tree-graphics').transition().attr("transform", `translate(${translateX},${translateY}) scale(${scale})`)
         }
         // DRAWING
         // tree
@@ -136,7 +166,7 @@
             let maxLevel = d3.max(nodes.map(d => d.distance))
             let svgHeight = d3.select("#tree").node().getBoundingClientRect().height
             let maxMappings = Math.max(...nodes.map(d => d.mappings).map(mappings => mappings.length))
-            let num = (svgHeight/(maxLevel) - 12) < 150 ? 150 : (svgHeight/(maxLevel) - 12)
+            let num = (svgHeight/(maxLevel+1) - 12) < 150 ? 150 : (svgHeight/(maxLevel+1) - 12)
             let length = maxLevel + 1
             let genHeight = Array.from({length}, (_, i) => i * num)
             if (treeSelections.includes('mappings')) {
@@ -148,11 +178,12 @@
                         else return num
                     }
                 })
-                console.log('1',genHeight)
+                // console.log('1',genHeight)
                 let sum = 0
                 genHeight = genHeight.map((h,i) => sum += h)
-                console.log('2',genHeight)
+                // console.log('2',genHeight)
             }
+            // console.log('gen height',genHeight)
             let cx = width/2 + margin
             let cy = 50
             const arrowSize = 14
@@ -168,7 +199,7 @@
             // get map node positioning 
             const getMap = d => {
                 let mapPosition = {x: 0, y: 0}
-                if (treeSelections.includes('mappings')) {
+                if (treeSelections.includes('mappings') || mapRoot === d.source.name) {
                     mapPosition.x = getPosition(d.source, 'x', cx, cy, d.source.name, nodes) + d.direction*125
                 } else {
                     mapPosition.x = getPosition(d.source, 'x', cx, cy, d.source.name, nodes) + d.direction*(scaleRadius(Math.sqrt(d.source.total_counts)) + 20)
@@ -176,12 +207,8 @@
                 mapPosition.y = d.total_counts > 0 ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) - scaleRadius(Math.sqrt(d.total_counts)) - 7 : getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) - scaleRadius(Math.sqrt(d.total_counts)) - 9
                 return mapPosition
             }
-            function getX(d) {
-                return getMap(d).x
-            }
-            function getY(d) {
-                return getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + scaleRadius(Math.sqrt(d.total_counts)) + 11
-            }
+            function getX(d) {return getMap(d).x}
+            function getY(d) {return getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + scaleRadius(Math.sqrt(d.total_counts)) + 11}
             // DRAW LINKS
             function updateLinks() {
                 d3.select('#links').selectAll('.tree-link').data(links, d => d.source.name+d.target.name)
@@ -192,7 +219,7 @@
                             .classed('tree-line', true)
                             .attr('id', d => 'tree-line-' + d.source.name+d.target.name)
                             .attr('fill', 'none')
-                            .attr('stroke', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? 'black' : color.textlight)
+                            .attr('stroke', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? 'black' : color.darkbackground)
                             .attr('stroke-width', 0.75)
                             line.append('path')
                                 .classed('line-path',true)
@@ -205,7 +232,7 @@
                                 })
                             line.append('path')
                                 .classed('tree-arrow', true)
-                                .attr('fill', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? 'black' : color.textlight)
+                                .attr('fill', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? 'black' : color.darkbackground)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x = getPosition(d.target, 'x', cx, cy, d.target.name, nodes)
@@ -215,7 +242,7 @@
                         return geometry 
                     }, update => {
                             update.select('.tree-line')
-                                .attr('stroke', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? 'black' : color.textlight)
+                                .attr('stroke', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? 'black' : color.darkbackground)
                             update.select('.line-path')
                                 .attr("d", d => {
                                     let sourceX = getPosition(d.source, 'x', cx, cy, d.source.name, nodes)
@@ -227,7 +254,7 @@
                             update.select('.tree-arrow')
                                 .transition()
                                 .duration(500)
-                                .attr('fill', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? 'black' : color.textlight)
+                                .attr('fill', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? 'black' : color.darkbackground)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x = getPosition(d.target, 'x', cx, cy, d.target.name, nodes)
@@ -253,13 +280,13 @@
                                 .classed('map-link',true)
                                 .attr('fill','none')
                                 .attr('stroke-width', 0.5)
-                                .attr('stroke', d => conceptNames.includes(d.name) ? 'black' : treeSelections.includes('mappings') ? color.textlight : color.textlightest)
+                                .attr('stroke', d => conceptNames.includes(d.name) ? 'black' : treeSelections.includes('mappings') || mapRoot === d.source.name ? color.textlight : color.textlightest)
                             mapLine.append('path')
                                 .classed('map-line', true)
                                 .style('stroke-dasharray', '5px 2px')
                                 .attr("d", d => {
                                     let sourceX = getMap(d).x
-                                    let sourceY = treeSelections.includes('mappings') ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)
+                                    let sourceY = treeSelections.includes('mappings') || mapRoot === d.source.name ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)
                                     let targetX = getPosition(d.source, 'x', cx, cy, d.source.name, nodes) 
                                     let targetY = cy + (genHeight[d.distance])
                                     return curveX({source: [sourceX, sourceY], target: [targetX, targetY]})}
@@ -267,7 +294,7 @@
                             mapLine.append('path')
                                 .classed('map-tree-arrow', true)
                                 .attr('id', d => 'map-arrow-'+d.name)
-                                .style('display', () => treeSelections.includes('mappings') ? 'block' : 'none')
+                                .style('display', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? 'block' : 'none')
                                 .attr('fill', d => conceptNames.includes(d.name) ? 'black' : color.textlight)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
@@ -280,13 +307,13 @@
                                 .style('fill', 'white')
                                 .attr('stroke', 'white')
                                 .style('pointer-events', "none")
-                                .attr('r', d => treeSelections.includes('mappings') ? scaleRadius(Math.sqrt(d.total_counts)) + 2 : 10)
+                                .attr('r', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? scaleRadius(Math.sqrt(d.total_counts)) + 2 : 10)
                                 .attr('cx', d => getMap(d).x)
-                                .attr('cy', d => treeSelections.includes('mappings') ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes))
+                                .attr('cy', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes))
                             mapNode.append('circle')
                                 .classed('map-tree-circle', true)
                                 .attr('id', d => 'map-tree-circle-' + d.name)
-                                .attr('r', d => treeSelections.includes('mappings') ? scaleRadius(Math.sqrt(d.total_counts)) + 2 : 10)
+                                .attr('r', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? scaleRadius(Math.sqrt(d.total_counts)) + 2 : 10)
                                 .style('fill', d => {
                                     if (conceptNames.includes(d.name)) {
                                         if (d.direction === 1) return d.color
@@ -300,24 +327,16 @@
                                         }
                                     } else return 'white'
                                 })
-                                .attr('stroke', d => conceptNames.includes(d.name) ? d.color : treeSelections.includes('mappings') ? d.total_counts === 0 ? 'none' : color.textlightest : color.background)
+                                .attr('stroke', d => conceptNames.includes(d.name) ? d.color : treeSelections.includes('mappings') || mapRoot === d.source.name ? d.total_counts === 0 ? 'none' : color.textlightest : color.background)
                                 .style('cursor', "pointer")
                                 .attr('cx', d => getMap(d).x)
-                                .attr('cy', d => treeSelections.includes('mappings') ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes))
-                                .style('pointer-events', d => d.source.name === sidebarRoot.name ? 'all' : 'none')
-                                .on('mouseover', (e,d) => {
-                                    if (d.total_counts !== 0) {
-                                        hoverNode(d, 'enter')
-                                    }
-                                })
-                                .on('mouseout', (e,d) => {
-                                    if (d.total_counts !== 0) {
-                                        hoverNode(d, 'leave')  
-                                    }
-                                })
+                                .attr('cy', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes))
+                                .style('pointer-events', d => d.total_counts === 0 || !treeSelections.includes('mappings') ? 'none' : 'all')
+                                .on('mouseover', (e,d) => hoverNode(d, 'enter'))
+                                .on('mouseout', (e,d) => hoverNode(d, 'leave'))
                                 .on('click', (e,d) => {
                                     if (d.total_counts !== 0) {
-                                        if (conceptNames.includes(d.name) && selectedConcepts.length > 1) {
+                                        if (conceptNames.includes(d.name)) {
                                             let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
                                             setSelectedConcepts(filteredConcepts)   
                                             conceptHover(d.name, "leave") 
@@ -331,13 +350,13 @@
                                 .attr('id', d => 'map-total-counts-' + d.name)
                                 .text(d => d.total_counts)
                                 .attr('fill', d => d.total_counts === 0 ? color.text : conceptNames.includes(d.name) ? 'white' : color.textlight)
-                                .style('opacity', d => treeSelections.includes('mappings') ? 1 : 0)
+                                .style('opacity', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? 1 : 0)
                                 .style('font-size', '8px')
                                 .style('font-weight', '700')
                                 .style('pointer-events', 'none')
                                 .attr('text-anchor', 'middle')
                                 .attr('x', d => getMap(d).x)
-                                .attr('y', d => treeSelections.includes('mappings') ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 3 : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 3)
+                                .attr('y', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 3 : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 3)
                             const buttonSymbol = mapNode.append('g')
                                 .classed('map-button-symbol', true)
                                 .attr('id', d => 'map-button-symbol-' + d.name)
@@ -373,7 +392,7 @@
                                 .attr('y2', d => getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 2.5)
                             const altCounts = mapNode.append('g')
                                 .classed('map-alt-counts',true)
-                                .style('display', d => treeSelections.includes('mappings') ? 'block' : 'none')
+                                .style('display', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? 'block' : 'none')
                             altCounts.append('text')
                                 .classed('map-alt-text', true)
                                 .attr('id', d => 'map-alt-text-' + d.name)
@@ -386,7 +405,7 @@
                             const mapLabel = mapNode.append('g')
                                 .classed('map-label', true)
                                 .style('cursor', 'pointer')
-                                .style('display', d => treeSelections.includes('mappings') ? 'block' : 'none')
+                                .style('display', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? 'block' : 'none')
                                 .on('mouseover', (e,d) => {
                                     tooltipHover(d, 'enter', e, 'sidebar')
                                     conceptHover(d.name, "enter") 
@@ -436,7 +455,7 @@
                                 .classed('map-vocabulary', true)
                                 .attr('id', d => 'map-vocabulary-' + d.name)
                                 .attr('text-anchor', 'middle')
-                                .style('display', d => treeSelections.includes('mappings') ? 'block' : 'none')
+                                .style('display', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? 'block' : 'none')
                                 .style('font-size', '8px')
                                 .attr('fill', d => conceptNames.includes(d.name) ? color.textlight: color.textlightest)
                                 .attr('x', d => getMap(d).x)
@@ -446,18 +465,22 @@
                             mapLabel.raise()
                         }, update => {
                             update.select('.map-link')
-                                .attr('stroke', d => conceptNames.includes(d.name) ? 'black' : treeSelections.includes('mappings') ? color.textlight : color.textlightest)
+                                .attr('stroke', d => conceptNames.includes(d.name) ? 'black' : treeSelections.includes('mappings') || mapRoot === d.source.name ? color.textlight : color.textlightest)
                             update.select('.map-line')
                                 .transition(2000)
                                 .attr("d", d => {
                                     let sourceX = getMap(d).x
-                                    let sourceY = treeSelections.includes('mappings') ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)
+                                    let sourceY = treeSelections.includes('mappings') || mapRoot === d.source.name ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)
                                     let targetX = getPosition(d.source, 'x', cx, cy, d.source.name, nodes) 
                                     let targetY = cy + (genHeight[d.distance])
                                     return curveX({source: [sourceX, sourceY], target: [targetX, targetY]})}
                                 )
+                                // .on("end", () => {
+                                //     console.log('map root',mapRoot)
+                                //     zoomToFit()
+                                // })
                             update.select('.map-tree-arrow')
-                                .style('display', () => treeSelections.includes('mappings') ? 'block' : 'none')
+                                .style('display', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? 'block' : 'none')
                                 .attr('fill', d => conceptNames.includes(d.name) && conceptNames.includes(d.source.name) ? 'black' : color.textlight)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
@@ -466,23 +489,15 @@
                                     return "translate(" + x + "," + y + ")rotate(" + 90 + ")"
                                 }) 
                             update.select('.map-tree-circle-background')
-                                .attr('r', d => treeSelections.includes('mappings') ? scaleRadius(Math.sqrt(d.total_counts)) + 2 : 10)
+                                .attr('r', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? scaleRadius(Math.sqrt(d.total_counts)) + 2 : 10)
                                 .attr('cx', d => getMap(d).x)
-                                .attr('cy', d => treeSelections.includes('mappings') ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes))
+                                .attr('cy', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes))
                             update.select('.map-tree-circle')
-                                .on('mouseover', (e,d) => {
-                                    if (d.total_counts !== 0) {
-                                        hoverNode(d, 'enter')
-                                    }
-                                })
-                                .on('mouseout', (e,d) => {
-                                    if (d.total_counts !== 0) {
-                                        hoverNode(d, 'leave')  
-                                    }
-                                })
+                                .on('mouseover', (e,d) => hoverNode(d, 'enter'))
+                                .on('mouseout', (e,d) => hoverNode(d, 'leave'))
                                 .on('click', (e,d) => {
                                     if (d.total_counts !== 0) {
-                                        if (conceptNames.includes(d.name) && selectedConcepts.length > 1) {
+                                        if (conceptNames.includes(d.name)) {
                                             let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
                                             setSelectedConcepts(filteredConcepts)   
                                             conceptHover(d.name, "leave") 
@@ -491,7 +506,7 @@
                                         }     
                                     }
                                 })
-                                .attr('r', d => treeSelections.includes('mappings') ? scaleRadius(Math.sqrt(d.total_counts)) + 2 : 10)
+                                .attr('r', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? scaleRadius(Math.sqrt(d.total_counts)) + 2 : 10)
                                 .style('fill', d => {
                                     if (conceptNames.includes(d.name)) {
                                         if (d.direction === 1) return d.color
@@ -505,17 +520,17 @@
                                         }
                                     } else return 'white'
                                 })
-                                .attr('stroke', d => conceptNames.includes(d.name) ? d.color : treeSelections.includes('mappings') ? d.total_counts === 0 ? 'none' : color.textlightest : color.background)
+                                .attr('stroke', d => conceptNames.includes(d.name) ? d.color : treeSelections.includes('mappings') || mapRoot === d.source.name ? d.total_counts === 0 ? 'none' : color.textlightest : color.background)
                                 .transition(2000)
                                 .attr('cx', d => getMap(d).x)
-                                .attr('cy', d => treeSelections.includes('mappings') ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes))
-                                .style('pointer-events', d => d.source.name === sidebarRoot.name ? 'all' : 'none')
+                                .attr('cy', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes))
+                                .style('pointer-events', d => d.total_counts === 0 || !treeSelections.includes('mappings') ? 'none' : 'all')
                             update.select('.map-total-counts')
                                 .text(d => d.total_counts)
-                                .style('opacity', d => treeSelections.includes('mappings') ? 1 : 0)
+                                .style('opacity', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? 1 : 0)
                                 .attr('fill', d => d.total_counts === 0 ? color.text : conceptNames.includes(d.name) ? 'white' : color.textlight)
                                 .attr('x', d => getMap(d).x)
-                                .attr('y', d => treeSelections.includes('mappings') ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 2 : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 2)
+                                .attr('y', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 2 : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 2)
                             update.select('.map-button-symbol')
                                 .attr('stroke', d => conceptNames.includes(d.name) ? 'white' : color.text)
                             update.select('.map-button-line-1')
@@ -541,14 +556,14 @@
                                 .attr('x2', d => conceptNames.includes(d.name) ? getMap(d).x - 2.5 : getMap(d).x)
                                 .attr('y2', d => getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 2.5)
                             update.select('.map-alt-counts')
-                                .style('display', d => treeSelections.includes('mappings') ? 'block' : 'none')
+                                .style('display', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? 'block' : 'none')
                             update.select('.map-alt-text')
                                 .attr('x', d => getX(d))
                                 .attr('y', d => getY(d))
                                 .text(d => d.descendant_counts + ' DRC')
                                 .attr('fill', d => conceptNames.includes(d.name) ? color.text : color.textlight)
                             update.select('.map-label')
-                                .style('display', d => treeSelections.includes('mappings') ? 'block' : 'none')
+                                .style('display', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? 'block' : 'none')
                                 .on('mouseover', (e,d) => {
                                     tooltipHover(d, 'enter', e, 'sidebar')
                                     conceptHover(d.name, "enter") 
@@ -584,7 +599,7 @@
                                 .attr('x', d => getMap(d).x - (d3.select("#map-tree-text-" + d.name).node().getBBox().width + 14)/2)
                                 .attr('y', d => getMap(d).y - 22)
                             update.select('.map-vocabulary')
-                                .style('display', d => treeSelections.includes('mappings') ? 'block' : 'none')
+                                .style('display', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? 'block' : 'none')
                                 .attr('fill', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
                                 .attr('x', d => getMap(d).x)
                                 .attr('y', d => getMap(d).y + 1)
@@ -603,19 +618,11 @@
                             .attr('cx', d => getPosition(d, 'x', cx, cy, d.name, nodes))
                             .attr('cy', d => cy + (genHeight[d.distance]))
                         node.append('circle')
-                            .on('mouseover', (e,d) => {
-                                if (d.total_counts !== 0) {
-                                    hoverNode(d, 'enter')
-                                }
-                            })
-                            .on('mouseout', (e,d) => {
-                                if (d.total_counts !== 0) {
-                                    hoverNode(d, 'leave')   
-                                }
-                            })
+                            .on('mouseover', (e,d) => hoverNode(d, 'enter'))
+                            .on('mouseout', (e,d) => hoverNode(d, 'leave'))
                             .on('click', (e,d) => {
                                 if (d.total_counts !== 0) {
-                                    if (conceptNames.includes(d.name) && selectedConcepts.length > 1) {
+                                    if (conceptNames.includes(d.name)) {
                                         let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
                                         setSelectedConcepts(filteredConcepts)   
                                         conceptHover(d.name, "leave") 
@@ -647,7 +654,7 @@
                             .style('cursor', "pointer")
                             .attr('cx', d => getPosition(d, 'x', cx, cy, d.name, nodes))
                             .attr('cy', d => cy + (genHeight[d.distance]))
-                            .attr('pointer-events', d => (conceptNames.includes(d.name) && selectedConcepts.length === 1) || d.total_counts === 0 ? "none" : "default")
+                            .attr('pointer-events', d => d.total_counts === 0 ? "none" : "default")
                         node.append('text')
                             .classed('total-counts', true)
                             .attr('id', d => 'total-counts-' + d.name)
@@ -664,7 +671,7 @@
                             .classed('button-symbol', true)
                             .attr('id', d => 'button-symbol-' + d.name)
                             .attr('visibility', 'hidden')
-                            .attr('stroke', d => conceptNames.includes(d.name) ? 'white' : color.text)
+                            .attr('stroke', 'white')
                             .attr('stroke-width', 1.5)
                             .attr('stroke-linecap', 'round')
                             .style('pointer-events', 'none')
@@ -696,6 +703,7 @@
                         const altCounts = geometry.append('g')
                         altCounts.append('text')
                             .classed('alt-text',true)
+                            .attr('id', d => 'alt-text-'+d.name)
                             .attr('text-anchor', 'middle')
                             .attr('fill', d => conceptNames.includes(d.name) ? color.text : color.textlight)
                             .attr('x', d => getPosition(d, 'x', cx, cy, d.name, nodes))
@@ -704,14 +712,17 @@
                             .text(d => d.descendant_counts + ' DRC')
                         const label = geometry.append('g')
                             .classed('label', true)
+                            .style('pointer-events','all')
                             .on('mouseover', (e,d) => {
                                 conceptHover(d.name, "enter")   
                                 tooltipHover(d, "enter", e, 'sidebar') 
                                 setMapRoot(d.name)
-                                if (d.name !== sidebarRoot.name) d3.select('#node-vocabulary-' + d.name).transition().attr('y', getLabel(d).y + 3)    
+                                if (d.name !== sidebarRoot.name) d3.select('#node-vocabulary-' + d.name).transition().attr('y', getLabel(d).y + 3)   
                             })
                             .on('mouseout', (e,d) => {
-                                if (d.name !== sidebarRoot.name || sidebarRoot.name !== mapRoot) setMapRoot(sidebarRoot.name)
+                                if (zoomCompleted) {
+                                    setMapRoot()
+                                }
                                 conceptHover(d.name, "leave")  
                                 tooltipHover(d, "leave", e, 'sidebar')   
                                 d3.select('#node-vocabulary-' + d.name).transition().attr('y', () => d.name === sidebarRoot.name ? getLabel(d).y + 3 : getLabel(d).y + 1) 
@@ -783,13 +794,13 @@
                                 .classed('map-link',true)
                                 .attr('fill','none')
                                 .attr('stroke-width', 0.5)
-                                .attr('stroke', d => conceptNames.includes(d.name) ? 'black' : treeSelections.includes('mappings') ? color.textlight : color.textlightest)
+                                .attr('stroke', d => conceptNames.includes(d.name) ? 'black' : treeSelections.includes('mappings') || mapRoot === d.source.name ? color.textlight : color.textlightest)
                             mapLine.append('path')
                                 .classed('map-line', true)
                                 .style('stroke-dasharray', '5px 2px')
                                 .attr("d", d => {
                                     let sourceX = getMap(d).x
-                                    let sourceY = treeSelections.includes('mappings') ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)
+                                    let sourceY = treeSelections.includes('mappings') || mapRoot === d.source.name ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)
                                     let targetX = getPosition(d.source, 'x', cx, cy, d.source.name, nodes) 
                                     let targetY = cy + (genHeight[d.distance])
                                     return curveX({source: [sourceX, sourceY], target: [targetX, targetY]})}
@@ -797,7 +808,7 @@
                             mapLine.append('path')
                                 .classed('map-tree-arrow', true)
                                 .attr('id', d => 'map-arrow-'+d.name)
-                                .style('display', () => treeSelections.includes('mappings') ? 'block' : 'none')
+                                .style('display', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? 'block' : 'none')
                                 .attr('fill', d => conceptNames.includes(d.name) ? 'black' : color.textlight)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
@@ -810,13 +821,13 @@
                                 .style('fill', 'white')
                                 .attr('stroke', 'white')
                                 .style('pointer-events', "none")
-                                .attr('r', d => treeSelections.includes('mappings') ? scaleRadius(Math.sqrt(d.total_counts)) + 2 : 10)
+                                .attr('r', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? scaleRadius(Math.sqrt(d.total_counts)) + 2 : 10)
                                 .attr('cx', d => getMap(d).x)
-                                .attr('cy', d => treeSelections.includes('mappings') ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes))
+                                .attr('cy', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes))
                             mapNode.append('circle')
                                 .classed('map-tree-circle', true)
                                 .attr('id', d => 'map-tree-circle-' + d.name)
-                                .attr('r', d => treeSelections.includes('mappings') ? scaleRadius(Math.sqrt(d.total_counts)) + 2 : 10)
+                                .attr('r', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? scaleRadius(Math.sqrt(d.total_counts)) + 2 : 10)
                                 .style('fill', d => {
                                     if (conceptNames.includes(d.name)) {
                                         if (d.direction === 1) return d.color
@@ -830,24 +841,16 @@
                                         }
                                     } else return 'white'
                                 })
-                                .attr('stroke', d => conceptNames.includes(d.name) ? d.color : treeSelections.includes('mappings') ? d.total_counts === 0 ? 'none' : color.textlightest : color.background)
+                                .attr('stroke', d => conceptNames.includes(d.name) ? d.color : treeSelections.includes('mappings') || mapRoot === d.source.name ? d.total_counts === 0 ? 'none' : color.textlightest : color.background)
                                 .style('cursor', "pointer")
                                 .attr('cx', d => getMap(d).x)
-                                .attr('cy', d => treeSelections.includes('mappings') ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes))
-                                .style('pointer-events', d => d.source.name === sidebarRoot.name ? 'all' : 'none')
-                                .on('mouseover', (e,d) => {
-                                    if (d.total_counts !== 0) {
-                                        hoverNode(d, 'enter')
-                                    }
-                                })
-                                .on('mouseout', (e,d) => {
-                                    if (d.total_counts !== 0) {
-                                        hoverNode(d, 'leave')  
-                                    }
-                                })
+                                .attr('cy', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes))
+                                .style('pointer-events', d => d.total_counts === 0 || !treeSelections.includes('mappings') ? 'none' : 'all')
+                                .on('mouseover', (e,d) => hoverNode(d, 'enter'))
+                                .on('mouseout', (e,d) => hoverNode(d, 'leave'))
                                 .on('click', (e,d) => {
                                     if (d.total_counts !== 0) {
-                                        if (conceptNames.includes(d.name) && selectedConcepts.length > 1) {
+                                        if (conceptNames.includes(d.name)) {
                                             let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
                                             setSelectedConcepts(filteredConcepts)   
                                             conceptHover(d.name, "leave") 
@@ -861,13 +864,13 @@
                                 .attr('id', d => 'map-total-counts-' + d.name)
                                 .text(d => d.total_counts)
                                 .attr('fill', d => d.total_counts === 0 ? color.text : conceptNames.includes(d.name) ? 'white' : color.textlight)
-                                .style('opacity', d => treeSelections.includes('mappings') ? 1 : 0)
+                                .style('opacity', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? 1 : 0)
                                 .style('font-size', '8px')
                                 .style('font-weight', '700')
                                 .style('pointer-events', 'none')
                                 .attr('text-anchor', 'middle')
                                 .attr('x', d => getMap(d).x)
-                                .attr('y', d => treeSelections.includes('mappings') ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 3 : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 3)
+                                .attr('y', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 3 : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 3)
                             const buttonSymbol = mapNode.append('g')
                                 .classed('map-button-symbol', true)
                                 .attr('id', d => 'map-button-symbol-' + d.name)
@@ -903,7 +906,7 @@
                                 .attr('y2', d => getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 2.5)
                             const altCounts = mapNode.append('g')
                                 .classed('map-alt-counts',true)
-                                .style('display', d => treeSelections.includes('mappings') ? 'block' : 'none')
+                                .style('display', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? 'block' : 'none')
                             altCounts.append('text')
                                 .classed('map-alt-text', true)
                                 .attr('id', d => 'map-alt-text-' + d.name)
@@ -916,7 +919,7 @@
                             const mapLabel = mapNode.append('g')
                                 .classed('map-label', true)
                                 .style('cursor', 'pointer')
-                                .style('display', d => treeSelections.includes('mappings') ? 'block' : 'none')
+                                .style('display', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? 'block' : 'none')
                                 .on('mouseover', (e,d) => {
                                     tooltipHover(d, 'enter', e, 'sidebar')
                                     conceptHover(d.name, "enter") 
@@ -966,7 +969,7 @@
                                 .classed('map-vocabulary', true)
                                 .attr('id', d => 'map-vocabulary-' + d.name)
                                 .attr('text-anchor', 'middle')
-                                .style('display', d => treeSelections.includes('mappings') ? 'block' : 'none')
+                                .style('display', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? 'block' : 'none')
                                 .style('font-size', '8px')
                                 .attr('fill', d => conceptNames.includes(d.name) ? color.textlight: color.textlightest)
                                 .attr('x', d => getMap(d).x)
@@ -976,18 +979,22 @@
                             mapLabel.raise()
                         }, update => {
                             update.select('.map-link')
-                                .attr('stroke', d => conceptNames.includes(d.name) ? 'black' : treeSelections.includes('mappings') ? color.textlight : color.textlightest)
+                                .attr('stroke', d => conceptNames.includes(d.name) ? 'black' : treeSelections.includes('mappings') || mapRoot === d.source.name ? color.textlight : color.textlightest)
                             update.select('.map-line')
                                 .transition(2000)
                                 .attr("d", d => {
                                     let sourceX = getMap(d).x
-                                    let sourceY = treeSelections.includes('mappings') ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)
+                                    let sourceY = treeSelections.includes('mappings') || mapRoot === d.source.name ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)
                                     let targetX = getPosition(d.source, 'x', cx, cy, d.source.name, nodes) 
                                     let targetY = cy + (genHeight[d.distance])
                                     return curveX({source: [sourceX, sourceY], target: [targetX, targetY]})}
                                 )
+                                // .on("end", () => {
+                                //     console.log('map root',mapRoot)
+                                //     zoomToFit()
+                                // })
                             update.select('.map-tree-arrow')
-                                .style('display', () => treeSelections.includes('mappings') ? 'block' : 'none')
+                                .style('display', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? 'block' : 'none')
                                 .attr('fill', d => conceptNames.includes(d.name) && conceptNames.includes(d.source.name) ? 'black' : color.textlight)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
@@ -996,23 +1003,15 @@
                                     return "translate(" + x + "," + y + ")rotate(" + 90 + ")"
                                 }) 
                             update.select('.map-tree-circle-background')
-                                .attr('r', d => treeSelections.includes('mappings') ? scaleRadius(Math.sqrt(d.total_counts)) + 2 : 10)
+                                .attr('r', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? scaleRadius(Math.sqrt(d.total_counts)) + 2 : 10)
                                 .attr('cx', d => getMap(d).x)
-                                .attr('cy', d => treeSelections.includes('mappings') ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes))
+                                .attr('cy', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes))
                             update.select('.map-tree-circle')
-                                .on('mouseover', (e,d) => {
-                                    if (d.total_counts !== 0) {
-                                        hoverNode(d, 'enter')
-                                    }
-                                })
-                                .on('mouseout', (e,d) => {
-                                    if (d.total_counts !== 0) {
-                                        hoverNode(d, 'leave')  
-                                    }
-                                })
+                                .on('mouseover', (e,d) => hoverNode(d, 'enter'))
+                                .on('mouseout', (e,d) => hoverNode(d, 'leave'))
                                 .on('click', (e,d) => {
                                     if (d.total_counts !== 0) {
-                                        if (conceptNames.includes(d.name) && selectedConcepts.length > 1) {
+                                        if (conceptNames.includes(d.name)) {
                                             let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
                                             setSelectedConcepts(filteredConcepts)   
                                             conceptHover(d.name, "leave") 
@@ -1021,7 +1020,7 @@
                                         }     
                                     }
                                 })
-                                .attr('r', d => treeSelections.includes('mappings') ? scaleRadius(Math.sqrt(d.total_counts)) + 2 : 10)
+                                .attr('r', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? scaleRadius(Math.sqrt(d.total_counts)) + 2 : 10)
                                 .style('fill', d => {
                                     if (conceptNames.includes(d.name)) {
                                         if (d.direction === 1) return d.color
@@ -1035,17 +1034,17 @@
                                         }
                                     } else return 'white'
                                 })
-                                .attr('stroke', d => conceptNames.includes(d.name) ? d.color : treeSelections.includes('mappings') ? d.total_counts === 0 ? 'none' : color.textlightest : color.background)
+                                .attr('stroke', d => conceptNames.includes(d.name) ? d.color : treeSelections.includes('mappings') || mapRoot === d.source.name ? d.total_counts === 0 ? 'none' : color.textlightest : color.background)
                                 .transition(2000)
                                 .attr('cx', d => getMap(d).x)
-                                .attr('cy', d => treeSelections.includes('mappings') ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes))
-                                .style('pointer-events', d => d.source.name === sidebarRoot.name ? 'all' : 'none')
+                                .attr('cy', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes))
+                                .style('pointer-events', d => d.total_counts === 0 || !treeSelections.includes('mappings') ? 'none' : 'all')
                             update.select('.map-total-counts')
                                 .text(d => d.total_counts)
-                                .style('opacity', d => treeSelections.includes('mappings') ? 1 : 0)
+                                .style('opacity', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? 1 : 0)
                                 .attr('fill', d => d.total_counts === 0 ? color.text : conceptNames.includes(d.name) ? 'white' : color.textlight)
                                 .attr('x', d => getMap(d).x)
-                                .attr('y', d => treeSelections.includes('mappings') ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 2 : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 2)
+                                .attr('y', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 2 : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 2)
                             update.select('.map-button-symbol')
                                 .attr('stroke', d => conceptNames.includes(d.name) ? 'white' : color.text)
                             update.select('.map-button-line-1')
@@ -1071,14 +1070,14 @@
                                 .attr('x2', d => conceptNames.includes(d.name) ? getMap(d).x - 2.5 : getMap(d).x)
                                 .attr('y2', d => getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 2.5)
                             update.select('.map-alt-counts')
-                                .style('display', d => treeSelections.includes('mappings') ? 'block' : 'none')
+                                .style('display', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? 'block' : 'none')
                             update.select('.map-alt-text')
                                 .attr('x', d => getX(d))
                                 .attr('y', d => getY(d))
                                 .text(d => d.descendant_counts + ' DRC')
                                 .attr('fill', d => conceptNames.includes(d.name) ? color.text : color.textlight)
                             update.select('.map-label')
-                                .style('display', d => treeSelections.includes('mappings') ? 'block' : 'none')
+                                .style('display', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? 'block' : 'none')
                                 .on('mouseover', (e,d) => {
                                     tooltipHover(d, 'enter', e, 'sidebar')
                                     conceptHover(d.name, "enter") 
@@ -1114,7 +1113,7 @@
                                 .attr('x', d => getMap(d).x - (d3.select("#map-tree-text-" + d.name).node().getBBox().width + 14)/2)
                                 .attr('y', d => getMap(d).y - 22)
                             update.select('.map-vocabulary')
-                                .style('display', d => treeSelections.includes('mappings') ? 'block' : 'none')
+                                .style('display', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? 'block' : 'none')
                                 .attr('fill', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
                                 .attr('x', d => getMap(d).x)
                                 .attr('y', d => getMap(d).y + 1)
@@ -1127,19 +1126,11 @@
                             .attr('cx', d => getPosition(d, 'x', cx, cy, d.name, nodes))
                             .attr('cy', d => cy + (genHeight[d.distance]))
                         update.select('.tree-circle')
-                            .on('mouseover', (e,d) => {
-                                if (d.total_counts !== 0) {
-                                    hoverNode(d, 'enter')
-                                }
-                            })
-                            .on('mouseout', (e,d) => {
-                                if (d.total_counts !== 0) {
-                                    hoverNode(d, 'leave')
-                                }
-                            })
+                            .on('mouseover', (e,d) => hoverNode(d, 'enter'))
+                            .on('mouseout', (e,d) => hoverNode(d, 'leave'))
                             .on('click', (e,d) => {
                                 if (d.total_counts !== 0) {
-                                    if (conceptNames.includes(d.name) && selectedConcepts.length > 1) {
+                                    if (conceptNames.includes(d.name)) {
                                         let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
                                         setSelectedConcepts(filteredConcepts)   
                                         conceptHover(d.name, "leave") 
@@ -1166,7 +1157,7 @@
                                     } else {return 'white'}    
                                 }
                             })
-                            .attr('pointer-events', d => (conceptNames.includes(d.name) && selectedConcepts.length === 1) || d.total_counts === 0 ? "none" : "default")
+                            .attr('pointer-events', d => d.total_counts === 0 ? "none" : "default")
                             .transition('nodePosition')
                             .duration(500)
                             .attr('cx', d => getPosition(d, 'x', cx, cy, d.name, nodes))
@@ -1177,8 +1168,6 @@
                             .attr('fill', d => d.total_counts === 0 ? color.text : conceptNames.includes(d.name) ? 'white' : color.textlight)
                             .attr('x', d => getPosition(d, 'x', cx, cy, d.name, nodes))
                             .attr('y', d => cy + (genHeight[d.distance]) + 3)
-                        update.select('.button-symbol') 
-                            .attr('stroke', d => conceptNames.includes(d.name) ? 'white' : color.text)
                         update.select('.button-line-1')
                             .attr('x1', d => getPosition(d, 'x', cx, cy, d.name, nodes) - 2.5)
                             .attr('y1', d => {
@@ -1211,10 +1200,10 @@
                                 conceptHover(d.name, "enter")   
                                 tooltipHover(d, "enter", e, 'sidebar') 
                                 setMapRoot(d.name)
-                                if (d.name !== sidebarRoot.name) d3.select('#node-vocabulary-' + d.name).transition().attr('y', getLabel(d).y + 3)    
+                                if (d.name !== sidebarRoot.name) d3.select('#node-vocabulary-' + d.name).transition().attr('y', getLabel(d).y + 3)   
                             })
                             .on('mouseout', (e,d) => {
-                                if (d.name !== sidebarRoot.name || sidebarRoot.name !== mapRoot) setMapRoot(sidebarRoot.name)
+                                if (zoomCompleted) setMapRoot()
                                 conceptHover(d.name, "leave")  
                                 tooltipHover(d, "leave", e, 'sidebar')   
                                 d3.select('#node-vocabulary-' + d.name).transition().attr('y', () => d.name === sidebarRoot.name ? getLabel(d).y + 3 : getLabel(d).y + 1) 
@@ -1260,7 +1249,6 @@
             }
             updateLinks()
             updateNodes()
-            zoomToFit()
         }
         // list
         function drawList() {
@@ -1332,7 +1320,7 @@
                     .style('font-size','10px')
                     .style('font-weight', 700)
                     .html(d => d.section === '1' ? 'CHILDREN' : d.section)
-                // CONCEPTS
+                // CONCEPT LIST
                 section.selectAll(".list-item-container").data(d => d.nodes, d => d.name)
                 .join(enter => {
                     const itemContainer = enter.append('div')
@@ -1377,7 +1365,7 @@
                         .on('click', (e,d) => {
                             d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
                             if (d.total_counts !== 0) {
-                                if (conceptNames.includes(d.name) && selectedConcepts.length > 1) {
+                                if (conceptNames.includes(d.name)) {
                                     let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
                                     setSelectedConcepts(filteredConcepts)   
                                 } else if (!conceptNames.includes(d.name)){
@@ -1393,11 +1381,7 @@
                                 d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                 d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                 d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
-                            } else {
-                                if (selectedConcepts.length > 1) {
-                                    d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
-                                }    
-                            }
+                            } else d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block') 
                         })
                         .on('mouseout', (e,d) => {
                             if (!conceptNames.includes(d.name)) {
@@ -1407,11 +1391,7 @@
                                 d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                 d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                 d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
-                            } else {
-                                if (selectedConcepts.length > 1) {
-                                    d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                                }
-                            }
+                            } else d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
                         })
                     circle.append('i')
                         .classed('list-plus fa-solid fa-plus fa-2xs',true)
@@ -1514,7 +1494,7 @@
                         .classed('title-caret-down fa-solid fa-lg fa-caret-down',true)
                         .attr('id', d => 'caret-down-'+d.name)
                         .style('color', color.text)
-                        .style('display', d => d.mappings.length > 0 ? 'block' : 'none')
+                        .style('display', d => d.mappings.length > 0 && !treeSelections.includes('mappings') ? 'block' : 'none')
                         .style('cursor','pointer')
                         .style('opacity', 0.2)
                         .style('margin-right','5px')
@@ -1531,7 +1511,7 @@
                         .classed('title-caret-up fa-solid fa-lg fa-caret-up',true)
                         .attr('id', d => 'caret-up-'+d.name)
                         .style('color', color.text)
-                        .style('display','none')
+                        .style('display', () => treeSelections.includes('mappings') ? 'block' : 'none')
                         .style('cursor','pointer')
                         .style('margin-right','5px')
                         // .style('padding-top','4px')
@@ -1631,6 +1611,8 @@
                     const mappingsContainer = itemContainer.append('div')
                         .classed('mappings-container',true)
                         .attr('id', d => 'mappings-container-'+d.name)
+                        .style('height', () => treeSelections.includes('mappings') ? 'auto' : '0px')
+                        .style('display', () => treeSelections.includes('mappings') ? 'flex' : 'none')
                     mappingsContainer.append('p')
                         .classed('mappings-type',true)
                         .style('margin',0)
@@ -1683,7 +1665,7 @@
                             .on('click', (e,d) => {
                                 d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
                                 if (d.total_counts !== 0) {
-                                    if (conceptNames.includes(d.name) && selectedConcepts.length > 1) {
+                                    if (conceptNames.includes(d.name)) {
                                         let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
                                         setSelectedConcepts(filteredConcepts)   
                                     } else if (!conceptNames.includes(d.name)){
@@ -1699,11 +1681,7 @@
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
-                                } else {
-                                    if (selectedConcepts.length > 1) {
-                                        d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
-                                    }    
-                                }
+                                } else d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
                             })
                             .on('mouseout', (e,d) => {
                                 if (!conceptNames.includes(d.name)) {
@@ -1713,11 +1691,7 @@
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
-                                } else {
-                                    if (selectedConcepts.length > 1) {
-                                        d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                                    }
-                                }
+                                } else d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
                             })
                         mapCircle.append('i')
                             .classed('map-list-plus fa-solid fa-plus fa-2xs',true)
@@ -1919,7 +1893,7 @@
                             .on('click', (e,d) => {
                                 d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
                                 if (d.total_counts !== 0) {
-                                    if (conceptNames.includes(d.name) && selectedConcepts.length > 1) {
+                                    if (conceptNames.includes(d.name)) {
                                         let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
                                         setSelectedConcepts(filteredConcepts)   
                                     } else if (!conceptNames.includes(d.name)){
@@ -1935,11 +1909,7 @@
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
-                                } else {
-                                    if (selectedConcepts.length > 1) {
-                                        d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
-                                    }    
-                                }
+                                } else  d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
                             })
                             .on('mouseout', (e,d) => {
                                 if (!conceptNames.includes(d.name)) {
@@ -1949,11 +1919,7 @@
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
-                                } else {
-                                    if (selectedConcepts.length > 1) {
-                                        d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                                    }
-                                }
+                                } else d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
                             })
                         update.select('.map-list-plus')
                             .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 ? 'block' : 'none')
@@ -2054,7 +2020,7 @@
                         .on('click', (e,d) => {
                             d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
                             if (d.total_counts !== 0) {
-                                if (conceptNames.includes(d.name) && selectedConcepts.length > 1) {
+                                if (conceptNames.includes(d.name)) {
                                     let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
                                     setSelectedConcepts(filteredConcepts)   
                                 } else if (!conceptNames.includes(d.name)){
@@ -2070,11 +2036,7 @@
                                 d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                 d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                 d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
-                            } else {
-                                if (selectedConcepts.length > 1) {
-                                    d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
-                                }    
-                            }
+                            } else d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
                         })
                         .on('mouseout', (e,d) => {
                             if (!conceptNames.includes(d.name)) {
@@ -2084,11 +2046,7 @@
                                 d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                 d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                 d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
-                            } else {
-                                if (selectedConcepts.length > 1) {
-                                    d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                                }
-                            }
+                            } else d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
                         })
                     update.select('.list-plus')
                         .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 ? 'block' : 'none')
@@ -2155,7 +2113,7 @@
                             
                         })
                     update.select('.title-caret-down')
-                        .style('display', d => d.mappings.length > 0 ? 'block' : 'none')
+                        .style('display', d => d.mappings.length > 0 && !treeSelections.includes('mappings') ? 'block' : 'none')
                         .on('click', (e,d) => {
                             if (d3.select('#caret-down-'+d.name).style('display') === 'block') {
                                 d3.select('#caret-down-'+d.name).style('display','none')  
@@ -2166,6 +2124,7 @@
                         .on('mouseover', (e,d) => d3.select('#caret-down-'+d.name).style('opacity',1))
                         .on('mouseout', (e,d) => d3.select('#caret-down-'+d.name).style('opacity',0.2))
                     update.select('.title-caret-up')
+                        .style('display', () => treeSelections.includes('mappings') ? 'block' : 'none')
                         .on('click', (e,d) => {
                             if (d3.select('#caret-up-'+d.name).style('display') === 'block') {
                                 d3.select('#caret-up-'+d.name).style('display','none')  
@@ -2185,6 +2144,9 @@
                     update.select('.counts2-rect')
                         .transition()
                         .style('width', d => scaleWidth(d.descendant_counts) + 'px')
+                    update.select(".mappings-container")
+                        .style('height', () => treeSelections.includes('mappings') ? 'auto' : '0px')
+                        .style('display', () => treeSelections.includes('mappings') ? 'flex' : 'none')
                     // MAPPINGS
                     update.select('.mappings-container').selectAll(".map-list-item-container").data(d => d.mappings, d => d.name)
                     .join(enter => {
@@ -2230,7 +2192,7 @@
                             .on('click', (e,d) => {
                                 d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
                                 if (d.total_counts !== 0) {
-                                    if (conceptNames.includes(d.name) && selectedConcepts.length > 1) {
+                                    if (conceptNames.includes(d.name)) {
                                         let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
                                         setSelectedConcepts(filteredConcepts)   
                                     } else if (!conceptNames.includes(d.name)){
@@ -2246,11 +2208,7 @@
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
-                                } else {
-                                    if (selectedConcepts.length > 1) {
-                                        d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
-                                    }    
-                                }
+                                } else d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
                             })
                             .on('mouseout', (e,d) => {
                                 if (!conceptNames.includes(d.name)) {
@@ -2260,11 +2218,7 @@
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
-                                } else {
-                                    if (selectedConcepts.length > 1) {
-                                        d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                                    }
-                                }
+                                } else d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
                             })
                         mapCircle.append('i')
                             .classed('map-list-plus fa-solid fa-plus fa-2xs',true)
@@ -2466,7 +2420,7 @@
                             .on('click', (e,d) => {
                                 d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
                                 if (d.total_counts !== 0) {
-                                    if (conceptNames.includes(d.name) && selectedConcepts.length > 1) {
+                                    if (conceptNames.includes(d.name)) {
                                         let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
                                         setSelectedConcepts(filteredConcepts)   
                                     } else if (!conceptNames.includes(d.name)){
@@ -2482,11 +2436,7 @@
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
-                                } else {
-                                    if (selectedConcepts.length > 1) {
-                                        d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
-                                    }    
-                                }
+                                } else d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
                             })
                             .on('mouseout', (e,d) => {
                                 if (!conceptNames.includes(d.name)) {
@@ -2496,11 +2446,7 @@
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
-                                } else {
-                                    if (selectedConcepts.length > 1) {
-                                        d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                                    }
-                                }
+                                } else d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
                             })
                         update.select('.map-list-plus')
                             .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 ? 'block' : 'none')
@@ -2578,7 +2524,7 @@
                     })
                 })
             },update => {
-                // CONCEPTS
+                // CONCEPT LIST
                 update.selectAll(".list-item-container").data(d => d.nodes, d => d.name)
                 .join(enter => {
                     const itemContainer = enter.append('div')
@@ -2623,7 +2569,7 @@
                         .on('click', (e,d) => {
                             d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
                             if (d.total_counts !== 0) {
-                                if (conceptNames.includes(d.name) && selectedConcepts.length > 1) {
+                                if (conceptNames.includes(d.name)) {
                                     let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
                                     setSelectedConcepts(filteredConcepts)   
                                 } else if (!conceptNames.includes(d.name)){
@@ -2639,11 +2585,7 @@
                                 d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                 d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                 d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
-                            } else {
-                                if (selectedConcepts.length > 1) {
-                                    d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
-                                }    
-                            }
+                            } else d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
                         })
                         .on('mouseout', (e,d) => {
                             if (!conceptNames.includes(d.name)) {
@@ -2653,11 +2595,7 @@
                                 d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                 d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                 d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
-                            } else {
-                                if (selectedConcepts.length > 1) {
-                                    d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                                }
-                            }
+                            } else d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
                         })
                     circle.append('i')
                         .classed('list-plus fa-solid fa-plus fa-2xs',true)
@@ -2760,7 +2698,7 @@
                         .classed('title-caret-down fa-solid fa-lg fa-caret-down',true)
                         .attr('id', d => 'caret-down-'+d.name)
                         .style('color', color.text)
-                        .style('display', d => d.mappings.length > 0 ? 'block' : 'none')
+                        .style('display', d => d.mappings.length > 0 && !treeSelections.includes('mappings') ? 'block' : 'none')
                         .style('cursor','pointer')
                         .style('opacity', 0.2)
                         .style('margin-right','5px')
@@ -2777,7 +2715,7 @@
                         .classed('title-caret-up fa-solid fa-lg fa-caret-up',true)
                         .attr('id', d => 'caret-up-'+d.name)
                         .style('color', color.text)
-                        .style('display','none')
+                        .style('display', () => treeSelections.includes('mappings') ? 'block' : 'none')
                         .style('cursor','pointer')
                         .style('margin-right','5px')
                         // .style('padding-top','4px')
@@ -2877,6 +2815,8 @@
                     const mappingsContainer = itemContainer.append('div')
                         .classed('mappings-container',true)
                         .attr('id', d => 'mappings-container-'+d.name)
+                        .style('height', () => treeSelections.includes('mappings') ? 'auto' : '0px')
+                        .style('display', () => treeSelections.includes('mappings') ? 'flex' : 'none')
                     mappingsContainer.append('p')
                         .classed('mappings-type',true)
                         .style('margin',0)
@@ -2929,7 +2869,7 @@
                             .on('click', (e,d) => {
                                 d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
                                 if (d.total_counts !== 0) {
-                                    if (conceptNames.includes(d.name) && selectedConcepts.length > 1) {
+                                    if (conceptNames.includes(d.name)) {
                                         let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
                                         setSelectedConcepts(filteredConcepts)   
                                     } else if (!conceptNames.includes(d.name)){
@@ -2945,11 +2885,7 @@
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
-                                } else {
-                                    if (selectedConcepts.length > 1) {
-                                        d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
-                                    }    
-                                }
+                                } else d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
                             })
                             .on('mouseout', (e,d) => {
                                 if (!conceptNames.includes(d.name)) {
@@ -2959,11 +2895,7 @@
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
-                                } else {
-                                    if (selectedConcepts.length > 1) {
-                                        d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                                    }
-                                }
+                                } else d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
                             })
                         mapCircle.append('i')
                             .classed('map-list-plus fa-solid fa-plus fa-2xs',true)
@@ -3165,7 +3097,7 @@
                             .on('click', (e,d) => {
                                 d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
                                 if (d.total_counts !== 0) {
-                                    if (conceptNames.includes(d.name) && selectedConcepts.length > 1) {
+                                    if (conceptNames.includes(d.name)) {
                                         let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
                                         setSelectedConcepts(filteredConcepts)   
                                     } else if (!conceptNames.includes(d.name)){
@@ -3181,11 +3113,7 @@
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
-                                } else {
-                                    if (selectedConcepts.length > 1) {
-                                        d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
-                                    }    
-                                }
+                                } else d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
                             })
                             .on('mouseout', (e,d) => {
                                 if (!conceptNames.includes(d.name)) {
@@ -3195,11 +3123,7 @@
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
-                                } else {
-                                    if (selectedConcepts.length > 1) {
-                                        d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                                    }
-                                }
+                                } else d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
                             })
                         update.select('.map-list-plus')
                             .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 ? 'block' : 'none')
@@ -3300,7 +3224,7 @@
                         .on('click', (e,d) => {
                             d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
                             if (d.total_counts !== 0) {
-                                if (conceptNames.includes(d.name) && selectedConcepts.length > 1) {
+                                if (conceptNames.includes(d.name)) {
                                     let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
                                     setSelectedConcepts(filteredConcepts)   
                                 } else if (!conceptNames.includes(d.name)){
@@ -3316,11 +3240,7 @@
                                 d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                 d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                 d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
-                            } else {
-                                if (selectedConcepts.length > 1) {
-                                    d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
-                                }    
-                            }
+                            } else d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
                         })
                         .on('mouseout', (e,d) => {
                             if (!conceptNames.includes(d.name)) {
@@ -3330,11 +3250,7 @@
                                 d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                 d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                 d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
-                            } else {
-                                if (selectedConcepts.length > 1) {
-                                    d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                                }
-                            }
+                            } else d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
                         })
                     update.select('.list-plus')
                         .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 ? 'block' : 'none')
@@ -3401,7 +3317,7 @@
                             
                         })
                     update.select('.title-caret-down')
-                        .style('display', d => d.mappings.length > 0 ? 'block' : 'none')
+                        .style('display', d => d.mappings.length > 0 && !treeSelections.includes('mappings') ? 'block' : 'none')
                         .on('click', (e,d) => {
                             if (d3.select('#caret-down-'+d.name).style('display') === 'block') {
                                 d3.select('#caret-down-'+d.name).style('display','none')  
@@ -3412,6 +3328,7 @@
                         .on('mouseover', (e,d) => d3.select('#caret-down-'+d.name).style('opacity',1))
                         .on('mouseout', (e,d) => d3.select('#caret-down-'+d.name).style('opacity',0.2))
                     update.select('.title-caret-up')
+                        .style('display', () => treeSelections.includes('mappings') ? 'block' : 'none')
                         .on('click', (e,d) => {
                             if (d3.select('#caret-up-'+d.name).style('display') === 'block') {
                                 d3.select('#caret-up-'+d.name).style('display','none')  
@@ -3431,6 +3348,9 @@
                     update.select('.counts2-rect')
                         .transition()
                         .style('width', d => scaleWidth(d.descendant_counts) + 'px')
+                    update.select(".mappings-container")
+                        .style('height', () => treeSelections.includes('mappings') ? 'auto' : '0px')
+                        .style('display', () => treeSelections.includes('mappings') ? 'flex' : 'none')
                     // MAPPINGS
                     update.select('.mappings-container').selectAll(".map-list-item-container").data(d => d.mappings, d => d.name)
                     .join(enter => {
@@ -3476,7 +3396,7 @@
                             .on('click', (e,d) => {
                                 d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
                                 if (d.total_counts !== 0) {
-                                    if (conceptNames.includes(d.name) && selectedConcepts.length > 1) {
+                                    if (conceptNames.includes(d.name)) {
                                         let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
                                         setSelectedConcepts(filteredConcepts)   
                                     } else if (!conceptNames.includes(d.name)){
@@ -3492,11 +3412,7 @@
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
-                                } else {
-                                    if (selectedConcepts.length > 1) {
-                                        d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
-                                    }    
-                                }
+                                } else d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
                             })
                             .on('mouseout', (e,d) => {
                                 if (!conceptNames.includes(d.name)) {
@@ -3506,11 +3422,7 @@
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
-                                } else {
-                                    if (selectedConcepts.length > 1) {
-                                        d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                                    }
-                                }
+                                } else d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
                             })
                         mapCircle.append('i')
                             .classed('map-list-plus fa-solid fa-plus fa-2xs',true)
@@ -3712,7 +3624,7 @@
                             .on('click', (e,d) => {
                                 d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
                                 if (d.total_counts !== 0) {
-                                    if (conceptNames.includes(d.name) && selectedConcepts.length > 1) {
+                                    if (conceptNames.includes(d.name)) {
                                         let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
                                         setSelectedConcepts(filteredConcepts)   
                                     } else if (!conceptNames.includes(d.name)){
@@ -3728,11 +3640,7 @@
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
-                                } else {
-                                    if (selectedConcepts.length > 1) {
-                                        d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
-                                    }    
-                                }
+                                } else d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
                             })
                             .on('mouseout', (e,d) => {
                                 if (!conceptNames.includes(d.name)) {
@@ -3742,11 +3650,7 @@
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
-                                } else {
-                                    if (selectedConcepts.length > 1) {
-                                        d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                                    }
-                                }
+                                } else d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
                             })
                         update.select('.map-list-plus')
                             .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 ? 'block' : 'none')
@@ -3855,6 +3759,25 @@
                 setGraphSectionWidth('60vw')  
             }
         }
+        // close filters
+        document.addEventListener('click', (e) => {
+            if (document.getElementById('level-dropdown')) {
+                const levelContainer = document.getElementById('level-dropdown')
+                if (!levelContainer.contains(e.target)) {
+                    d3.select('#open-levels-btn').style('display', 'block')
+                    d3.select('#close-levels-btn').style('display', 'none')  
+                    d3.select('#levels-dropdown').style('visibility','hidden') 
+                } 
+            }
+            if (document.getElementById('class-dropdown')) {
+                const classContainer = document.getElementById('class-dropdown')
+                if (!classContainer.contains(e.target)) {
+                    d3.select('#open-classes-btn').style('display', 'block')
+                    d3.select('#close-classes-btn').style('display', 'none') 
+                    d3.select('#classes-dropdown').style('visibility','hidden')  
+                } 
+            } 
+        })
         // drag behavior
         useEffect(() => {
             const graph = document.getElementById('graph-section')
@@ -3887,7 +3810,7 @@
         // dropdowns
         useEffect(()=>{
             if (nodes.length > 0) {
-                const levels = Array.from({length: fullTreeMax}, (_, i) => i + 1)
+                const levels = Array.from({length: fullTreeMax + 1}, (_, i) => i)
                 d3.select('#levels-dropdown').selectAll('.level').data(levels, d => d)
                 .join(enter => {
                     enter.append('p')
@@ -3905,7 +3828,6 @@
                             d3.select('#open-levels-btn').style('display', 'block')
                             d3.select('#close-levels-btn').style('display', 'none')  
                             d3.select('#levels-dropdown').style('visibility','hidden')  
-                            d3.select('#levels-header').style('height','20px').style('border-radius','16px').style('background-color','transparent')
                         })
                         .html(d => d)
                 },update =>{
@@ -3919,12 +3841,75 @@
                             d3.select('#open-levels-btn').style('display', 'block')
                             d3.select('#close-levels-btn').style('display', 'none')  
                             d3.select('#levels-dropdown').style('visibility','hidden')  
-                            d3.select('#levels-header').style('height','20px').style('border-radius','16px').style('background-color','transparent')
                         })
                         .html(d => d)
                 })
+                d3.select('#classes-dropdown').selectAll('.class').data(allClasses, d => d)
+                .join(enter => {
+                    const container = enter.append('div')
+                        .classed('class',true)   
+                    const checkBox = container.append('div') 
+                        .classed('check-box',true)
+                        .style('cursor','pointer')
+                        .attr('id', d => 'check-box-'+d.replace(/\s+/g, ""))
+                        .style('background-color', d => classFilter.includes(d) && classFilter.length > 0 ? color.text : 'transparent')
+                        .style('border', d => classFilter.includes(d) && classFilter.length > 0 ? '1px solid var(--text)' : '1px solid var(--textlightest)')
+                        .on('click', (e,d) => {
+                            if (!classFilter.includes(d)) setClassFilter(prev => [...prev, d])
+                            else {
+                                let newFilter = classFilter.filter(c => c !== d)  
+                                setClassFilter(newFilter)
+                                if (newFilter.length === 0) {
+                                    d3.select('#open-classes-btn').style('display', 'block')
+                                    d3.select('#close-classes-btn').style('display', 'none') 
+                                    d3.select('#classes-dropdown').style('visibility','hidden')    
+                                }
+                            }
+                        })
+                    checkBox.append('i')
+                        .classed('check-mark fa-solid fa-check fa-xs',true)
+                        .style('color','white')
+                        .style('display', d => classFilter.includes(d) && classFilter.length > 0 ? 'block' : 'none')
+                    container.append('p')
+                        .classed('class-p',true)
+                        .attr('id', d => 'class-'+d.replace(/\s+/g, ""))
+                        .style('font-weight', d => classFilter.includes(d) && classFilter.length > 0 ? 700 : 400)
+                        .style('width','100%')
+                        .style('color', d => classFilter.includes(d) && classFilter.length > 0 ? color.text : color.textlight)
+                        .html(d => d)
+                },update =>{
+                    update.select('.check-box')
+                        .style('background-color', d => classFilter.includes(d) && classFilter.length > 0 ? color.text : 'transparent')
+                        .style('border', d => classFilter.includes(d) && classFilter.length > 0 ? '1px solid var(--text)' : '1px solid var(--textlightest)')
+                        .on('click', (e,d) => {
+                            if (!classFilter.includes(d)) setClassFilter(prev => [...prev, d])
+                            else {
+                                let newFilter = classFilter.filter(c => c !== d)  
+                                setClassFilter(newFilter)
+                                if (newFilter.length === 0) {
+                                    d3.select('#open-classes-btn').style('display', 'block')
+                                    d3.select('#close-classes-btn').style('display', 'none') 
+                                    d3.select('#classes-dropdown').style('visibility','hidden')    
+                                }
+                            }
+                        })
+                    update.select('.check-mark')
+                        .style('display', d => classFilter.includes(d) && classFilter.length > 0 ? 'block' : 'none')
+                    update.select('.class-p')
+                        .style('font-weight', d => classFilter.includes(d) && classFilter.length > 0 ? 700 : 400)
+                        .style('color', d => classFilter.includes(d) && classFilter.length > 0 ? color.text : color.textlight)
+                        .html(d => d)
+                })
+                let classSelections = classFilter
+                if (classFilter.length === 0) classSelections = ['All']
+                d3.select('#class-selections').selectAll('.class-selection').data(classSelections, d => d)
+                .join(enter => {
+                    enter.append('p')
+                        .classed('class-selection',true)
+                        .html(d => d)
+                })
             }
-        },[maxLevel])
+        },[maxLevel,classFilter])
         // call draw functions
         useEffect(()=>{
             if (nodes.length > 0) {
@@ -3939,13 +3924,13 @@
                     d3.select('#tree-container').style('display','block')
                     d3.select('#list-container').style('display','none')
                     drawTree()
-                    // POSET
-                    // const edges = sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to" && d.parent_concept_id !== d.child_concept_id)
-                    // const matrix = po.domFromEdges(edges,'child_concept_id','parent_concept_id')
-                    // const labels = nodes.map(d => d.name)
-                    // const poset = po.createPoset(matrix,labels)
-                    // poset.enrich()
-                    // console.log(poset)
+                    if (mapRoot) {
+                        setZoomCompleted(false)
+                        setTimeout(() => {
+                            zoomToFit() 
+                            setZoomCompleted(true)
+                        }, 200)   
+                    } else zoomToFit()
                 }
                 else {
                     d3.select('#list-container').style('display','block')
@@ -3953,7 +3938,7 @@
                     drawList()
                 }    
             }
-        },[nodes,list,conceptNames,mapRoot,graphSectionWidth,view,treeSelections])
+        },[nodes,list,conceptNames,mapRoot,graphSectionWidth,view,treeSelections,mapRoot,zoomCompleted])
 
         return (
             <div id = "sidebar">
@@ -3977,10 +3962,8 @@
                                 onClick = {() => {
                                     if (!treeSelections.includes('descendants')) {
                                         d3.select('#add-descendants').style('background-color', color.text).style('color','white').style('font-weight',700)
-                                        addConcepts(list)
-                                        let newSelections = treeSelections
-                                        newSelections.push('descendants')
-                                        setTreeSelections(newSelections)
+                                        addConcepts(list.filter(d => d.levels !== '-1'))
+                                        setTreeSelections(prev => [...prev, 'descendants'])
                                     } else {
                                         d3.select('#add-descendants').style('background-color', 'transparent').style('color',color.text).style('font-weight',400)
                                         let descendantNames = list.map(d => d.name)
@@ -4001,9 +3984,7 @@
                                     if (!treeSelections.includes('mappings')) {
                                         d3.select('#add-mappings').style('background-color', color.text).style('color','white').style('font-weight',700)
                                         addConcepts(mappings)
-                                        let newSelections = treeSelections
-                                        newSelections.push('mappings')
-                                        setTreeSelections(newSelections)
+                                        setTreeSelections(prev => [...prev, 'mappings'])
                                     } else {
                                         d3.select('#add-mappings').style('background-color', 'transparent').style('color',color.text).style('font-weight',400)
                                         let mapNames = mappings.map(d => d.name)
@@ -4015,44 +3996,87 @@
                                 }}>
                                 Mappings
                             </div>  
-                            <div className="dropdown-container">
-                                <div className = "concept-selection-btn" style = {{border:'none',alignItems:'flex-start'}}>
-                                    <p style = {{paddingRight:2}}>Max level</p>
-                                    <div className = "dropdown-header" id = "levels-header"
-                                        onMouseOver={() => d3.select('#open-levels-btn').style('opacity', 1)}
-                                        onMouseOut={() => d3.select('#open-levels-btn').style('opacity', 0.5)}
-                                        onClick = {() => {
-                                            if (d3.select('#open-levels-btn').style('display') === 'block') {
-                                                d3.select('#open-levels-btn').style('display', 'none')
-                                                d3.select('#close-levels-btn').style('display', 'block') 
-                                                d3.select('#levels-dropdown').style('visibility','visible')
-                                                d3.select('#levels-header').style('height',() => fullTreeMax*31 + 'px').style('border-radius','12px').style('background-color','white')
-                                            } else {
-                                                d3.select('#open-levels-btn').style('display', 'block')
-                                                d3.select('#close-levels-btn').style('display', 'none')  
-                                                d3.select('#levels-dropdown').style('visibility','hidden')  
-                                                d3.select('#levels-header').style('height','20px').style('border-radius','16px').style('background-color','transparent')
-                                            }
-                                        }}
-                                    >
-                                        <p id = "max-level" style = {{marginTop:1,fontWeight:700,padding:'1px 5px 1px 5px'}}>{maxLevel}</p>
-                                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'open-levels-btn' icon={faCaretDown} style = {{display:'block',opacity: 0.5,padding:'1px 5px 1px 5px'}}/>
-                                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'close-levels-btn' icon={faCaretUp} style = {{display:'none',opacity: 1,padding:'2px 5px 1px 5px'}}/>     
-                                    </div>
-                                </div>   
-                                <div className = "selections-dropdown-content" id = "levels-dropdown"></div>  
-                            </div> 
-                            
                         </div>
-                        <div className = "concept-selection-btn" id = "remove-all" style = {{width: 65,border:'none'}}
-                            onClick = {() => {
-                                d3.select('#add-mappings').style('background-color', 'transparent').style('color',color.text).style('font-weight',400)
-                                d3.select('#add-descendants').style('background-color', 'transparent').style('color',color.text).style('font-weight',400)
-                                setSelectedConcepts([])   
-                                setTreeSelections([])
-                            }}>
-                            Remove all
-                        </div>
+                        <div className = "concept-selection-btn" id = "remove-all" style = {{width: 100,border:'none'}}
+                                onMouseOver={() => d3.select('#remove-all').style('font-weight', 700)}
+                                onMouseOut={() => d3.select('#remove-all').style('font-weight', 400)}
+                                onClick = {() => {
+                                    d3.select('#add-mappings').style('background-color', 'transparent').style('color',color.text).style('font-weight',400)
+                                    d3.select('#add-descendants').style('background-color', 'transparent').style('color',color.text).style('font-weight',400)
+                                    setSelectedConcepts([])   
+                                    setTreeSelections([])
+                                }}>
+                                Remove all
+                        </div> 
+                    </div>
+                    <div id = "filter-container">
+                        {/* <p style = {{fontSize:10,fontWeight:700,paddingRight:5,paddingTop:3.5,margin:0}}>FILTERS |</p> */}
+                        <div className="dropdown-container" id = "level-dropdown">
+                            <div className = "concept-selection-btn" style = {{width:'auto',border:'none',alignItems:'flex-start'}}>
+                                <p style = {{paddingRight:4}}>Max level:</p>
+                                <div className = "dropdown-header" id = "levels-header"
+                                    onMouseOver={() => d3.select('#open-levels-btn').style('opacity', 1)}
+                                    onMouseOut={() => d3.select('#open-levels-btn').style('opacity', 0.3)}
+                                    onClick = {() => {
+                                        if (d3.select('#open-levels-btn').style('display') === 'block') {
+                                            d3.select('#open-levels-btn').style('display', 'none')
+                                            d3.select('#close-levels-btn').style('display', 'block') 
+                                            d3.select('#levels-dropdown').style('visibility','visible')
+                                        } else {
+                                            d3.select('#open-levels-btn').style('display', 'block')
+                                            d3.select('#close-levels-btn').style('display', 'none')  
+                                            d3.select('#levels-dropdown').style('visibility','hidden')
+                                        }
+                                    }}
+                                >
+                                    <p id = "max-level" style = {{marginTop:1,fontWeight:700,padding:'1px 5px 1px 3px'}}>{maxLevel}</p>
+                                    <FontAwesomeIcon className = "dropBtn fa-lg" id = 'open-levels-btn' icon={faCaretDown} style = {{display:'block',opacity: 0.3,padding:'1px 3px 1px 5px'}}/>
+                                    <FontAwesomeIcon className = "dropBtn fa-lg" id = 'close-levels-btn' icon={faCaretUp} style = {{display:'none',opacity: 1,padding:'2px 3px 1px 5px'}}/>     
+                                </div>
+                            </div>   
+                            <div className = "selections-dropdown-content" id = "levels-dropdown" style = {{right:10}}></div>  
+                             <FontAwesomeIcon style = {{display: levelFilter ? 'block' : 'none'}} className = "reset-filter fa-xs" id = "reset-level" icon={faX} 
+                                onClick = {() => {
+                                    setLevelFilter()
+                                    d3.select('#open-levels-btn').style('display', 'block')
+                                    d3.select('#close-levels-btn').style('display', 'none') 
+                                    d3.select('#levels-dropdown').style('visibility','hidden')
+                                }}
+                            />
+                        </div> 
+                        <div className="dropdown-container" id = "class-dropdown">
+                            <div className = "concept-selection-btn" style = {{width:'auto',border:'none',alignItems:'flex-start'}}>
+                                <p style = {{paddingRight:4,marginLeft:levelFilter ? 10 : 0}}>Classes:</p>
+                                <div className = "dropdown-header" id = "classes-header"
+                                    onMouseOver={() => d3.select('#open-classes-btn').style('opacity', 1)}
+                                    onMouseOut={() => d3.select('#open-classes-btn').style('opacity', 0.3)}
+                                    onClick = {() => {
+                                        if (d3.select('#open-classes-btn').style('display') === 'block') {
+                                            d3.select('#open-classes-btn').style('display', 'none')
+                                            d3.select('#close-classes-btn').style('display', 'block') 
+                                            d3.select('#classes-dropdown').style('visibility','visible')
+                                        } else {
+                                            d3.select('#open-classes-btn').style('display', 'block')
+                                            d3.select('#close-classes-btn').style('display', 'none')  
+                                            d3.select('#classes-dropdown').style('visibility','hidden')
+                                        }
+                                    }}
+                                >
+                                    <div id = "class-selections"></div>
+                                    <FontAwesomeIcon className = "dropBtn fa-lg" id = 'open-classes-btn' icon={faCaretDown} style = {{display:'block',opacity: 0.3,padding:'1px 3px 1px 5px'}}/>
+                                    <FontAwesomeIcon className = "dropBtn fa-lg" id = 'close-classes-btn' icon={faCaretUp} style = {{display:'none',opacity: 1,padding:'2px 3px 1px 5px'}}/>     
+                                </div>
+                            </div>   
+                            <div className = "selections-dropdown-content" id = "classes-dropdown" style = {{right:-15,alignItems:'flex-start'}}></div>  
+                            <FontAwesomeIcon style = {{display: classFilter.length > 0 ? 'block' : 'none'}} className = "reset-filter fa-xs" id = "reset-class" icon={faX} 
+                                onClick = {() => {
+                                    setClassFilter([])
+                                    d3.select('#open-classes-btn').style('display', 'block')
+                                    d3.select('#close-classes-btn').style('display', 'none') 
+                                    d3.select('#classes-dropdown').style('visibility','hidden')
+                                }}
+                            />
+                        </div>    
                     </div>
                 </div>
                 <div className = "box-shadow" id = "sidebar-content">
