@@ -1,8 +1,11 @@
 import React, { useEffect, useState, useRef } from 'react';
-import GraphSection from './visualization/graphSection.jsx';
-import SideBar from './visualization/sideBar.jsx'
-import graphIconBlack from '../img/graph-icon-black.svg'
+import '@fortawesome/fontawesome-free/css/all.min.css';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import GraphSection from './visualization/graphSection';
+import SideBar from './visualization/sideBar'
 import graphIconWhite from '../img/graph-icon-white.svg'
+import { faPlus } from '@fortawesome/free-solid-svg-icons'
+ import { faX } from '@fortawesome/free-solid-svg-icons'
 import rootIcon from '../img/root-icon.svg'
 import * as d3 from "d3";
 import po from '../po.js';
@@ -35,11 +38,16 @@ function Visualization (props) {
     const rootLine = props.rootLine
     const treeSelections = props.treeSelections
     const setTreeSelections = props.setTreeSelections
+    const levelFilter = props.levelFilter
     const setLevelFilter = props.setLevelFilter
     const maxLevel = props.maxLevel
     const fullTreeMax = props.fullTreeMax
+    const allClasses = props.allClasses
+    const classFilter = props.classFilter
+    const setClassFilter = props.setClassFilter
     const [visible,setVisible] = useState(false)
-    const [openFilters,setOpenFilters] = useState(true)
+    const openFilters = props.openFilters
+    const setOpenFilters = props.setOpenFilters
     const hoverTimeout = useRef(null)
     const hideTimeout = useRef(null)
 
@@ -52,35 +60,22 @@ function Visualization (props) {
             d3.select("#tooltip")
                 .style('left', function() {
                     //use trackNodes variable to base it off tree position
-                    if (event.x + 250 > window.innerWidth) {
-                        return (event.x - 200 + 'px')   
+                    if (event.x + 150 > window.innerWidth) {
+                        return (event.x - 110 + 'px')   
                     } else {
-                        return (event.x + 15 + 'px')    
+                        return (event.x + 10 + 'px')    
                     } 
                 })
                 .style('top', function() {
                     //use trackNodes variable to base it off tree position
-                    if (event.y + 250 > window.innerHeight) {
-                        return (event.y - 240 + 'px')    
+                    if (event.y + 150 > window.innerHeight) {
+                        return (event.y - 110 + 'px')    
                     } else {
                         return (event.y + 10 + 'px')
                     } 
                 })
-            d3.select('#root-btn-circle')
-                .style('border', () => d.name === sidebarRoot.name ? '1px solid var(--mediumslate)' : '1px solid transparent')     
-                .style('background-color', () => d.name === sidebarRoot.name ? 'var(--lightestpurple)' : 'transparent') 
-                .on('mouseover', () => {
-                    if (d.name !== sidebarRoot.name) {
-                        // setMapRoot(d.name)
-                        d3.select('#root-btn-circle').style('border', '1px solid var(--mediumslate)').style('background-color', 'var(--lightestpurple)')
-                    }
-                })
-                .on('mouseout', () => {
-                    // if (d.name !== sidebarRoot.name || mapRoot !== sidebarRoot.name) setMapRoot(sidebarRoot.name)
-                    d3.select('#root-btn-circle')
-                        .style('border', () => d.name === sidebarRoot.name ? '1px solid var(--mediumslate)' : '1px solid transparent')     
-                        .style('background-color', () => d.name === sidebarRoot.name ? 'var(--lightestpurple)' : 'transparent')     
-                })
+            d3.select('#tooltip-root')  
+                .style('display', () => d.name === sidebarRoot.name ? 'none' : 'block') 
                 .on('click', async () => {
                     if (d.name !== sidebarRoot.name) {  
                         const data = await getData(d.name)
@@ -88,29 +83,25 @@ function Visualization (props) {
                         setVisible(false) 
                     }
                 })   
-            d3.select('#tooltip-RC').html(getCounts(d.data.code_counts, 'event_counts') + ' RC')
-            d3.select('#tooltip-DRC').html(getCounts(d.data.code_counts, 'descendant_event_counts') + ' DRC')
-            d3.select('#tooltip-PC').html(getCounts(d.data.code_counts, 'person_counts') + ' PC')
-            d3.select('#tooltip-DPC').html(getCounts(d.data.code_counts, 'descendant_person_counts') + ' DPC')
+            d3.select('#tooltip-RC').html(d.total_counts + ' RC')
+            d3.select('#tooltip-DRC').html(d.descendant_counts + ' DRC')
             d3.select('#counts-btn-circle')
+                .style('display', d.total_counts === 0 ? 'none' : 'flex')
                 .on('mouseover', () => {
                     if (!conceptNames.includes(d.name)) {
-                        d3.select("#graph-icon-black").style('display', 'none')
-                        d3.select("#graph-icon-white").style('display', 'block')
-                        d3.select('#counts-btn-circle').style('border', 'none').style('background-color', () => generateColor(d.name))
+                        d3.select("#tooltip-plus").style('color', 'white')
+                        d3.select('#counts-btn-circle').style('border', '1px solid '+generateColor(d.name)).style('background-color', () => generateColor(d.name))
                     }
                     else {
-                        if (selectedConcepts.length > 1) {
-                            d3.select("#graph-icon-black").style('display', 'block')
-                            d3.select("#graph-icon-white").style('display', 'none')
-                            d3.select('#counts-btn-circle').style('background-color', 'transparent').style('border', '1px solid var(--lightergrey)')   
-                        } 
+                        d3.select("#tooltip-x").style('display', 'block').style('opacity',1)
+                        d3.select("#graph-icon-white").style('display', 'none').style('opacity',0) 
                     }    
                 })
                 .on('mouseout', () => {
-                    d3.select("#graph-icon-black").style('display', () => conceptNames.includes(d.name) ? 'none' : 'block')
-                    d3.select("#graph-icon-white").style('display', () => conceptNames.includes(d.name) ? 'block' : 'none')
-                    d3.select('#counts-btn-circle').style('background-color', () => conceptNames.includes(d.name) ? generateColor(d.name) : 'transparent').style('border', () => conceptNames.includes(d.name) ? 'none' : '1px solid var(--lightergrey)')
+                    d3.select("#tooltip-x").style('display', 'none').style('opacity',0) 
+                    d3.select("#graph-icon-white").style('display', () => conceptNames.includes(d.name) ? 'block' : 'none').style('opacity', () => conceptNames.includes(d.name) ? 1 : 0)
+                    d3.select('#tooltip-plus').style('color',color.text).style('display', () => conceptNames.includes(d.name) ? 'none' : 'block').style('opacity', () => conceptNames.includes(d.name) ? 0 : 1)
+                    d3.select('#counts-btn-circle').style('background-color', () => conceptNames.includes(d.name) ? generateColor(d.name) : 'transparent').style('border', () => conceptNames.includes(d.name) ? '1px solid '+generateColor(d.name) : '1px solid var(--textlight)')
                 })
                 .on('click', () => {
                     if (d.total_counts !== 0) {
@@ -124,34 +115,36 @@ function Visualization (props) {
                     setVisible(false)
                 })
                 .style('background-color', () => conceptNames.includes(d.name) ? generateColor(d.name) : 'transparent')
-                .style('border', () => conceptNames.includes(d.name) ? 'none' : '1px solid var(--lightergrey)')
-            d3.select("#graph-icon-black")
-                .style('display', () => conceptNames.includes(d.name) ? 'none' : 'block')
+                .style('border', () => conceptNames.includes(d.name) ? '1px solid '+generateColor(d.name) : '1px solid var(--textlight)')
             d3.select("#graph-icon-white")
                 .style('display', () => conceptNames.includes(d.name) ? 'block' : 'none')
+                .style('opacity', () => conceptNames.includes(d.name) ? 1 : 0)
+            d3.select("#tooltip-plus")
+                .style('display', () => conceptNames.includes(d.name) ? 'none' : 'block')
+                .style('opacity', () => conceptNames.includes(d.name) ? 0 : 1)
             d3.select("#tooltip-title")
                 .html(concept_info.concept_name)
                 .style('display', 'block')
             d3.select("#tooltip-content").select("#tooltip-id")
-                .selectAll("p")
+                .selectAll("span")
                 .html(d.name)
             d3.select("#tooltip-content").select("#tooltip-code")
-                .selectAll("p")
+                .selectAll("span")
                 .html(concept_info.concept_code)
             d3.select("#tooltip-content").select("#tooltip-type")
-                .selectAll("p")
+                .selectAll("span")
                 .html(concept_info.standard_concept ? "Standard" : "Non standard")
             d3.select("#concept-type-tooltip")
                 .style("border-style", () => concept_info.standard_concept ? 'solid' : 'dashed')
                 .style("color", 'black')
             d3.select("#tooltip-content").select("#tooltip-vocabulary")
-                .selectAll("p")
+                .selectAll("span")
                 .html(concept_info.vocabulary_id)
             d3.select("#tooltip-content").select("#tooltip-domain")
-                .selectAll("p")
+                .selectAll("span")
                 .html(concept_info.domain_id)
             d3.select("#tooltip-content").select("#tooltip-class")
-                .selectAll("p")
+                .selectAll("span")
                 .html(concept_info.concept_class_id)
             // d3.select("#tooltip-content").select("#tooltip-validity")
             //     .selectAll("p")
@@ -228,13 +221,11 @@ function Visualization (props) {
 
     useEffect(()=>{
         if (root) {
-            const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://127.0.0.1:8585'
-            fetch(`${apiBaseUrl}/getCodeCounts?conceptId=${root}`)
+            fetch(`http://127.0.0.1:8585/getCodeCounts?conceptId=${root}`)
                 .then(res=> res.json())
                 .then(data=>{
                     console.log('root', root)
                     console.log('data', data)
-                    setExtent(d3.extent([1953,2022]))
                     setGraphFilter({gender:-1,age:[-1]})
                     setRootData(data)
                     setSidebarRoot({name:parseInt(root),data:data}) 
@@ -250,33 +241,31 @@ function Visualization (props) {
             onMouseLeave={() => {hideTooltip()}}>
                 <div id = "tooltip-header">
                     <div id = "tooltip-btn-container">
-                        <div className = "tooltip-btn" id = "root-btn-circle">
-                            <img src={rootIcon} alt="root icon"/>
-                        </div>
+                        <div className = "tooltip-btn" id = 'tooltip-root'><img style = {{width:15}} src={rootIcon} alt="root icon"/></div>
                         <div className = "tooltip-btn" id = "counts-btn-circle">
-                            <img id = "graph-icon-black" src={graphIconBlack} alt="graph icon"/>
-                            <img id = "graph-icon-white" src={graphIconWhite} alt="graph icon"/>
+                            <FontAwesomeIcon style = {{opacity:0,display:'none',color:'var(--text)'}} className = 'tooltip-icon fa-solid fa-plus fa-sm' id = "tooltip-plus" icon={faPlus} />
+                            <FontAwesomeIcon style = {{opacity:0,display:'none',color:'white'}} className = 'tooltip-icon fa-solid fa-x fa-sm' id = "tooltip-x" icon={faX} />
+                            <img style = {{paddingBottom:1,width:10,opacity:1,display:'block'}} className = 'tooltip-icon' id = "graph-icon-white" src={graphIconWhite} alt="graph icon"/>
                         </div>
                     </div>
+                    <div style = {{display:'flex',margin:0}}>
+                        <p style = {{fontWeight:700}} id = "tooltip-RC"></p>
+                        <p style = {{marginRight:2,marginLeft:2,opacity:0.5}}>|</p>
+                        <p style = {{fontWeight:700}} id = "tooltip-DRC"></p>   
+                    </div> 
                 </div>
                 <div id = "tooltip-title"></div>
-                <div style = {{display:'flex',justifyContent:'space-between'}}>
-                    <p id = "tooltip-RC"></p>
-                    <p>|</p>
-                    <p id = "tooltip-DRC"></p>
-                    <p>|</p>
-                    <p id = "tooltip-PC"></p>
-                    <p>|</p>
-                    <p id = "tooltip-DPC"></p>     
-                </div> 
                 <div id = "tooltip-content">
-                    <div className = "tooltip-content-row" id = "tooltip-id"><h4>Id</h4><p></p></div>
-                    <div className = "tooltip-content-row" id = "tooltip-code"><h4>Code</h4><p></p></div>
-                    <div className = "tooltip-content-row" id = "tooltip-type"><h4>Type</h4><p className = "concept-type" id = "concept-type-tooltip"></p></div>
-                    <div className = "tooltip-content-row" id = "tooltip-vocabulary"><h4>Vocabulary</h4><p></p></div>
-                    <div className = "tooltip-content-row" id = "tooltip-domain"><h4>Domain</h4><p></p></div>
-                    <div className = "tooltip-content-row" id = "tooltip-class"><h4>Class</h4><p></p></div>
-                    {/* <div className = "tooltip-content-row" id = "tooltip-validity"><h4>Validity</h4><p></p></div> */}
+                    <div className='tooltip-content-col'>
+                        <p className = "tooltip-content-row" id = "tooltip-id">Id<span></span></p>
+                        <p className = "tooltip-content-row" id = "tooltip-code">Code<span></span></p>
+                        <p className = "tooltip-content-row" id = "tooltip-type">Type<span className = "concept-type" id = "concept-type-tooltip"></span></p>
+                    </div>
+                    <div className='tooltip-content-col'>
+                        <p className = "tooltip-content-row" id = "tooltip-vocabulary">Vocabulary<span></span></p>
+                        <p className = "tooltip-content-row" id = "tooltip-domain">Domain<span></span></p>
+                        <p className = "tooltip-content-row" id = "tooltip-class">Class<span></span></p>    
+                    </div>
                 </div>
             </div>    
             <SideBar
@@ -301,9 +290,13 @@ function Visualization (props) {
                 list = {list}
                 treeSelections = {treeSelections}
                 setTreeSelections = {setTreeSelections}
+                levelFilter = {levelFilter}
                 setLevelFilter = {setLevelFilter}
                 maxLevel = {maxLevel}
                 fullTreeMax = {fullTreeMax}
+                allClasses = {allClasses}
+                classFilter = {classFilter}
+                setClassFilter = {setClassFilter}
             ></SideBar> 
             <GraphSection
                 color = {color}
