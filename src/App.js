@@ -15,7 +15,7 @@ function App() {
     lightpurple: '#e8e4f3',
     background: '#eaeaec',
     lightbackground: '#EAEAEC90',
-    darkbackground: '#e0e0e4',
+    darkbackground: '#d4d4d9',
     text: '#253B59',
     textlight: '#213c5c85',
     textlightest: '#213c5c65',
@@ -41,6 +41,8 @@ function App() {
   const [openFilters,setOpenFilters] = useState(true)
   const [levelFilter, setLevelFilter] = useState()
   const [classFilter, setClassFilter] = useState([])
+  const [filteredConnections, setFilteredConnections] = useState([])
+  const [pruned, setPruned] = useState(false)
 
   // fetch data
   async function getData(id) {
@@ -75,6 +77,25 @@ function App() {
   const fullTreeMax = useMemo(() => sidebarRoot ? d3.max(sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to" && d.levels !== "-1").map(d => parseInt(d.levels.split('-')[0]))) : null,[sidebarRoot])
   const allClasses = useMemo(() => sidebarRoot ? sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n) : null,[sidebarRoot])
   const years = useMemo(() => extent ? Array.from({ length: extent[1] - extent[0] + 1 }, (_, i) => extent[0] + i) : null,[extent])
+  const crossConnections = useMemo(() => {
+    if (sidebarRoot) {
+      let nodes = sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").filter(d => d.parent_concept_id !== d.child_concept_id)
+      .map(d => {
+        if (d.levels === "-1") {
+            return {
+              ...d,
+              parent_concept_id: d.child_concept_id,
+              child_concept_id: d.parent_concept_id
+            }
+          }
+          return d
+        })
+      let children = nodes.map(d => d.child_concept_id).filter((e,n,l) => l.indexOf(e) === n)
+      let connections = []
+      children.forEach(child => nodes.filter(d => d.child_concept_id === child).length > 1 ? connections.push({child:child,parents:nodes.filter(d => d.child_concept_id === child).map(d => d.parent_concept_id)}) : null)
+      return connections
+    }
+  },[sidebarRoot])
 
   const filteredCounts = useMemo(() => {
     if (graphFilter.gender !== -1 || graphFilter.age.length > 1) {
@@ -177,14 +198,18 @@ function App() {
       })
   }, [])
 
-  // set sidebar states
+  // set sidebar states, root line, and extent
   useEffect(()=>{
     if (sidebarRoot) {
+      let rootData = sidebarRoot.data.stratified_code_counts.filter(e => e.concept_id === sidebarRoot.name)
+      if (graphFilter.gender !== -1 || graphFilter.age.length > 1) {
+        rootData = rootData.filter(e => graphFilter.gender !== -1 && graphFilter.age.length > 1 ? e.gender_concept_id === graphFilter.gender && graphFilter.age.includes(e.age_decile) : graphFilter.gender !== -1 ? e.gender_concept_id === graphFilter.gender : graphFilter.age.includes(e.age_decile))
+      } 
       let rootLineData = d3.flatRollup(
-        sidebarRoot.data.stratified_code_counts.filter(e => e.concept_id === sidebarRoot.name),
-        v => {return d3.sum(v, vv => vv['node_descendant_record_counts'])},
-        d => d.concept_id,
-        d => d.calendar_year
+          rootData,
+          v => {return d3.sum(v, vv => vv['node_descendant_record_counts'])},
+          d => d.concept_id,
+          d => d.calendar_year
       )
       rootLineData.sort((a, b) => a[1] - b[1])
       rootLineData = d3.group(rootLineData, d => d[0])
@@ -192,12 +217,19 @@ function App() {
       setRootLine(rootLineData)
       setMapRoot('')
       const allNodes = sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").filter(d => levelFilter === undefined || (d.levels === '-1' || parseInt(d.levels.split('-')[0]) <= levelFilter)).filter(d => !classFilter.length>0 || classFilter.includes(getConceptInfo(d.child_concept_id).concept_class_id))
-      let selected = allNodes.filter(d => d.levels !== '-1' && getConceptInfo(d.child_concept_id).record_counts !== 0).map(d => d.child_concept_id).filter((e,n,l) => l.indexOf(e) === n)
+      let selected = allNodes.filter(d => d.levels !== '-1').map(d => d.child_concept_id).filter((e,n,l) => l.indexOf(e) === n)
       const mappings = sidebarRoot.data.concept_relationships.filter(d => d.levels === "Mapped from" || d.levels === "Maps to")
       const nodeList = allNodes.map(d => d.child_concept_id).filter((e,n,l) => l.indexOf(e) === n)
-      selected = selected.map(d => ({name:d, leaf: !allNodes.map(d => d.parent_concept_id).includes(d) &&  allNodes.filter(d => d.child_concept_id === d)[0]?.levels !== "-1"? true : false, data: {code_counts: sidebarRoot.data.stratified_code_counts.filter(e => e.concept_id === d), concept: getConceptInfo(d)}}))
+      selected = selected.map(d => ({name:d, leaf: (!allNodes.map(d => d.parent_concept_id).includes(d) || (selected.length === 1 && selected[0] === sidebarRoot.name)) && allNodes.filter(d => d.child_concept_id === d)[0]?.levels !== '-1' ? true : false, data: {code_counts: sidebarRoot.data.stratified_code_counts.filter(e => e.concept_id === d), concept: getConceptInfo(d)}}))
+      selected = selected.filter(d => !d.leaf ? getConceptInfo(d.name).record_counts !== 0 : d)
       setSelectedConcepts(selected)
-      setExtent(d3.extent(selected.map(d => d.data.code_counts).flat().map(d => d.calendar_year)))
+      let extent = d3.extent(selected.map(d => d.data.code_counts).flat().map(d => d.calendar_year))
+      if (!extent[0] || !extent[1]) extent = d3.extent(rootLineData.get(sidebarRoot.name).map(arr => arr[1]))
+      setExtent(extent)
+      let filteredC = crossConnections.filter(c => !nodeList.includes(c.child)).map(d => ({...d,parents:d.parents.filter(e => nodeList.includes(e))}))
+      filteredC = filteredC.map(d => ({...d,parents:d.parents.map(e => ({id:e,leaf:allNodes.filter(d => d.child_concept_id === e)[0].levels === "-1" ? nodeList.length === 1 ? true : false : !allNodes.map(d => d.parent_concept_id).includes(e) || selected.filter(d => d.name === e)[0]?.leaf ? true : false}))}))
+      filteredC = filteredC.map(d => ({...d,parents:d.parents.filter(e => e.leaf)}))
+      console.log('cross connections',filteredC)
       // set nodes and links
       let listArray = nodeList.map(e=>({
           'name': e, 
@@ -205,7 +237,10 @@ function App() {
           'levels': allNodes.filter(d => d.child_concept_id === e)[0].levels,
           'class': allNodes.filter(d => d.child_concept_id === e)[0].concept_class_id,
           'color': generateColor(e),
-          'leaf': !allNodes.map(d => d.parent_concept_id).includes(e) &&  allNodes.filter(d => d.child_concept_id === e)[0].levels !== "-1"? true : false,
+          'leaf': allNodes.filter(d => d.child_concept_id === e)[0].levels === "-1" ? nodeList.length === 1 ? true : false : !allNodes.map(d => d.parent_concept_id).includes(e) || selected.filter(d => d.name === e)[0]?.leaf ? true : false,
+          'parents': e === sidebarRoot.name ? allNodes.filter(d => d.levels === "-1").map(d => d.child_concept_id) : allNodes.filter(d => d.child_concept_id === e)[0].levels === "-1" ? [] : sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to" && d.levels !== "-1" && d.levels !== "0").filter(d => d.child_concept_id === e).map(d => d.parent_concept_id),
+          'children': allNodes.filter(d => d.child_concept_id === e)[0].levels === "-1" ? [sidebarRoot.name] : sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to" && d.levels !== "-1").filter(d => d.parent_concept_id === e).map(d => d.child_concept_id),
+          'connections': filteredC.filter(c => c.parents.map(p => p.id).includes(e)).map(d => ({...d,source:e})),
           'total_counts': getConceptInfo(e).record_counts || 0,
           'descendant_counts': getConceptInfo(e).descendant_record_counts || 0,
           'data': {code_counts: sidebarRoot.data.stratified_code_counts.filter(d => d.concept_id === e), concept: getConceptInfo(e)},
@@ -236,12 +271,22 @@ function App() {
       //     }
       //     return d
       //   })
-      // const matrix = po.domFromEdges(edges,'child_concept_id','parent_concept_id')
-      // const edgesMap = edges.map(d => ([d.child_concept_id,d.parent_concept_id]))
+      //   .filter(d => d.child_concept_id !== d.parent_concept_id)
+      //   .map(d => {
+      //     return {
+      //         source: d.parent_concept_id,
+      //         target: d.child_concept_id
+      //       }
+      //   })
+      // console.log('edges',edges)
+      // const matrix = po.domFromEdges(edges,'target','source')
+      // const edgesMap = edges.map(d => ([d.source.toString(),d.target.toString()]))
       // const labels = edgesMap.flat().filter((e,n,l) => l.indexOf(e) === n)
       // const poset = po.createPoset(matrix,labels)
       // poset.enrich()
-      // poset.setLayers()
+      // poset.feature("depth",node=>nodesArray.filter(d => d.name === parseInt(node))[0].distance)
+      // poset.setLayers("depth")
+      // // poset.setLayers((node)=>nodesArray.filter(d => d.name === parseInt(node))[0].distance)
       // console.log('poset',poset)
       // const embeddingData = poset.analytics.suprema.map(infimum=>poset.elements.indexOf(infimum)).map(infimumRow=>poset.getDomMatrix()[infimumRow])
       // const umap = new UMAP({
@@ -255,11 +300,15 @@ function App() {
       // var f = (layer,h)=> h > 0 && layer.map(node=>poset.features[node]["x"] = poset.getCovering(node).map(parent=>poset.features[parent].x).reduce((acc,el)=>acc+el)/poset.getCovering(node).length)
       // poset.climber(poset,f)
       // console.log('poset',poset)
+      let isPruned = false
+      nodesArray.filter(d => d.leaf).forEach(d => d.children.length > 0 ? isPruned = true : null)
+      setPruned(isPruned)
+      setFilteredConnections(filteredC)
       setList(listArray)
       setNodes(nodesArray)
       setLinks(linksArray)   
     }    
-  }, [sidebarRoot,levelFilter,classFilter])
+  }, [sidebarRoot,levelFilter,classFilter,graphFilter])
 
   return ( loaded ?
     <div className = "App">
@@ -314,6 +363,8 @@ function App() {
           setClassFilter = {setClassFilter}
           openFilters = {openFilters}
           setOpenFilters = {setOpenFilters}
+          filteredConnections = {filteredConnections}
+          pruned = {pruned}
         />  
       </div>  
     </div> : null

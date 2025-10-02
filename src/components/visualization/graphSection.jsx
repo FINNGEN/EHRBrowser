@@ -37,97 +37,14 @@ function GraphSection (props) {
     // DRAWING
     // draw line chart
     function drawGraph(groups, rollup, scaleX, scaleY) {
-        // draw root descendant count line
-        function updateRootLine() {
-            d3.select("#graph").selectAll('.lines').data(rootLine, d => d[0])
-                .join(enter => {
-                    const geometry = enter.append('g')  
-                        .classed('lines', true) 
-                        .attr("clip-path", "url(#clip)")
-                    geometry.append("path")
-                        .classed("line-path", true)
-                        .attr("cursor", "pointer")
-                        .attr("id", d => "line-" + sidebarRoot.name)
-                        .attr("stroke-width", 3)
-                        .style("stroke", 'black')
-                        .style("fill", "none")
-                        .style("transition", "0.5s all")
-                        .style("stroke-dasharray", d => {
-                            if (sidebarRoot.data.concepts.filter(c => c.concept_id === sidebarRoot.name)[0].standard_concept) {return 'none'} 
-                            else {return '5px 3px'}
-                        })
-                        .transition()
-                        .attr("d", function(d) {
-                            return d3.line()
-                                .x(d => scaleX(d[1]))
-                                .y(d => scaleY(+d[2]))
-                                (d[1])
-                            })
-                    geometry.append("path")
-                        .classed("line-path-background", true)
-                        .attr("cursor", "pointer")
-                        .attr("id", d => "line-background-" + sidebarRoot.name)
-                        // .on("mouseover", (e,d) => {
-                        //     let element = selectedConcepts.filter(c => c.name === d[0])[0]
-                        //     conceptHover(d[0], "enter")  
-                        //     tooltipHover(element, "enter", e, 'graph')  
-                        //     lineHover(e, d[1], scaleX, scaleY, 'enter')
-                        // })
-                        // .on("mouseout", (e,d) => {
-                        //     let element = selectedConcepts.filter(c => c.name === d[0])[0]
-                        //     conceptHover(d[0], "leave") 
-                        //     tooltipHover(element, "leave", e, 'graph')    
-                        //     lineHover(e, d[1], scaleX, scaleY, 'leave') 
-                        // })
-                        .attr("stroke-width", 8)
-                        .style("stroke", "transparent")
-                        .style("fill", "none")
-                        .style("transition", "0.5s all")
-                        .transition()
-                        .attr("d", function(d) {
-                            return d3.line()
-                                .x(d => scaleX(d[1]))
-                                .y(d => scaleY(+d[2]))
-                                (d[1])
-                            })
-                }, update => {
-                    update.select('.line-path')
-                        .transition()
-                        .attr("d", function(d) {
-                            return d3.line()
-                                .x(d => scaleX(d[1]))
-                                .y(d => scaleY(+d[2]))
-                                (d[1])
-                        })
-                    update.select('.line-path-background')
-                        // .on("mouseover", (e,d) => {
-                        //     let element = selectedConcepts.filter(c => c.name === d[0])[0]
-                        //     conceptHover(d[0], "enter")  
-                        //     tooltipHover(element, "enter", e, 'graph')  
-                        //     lineHover(e, d[1], scaleX, scaleY, 'enter')
-                        // })
-                        // .on("mouseout", (e,d) => {
-                        //     let element = selectedConcepts.filter(c => c.name === d[0])[0]
-                        //     conceptHover(d[0], "leave") 
-                        //     tooltipHover(element, "leave", e, 'graph')  
-                        //     lineHover(e, d[1], scaleX, scaleY, 'leave')  
-                        // })
-                        .transition()
-                        .attr("d", function(d) {
-                            return d3.line()
-                                .x(d => scaleX(d[1]))
-                                .y(d => scaleY(+d[2]))
-                                (d[1])
-                        })
-                },exit => exit.remove())    
-        }
         // draw stacked area
         function updateStack(stackedData) {
-            d3.select("#graph").selectAll('.areas').data(stackedData, d => d.key)
+            d3.select("#graph-stack").selectAll('.areas').data(stackedData, d => d.key)
             .join(enter => {
                 const geometry = enter.append('g')
                     .classed('areas',true)
                     .attr("clip-path", "url(#clip)")
+                    .lower()
                 geometry.append("path")
                     .classed("area-path", true)
                     .attr("cursor", "pointer")
@@ -364,18 +281,107 @@ function GraphSection (props) {
                         .html(d => d[1][0].data.concept.vocabulary_id)
                 },exit => exit.remove())    
         }
+        // draw root descendant count line
+        function updateRootLine() {
+            d3.select("#graph-line").selectAll('.lines').data(rootLine, d => d[0])
+                .join(enter => {
+                    const geometry = enter.append('g')  
+                        .classed('lines', true) 
+                        .attr("clip-path", "url(#clip)")
+                        .raise()
+                    geometry.append("path")
+                        .classed("line-path", true)
+                        .attr("cursor", "pointer")
+                        .attr("id", d => "line-" + sidebarRoot.name)
+                        .attr("stroke-width", 3)
+                        .style("stroke", 'black')
+                        .style("fill", "none")
+                        .style("transition", "0.5s all")
+                        .style("stroke-dasharray", d => {
+                            if (sidebarRoot.data.concepts.filter(c => c.concept_id === sidebarRoot.name)[0].standard_concept) {return 'none'} 
+                            else {return '5px 3px'}
+                        })
+                        .transition()
+                        .attr("d", function(d) {
+                            return d3.line()
+                                .x(d => scaleX(d[1]))
+                                .y(d => scaleY(+d[2]))
+                                (d[1])
+                            })
+                    geometry.append("path")
+                        .classed("line-path-background", true)
+                        .attr("cursor", "pointer")
+                        .attr("id", d => "line-background-" + sidebarRoot.name)
+                        // .on("mouseover", (e,d) => {
+                        //     let element = selectedConcepts.filter(c => c.name === d[0])[0]
+                        //     conceptHover(d[0], "enter")  
+                        //     tooltipHover(element, "enter", e, 'graph')  
+                        //     lineHover(e, d[1], scaleX, scaleY, 'enter')
+                        // })
+                        // .on("mouseout", (e,d) => {
+                        //     let element = selectedConcepts.filter(c => c.name === d[0])[0]
+                        //     conceptHover(d[0], "leave") 
+                        //     tooltipHover(element, "leave", e, 'graph')    
+                        //     lineHover(e, d[1], scaleX, scaleY, 'leave') 
+                        // })
+                        .attr("stroke-width", 8)
+                        .style("stroke", "transparent")
+                        .style("fill", "none")
+                        .style("transition", "0.5s all")
+                        .transition()
+                        .attr("d", function(d) {
+                            return d3.line()
+                                .x(d => scaleX(d[1]))
+                                .y(d => scaleY(+d[2]))
+                                (d[1])
+                            })
+                }, update => {
+                    update.select('.line-path')
+                        .transition()
+                        .attr("d", function(d) {
+                            return d3.line()
+                                .x(d => scaleX(d[1]))
+                                .y(d => scaleY(+d[2]))
+                                (d[1])
+                        })
+                    update.select('.line-path-background')
+                        // .on("mouseover", (e,d) => {
+                        //     let element = selectedConcepts.filter(c => c.name === d[0])[0]
+                        //     conceptHover(d[0], "enter")  
+                        //     tooltipHover(element, "enter", e, 'graph')  
+                        //     lineHover(e, d[1], scaleX, scaleY, 'enter')
+                        // })
+                        // .on("mouseout", (e,d) => {
+                        //     let element = selectedConcepts.filter(c => c.name === d[0])[0]
+                        //     conceptHover(d[0], "leave") 
+                        //     tooltipHover(element, "leave", e, 'graph')  
+                        //     lineHover(e, d[1], scaleX, scaleY, 'leave')  
+                        // })
+                        .transition()
+                        .attr("d", function(d) {
+                            return d3.line()
+                                .x(d => scaleX(d[1]))
+                                .y(d => scaleY(+d[2]))
+                                (d[1])
+                        })
+                },exit => exit.remove())    
+        }
+        
         const stackedData = d3.stack()
             .keys(conceptNames)
             (rollup)  
         updateStack(stackedData) 
         updateLabels(groups)    
         updateRootLine()
+        d3.select("#graph-viz").raise()
     }
     // FUNCTIONS
     // get graph
     function getGraph(groups, rollup, width, height, ticks) {
         // x and y scales
-        let maxY = rollup.length > 0 ? d3.max(rollup, obj => Object.entries(obj).reduce((sum, [key, val]) => key !== 'year' ? sum + val : sum, 0)) : Math.max(...rootLine.get(sidebarRoot.name).map(arr => arr[2]))
+        let maxRollup = d3.max(rollup, obj => Object.entries(obj).reduce((sum, [key, val]) => key !== 'year' ? sum + val : sum, 0))
+        let maxRootLine = Math.max(...rootLine.get(sidebarRoot.name).map(arr => arr[2]))
+        let maxY = rollup.length > 0 ? maxRollup > maxRootLine ? maxRollup : maxRootLine : maxRootLine
         let scaleX = d3.scaleLinear().domain(extent).range([0, width])
         let scaleY = d3.scaleLinear().domain([0, maxY*1.05]).range([height, 0])
         // grid lines
@@ -384,20 +390,26 @@ function GraphSection (props) {
         d3.select("#graph").select(".x-grid")
             .attr('transform', 'translate(0,' + height + ')')
             .call(xAxisGrid)
+            // .lower()
         d3.select("#graph").select(".axis-grid")
             .call(yAxisGrid)
+            // .lower()
         // axis lines
         d3.select("#graph").select(".x")
             .attr("transform", "translate(0," + height + ")")
             .call(d3.axisBottom(scaleX).tickSize(-height).ticks(ticks.two).tickFormat(d3.format("d")).tickSizeOuter(0))
+            // .lower()
         d3.select("#graph").select(".y")
             .call(d3.axisLeft(scaleY).ticks(5).tickSizeOuter(0))
+            // .lower()
         // base lines
         d3.select("#graph").select(".axis-base")
             .call(d3.axisLeft(scaleY).tickFormat('').tickSize(-width).tickSizeOuter(0))
+            // .lower()
         d3.select("#graph").select(".axis-base")
             .attr("transform", "translate(0," + height + ")")
             .call(d3.axisBottom(scaleX).tickFormat('').tickSize(-height).tickSizeOuter(0))
+            // .lower()
         // clip path
         d3.select("#graph").append("defs").append("svg:clipPath")
             .attr("id", "clip")
@@ -406,6 +418,7 @@ function GraphSection (props) {
             .attr("height", height)
             .attr("x", 0)
             .attr("y", 0)
+            .raise()
         let animationFrameId = null
         const handleMouseMove = (e) => {
             if (!zooming) return
@@ -424,7 +437,9 @@ function GraphSection (props) {
             e.preventDefault()
             e.stopPropagation()
             if (d3.select("#zoomUI").nodes().length === 0) {
-                setExtent(d3.extent(selectedConcepts.map(d => d.data.code_counts).flat().map(d => d.calendar_year)))
+                let extent = d3.extent(selectedConcepts.map(d => d.data.code_counts).flat().map(d => d.calendar_year))
+                if (!extent[0] || !extent[1]) extent = d3.extent(rootLine.get(sidebarRoot.name).map(arr => arr[1]))
+                setExtent(extent)
                 d3.select("#zoomUI").remove()
                 zooming = false
             }
@@ -522,7 +537,9 @@ function GraphSection (props) {
         //gender
         let genderData = []
         const genders = [8507,8532]
-        genders.forEach(g => genderData.push({id:g, sum:getCounts(selectedConcepts.map(d => d.data.code_counts).flat().filter(e => e.gender_concept_id === g),'node_record_counts')}))
+        let sums = []
+        genders.forEach(g => selectedConcepts.forEach(d => sums.push({id: g, sum: d.leaf ? getCounts(d.data.code_counts.filter(e => e.gender_concept_id === g),'node_descendant_record_counts') : getCounts(d.data.code_counts.filter(e => e.gender_concept_id === g),'node_record_counts')})))
+        genders.forEach(g => genderData.push({id:g, sum:d3.sum(sums.filter(d => d.id === g).map(d => d.sum))}))
         const width = 110
         const height = 110
         const radius = Math.min(width, height) / 2
@@ -541,7 +558,8 @@ function GraphSection (props) {
                 .attr('id', d => 'arc-'+d.data.id)
                 .attr("d", d3.arc().innerRadius(0).outerRadius(radius))
                 .attr("fill", d => graphFilter.gender === d.data.id ? color.text : color.grey)
-                .style("stroke", "#fff")
+                .style("stroke", d => d.data.sum === 0 ? 'none' : color.background)
+                .style('stroke-width',2)
                 .style("cursor", "pointer")
                 .on("mouseover", (e,d) => filterHover(d.data.id, "enter"))
                 .on("mouseout", (e,d) => filterHover(d.data.id, "leave"))
@@ -550,7 +568,7 @@ function GraphSection (props) {
             container.append('text')
                 .classed('arc-text',true)
                 .attr('id', d => 'gender-text-'+d.data.id)
-                .text(d => d.data.sum)
+                .text(d => d.data.sum === 0 ? '' : d.data.sum)
                 .attr("x", d => d.data.id === genders[0] ? -radius/2 : radius/2) 
                 .attr("y", radius/2 - 5) 
                 .attr("text-anchor", d => d.data.id === genders[0] ? "end" : "start") 
@@ -562,8 +580,9 @@ function GraphSection (props) {
                 .transition()
                 .attr("d", d3.arc().innerRadius(0).outerRadius(radius))
                 .attr("fill", d => graphFilter.gender === d.data.id ? color.text : color.grey)
+                .style("stroke", d => d.data.sum === 0 ? 'none' : color.background)
             update.select('.arc-text')
-                .text(d => d.data.sum)
+                .text(d => d.data.sum === 0 ? '' : d.data.sum)
                 .attr("x", d => d.data.id === genders[0] ? -radius/2 : radius/2) 
                 .attr("y", radius/2 - 5) 
                 .attr("text-anchor", d => d.data.id === genders[0] ? "end" : "start") 
@@ -572,7 +591,9 @@ function GraphSection (props) {
         //age
         let ageData = []
         const ages = [0,1,2,3,4,5,6,7,8,9]
-        ages.forEach(a => ageData.push({id:a, sum: getCounts(selectedConcepts.map(d => d.data.code_counts).flat().filter(e => e.age_decile === a),'node_record_counts')}))
+        let ageSums = []
+        ages.forEach(a => selectedConcepts.forEach(d => ageSums.push({id: a, sum: d.leaf ? getCounts(d.data.code_counts.filter(e => e.age_decile === a),'node_descendant_record_counts') : getCounts(d.data.code_counts.filter(e => e.age_decile === a),'node_record_counts')})))
+        ages.forEach(a => ageData.push({id:a, sum: d3.sum(ageSums.filter(d => d.id === a).map(d => d.sum))}))
         const scaleHeight = d3.scaleLinear().domain([0,d3.extent(ageData.map(d => d.sum))[1]]).range([0,60])
         d3.select('#age-viz').selectAll('.age-bar').data(ageData, d => d.id)
         .join(enter => {
@@ -580,7 +601,7 @@ function GraphSection (props) {
                 .classed('age-bar',true)
                 .style('display','flex')
                 .style('flex-direction','column')
-            container.append('p').classed('age-p',true).attr('id',d=>'age-p-'+d.id).style('margin',0).style('padding-bottom','2px').style('font-size','8px').style('text-align','center').style('color', d => graphFilter.age.includes(d.id) ? color.text : color.textlight).html(d => d.sum)
+            container.append('p').classed('age-p',true).attr('id',d=>'age-p-'+d.id).style('margin',0).style('padding-bottom','2px').style('font-size','8px').style('text-align','center').style('color', d => graphFilter.age.includes(d.id) ? color.text : color.textlight).html(d => d.sum === 0 ? '' : d.sum)
             container.append('div')
                 .classed('age-rect',true)
                 .attr('id', d => 'bar-'+d.id)
@@ -604,7 +625,7 @@ function GraphSection (props) {
                     else return 'none'
                 })
         },update => {
-            update.select('.age-p').style('color', d => graphFilter.age.includes(d.id) ? color.text : color.textlight).html(d => d.sum)
+            update.select('.age-p').style('color', d => graphFilter.age.includes(d.id) ? color.text : color.textlight).html(d => d.sum === 0 ? '' : d.sum)
             update.select('.age-rect')
                 .on('mouseover', (e,d) => filterHover(d.id, 'enter'))
                 .on('mouseout', (e,d) => filterHover(d.id, 'leave'))
@@ -739,7 +760,6 @@ function GraphSection (props) {
                             <div className = "filter-container">
                                 <div className = "filter-viz" style = {{marginBottom:5}} id = "gender-viz">
                                     <svg style = {{zIndex:0}} id = "gender-svg"></svg>
-                                    {/* <div style = {{backgroundColor: graphFilter.gender !== -1 ? color.text : color.background}} id = "gender-line"></div> */}
                                 </div>
                                 <div className = "toggle-container" style = {{zIndex:500,width: 110}}>
                                     <div className = "toggle" id = "btn-8507" onMouseOver = {() => filterHover(8507,'enter')} onMouseOut = {() => filterHover(8507,'leave')} onClick = {() => filterSelect(8507,'gender')} style = {{fontSize:10,padding: 3, fontWeight: graphFilter.gender === 8507 ? 700 : 400, border: '1px solid var(--background)', borderRight: '1px solid var(--background)', color: graphFilter.gender === 8507 ? 'white' : color.textlight, backgroundColor: graphFilter.gender === 8507 ? color.text : color.grey, borderTopLeftRadius:20,borderBottomLeftRadius:20}}>Male</div>
@@ -807,6 +827,8 @@ function GraphSection (props) {
                             <g className = "x axis axis-grid"></g>
                             <g className = "y axis"></g>
                             <g className = "axis-base"></g>
+                            <g id = "graph-stack"></g>
+                            <g id = "graph-line"></g>
                             <circle id = "focus"></circle>
                         </svg>
                     </div>        

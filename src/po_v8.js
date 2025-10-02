@@ -4,7 +4,6 @@
 
 //TODO check if PO
 import * as d3 from "d3";
-//TODO poset.analytics.infima.map(infimum=>poset.elements.indexOf(infimum)).map(infimumRow=>poset.getDomMatrix()[infimumRow])
 
 const po = {//edges need to be unique
     domFromEdges : (edges, s = null, t = null) => {
@@ -237,7 +236,7 @@ const po = {//edges need to be unique
                 return this
             },
             print: function(){
-                console.log(JSON.parse(JSON.stringify(this)))
+                
                 return this
             },
             analyze:  function(name,f,args=[]){
@@ -289,8 +288,8 @@ const po = {//edges need to be unique
             const dominanceMatrix = poset.getDomMatrix()
             //poset.feature
             poset.enrich()
-                .feature("subScore",(node)=>poset.getUpset(node).length)
-                .feature("supScore",(node)=>poset.getDownset(node).length)
+                .feature("subScore",(node)=>poset.getUpset(parseInt(node)).length)
+                .feature("supScore",(node)=>poset.getDownset(parseInt(node)).length)
                 .setLayers()
                 .feature("depth",d=>poset.layers.length-poset.layers.findIndex(layer=>layer.includes(d)))
 

@@ -54,6 +54,7 @@ h4 {
 }
 #header {
   height: 60px;
+  min-height: 60px;
   background-color: var(--darkpurple);
   display: flex;
   align-items: center;
@@ -301,7 +302,7 @@ textarea:focus {
 }
 #sidebar {
   flex-grow: 1;
-  width: 15%;
+  width: 40vw;
   background-color: var(--background);
   border-right: 1px solid var(--grey);
   position: relative;
@@ -333,8 +334,8 @@ textarea:focus {
 .expand-compress {
   cursor: pointer;
   position: absolute;
-  top: 14px;
-  right: 16px;
+  top: 10px;
+  right: 12px;
   color: var(--text);
   opacity: 0.5;
 }
@@ -589,15 +590,6 @@ textarea:focus {
   align-items: center;
   justify-content: flex-end;
 }
-#gender-line {
-  position: absolute;
-  height: 30px;
-  width: 1px;
-  top: 50%;
-  left: 50%;
-  -ms-transform: translate(-50%, -50%);
-  transform: translate(-50%, -50%);
-}
 .map-node {
   z-index: 0;
 }
@@ -659,7 +651,7 @@ textarea:focus {
 }
 .info-container, .map-info-container {
   position: relative;
-  margin-bottom: 8px;
+  margin-bottom: 5px;
   margin-top: 5px;
   margin-left: 21px;
   height: 0px;
@@ -674,6 +666,17 @@ textarea:focus {
   flex-direction: column;
   border-left: 1px dashed var(--textlight);
   padding-left: 10px;
+  position: relative;
+}
+.mappings-container::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 10px; 
+  height: 1px; 
+  border-bottom: 1px dashed var(--textlight);
 }
 .info-col, .map-info-col {
   display: flex;
@@ -702,7 +705,7 @@ textarea:focus {
   margin-top: 1px;
 }
 #concept-selections {
-  margin-top: 28px;
+  margin-top: 26px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -826,5 +829,8 @@ textarea:focus {
   padding: 1px 3px 1px 3px;
   margin: 0;
   margin-top: 2px;
+}
+#gender-svg {
+  overflow: visible;
 }
 

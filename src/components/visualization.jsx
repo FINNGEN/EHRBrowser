@@ -48,6 +48,8 @@ function Visualization (props) {
     const [visible,setVisible] = useState(false)
     const openFilters = props.openFilters
     const setOpenFilters = props.setOpenFilters
+    const filteredConnections = props.filteredConnections
+    const pruned = props.pruned
     const hoverTimeout = useRef(null)
     const hideTimeout = useRef(null)
 
@@ -202,7 +204,7 @@ function Visualization (props) {
     }
     // add concepts to graph 
     function addConcepts(newConcepts) {
-        newConcepts = newConcepts.filter(d => d.total_counts !== 0).map(d => {return {name:d.name,data:d.data}})
+        newConcepts = newConcepts.filter(d => !d.leaf ? d.total_counts !== 0 : d).map(d => {return {name:d.name,data:d.data}})
         let updatedConcepts = [...selectedConcepts,...newConcepts]
         setSelectedConcepts(updatedConcepts)
     }
@@ -297,6 +299,8 @@ function Visualization (props) {
                 allClasses = {allClasses}
                 classFilter = {classFilter}
                 setClassFilter = {setClassFilter}
+                filteredConnections = {filteredConnections}
+                pruned = {pruned}
             ></SideBar> 
             <GraphSection
                 color = {color}

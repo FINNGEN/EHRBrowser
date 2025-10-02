@@ -43,6 +43,8 @@
         const allClasses = props.allClasses
         const classFilter = props.classFilter
         const setClassFilter = props.setClassFilter
+        const filteredConnections = props.filteredConnections
+        const pruned = props.pruned
         const [graphSectionWidth, setGraphSectionWidth] = useState()
         const [zoomCompleted, setZoomCompleted] = useState(false)
         const margin = 10
@@ -74,6 +76,10 @@
                 let adjustment = generation.length % 2 !== 0 ? 0 : gap/2
                 let median = Math.floor(generation.length/2) 
                 let position = 0
+                // if (axis === 'x' && node.parents.length === 1 && nodes.filter(d => d.name === node.parents[0])[0].children.length === 1 && node.levels !== '-1' && node.levels !== '0' && node.levels.split('-')[0] !== '1') {
+                //     let parent = nodes.filter(d => d.name === node.parents[0])[0]
+                //     position = getPosition(parent, 'x', cx, cy, parent.name, nodes)  
+                // }
                 if (index >= median) position = center + ((index - median) * gap) + adjustment
                 else position = center - ((median - index) * gap) + adjustment
                 return position
@@ -137,7 +143,7 @@
             const svgHeight = svgNode.getBoundingClientRect().height + padding*2
             const bbox = gNode.getBBox()
             const width = bbox.width
-            const height = bbox.height
+            const height = !pruned ? bbox.height : bbox.height + 40
             const x = bbox.x
             const y = bbox.y
             if (width === 0 || height === 0) return
@@ -146,7 +152,7 @@
                 (svgHeight - padding) / height
             )
             const translateX = (svgWidth - width * scale) / 2 - x * scale 
-            const translateY = (svgHeight - height * scale) / 2 - y * scale + padding
+            const translateY = (svgHeight - height * scale) / 2 - y * scale + padding 
             d3.select('#tree-graphics').transition().attr("transform", `translate(${translateX},${translateY}) scale(${scale})`)
         }
         // DRAWING
@@ -160,7 +166,7 @@
                 node.mappings.forEach(map => sums.push(Math.sqrt(map.total_counts)))
             })
             const extent = d3.extent(sums)
-            const scaleRadius = d3.scaleLinear().domain([0, extent[1]]).range(extent[1] === 0 ? [0,0] : [8, 24])
+            const scaleRadius = d3.scaleLinear().domain([0, extent[1]]).range(extent[1] === 0 ? [4,4] : [8, 24])
             // get dimensions
             let width = d3.select("#tree").node().getBoundingClientRect().width + margin*2
             let maxLevel = d3.max(nodes.map(d => d.distance))
@@ -183,12 +189,41 @@
                 genHeight = genHeight.map((h,i) => sum += h)
                 // console.log('2',genHeight)
             }
-            // console.log('gen height',genHeight)
             let cx = width/2 + margin
             let cy = 50
             const arrowSize = 14
             const curveY = d3.link(d3.curveBumpY)
             const curveX = d3.link(d3.curveBumpX)
+            const svg = d3.select('#tree')
+            let defs = svg.append("defs")
+            let linearGradient = defs.append("linearGradient")
+                .attr("id", "myGradient") 
+                .attr("gradientUnits", "objectBoundingBox")
+                .attr("x1", "0%")
+                .attr("y1", "0%")
+                .attr("x2", "0%")
+                .attr("y2", "100%")
+            linearGradient.append("stop")
+                .attr("offset", "0%")
+                .attr("stop-color", color.darkbackground)
+                .attr("stop-opacity", 1)
+            linearGradient.append("stop")
+                .attr("offset", "100%")
+                .attr("stop-color", color.darkbackground)
+                .attr("stop-opacity", 0.2)
+            // get midpoint between nodes
+            function getMidXAndMaxY(ids) {
+                const boxes = ids
+                    .map(id => document.getElementById('alt-group-'+id))
+                    .filter(el => el)
+                    .map(el => el.getBoundingClientRect())
+                if (boxes.length === 0) return null
+                const minX = Math.min(...boxes.map(b => b.left))
+                const maxX = Math.max(...boxes.map(b => b.right))
+                const midX = (minX + maxX) / 2
+                const maxY = Math.max(...boxes.map(b => b.bottom))
+                return { midX, maxY }
+            }
             // get subsumes label positioning
             const getLabel = d => {
                 let labelPosition = {x: 0, y: 0}
@@ -220,7 +255,7 @@
                             .attr('id', d => 'tree-line-' + d.source.name+d.target.name)
                             .attr('fill', 'none')
                             .attr('stroke', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? 'black' : color.darkbackground)
-                            .attr('stroke-width', 0.75)
+                            .attr('stroke-width', 1)
                             line.append('path')
                                 .classed('line-path',true)
                                 .attr("d", d => {
@@ -265,6 +300,7 @@
             }
             // DRAW NODES
             function updateNodes() {
+                console.log('connections',filteredConnections)
                 d3.select('#nodes').selectAll('.tree-node').data(nodes, d => d.name)
                     .join(enter => {
                         const geometry = enter.append('g')
@@ -349,7 +385,7 @@
                                 .classed('map-total-counts', true)
                                 .attr('id', d => 'map-total-counts-' + d.name)
                                 .text(d => d.total_counts)
-                                .attr('fill', d => d.total_counts === 0 ? color.text : conceptNames.includes(d.name) ? 'white' : color.textlight)
+                                .attr('fill', d => d.total_counts === 0 ? color.text : conceptNames.includes(d.name) ? 'white' : color.text)
                                 .style('opacity', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? 1 : 0)
                                 .style('font-size', '8px')
                                 .style('font-weight', '700')
@@ -528,9 +564,9 @@
                             update.select('.map-total-counts')
                                 .text(d => d.total_counts)
                                 .style('opacity', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? 1 : 0)
-                                .attr('fill', d => d.total_counts === 0 ? color.text : conceptNames.includes(d.name) ? 'white' : color.textlight)
+                                .attr('fill', d => d.total_counts === 0 ? color.text : conceptNames.includes(d.name) ? 'white' : color.text)
                                 .attr('x', d => getMap(d).x)
-                                .attr('y', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 2 : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 2)
+                                .attr('y', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 3 : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 3)
                             update.select('.map-button-symbol')
                                 .attr('stroke', d => conceptNames.includes(d.name) ? 'white' : color.text)
                             update.select('.map-button-line-1')
@@ -624,6 +660,7 @@
                                 if (d.total_counts !== 0) {
                                     if (conceptNames.includes(d.name)) {
                                         let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
+                                        console.log('filtered concepts', filteredConcepts)
                                         setSelectedConcepts(filteredConcepts)   
                                         conceptHover(d.name, "leave") 
                                     } else if (!conceptNames.includes(d.name)){
@@ -654,12 +691,12 @@
                             .style('cursor', "pointer")
                             .attr('cx', d => getPosition(d, 'x', cx, cy, d.name, nodes))
                             .attr('cy', d => cy + (genHeight[d.distance]))
-                            .attr('pointer-events', d => d.total_counts === 0 ? "none" : "default")
+                            .attr('pointer-events', d => d.total_counts === 0 ? "none" : "all")
                         node.append('text')
                             .classed('total-counts', true)
                             .attr('id', d => 'total-counts-' + d.name)
                             .text(d => d.total_counts)
-                            .attr('fill', d => d.total_counts === 0 ? color.text : conceptNames.includes(d.name) ? 'white' : color.textlight)
+                            .attr('fill', d => d.total_counts === 0 ? color.text : conceptNames.includes(d.name) ? 'white' : color.text)
                             .attr('visibility', "visible")
                             .style('font-size', d => d.total_counts === 0 ? '10px' : '8px')
                             .style('font-weight', '700')
@@ -701,15 +738,32 @@
                             .attr('x2', d => conceptNames.includes(d.name) ? getPosition(d, 'x', cx, cy, d.name, nodes) - 2.5 : getPosition(d, 'x', cx, cy, d.name, nodes))
                             .attr('y2', d => cy + (genHeight[d.distance]) + 2.5)
                         const altCounts = geometry.append('g')
+                            .classed('alt-group',true)
+                            .attr('id', d => 'alt-group-'+d.name)
+                            .style('margin-top','10px')
                         altCounts.append('text')
                             .classed('alt-text',true)
                             .attr('id', d => 'alt-text-'+d.name)
                             .attr('text-anchor', 'middle')
-                            .attr('fill', d => conceptNames.includes(d.name) ? color.text : color.textlight)
+                            .attr('fill', d => d.name === sidebarRoot.name && !d.leaf ? color.text : d.leaf && conceptNames.includes(d.name) && d.total_counts !== d.descendant_counts  ? 'white' : conceptNames.includes(d.name) ? color.text : color.textlight)
                             .attr('x', d => getPosition(d, 'x', cx, cy, d.name, nodes))
-                            .attr('y', d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 11)
+                            .attr('y', d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 13)
                             .style('font-size', '8px')
                             .text(d => d.descendant_counts + ' DRC')
+                            .raise()
+                        altCounts.append('rect')
+                            .classed('alt-rect',true)
+                            .attr('id', d => 'alt-rect-'+d.name)
+                            .attr('fill', d => d.leaf && conceptNames.includes(d.name) && d.total_counts !== d.descendant_counts  ? d.color : 'none')
+                            .attr('stroke', d => d.name === sidebarRoot.name ? 'black' : 'none')
+                            .attr('stroke-dasharray', d => d.name === sidebarRoot.name ? '3 3' : 'none')
+                            .attr("height",12)
+                            .attr('width',d => d3.select('#alt-text-'+d.name).node().getBBox().width + 6)
+                            .attr('x', d => getPosition(d, 'x', cx, cy, d.name, nodes) - (d3.select('#alt-text-'+d.name).node().getBBox().width + 6)/2)
+                            .attr('y', d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 4)
+                            .attr("rx", 6)
+                            .attr("ry", 6)
+                            .lower()
                         const label = geometry.append('g')
                             .classed('label', true)
                             .style('pointer-events','all')
@@ -779,6 +833,75 @@
                             .text(d => d.data.concept.vocabulary_id)
                             .attr('x', d => getLabel(d).x)
                             .attr('y', d => d.name === sidebarRoot.name ? getLabel(d).y + 3 : getLabel(d).y + 1)
+                        const pruneLine = node.append('g')
+                            .classed('prune-group', true)
+                            .attr('id', d => 'prune-group-' + d.name)
+                            .style('display', d => pruned && d.leaf && d.children.length > 0 && !d.children.every(child => d.connections.map(d => d.child).includes(child)) ? 'block' : 'none')
+                            pruneLine.append('line')
+                                .classed('prune-line',true)
+                                .attr('fill', 'none')
+                                .attr("stroke", "url(#myGradient)")
+                                .attr('stroke-width', 1)
+                                .attr('x1',d => getPosition(d, 'x', cx, cy, d.name, nodes))
+                                .attr('y1',d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 15)
+                                .attr('x2',d => getPosition(d, 'x', cx, cy, d.name, nodes) + 0.1)
+                                .attr('y2',d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 60)
+                            pruneLine.append('path')
+                                .classed('prune-arrow', true)
+                                .attr('fill', color.darkbackground)
+                                .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
+                                .attr("transform", d => {
+                                    let x = getPosition(d, 'x', cx, cy, d.name, nodes)
+                                    let y = cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 60
+                                    return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
+                                }) 
+                        node.selectAll(".prune-curve").data(d => d.connections, d => d.child)
+                        .join(enter => {
+                            const curve = enter.append('g')
+                                .classed('prune-curve',true)
+                            curve.append('path')
+                                .classed('prune-curve-line',true)
+                                .attr('fill', 'none')
+                                .attr("stroke", "url(#myGradient)")
+                                .attr('stroke-width', 1)
+                                .style('display', pruned ? 'block' : 'none')
+                                .attr("d", d => {
+                                    let sourceNode = nodes.filter(e => e.name === d.source)[0]
+                                    let coordinates = getMidXAndMaxY(d.parents.map(p => p.id))
+                                    let x1 = getPosition(sourceNode, 'x', cx, cy, d.source, nodes)
+                                    let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 15
+                                    let x2 = coordinates.midX
+                                    let y2 = coordinates.maxY + 50
+                                    return curveY({source: [x1, y1], target: [x2, y2]})
+                                })
+                            curve.append('path')
+                                .classed('prune-curve-arrow', true)
+                                .attr('fill', color.darkbackground)
+                                .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
+                                .attr("transform", d => {
+                                    let x = getMidXAndMaxY(d.parents.map(p => p.id)).midX
+                                    let y = getMidXAndMaxY(d.parents.map(p => p.id)).maxY + 50
+                                    return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
+                                }) 
+                        },update => {
+                            update.select('.prune-curve-line')
+                                .style('display', pruned ? 'block' : 'none')
+                                .attr("d", d => {
+                                    let sourceNode = nodes.filter(e => e.name === d.source)[0]
+                                    let coordinates = getMidXAndMaxY(d.parents.map(p => p.id))
+                                    let x1 = getPosition(sourceNode, 'x', cx, cy, d.source, nodes)
+                                    let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 15
+                                    let x2 = coordinates.midX
+                                    let y2 = coordinates.maxY + 50
+                                    return curveY({source: [x1, y1], target: [x2, y2]})
+                                })
+                            update.select('.prune-curve-arrow')
+                                .attr("transform", d => {
+                                    let x = getMidXAndMaxY(d.parents.map(p => p.id)).midX
+                                    let y = getMidXAndMaxY(d.parents.map(p => p.id)).maxY + 50
+                                    return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
+                                })    
+                        })
                         node.lower()
                         label.raise()
                         d3.selectAll('.map-node').lower()
@@ -863,7 +986,7 @@
                                 .classed('map-total-counts', true)
                                 .attr('id', d => 'map-total-counts-' + d.name)
                                 .text(d => d.total_counts)
-                                .attr('fill', d => d.total_counts === 0 ? color.text : conceptNames.includes(d.name) ? 'white' : color.textlight)
+                                .attr('fill', d => d.total_counts === 0 ? color.text : conceptNames.includes(d.name) ? 'white' : color.text)
                                 .style('opacity', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? 1 : 0)
                                 .style('font-size', '8px')
                                 .style('font-weight', '700')
@@ -1042,9 +1165,9 @@
                             update.select('.map-total-counts')
                                 .text(d => d.total_counts)
                                 .style('opacity', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? 1 : 0)
-                                .attr('fill', d => d.total_counts === 0 ? color.text : conceptNames.includes(d.name) ? 'white' : color.textlight)
+                                .attr('fill', d => d.total_counts === 0 ? color.text : conceptNames.includes(d.name) ? 'white' : color.text)
                                 .attr('x', d => getMap(d).x)
-                                .attr('y', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 2 : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 2)
+                                .attr('y', d => treeSelections.includes('mappings') || mapRoot === d.source.name ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 3 : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 3)
                             update.select('.map-button-symbol')
                                 .attr('stroke', d => conceptNames.includes(d.name) ? 'white' : color.text)
                             update.select('.map-button-line-1')
@@ -1132,6 +1255,7 @@
                                 if (d.total_counts !== 0) {
                                     if (conceptNames.includes(d.name)) {
                                         let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
+                                        console.log('filtered concepts', filteredConcepts)
                                         setSelectedConcepts(filteredConcepts)   
                                         conceptHover(d.name, "leave") 
                                     } else if (!conceptNames.includes(d.name)){
@@ -1157,7 +1281,7 @@
                                     } else {return 'white'}    
                                 }
                             })
-                            .attr('pointer-events', d => d.total_counts === 0 ? "none" : "default")
+                            .attr('pointer-events', d => d.total_counts === 0 ? "none" : "all")
                             .transition('nodePosition')
                             .duration(500)
                             .attr('cx', d => getPosition(d, 'x', cx, cy, d.name, nodes))
@@ -1165,7 +1289,7 @@
                         update.select('.total-counts')
                             .text(d => d.total_counts)
                             .style('font-size', d => d.total_counts === 0 ? '10px' : '8px')
-                            .attr('fill', d => d.total_counts === 0 ? color.text : conceptNames.includes(d.name) ? 'white' : color.textlight)
+                            .attr('fill', d => d.total_counts === 0 ? color.text : conceptNames.includes(d.name) ? 'white' : color.text)
                             .attr('x', d => getPosition(d, 'x', cx, cy, d.name, nodes))
                             .attr('y', d => cy + (genHeight[d.distance]) + 3)
                         update.select('.button-line-1')
@@ -1191,10 +1315,17 @@
                             .attr('x2', d => conceptNames.includes(d.name) ? getPosition(d, 'x', cx, cy, d.name, nodes) - 2.5 : getPosition(d, 'x', cx, cy, d.name, nodes))
                             .attr('y2', d => cy + (genHeight[d.distance]) + 2.5)
                         update.select('.alt-text')
-                            .attr('fill', d => conceptNames.includes(d.name) ? color.text : color.textlight)
+                            .attr('fill', d => d.name === sidebarRoot.name && !d.leaf ? color.text : d.leaf && conceptNames.includes(d.name) && d.total_counts !== d.descendant_counts ? 'white' : conceptNames.includes(d.name) ? color.text : color.textlight)
                             .attr('x', d => getPosition(d, 'x', cx, cy, d.name, nodes))
-                            .attr('y', d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 11)
+                            .attr('y', d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 13)
                             .text(d => d.descendant_counts + ' DRC')
+                        update.select('.alt-rect')
+                            .attr('fill', d => d.leaf && conceptNames.includes(d.name) && d.total_counts !== d.descendant_counts  ? d.color : 'none')
+                            .attr('stroke', d => d.name === sidebarRoot.name ? 'black' : 'none')
+                            .attr('stroke-dasharray', d => d.name === sidebarRoot.name ? '3 3' : 'none')
+                            .attr('width',d => d3.select('#alt-text-'+d.name).node().getBBox().width + 6)
+                            .attr('x', d => getPosition(d, 'x', cx, cy, d.name, nodes) - (d3.select('#alt-text-'+d.name).node().getBBox().width + 6)/2)
+                            .attr('y', d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 4)
                         update.select('.label')
                             .on('mouseover', (e,d) => {
                                 conceptHover(d.name, "enter")   
@@ -1245,6 +1376,66 @@
                             .text(d => d.data.concept.vocabulary_id)
                             .attr('x', d => getLabel(d).x)
                             .attr('y', d => d.name === sidebarRoot.name ? getLabel(d).y + 3 : getLabel(d).y + 1)
+                        update.select('.prune-group')
+                            .style('display', d => pruned && d.leaf && d.children.length > 0 && !d.children.every(child => d.connections.map(d => d.child).includes(child)) ? 'block' : 'none')
+                        update.select('.prune-line')
+                            .attr('x1',d => getPosition(d, 'x', cx, cy, d.name, nodes))
+                            .attr('y1',d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 15)
+                            .attr('x2',d => getPosition(d, 'x', cx, cy, d.name, nodes) + 0.1)
+                            .attr('y2',d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 60)
+                        update.select('.prune-arrow')
+                            .attr("transform", d => {
+                                let x = getPosition(d, 'x', cx, cy, d.name, nodes)
+                                let y = cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 60
+                                return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
+                            }) 
+                        update.selectAll(".prune-curve").data(d => d.connections, d => d.child)
+                        .join(enter => {
+                            const curve = enter.append('g')
+                                .classed('prune-curve',true)
+                            curve.append('path')
+                                .classed('prune-curve-line',true)
+                                .attr('fill', 'none')
+                                .attr("stroke", "url(#myGradient)")
+                                .attr('stroke-width', 1)
+                                .style('display', pruned ? 'block' : 'none')
+                                .attr("d", d => {
+                                    let sourceNode = nodes.filter(e => e.name === d.source)[0]
+                                    let coordinates = getMidXAndMaxY(d.parents.map(p => p.id))
+                                    let x1 = getPosition(sourceNode, 'x', cx, cy, d.source, nodes)
+                                    let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 15
+                                    let x2 = coordinates.midX
+                                    let y2 = coordinates.maxY + 50
+                                    return curveY({source: [x1, y1], target: [x2, y2]})
+                                })
+                            curve.append('path')
+                                .classed('prune-curve-arrow', true)
+                                .attr('fill', color.darkbackground)
+                                .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
+                                .attr("transform", d => {
+                                    let x = getMidXAndMaxY(d.parents.map(p => p.id)).midX
+                                    let y = getMidXAndMaxY(d.parents.map(p => p.id)).maxY + 50
+                                    return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
+                                }) 
+                        },update => {
+                            update.select('.prune-curve-line')
+                                .style('display', pruned ? 'block' : 'none')
+                                .attr("d", d => {
+                                    let sourceNode = nodes.filter(e => e.name === d.source)[0]
+                                    let coordinates = getMidXAndMaxY(d.parents.map(p => p.id))
+                                    let x1 = getPosition(sourceNode, 'x', cx, cy, d.source, nodes)
+                                    let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 15
+                                    let x2 = coordinates.midX
+                                    let y2 = coordinates.maxY + 50
+                                    return curveY({source: [x1, y1], target: [x2, y2]})
+                                })
+                            update.select('.prune-curve-arrow')
+                                .attr("transform", d => {
+                                    let x = getMidXAndMaxY(d.parents.map(p => p.id)).midX
+                                    let y = getMidXAndMaxY(d.parents.map(p => p.id)).maxY + 50
+                                    return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
+                                })    
+                        })
                     },exit => exit.remove())
             }
             updateLinks()
@@ -1494,7 +1685,7 @@
                         .classed('title-caret-down fa-solid fa-lg fa-caret-down',true)
                         .attr('id', d => 'caret-down-'+d.name)
                         .style('color', color.text)
-                        .style('display', d => d.mappings.length > 0 && !treeSelections.includes('mappings') ? 'block' : 'none')
+                        .style('display', d => !treeSelections.includes('mappings') ? d.mappings.length > 0 ? 'block' : 'none' : 'none')
                         .style('cursor','pointer')
                         .style('opacity', 0.2)
                         .style('margin-right','5px')
@@ -1511,7 +1702,7 @@
                         .classed('title-caret-up fa-solid fa-lg fa-caret-up',true)
                         .attr('id', d => 'caret-up-'+d.name)
                         .style('color', color.text)
-                        .style('display', () => treeSelections.includes('mappings') ? 'block' : 'none')
+                        .style('display', d => treeSelections.includes('mappings') && d.mappings.length > 0 ? 'block' : 'none')
                         .style('cursor','pointer')
                         .style('margin-right','5px')
                         // .style('padding-top','4px')
@@ -1611,8 +1802,8 @@
                     const mappingsContainer = itemContainer.append('div')
                         .classed('mappings-container',true)
                         .attr('id', d => 'mappings-container-'+d.name)
-                        .style('height', () => treeSelections.includes('mappings') ? 'auto' : '0px')
-                        .style('display', () => treeSelections.includes('mappings') ? 'flex' : 'none')
+                        .style('height', d => treeSelections.includes('mappings') && d.mappings.length > 0 ? 'auto' : '0px')
+                        .style('display', d => treeSelections.includes('mappings') && d.mappings.length > 0 ? 'flex' : 'none')
                     mappingsContainer.append('p')
                         .classed('mappings-type',true)
                         .style('margin',0)
@@ -2113,7 +2304,7 @@
                             
                         })
                     update.select('.title-caret-down')
-                        .style('display', d => d.mappings.length > 0 && !treeSelections.includes('mappings') ? 'block' : 'none')
+                        .style('display', d => !treeSelections.includes('mappings') ? d.mappings.length > 0 ? 'block' : 'none' : 'none')
                         .on('click', (e,d) => {
                             if (d3.select('#caret-down-'+d.name).style('display') === 'block') {
                                 d3.select('#caret-down-'+d.name).style('display','none')  
@@ -2124,7 +2315,7 @@
                         .on('mouseover', (e,d) => d3.select('#caret-down-'+d.name).style('opacity',1))
                         .on('mouseout', (e,d) => d3.select('#caret-down-'+d.name).style('opacity',0.2))
                     update.select('.title-caret-up')
-                        .style('display', () => treeSelections.includes('mappings') ? 'block' : 'none')
+                        .style('display', d => treeSelections.includes('mappings') && d.mappings.length > 0 ? 'block' : 'none')
                         .on('click', (e,d) => {
                             if (d3.select('#caret-up-'+d.name).style('display') === 'block') {
                                 d3.select('#caret-up-'+d.name).style('display','none')  
@@ -2145,8 +2336,8 @@
                         .transition()
                         .style('width', d => scaleWidth(d.descendant_counts) + 'px')
                     update.select(".mappings-container")
-                        .style('height', () => treeSelections.includes('mappings') ? 'auto' : '0px')
-                        .style('display', () => treeSelections.includes('mappings') ? 'flex' : 'none')
+                        .style('height', d => treeSelections.includes('mappings') && d.mappings.length > 0 ? 'auto' : '0px')
+                        .style('display', d => treeSelections.includes('mappings') && d.mappings.length > 0 ? 'flex' : 'none')
                     // MAPPINGS
                     update.select('.mappings-container').selectAll(".map-list-item-container").data(d => d.mappings, d => d.name)
                     .join(enter => {
@@ -2585,7 +2776,7 @@
                                 d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                 d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                 d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
-                            } else d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
+                            } else d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block') 
                         })
                         .on('mouseout', (e,d) => {
                             if (!conceptNames.includes(d.name)) {
@@ -2698,7 +2889,7 @@
                         .classed('title-caret-down fa-solid fa-lg fa-caret-down',true)
                         .attr('id', d => 'caret-down-'+d.name)
                         .style('color', color.text)
-                        .style('display', d => d.mappings.length > 0 && !treeSelections.includes('mappings') ? 'block' : 'none')
+                        .style('display', d => !treeSelections.includes('mappings') ? d.mappings.length > 0 ? 'block' : 'none' : 'none')
                         .style('cursor','pointer')
                         .style('opacity', 0.2)
                         .style('margin-right','5px')
@@ -2715,7 +2906,7 @@
                         .classed('title-caret-up fa-solid fa-lg fa-caret-up',true)
                         .attr('id', d => 'caret-up-'+d.name)
                         .style('color', color.text)
-                        .style('display', () => treeSelections.includes('mappings') ? 'block' : 'none')
+                        .style('display', d => treeSelections.includes('mappings') && d.mappings.length > 0 ? 'block' : 'none')
                         .style('cursor','pointer')
                         .style('margin-right','5px')
                         // .style('padding-top','4px')
@@ -2815,8 +3006,8 @@
                     const mappingsContainer = itemContainer.append('div')
                         .classed('mappings-container',true)
                         .attr('id', d => 'mappings-container-'+d.name)
-                        .style('height', () => treeSelections.includes('mappings') ? 'auto' : '0px')
-                        .style('display', () => treeSelections.includes('mappings') ? 'flex' : 'none')
+                        .style('height', d => treeSelections.includes('mappings') && d.mappings.length > 0 ? 'auto' : '0px')
+                        .style('display', d => treeSelections.includes('mappings') && d.mappings.length > 0 ? 'flex' : 'none')
                     mappingsContainer.append('p')
                         .classed('mappings-type',true)
                         .style('margin',0)
@@ -3113,7 +3304,7 @@
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
-                                } else d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
+                                } else  d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
                             })
                             .on('mouseout', (e,d) => {
                                 if (!conceptNames.includes(d.name)) {
@@ -3317,7 +3508,7 @@
                             
                         })
                     update.select('.title-caret-down')
-                        .style('display', d => d.mappings.length > 0 && !treeSelections.includes('mappings') ? 'block' : 'none')
+                        .style('display', d => !treeSelections.includes('mappings') ? d.mappings.length > 0 ? 'block' : 'none' : 'none')
                         .on('click', (e,d) => {
                             if (d3.select('#caret-down-'+d.name).style('display') === 'block') {
                                 d3.select('#caret-down-'+d.name).style('display','none')  
@@ -3328,7 +3519,7 @@
                         .on('mouseover', (e,d) => d3.select('#caret-down-'+d.name).style('opacity',1))
                         .on('mouseout', (e,d) => d3.select('#caret-down-'+d.name).style('opacity',0.2))
                     update.select('.title-caret-up')
-                        .style('display', () => treeSelections.includes('mappings') ? 'block' : 'none')
+                        .style('display', d => treeSelections.includes('mappings') && d.mappings.length > 0 ? 'block' : 'none')
                         .on('click', (e,d) => {
                             if (d3.select('#caret-up-'+d.name).style('display') === 'block') {
                                 d3.select('#caret-up-'+d.name).style('display','none')  
@@ -3349,8 +3540,8 @@
                         .transition()
                         .style('width', d => scaleWidth(d.descendant_counts) + 'px')
                     update.select(".mappings-container")
-                        .style('height', () => treeSelections.includes('mappings') ? 'auto' : '0px')
-                        .style('display', () => treeSelections.includes('mappings') ? 'flex' : 'none')
+                        .style('height', d => treeSelections.includes('mappings') && d.mappings.length > 0 ? 'auto' : '0px')
+                        .style('display', d => treeSelections.includes('mappings') && d.mappings.length > 0 ? 'flex' : 'none')
                     // MAPPINGS
                     update.select('.mappings-container').selectAll(".map-list-item-container").data(d => d.mappings, d => d.name)
                     .join(enter => {
@@ -3912,7 +4103,7 @@
         },[maxLevel,classFilter])
         // call draw functions
         useEffect(()=>{
-            if (nodes.length > 0) {
+            if (nodes) {
                 if (view === 'Tree') {
                     let width = d3.select("#tree-container").node().getBoundingClientRect().width + margin*2;
                     let height = d3.select("#tree-container").node().getBoundingClientRect().height + margin*2;
@@ -3920,7 +4111,7 @@
                         .attr('width', '100%')
                         .attr('height', '100%')
                         .attr('viewBox', `${margin} ${margin} ${width} ${height}`)
-                        .call(d3.zoom().on("zoom", zoomed))
+                        .call(d3.zoom().on("start",()=>d3.select("#tree").style("pointer-events", "none")).on("zoom", zoomed)).on("end",()=>d3.select("#tree").style("pointer-events", "all"))
                     d3.select('#tree-container').style('display','block')
                     d3.select('#list-container').style('display','none')
                     drawTree()
@@ -3929,8 +4120,8 @@
                         setTimeout(() => {
                             zoomToFit() 
                             setZoomCompleted(true)
-                        }, 200)   
-                    } else zoomToFit()
+                        },400)   
+                    } else setTimeout(() => zoomToFit(),400)
                 }
                 else {
                     d3.select('#list-container').style('display','block')
@@ -3962,15 +4153,17 @@
                                 onClick = {() => {
                                     if (!treeSelections.includes('descendants')) {
                                         d3.select('#add-descendants').style('background-color', color.text).style('color','white').style('font-weight',700)
-                                        addConcepts(list.filter(d => d.levels !== '-1'))
-                                        setTreeSelections(prev => [...prev, 'descendants'])
+                                        let newConcepts = list.filter(d => d.levels !== '-1')
+                                        newConcepts = newConcepts.filter(d => !d.leaf ? d.total_counts !== 0 : d).map(d => {return {name:d.name,data:d.data}})
+                                        setSelectedConcepts(newConcepts)
+                                        setTreeSelections(['descendants'])
                                     } else {
                                         d3.select('#add-descendants').style('background-color', 'transparent').style('color',color.text).style('font-weight',400)
-                                        let descendantNames = list.map(d => d.name)
-                                        let filteredConcepts = selectedConcepts.filter(e => !descendantNames.includes(e.name))
-                                        setSelectedConcepts(filteredConcepts) 
-                                        let newSelections = treeSelections.filter(s => s !== 'descendants')  
-                                        setTreeSelections(newSelections)
+                                        // let descendantNames = list.map(d => d.name)
+                                        // let filteredConcepts = selectedConcepts.filter(e => !descendantNames.includes(e.name))
+                                        setSelectedConcepts([]) 
+                                        // let newSelections = treeSelections.filter(s => s !== 'descendants')  
+                                        setTreeSelections([])
                                     }
                                     
                                 }}>
@@ -3983,15 +4176,17 @@
                                     let mappings = list.filter(d => d.relationship !== 'Parent').flatMap(d => d.mappings)
                                     if (!treeSelections.includes('mappings')) {
                                         d3.select('#add-mappings').style('background-color', color.text).style('color','white').style('font-weight',700)
-                                        addConcepts(mappings)
-                                        setTreeSelections(prev => [...prev, 'mappings'])
+                                        let newConcepts = mappings
+                                        newConcepts = newConcepts.filter(d => !d.leaf ? d.total_counts !== 0 : d).map(d => {return {name:d.name,data:d.data}})
+                                        setSelectedConcepts(newConcepts)
+                                        setTreeSelections(['mappings'])
                                     } else {
                                         d3.select('#add-mappings').style('background-color', 'transparent').style('color',color.text).style('font-weight',400)
-                                        let mapNames = mappings.map(d => d.name)
-                                        let filteredConcepts = selectedConcepts.filter(e => !mapNames.includes(e.name))
-                                        setSelectedConcepts(filteredConcepts)   
-                                        let newSelections = treeSelections.filter(s => s !== 'mappings')  
-                                        setTreeSelections(newSelections)
+                                        // let mapNames = mappings.map(d => d.name)
+                                        // let filteredConcepts = selectedConcepts.filter(e => !mapNames.includes(e.name))
+                                        setSelectedConcepts([])   
+                                        // let newSelections = treeSelections.filter(s => s !== 'mappings')  
+                                        setTreeSelections([])
                                     }
                                 }}>
                                 Mappings
@@ -4080,9 +4275,9 @@
                     </div>
                 </div>
                 <div className = "box-shadow" id = "sidebar-content">
-                    <div id = "tree-container" style = {{display: view === 'Tree' ? 'block' : 'none'}}>
-                        <FontAwesomeIcon style = {{display:'block'}} icon={faExpand} id = "expand" className = "fa-thin fa-lg expand-compress" onClick={handleExpand} />
-                        <FontAwesomeIcon style = {{display:'none'}} icon={faCompress} id = "compress" className = "fa-thin fa-lg expand-compress" onClick={handleExpand} />  
+                    <FontAwesomeIcon style = {{display:'block'}} icon={faExpand} id = "expand" className = "fa-thin fa-lg expand-compress" onClick={handleExpand} />
+                    <FontAwesomeIcon style = {{display:'none'}} icon={faCompress} id = "compress" className = "fa-thin fa-lg expand-compress" onClick={handleExpand} /> 
+                    <div id = "tree-container" style = {{display: view === 'Tree' ? 'block' : 'none'}}>  
                         <svg id = "tree">
                             <g id = "tree-graphics">
                                 <g id = "key"></g>
