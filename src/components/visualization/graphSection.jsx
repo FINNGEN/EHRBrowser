@@ -33,6 +33,8 @@ function GraphSection (props) {
     let brushing = false
     let zooming = false
     let x1,x2
+    let hoverTimeout = null
+    let currentTarget = null
 
     // DRAWING
     // draw line chart
@@ -69,11 +71,20 @@ function GraphSection (props) {
                     })
                     .on("mouseover", (e,d) => {
                         let element = selectedConcepts.filter(c => c.name === d.key)[0]
-                        conceptHover(d.key, "enter")  
-                        tooltipHover(element, "enter", e, 'graph')  
+                        clearTimeout(hoverTimeout)
+                        currentTarget = d.key
+                        hoverTimeout = setTimeout(() => {
+                            if (currentTarget === d.key) {
+                                conceptHover(d.key, "enter")  
+                                tooltipHover(element, "enter", e, 'graph')  
+                            }
+                        }, 400) 
                     })
                     .on("mouseout", (e,d) => {
                         let element = selectedConcepts.filter(c => c.name === d.key)[0]
+                        clearTimeout(hoverTimeout)
+                        hoverTimeout = null
+                        currentTarget = null
                         conceptHover(d.key, "leave") 
                         tooltipHover(element, "leave", e, 'graph')    
                     })
@@ -101,11 +112,20 @@ function GraphSection (props) {
                     })
                     .on("mouseover", (e,d) => {
                         let element = selectedConcepts.filter(c => c.name === d.key)[0]
-                        conceptHover(d.key, "enter")  
-                        tooltipHover(element, "enter", e, 'graph')  
+                        clearTimeout(hoverTimeout)
+                        currentTarget = d.key
+                        hoverTimeout = setTimeout(() => {
+                            if (currentTarget === d.key) {
+                                conceptHover(d.key, "enter")  
+                                tooltipHover(element, "enter", e, 'graph')  
+                            }
+                        }, 400) 
                     })
                     .on("mouseout", (e,d) => {
                         let element = selectedConcepts.filter(c => c.name === d.key)[0]
+                        clearTimeout(hoverTimeout)
+                        hoverTimeout = null
+                        currentTarget = null
                         conceptHover(d.key, "leave") 
                         tooltipHover(element, "leave", e, 'graph')    
                     })
@@ -135,9 +155,18 @@ function GraphSection (props) {
                             } 
                         })
                         .on("mouseover", (e,d) => {
-                            conceptHover(d[0], "enter")  
+                            clearTimeout(hoverTimeout)
+                            currentTarget = d[0]
+                            hoverTimeout = setTimeout(() => {
+                                if (currentTarget === d[0]) {
+                                    conceptHover(d[0], "enter")  
+                                }
+                            }, 400) 
                         })
                         .on("mouseout", (e,d) => {
+                            clearTimeout(hoverTimeout)
+                            hoverTimeout = null
+                            currentTarget = null
                             conceptHover(d[0], "leave")  
                         })
                     labels.append("div")
@@ -159,7 +188,7 @@ function GraphSection (props) {
                                 tooltipHover(d[1][0], "leave", e, 'graph') 
                                 hoverLabelCircle = true
                                 d3.select('#label-circle-' + d[0]).transition().style('background-color', 'none').style('background','none') 
-                                d3.select('#x-'+d.key).transition().style('opacity',1)
+                                d3.select('#x-'+d[0]).transition().style('opacity',1)
                             }
                         })
                         .on('mouseout', function(e,d) {
@@ -191,6 +220,7 @@ function GraphSection (props) {
                         .append('i')
                             .classed('fa-solid fa-x fa-xs',true)
                             .attr('id',d => 'x-'+d[0])
+                            .style('color',color.text)
                             .style('opacity', 0)
                             .style('pointer-events','none')
                     const text = labels.append("div")
@@ -223,9 +253,18 @@ function GraphSection (props) {
                             } 
                         })
                         .on("mouseover", (e,d) => {
-                            conceptHover(d[0], "enter")  
+                            clearTimeout(hoverTimeout)
+                            currentTarget = d[0]
+                            hoverTimeout = setTimeout(() => {
+                                if (currentTarget === d[0]) {
+                                    conceptHover(d[0], "enter")  
+                                }
+                            }, 400) 
                         })
                         .on("mouseout", (e,d) => {
+                            clearTimeout(hoverTimeout)
+                            hoverTimeout = null
+                            currentTarget = null
                             conceptHover(d[0], "leave")  
                         })
                     labels.select('.label-circle')
@@ -244,8 +283,8 @@ function GraphSection (props) {
                             if (selectedConcepts.length > 1) {
                                 tooltipHover(d[1][0], "leave", e, 'graph') 
                                 hoverLabelCircle = true
-                                d3.select('#label-circle-' + d[0]).transition().style('background-color', 'none').style('background','none') 
-                                d3.select('#x-'+d.key).transition().style('opacity',1)
+                                d3.select('#label-circle-' + d[0]).transition().style('background-color', 'none').style('background','none')
+                                d3.select('#x-'+d[0]).transition().style('opacity',1)
                             }
                         })
                         .on('mouseout', function(e,d) {
@@ -312,18 +351,6 @@ function GraphSection (props) {
                         .classed("line-path-background", true)
                         .attr("cursor", "pointer")
                         .attr("id", d => "line-background-" + sidebarRoot.name)
-                        // .on("mouseover", (e,d) => {
-                        //     let element = selectedConcepts.filter(c => c.name === d[0])[0]
-                        //     conceptHover(d[0], "enter")  
-                        //     tooltipHover(element, "enter", e, 'graph')  
-                        //     lineHover(e, d[1], scaleX, scaleY, 'enter')
-                        // })
-                        // .on("mouseout", (e,d) => {
-                        //     let element = selectedConcepts.filter(c => c.name === d[0])[0]
-                        //     conceptHover(d[0], "leave") 
-                        //     tooltipHover(element, "leave", e, 'graph')    
-                        //     lineHover(e, d[1], scaleX, scaleY, 'leave') 
-                        // })
                         .attr("stroke-width", 8)
                         .style("stroke", "transparent")
                         .style("fill", "none")
@@ -345,18 +372,6 @@ function GraphSection (props) {
                                 (d[1])
                         })
                     update.select('.line-path-background')
-                        // .on("mouseover", (e,d) => {
-                        //     let element = selectedConcepts.filter(c => c.name === d[0])[0]
-                        //     conceptHover(d[0], "enter")  
-                        //     tooltipHover(element, "enter", e, 'graph')  
-                        //     lineHover(e, d[1], scaleX, scaleY, 'enter')
-                        // })
-                        // .on("mouseout", (e,d) => {
-                        //     let element = selectedConcepts.filter(c => c.name === d[0])[0]
-                        //     conceptHover(d[0], "leave") 
-                        //     tooltipHover(element, "leave", e, 'graph')  
-                        //     lineHover(e, d[1], scaleX, scaleY, 'leave')  
-                        // })
                         .transition()
                         .attr("d", function(d) {
                             return d3.line()
@@ -577,6 +592,8 @@ function GraphSection (props) {
                 .attr("transform", `translate(${width/2}, ${height/2 - 12})`)
         },update=>{
             update.select('.arc-path')
+                .on("mouseover", (e,d) => filterHover(d.data.id, "enter"))
+                .on("mouseout", (e,d) => filterHover(d.data.id, "leave"))
                 .transition()
                 .attr("d", d3.arc().innerRadius(0).outerRadius(radius))
                 .attr("fill", d => graphFilter.gender === d.data.id ? color.text : color.grey)

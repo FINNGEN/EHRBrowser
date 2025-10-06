@@ -193,7 +193,7 @@ function Visualization (props) {
             } else {
                 d3.selectAll(".label-rect").transition('allOpacities').attr('fill', d => d.name === sidebarRoot.name ? color.lightpurple : 'none').attr('fill-opacity', d => d.name === sidebarRoot.name ? 1 : 0.7)
                 d3.select("#tree-text-" + id).transition('allOpacities').attr("font-weight", id === sidebarRoot.name ? 700 : null).style('opacity', 1)
-                d3.selectAll('.tree-node').transition('allOpacities').style('opacity', 1)     
+                d3.selectAll('.tree-node').transition('allOpacities').style('opacity', 1)  
             }
             d3.selectAll('.small-multiples').transition('allOpacities').attr("opacity", 1)
             d3.selectAll('.area-path').transition('allOpacities').attr("opacity", 1).attr("stroke-width", 2)
@@ -204,7 +204,7 @@ function Visualization (props) {
     }
     // add concepts to graph 
     function addConcepts(newConcepts) {
-        newConcepts = newConcepts.filter(d => !d.leaf ? d.total_counts !== 0 : d).map(d => {return {name:d.name,data:d.data}})
+        newConcepts = newConcepts.filter(d => !d.leaf ? d.total_counts !== 0 : d).map(d => {return {name:d.name,leaf:d.leaf,data:d.data}})
         let updatedConcepts = [...selectedConcepts,...newConcepts]
         setSelectedConcepts(updatedConcepts)
     }
@@ -230,8 +230,16 @@ function Visualization (props) {
                     console.log('data', data)
                     setGraphFilter({gender:-1,age:[-1]})
                     setRootData(data)
+                    setClassFilter(data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined))
                     setSidebarRoot({name:parseInt(root),data:data}) 
                     setView('Tree') 
+                    d3.select("#graph-section").style('width', "60vw")
+                    d3.select('#expand').style('display', 'block') 
+                    d3.select('#compress').style('display', 'none') 
+                    setTreeSelections(['descendants'])
+                    setLevelFilter()
+                    setOpenFilters(true)
+                    setMapRoot([])
                 })
         }
     },[root])

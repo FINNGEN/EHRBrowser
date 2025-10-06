@@ -717,6 +717,7 @@ textarea:focus {
   align-items: center;
   justify-content: flex-start;
   width: 100%;
+  z-index: 3000;
 }
 .concept-selection-btn {
   width: 48%;
@@ -764,6 +765,11 @@ textarea:focus {
   z-index: 500;
   max-width: 100%;
   overflow-x: scroll;
+}
+.dropdown-header p {
+  background-color: transparent;
+  color: var(--text);
+  z-index: 500;
 }
 .selections-dropdown-content {
   position: absolute;
