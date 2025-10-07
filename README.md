@@ -15,7 +15,7 @@ Use cases:
 - How each source concept contributes to the record counts of a concept, over time, gender and age?
 
 
-![EHR Browser](img/image.png)
+![EHR Browser](img/screenshot.png)
 
 # Demo
 
