@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faArrowLeft, faLessThanEqual } from '@fortawesome/free-solid-svg-icons'
 import { faCaretDown } from '@fortawesome/free-solid-svg-icons'
@@ -6,19 +7,18 @@ import { faCaretUp } from '@fortawesome/free-solid-svg-icons'
 import { faCheck } from '@fortawesome/free-solid-svg-icons'
 import { faX } from '@fortawesome/free-solid-svg-icons'
 import * as d3 from "d3";
+import textures from 'textures';
 
 function GraphSection (props) {
+    const navigate = useNavigate()
     const color = props.color
     const selectedConcepts = props.selectedConcepts
     const setSelectedConcepts = props.setSelectedConcepts
-    const setSidebarRoot = props.setSidebarRoot
     const sidebarRoot = props.sidebarRoot
     const tooltipHover = props.tooltipHover
     const graphFilter = props.graphFilter
     const setGraphFilter = props.setGraphFilter
     const conceptHover = props.conceptHover
-    const getData = props.getData
-    const getCounts = props.getCounts
     const extent = props.extent
     const setExtent = props.setExtent
     const openFilters = props.openFilters
@@ -27,6 +27,11 @@ function GraphSection (props) {
     const conceptNames = props.conceptNames
     const generateColor = props.generateColor
     const rootLine = props.rootLine
+    // const setRoot = props.setRoot
+    const ageData = props.ageData
+    const genderData = props.genderData
+    const maxGender = props.maxGender
+    const getConceptInfo = props.getConceptInfo
     const margin = 15
     const graphContainerRef = useRef()
     let hoverLabelCircle = false
@@ -53,7 +58,18 @@ function GraphSection (props) {
                     .attr("id", d => "area-" + d.key)
                     .attr("stroke-width", 1)
                     .attr('stroke','white')
-                    .style("fill", d => generateColor(d.key))
+                    .style('fill', d => {
+                        if (!getConceptInfo(d.key).standard_concept) {
+                            let t = textures.lines()
+                                .size(3)
+                                .strokeWidth(1.5)
+                                .stroke(generateColor(d.key))  
+                            d3.select('#tree').call(t)
+                            return t.url()  
+                        } 
+                        else return generateColor(d.key)
+                    })
+                    // .style("fill", d => generateColor(d.key))
                     .style("transition", "0.5s all")
                     .transition()
                     .attr("d", d3.area()
@@ -65,10 +81,7 @@ function GraphSection (props) {
                     .classed("area-path-background", true)
                     .attr("cursor", "pointer")
                     .attr("id", d => "area-background-" + d.key)
-                    .on('click', async (e,d) => {
-                        const data = await getData(d.key)
-                        setSidebarRoot({name:d.key,data:data})  
-                    })
+                    .on('click', (e,d) => navigate(`/${d.key}`))
                     .on("mouseover", (e,d) => {
                         let element = selectedConcepts.filter(c => c.name === d.key)[0]
                         clearTimeout(hoverTimeout)
@@ -98,7 +111,18 @@ function GraphSection (props) {
                     )
             },update => {
                 update.select('.area-path')
-                    .style("fill", d => generateColor(d.key))
+                    .style('fill', d => {
+                        if (!getConceptInfo(d.key).standard_concept) {
+                            let t = textures.lines()
+                                .size(3)
+                                .strokeWidth(1.5)
+                                .stroke(generateColor(d.key))  
+                            d3.select('#tree').call(t)
+                            return t.url()  
+                        } 
+                        else return generateColor(d.key)
+                    })
+                    // .style("fill", d => generateColor(d.key))
                     .transition()
                     .attr("d", d3.area()
                         .x((d,i) => scaleX(d.data.year))
@@ -106,10 +130,7 @@ function GraphSection (props) {
                         .y1(d => scaleY(d[1]))
                     )
                 update.select('.area-path-background')
-                    .on('click', async (e,d) => {
-                        const data = await getData(d.key)
-                        setSidebarRoot({name:d.key,data:data})  
-                    })
+                    .on('click', (e,d) => navigate(`/${d.key}`))
                     .on("mouseover", (e,d) => {
                         let element = selectedConcepts.filter(c => c.name === d.key)[0]
                         clearTimeout(hoverTimeout)
@@ -148,11 +169,8 @@ function GraphSection (props) {
                         .style('background-color', d => d[0] === sidebarRoot.name ? color.lightpurple : 'none')
                         .style('border-radius', '20px')
                         .style('margin-right', '2px')
-                        .on('click', async (e,d) => {
-                            if (!hoverLabelCircle) {
-                                const data = await getData(d[0])
-                                setSidebarRoot({name:d[0],data:data})  
-                            } 
+                        .on('click', (e,d) => {
+                            if (!hoverLabelCircle) navigate(`/${d[0]}`)
                         })
                         .on("mouseover", (e,d) => {
                             clearTimeout(hoverTimeout)
@@ -246,11 +264,8 @@ function GraphSection (props) {
                 }, update => {
                     const labels = update
                         .style('background-color', d => d[0] === sidebarRoot.name ? color.lightpurple : 'white')
-                        .on('click', async (e,d) => {
-                            if (!hoverLabelCircle) {
-                                const data = await getData(d[0])
-                                setSidebarRoot({name:d[0],data:data})  
-                            } 
+                        .on('click', (e,d) => {
+                            if (!hoverLabelCircle) navigate(`/${d[0]}`)
                         })
                         .on("mouseover", (e,d) => {
                             clearTimeout(hoverTimeout)
@@ -395,7 +410,7 @@ function GraphSection (props) {
     function getGraph(groups, rollup, width, height, ticks) {
         // x and y scales
         let maxRollup = d3.max(rollup, obj => Object.entries(obj).reduce((sum, [key, val]) => key !== 'year' ? sum + val : sum, 0))
-        let maxRootLine = Math.max(...rootLine.get(sidebarRoot.name).map(arr => arr[2]))
+        let maxRootLine = rootLine.get(sidebarRoot.name) ? Math.max(...rootLine.get(sidebarRoot.name).map(arr => arr[2])) : 0
         let maxY = rollup.length > 0 ? maxRollup > maxRootLine ? maxRollup : maxRootLine : maxRootLine
         let scaleX = d3.scaleLinear().domain(extent).range([0, width])
         let scaleY = d3.scaleLinear().domain([0, maxY*1.05]).range([height, 0])
@@ -485,44 +500,32 @@ function GraphSection (props) {
             .on("dblclick", handleDoubleClick)
         drawGraph(groups, rollup, scaleX, scaleY)
     }
-    // hover age decile
+    // hover filter
     function filterHover(id,mode) {
         if (mode === 'enter') {
-            // if (!openFilters) {
-            //     d3.selectAll('.filter-viz').style('display', 'flex')
-            //     d3.select('#open-btn').style('display', 'none')
-            //     d3.select('#close-btn').style('display', 'block')    
-            // }
             if (id === 8507 || id === 8532) {
                 if (graphFilter.gender !== id) {
                     d3.select('#btn-'+id).style('color', color.text).style('font-weight', 700)
                 }
                     d3.select('#arc-'+id).attr('fill', color.text)
                     d3.select('#gender-text-'+id).style('fill',color.text)
-                // } else d3.select('#arc-'+id).attr('fill', color.grey) 
             }
             else {
                 if (!graphFilter.age.includes(id)) {
                     d3.select('#btn-'+id).style('color', color.text).style('font-weight', 700)
                 }
                     d3.select('#bar-'+id).style('background-color', color.text)
-                    d3.select('#age-p-'+id).style('color',color.text)
-                // } else d3.select('#bar-'+id).style('background-color', color.grey)     
+                    d3.select('#age-p-'+id).style('color',color.text)   
             }
         } else {
-            // if (!openFilters) {
-            //     d3.selectAll('.filter-viz').style('display', 'none')
-            //     d3.select('#open-btn').style('display', 'block')
-            //     d3.select('#close-btn').style('display', 'none')    
-            // }
             d3.select('#btn-'+id).style('font-weight', graphFilter.age.includes(id) || graphFilter.gender === id ? 700 : 400).style('color', graphFilter.age.includes(id) || graphFilter.gender === id ? 'white' : color.textlight)
             d3.select('#bar-'+id).style('background-color', graphFilter.age.includes(id) || graphFilter.gender === id ? color.text : color.grey)  
-            d3.select('#arc-'+id).attr("fill", d => graphFilter.gender === id ? color.text : color.grey)
+            d3.select('#arc-'+id).attr("fill", d => graphFilter.gender === id ? color.text : id === maxGender ? '#c6ccd3' : color.grey)
             d3.select('#age-p-'+id).style('color', d => graphFilter.age.includes(id) ? color.text : color.textlight)
             d3.select('#gender-text-'+id).style('fill', d => graphFilter.gender === id ? color.text : color.textlight)
         }
     }
-    // select age decile
+    // select filter
     function filterSelect(id,type) {
         if (!openFilters) {
             d3.selectAll('.filter-viz').style('display', 'none')
@@ -546,121 +549,6 @@ function GraphSection (props) {
             }
         }
         
-    }
-    // filters viz
-    function drawFilters() {
-        //gender
-        let genderData = []
-        const genders = [8507,8532]
-        let sums = []
-        genders.forEach(g => selectedConcepts.forEach(d => sums.push({id: g, sum: d.leaf ? getCounts(d.data.code_counts.filter(e => e.gender_concept_id === g),'node_descendant_record_counts') : getCounts(d.data.code_counts.filter(e => e.gender_concept_id === g),'node_record_counts')})))
-        genders.forEach(g => genderData.push({id:g, sum:d3.sum(sums.filter(d => d.id === g).map(d => d.sum))}))
-        const width = 110
-        const height = 110
-        const radius = Math.min(width, height) / 2
-        d3.select("#gender-svg")
-            .attr("width", width)
-            .attr("height", height)
-            .append('g')
-            .attr("transform", `translate(${width/2}, ${height/2 - 12}) scale(0.5) rotate(180)`)
-        const pieData = d3.pie().value(d => d.sum).sort(null)(genderData)
-        d3.select("#gender-svg").selectAll(".arc").data(pieData, d => d.data.id)
-        .join(enter => {
-            const container = enter.append('g')
-                .classed('arc',true)  
-            container.append('path')
-                .classed('arc-path',true)
-                .attr('id', d => 'arc-'+d.data.id)
-                .attr("d", d3.arc().innerRadius(0).outerRadius(radius))
-                .attr("fill", d => graphFilter.gender === d.data.id ? color.text : color.grey)
-                .style("stroke", d => d.data.sum === 0 ? 'none' : color.background)
-                .style('stroke-width',2)
-                .style("cursor", "pointer")
-                .on("mouseover", (e,d) => filterHover(d.data.id, "enter"))
-                .on("mouseout", (e,d) => filterHover(d.data.id, "leave"))
-                .on("click", (e,d) => filterSelect(d.data.id, "gender"))
-                .attr("transform", `translate(${width/2}, ${height/2 - 12}) scale(0.5) rotate(180)`)
-            container.append('text')
-                .classed('arc-text',true)
-                .attr('id', d => 'gender-text-'+d.data.id)
-                .text(d => d.data.sum === 0 ? '' : d.data.sum)
-                .attr("x", d => d.data.id === genders[0] ? -radius/2 : radius/2) 
-                .attr("y", radius/2 - 5) 
-                .attr("text-anchor", d => d.data.id === genders[0] ? "end" : "start") 
-                .style("font-size", "8px")
-                .style("fill", d => graphFilter.gender === d.data.id ? color.text : color.textlight)
-                .attr("transform", `translate(${width/2}, ${height/2 - 12})`)
-        },update=>{
-            update.select('.arc-path')
-                .on("mouseover", (e,d) => filterHover(d.data.id, "enter"))
-                .on("mouseout", (e,d) => filterHover(d.data.id, "leave"))
-                .transition()
-                .attr("d", d3.arc().innerRadius(0).outerRadius(radius))
-                .attr("fill", d => graphFilter.gender === d.data.id ? color.text : color.grey)
-                .style("stroke", d => d.data.sum === 0 ? 'none' : color.background)
-            update.select('.arc-text')
-                .text(d => d.data.sum === 0 ? '' : d.data.sum)
-                .attr("x", d => d.data.id === genders[0] ? -radius/2 : radius/2) 
-                .attr("y", radius/2 - 5) 
-                .attr("text-anchor", d => d.data.id === genders[0] ? "end" : "start") 
-                .style("fill", d => graphFilter.gender === d.data.id ? color.text : color.textlight)
-        })
-        //age
-        let ageData = []
-        const ages = [0,1,2,3,4,5,6,7,8,9]
-        let ageSums = []
-        ages.forEach(a => selectedConcepts.forEach(d => ageSums.push({id: a, sum: d.leaf ? getCounts(d.data.code_counts.filter(e => e.age_decile === a),'node_descendant_record_counts') : getCounts(d.data.code_counts.filter(e => e.age_decile === a),'node_record_counts')})))
-        ages.forEach(a => ageData.push({id:a, sum: d3.sum(ageSums.filter(d => d.id === a).map(d => d.sum))}))
-        const scaleHeight = d3.scaleLinear().domain([0,d3.extent(ageData.map(d => d.sum))[1]]).range([0,60])
-        d3.select('#age-viz').selectAll('.age-bar').data(ageData, d => d.id)
-        .join(enter => {
-            const container = enter.append('div')
-                .classed('age-bar',true)
-                .style('display','flex')
-                .style('flex-direction','column')
-            container.append('p').classed('age-p',true).attr('id',d=>'age-p-'+d.id).style('margin',0).style('padding-bottom','2px').style('font-size','8px').style('text-align','center').style('color', d => graphFilter.age.includes(d.id) ? color.text : color.textlight).html(d => d.sum === 0 ? '' : d.sum)
-            container.append('div')
-                .classed('age-rect',true)
-                .attr('id', d => 'bar-'+d.id)
-                .on('mouseover', (e,d) => filterHover(d.id, 'enter'))
-                .on('mouseout', (e,d) => filterHover(d.id, 'leave'))
-                .on('click', (e,d) => filterSelect(d.id, 'age'))
-                .style('width', '34px')
-                .style('cursor','pointer')
-                .style('height', d => d.sum === 0 ? '0px' : scaleHeight(d.sum) + 'px')
-                .style('background-color', d => graphFilter.age.includes(d.id) ? color.text : color.grey)
-                .style('border-top', '1px solid var(--background)')
-                .style('border-bottom', '1px solid var(--background)')
-                .style('border-left', d => {
-                    if (!graphFilter.age.includes(d.id-1) || d.id === 0) return '1px solid var(--background)'
-                    else if (scaleHeight(d.sum) >= scaleHeight(ageData.filter(a => a.id === (d.id-1))[0].sum)) return '1px solid var(--background)'
-                    else return 'none'
-                })
-                .style('border-right', d => {
-                    if (!graphFilter.age.includes(d.id+1) || d.id === 9) return '1px solid var(--background)'
-                    else if (scaleHeight(d.sum) > scaleHeight(ageData.filter(a => a.id === (d.id+1))[0].sum)) return '1px solid var(--background)'
-                    else return 'none'
-                })
-        },update => {
-            update.select('.age-p').style('color', d => graphFilter.age.includes(d.id) ? color.text : color.textlight).html(d => d.sum === 0 ? '' : d.sum)
-            update.select('.age-rect')
-                .on('mouseover', (e,d) => filterHover(d.id, 'enter'))
-                .on('mouseout', (e,d) => filterHover(d.id, 'leave'))
-                .on('click', (e,d) => filterSelect(d.id, 'age'))
-                .transition()    
-                .style('height', d => d.sum === 0 ? '0px' : scaleHeight(d.sum) + 'px')
-                .style('background-color', d => graphFilter.age.includes(d.id) ? color.text : color.grey)
-                .style('border-left', d => {
-                    if (!graphFilter.age.includes(d.id-1) || d.id === 0) return '1px solid var(--background)'
-                    else if (scaleHeight(d.sum) >= scaleHeight(ageData.filter(a => a.id === (d.id-1))[0].sum)) return '1px solid var(--background)'
-                    else return 'none'
-                })
-                .style('border-right', d => {
-                    if (!graphFilter.age.includes(d.id+1) || d.id === 9) return '1px solid var(--background)'
-                    else if (scaleHeight(d.sum) > scaleHeight(ageData.filter(a => a.id === (d.id+1))[0].sum)) return '1px solid var(--background)'
-                    else return 'none'
-                })
-        })
     }
     // age filter brushing
     function ageBrush(e,mode) {
@@ -711,6 +599,115 @@ function GraphSection (props) {
         }
     }
 
+    // filters viz
+    useEffect(() => {
+        if (genderData.length > 0 && ageData.length > 0) {
+            //gender
+            const genders = [8507,8532]
+            const width = 110
+            const height = 110
+            const radius = Math.min(width, height) / 2
+            d3.select("#gender-svg")
+                .attr("width", width)
+                .attr("height", height)
+                .append('g')
+                .attr("transform", `translate(${width/2}, ${height/2 - 12}) scale(0.5) rotate(180)`) 
+            const pieData = d3.pie().value(d => d.sum).sort(null)(genderData)
+            d3.select("#gender-svg").selectAll(".arc").data(pieData, d => d.data.id)
+            .join(enter => {
+                const container = enter.append('g')
+                    .classed('arc',true)  
+                container.append('path')
+                    .classed('arc-path',true)
+                    .attr('id', d => 'arc-'+d.data.id)
+                    .attr("d", d3.arc().innerRadius(0).outerRadius(radius))
+                    .attr("fill", d => graphFilter.gender === d.data.id ? color.text : d.data.id === maxGender ? '#c6ccd3' : color.grey)
+                    .style("stroke", d => d.data.sum === 0 ? 'none' : color.background)
+                    .style('stroke-width',2)
+                    .style("cursor", "pointer")
+                    .on("mouseover", (e,d) => filterHover(d.data.id, "enter"))
+                    .on("mouseout", (e,d) => filterHover(d.data.id, "leave"))
+                    .on("click", (e,d) => filterSelect(d.data.id, "gender"))
+                    .attr("transform", `translate(${width/2}, ${height/2 - 12}) scale(0.5) rotate(180)`)
+                container.append('text')
+                    .classed('arc-text',true)
+                    .attr('id', d => 'gender-text-'+d.data.id)
+                    .text(d => d.data.sum === 0 ? '' : d.data.sum)
+                    .attr("x", d => d.data.id === genders[0] ? -radius/2 : radius/2) 
+                    .attr("y", radius/2 - 5) 
+                    .attr("text-anchor", d => d.data.id === genders[0] ? "end" : "start") 
+                    .style("font-size", "8px")
+                    .style("fill", d => graphFilter.gender === d.data.id ? color.text : color.textlight)
+                    .attr("transform", `translate(${width/2}, ${height/2 - 12})`)
+            },update=>{
+                update.select('.arc-path')
+                    .on("mouseover", (e,d) => filterHover(d.data.id, "enter"))
+                    .on("mouseout", (e,d) => filterHover(d.data.id, "leave"))
+                    .transition()
+                    .attr("d", d3.arc().innerRadius(0).outerRadius(radius))
+                    .attr("fill", d => graphFilter.gender === d.data.id ? color.text : d.data.id === maxGender ? '#c6ccd3' : color.grey)
+                    .style("stroke", d => d.data.sum === 0 ? 'none' : color.background)
+                update.select('.arc-text')
+                    .text(d => d.data.sum === 0 ? '' : d.data.sum)
+                    .attr("x", d => d.data.id === genders[0] ? -radius/2 : radius/2) 
+                    .attr("y", radius/2 - 5) 
+                    .attr("text-anchor", d => d.data.id === genders[0] ? "end" : "start") 
+                    .style("fill", d => graphFilter.gender === d.data.id ? color.text : color.textlight)
+            })
+            //age
+            const scaleHeight = d3.scaleLinear().domain([0,d3.extent(ageData.map(d => d.sum))[1]]).range([0,60])
+            d3.select('#age-viz').selectAll('.age-bar').data(ageData, d => d.id)
+            .join(enter => {
+                const container = enter.append('div')
+                    .classed('age-bar',true)
+                    .style('display','flex')
+                    .style('flex-direction','column')
+                container.append('p').classed('age-p',true).attr('id',d=>'age-p-'+d.id).style('margin',0).style('padding-bottom','2px').style('font-size','8px').style('text-align','center').style('color', d => graphFilter.age.includes(d.id) ? color.text : color.textlight).html(d => d.sum === 0 ? '' : d.sum)
+                container.append('div')
+                    .classed('age-rect',true)
+                    .attr('id', d => 'bar-'+d.id)
+                    .on('mouseover', (e,d) => filterHover(d.id, 'enter'))
+                    .on('mouseout', (e,d) => filterHover(d.id, 'leave'))
+                    .on('click', (e,d) => filterSelect(d.id, 'age'))
+                    .style('width', '34px')
+                    .style('cursor','pointer')
+                    .style('height', d => d.sum === 0 ? '0px' : scaleHeight(d.sum) + 'px')
+                    .style('background-color', d => graphFilter.age.includes(d.id) ? color.text : color.grey)
+                    .style('border-top', '1px solid var(--background)')
+                    .style('border-bottom', '1px solid var(--background)')
+                    .style('border-left', d => {
+                        if (!graphFilter.age.includes(d.id-1) || d.id === 0) return '1px solid var(--background)'
+                        else if (scaleHeight(d.sum) >= scaleHeight(ageData.filter(a => a.id === (d.id-1))[0].sum)) return '1px solid var(--background)'
+                        else return 'none'
+                    })
+                    .style('border-right', d => {
+                        if (!graphFilter.age.includes(d.id+1) || d.id === 9) return '1px solid var(--background)'
+                        else if (scaleHeight(d.sum) > scaleHeight(ageData.filter(a => a.id === (d.id+1))[0].sum)) return '1px solid var(--background)'
+                        else return 'none'
+                    })
+            },update => {
+                update.select('.age-p').style('color', d => graphFilter.age.includes(d.id) ? color.text : color.textlight).html(d => d.sum === 0 ? '' : d.sum)
+                update.select('.age-rect')
+                    .on('mouseover', (e,d) => filterHover(d.id, 'enter'))
+                    .on('mouseout', (e,d) => filterHover(d.id, 'leave'))
+                    .on('click', (e,d) => filterSelect(d.id, 'age'))
+                    .transition()    
+                    .style('height', d => d.sum === 0 ? '0px' : scaleHeight(d.sum) + 'px')
+                    .style('background-color', d => graphFilter.age.includes(d.id) ? color.text : color.grey)
+                    .style('border-left', d => {
+                        if (!graphFilter.age.includes(d.id-1) || d.id === 0) return '1px solid var(--background)'
+                        else if (scaleHeight(d.sum) >= scaleHeight(ageData.filter(a => a.id === (d.id-1))[0].sum)) return '1px solid var(--background)'
+                        else return 'none'
+                    })
+                    .style('border-right', d => {
+                        if (!graphFilter.age.includes(d.id+1) || d.id === 9) return '1px solid var(--background)'
+                        else if (scaleHeight(d.sum) > scaleHeight(ageData.filter(a => a.id === (d.id+1))[0].sum)) return '1px solid var(--background)'
+                        else return 'none'
+                    })
+            })    
+        }
+    },[genderData,ageData])
+
     useEffect(() => {
         const updateGraph = () => {
             if (graphContainerRef.current && extent) {
@@ -739,7 +736,6 @@ function GraphSection (props) {
                     .attr("width", width)
                     .attr("height", height)
                 if (rootLine) getGraph(groups, rollup, width, height, ticks)  
-                drawFilters()
             }
         }  
         const resizeObserver = new ResizeObserver(() => {
@@ -773,7 +769,7 @@ function GraphSection (props) {
                     </div>
                     <div id = "graph-filters" style = {{display:'flex',marginBottom:3,alignItems:'flex-end'}}>
                         <div className = "graph-selection" id = "gender-container" style = {{marginRight:15}}>
-                            <p style = {{margin:0,paddingBottom:3,paddingRight:5}}>Sex</p>
+                            <p style = {{margin:0,paddingBottom:3,paddingRight:0}}>Sex</p>
                             <div className = "filter-container">
                                 <div className = "filter-viz" style = {{marginBottom:5}} id = "gender-viz">
                                     <svg style = {{zIndex:0}} id = "gender-svg"></svg>
@@ -783,7 +779,7 @@ function GraphSection (props) {
                                     <div className = "toggle" id = "btn-8532" onMouseOver = {() => filterHover(8532,'enter')} onMouseOut = {() => filterHover(8532,'leave')} onClick = {() => filterSelect(8532,'gender')} style = {{fontSize:10,padding: 3, fontWeight: graphFilter.gender === 8532 ? 700 : 400, border: '1px solid var(--background)', borderLeft: 'none', color: graphFilter.gender === 8532 ? 'white' : color.textlight, backgroundColor: graphFilter.gender === 8532 ? color.text : color.grey, borderTopRightRadius:20,borderBottomRightRadius:20}}>Female</div>
                                 </div>
                             </div>
-                            <FontAwesomeIcon style = {{display: graphFilter.gender !== -1 ? 'block' : 'none'}} className = "reset-dropdown fa-xs" id = "reset-gender" icon={faX} 
+                            <FontAwesomeIcon style = {{display: graphFilter.gender !== -1 ? 'block' : 'none'}} className = "reset-dropdown fa-2xs" id = "reset-gender" icon={faX} 
                                 onClick = {() => {
                                     setGraphFilter({gender:-1,age:graphFilter.age})
                                 }}
@@ -806,7 +802,7 @@ function GraphSection (props) {
                                     <div onMouseOver = {() => filterHover(9,'enter')} onMouseLeave = {() => filterHover(9,'leave')} onClick = {() => filterSelect(9,'age')} className = "toggle" id = "btn-9" style = {{fontWeight: graphFilter.age.includes(9) ? 700 : 400,color:graphFilter.age.includes(9) ? 'white' : color.textlight,borderLeft:graphFilter.age.includes(9) && !graphFilter.age.includes(8) ? '1px solid var(--background)' : 'none',backgroundColor:graphFilter.age.includes(9) ? color.text : color.grey,borderTop:'1px solid var(--background)',borderBottom:'1px solid var(--background)',borderRight:'1px solid var(--background)',borderTopRightRadius:20,borderBottomRightRadius:20}}>90-99</div>
                                 </div>
                             </div>
-                            <FontAwesomeIcon style = {{left:6,display: graphFilter.age.length > 1 ? 'block' : 'none'}} className = "reset-dropdown fa-xs" id = "reset-age" icon={faX} 
+                            <FontAwesomeIcon style = {{left:6,display: graphFilter.age.length > 1 ? 'block' : 'none'}} className = "reset-dropdown fa-2xs" id = "reset-age" icon={faX} 
                                 onClick = {() => {
                                     setGraphFilter({gender:graphFilter.gender,age:[-1]})
                                 }}

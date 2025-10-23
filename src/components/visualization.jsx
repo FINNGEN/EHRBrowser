@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import GraphSection from './visualization/graphSection';
@@ -11,11 +12,11 @@ import * as d3 from "d3";
 import po from '../po.js';
 
 function Visualization (props) {
+    const navigate = useNavigate()
     const color = props.color
     const root = props.root
-    const getData = props.getData
+    // const setRoot = props.setRoot
     const generateColor = props.generateColor
-    const getCounts = props.getCounts
     // const getValidity = props.getValidity
     const selectedConcepts = props.selectedConcepts
     const setSelectedConcepts = props.setSelectedConcepts
@@ -45,11 +46,15 @@ function Visualization (props) {
     const allClasses = props.allClasses
     const classFilter = props.classFilter
     const setClassFilter = props.setClassFilter
+    const ageData = props.ageData
+    const genderData = props.genderData
+    const maxGender = props.maxGender
+    const getConceptInfo = props.getConceptInfo
     const [visible,setVisible] = useState(false)
     const openFilters = props.openFilters
     const setOpenFilters = props.setOpenFilters
-    const filteredConnections = props.filteredConnections
     const pruned = props.pruned
+    const setLoading = props.setLoading
     const hoverTimeout = useRef(null)
     const hideTimeout = useRef(null)
 
@@ -78,10 +83,9 @@ function Visualization (props) {
                 })
             d3.select('#tooltip-root')  
                 .style('display', () => d.name === sidebarRoot.name ? 'none' : 'block') 
-                .on('click', async () => {
+                .on('click', () => {
                     if (d.name !== sidebarRoot.name) {  
-                        const data = await getData(d.name)
-                        setSidebarRoot({name:d.name,data:data})  
+                        navigate(`/${d.name}`)
                         setVisible(false) 
                     }
                 })   
@@ -223,23 +227,30 @@ function Visualization (props) {
 
     useEffect(()=>{
         if (root) {
+            const timer = setTimeout(() => {
+                setLoading(true)
+            }, 700)
             fetch(`http://127.0.0.1:8585/getCodeCounts?conceptId=${root}`)
                 .then(res=> res.json())
                 .then(data=>{
                     console.log('root', root)
                     console.log('data', data)
-                    setGraphFilter({gender:-1,age:[-1]})
-                    setRootData(data)
-                    setClassFilter(data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined))
-                    setSidebarRoot({name:parseInt(root),data:data}) 
-                    setView('Tree') 
-                    d3.select("#graph-section").style('width', "60vw")
-                    d3.select('#expand').style('display', 'block') 
-                    d3.select('#compress').style('display', 'none') 
-                    setTreeSelections(['descendants'])
-                    setLevelFilter()
-                    setOpenFilters(true)
-                    setMapRoot([])
+                    if (!data.error) {
+                        setRootData(data)
+                        setSidebarRoot({name:parseInt(root),data:data}) 
+                        setView('Tree') 
+                        d3.select("#graph-section").style('width', "60vw")
+                        d3.select('#expand').style('display', 'block') 
+                        d3.select('#compress').style('display', 'none') 
+                        setGraphFilter({gender:-1,age:[-1]})
+                        setClassFilter(data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined))
+                        setTreeSelections(['descendants'])
+                        setLevelFilter()
+                        setOpenFilters(true)
+                        setMapRoot([])
+                        setLoading(false)
+                        clearTimeout(timer)    
+                    }
                 })
         }
     },[root])
@@ -282,18 +293,15 @@ function Visualization (props) {
                 color = {color}
                 selectedConcepts = {selectedConcepts}
                 setSelectedConcepts = {setSelectedConcepts}
-                sidebarRoot = {sidebarRoot}
-                setSidebarRoot = {setSidebarRoot}   
+                sidebarRoot = {sidebarRoot} 
                 mapRoot = {mapRoot}
                 setMapRoot = {setMapRoot}
-                getCounts = {getCounts}
                 tooltipHover = {tooltipHover}
                 conceptHover = {conceptHover}
                 addConcepts = {addConcepts}
                 conceptNames = {conceptNames}
                 view = {view}
                 setView = {setView}
-                getData = {getData}
                 // getValidity = {getValidity}
                 nodes = {nodes}
                 links = {links}
@@ -307,21 +315,18 @@ function Visualization (props) {
                 allClasses = {allClasses}
                 classFilter = {classFilter}
                 setClassFilter = {setClassFilter}
-                filteredConnections = {filteredConnections}
                 pruned = {pruned}
+                // setRoot = {setRoot}
             ></SideBar> 
             <GraphSection
                 color = {color}
                 selectedConcepts = {selectedConcepts}
                 setSelectedConcepts = {setSelectedConcepts}
-                setSidebarRoot = {setSidebarRoot}
                 sidebarRoot = {sidebarRoot}
                 tooltipHover = {tooltipHover}
                 graphFilter = {graphFilter}
                 setGraphFilter = {setGraphFilter}
                 conceptHover = {conceptHover}
-                getData = {getData}
-                getCounts = {getCounts}
                 extent = {extent}
                 setExtent = {setExtent}
                 openFilters = {openFilters}
@@ -330,6 +335,11 @@ function Visualization (props) {
                 conceptNames = {conceptNames}
                 generateColor = {generateColor}
                 rootLine = {rootLine}
+                // setRoot = {setRoot}
+                ageData = {ageData}
+                genderData = {genderData}
+                maxGender = {maxGender}
+                getConceptInfo = {getConceptInfo}
             />  
         </div> : null
     )

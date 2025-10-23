@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState} from 'react';
+import { useNavigate } from 'react-router-dom';
 import finngen from '../img/finngen_logo.svg'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faSearch } from '@fortawesome/free-solid-svg-icons'
@@ -8,7 +9,7 @@ function Header (props) {
     const root = props.root 
     const rootData = props.rootData
     const getCounts = props.getCounts
-    const setRoot = props.setRoot
+    // const setRoot = props.setRoot
     const inputRef = useRef(null)
     const reset = props.reset
     const conceptList = props.conceptList
@@ -19,6 +20,7 @@ function Header (props) {
     const names = conceptList.map(d => d.concept_name.toLowerCase())
     const [suggestions,setSuggestions] = useState([])
     const [refresh,setRefresh] = useState(false)
+    const navigate = useNavigate()
    
     const handleClick = () => {
         d3.select('#searchConcept').style('height', '18px').style('border-radius', '20px') 
@@ -28,8 +30,8 @@ function Header (props) {
             setRefresh(true)
             if (inputRef.current.value === root) reset()
             else {
-                if (codes.includes(inputRef.current.value)) setRoot(inputRef.current.value) 
-                else if (names.includes(inputRef.current.value.toLowerCase())) setRoot(codes[names.indexOf(inputRef.current.value.toLowerCase())].toString())
+                if (codes.includes(inputRef.current.value)) navigate(`/${inputRef.current.value}`)
+                else if (names.includes(inputRef.current.value.toLowerCase())) navigate(`/${codes[names.indexOf(inputRef.current.value.toLowerCase())].toString()}`)
                 else console.warn(`Concept ${inputRef.current.value} not found.`)
             } 
         }
@@ -125,7 +127,7 @@ function Header (props) {
                     .on('click', (e,d) => {
                         setRefresh(true)
                         if (d.concept_id === root) reset()
-                        else setRoot(d.concept_id)  
+                        else navigate(`/${d.concept_id}`)
                     })
                 const name = div.append('p')
                     .style('cursor','pointer')

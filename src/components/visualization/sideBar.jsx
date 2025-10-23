@@ -1,4 +1,5 @@
     import React, { useEffect, useState } from 'react';
+    import { useNavigate } from 'react-router-dom';
     import '@fortawesome/fontawesome-free/css/all.min.css';
     import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
     import { faCaretLeft } from '@fortawesome/free-solid-svg-icons'
@@ -15,21 +16,19 @@
     import textures from 'textures';
 
     function SideBar (props) {
+        const navigate = useNavigate()
         const color = props.color
         const selectedConcepts = props.selectedConcepts
         const setSelectedConcepts = props.setSelectedConcepts
         const sidebarRoot = props.sidebarRoot
-        const setSidebarRoot = props.setSidebarRoot  
         const mapRoot = props.mapRoot
         const setMapRoot = props.setMapRoot
-        const getCounts = props.getCounts
         const tooltipHover = props.tooltipHover
         const conceptHover = props.conceptHover
         const addConcepts = props.addConcepts
         const conceptNames = props.conceptNames
         const view = props.view
         const setView = props.setView
-        const getData = props.getData
         // const getValidity = props.getValidity
         const nodes = props.nodes
         const links = props.links
@@ -43,10 +42,9 @@
         const allClasses = props.allClasses
         const classFilter = props.classFilter
         const setClassFilter = props.setClassFilter
-        const filteredConnections = props.filteredConnections
         const pruned = props.pruned
+        // const setRoot = props.setRoot
         const [graphSectionWidth, setGraphSectionWidth] = useState()
-        const [zoomCompleted, setZoomCompleted] = useState(false)
         const margin = 10
         let hoverTimeout = null
         let currentTarget = null
@@ -64,10 +62,13 @@
                 let gap = 0
                 if (axis === 'x') {
                     let includesMappings = generation.map(node => node.mappings).flat().length > 0
-                    let widen = treeSelections.includes('mappings') && includesMappings ? 150*generation.length : 0
+                    let showMappings = false
+                    generation.forEach(node => mapRoot.includes(node.name) ? showMappings = true : null)
+                    let widen = (treeSelections.includes('mappings') && includesMappings) || showMappings ? 150*generation.length : 0
                     gap = (d3.select("#tree").node().getBoundingClientRect().width + widen)/(generation.length) 
                     if (widen !== 0 && gap < 250) gap = 250
                     if (widen === 0 && gap < 80) gap = 80
+                    // return node.x
                 }
                 else if (axis === 'y') {
                     if (!mapRoot.includes(node.name)) gap = 20
@@ -97,6 +98,7 @@
                         d3.select('#tree-text-'+d.name).attr('fill','black')
                         d3.select('#node-vocabulary-'+d.name).attr('fill',color.textlight)
                         d3.select('#alt-text-'+d.name).attr('fill',color.text)
+                        d3.select("#button-symbol-"+d.name).attr('stroke','white')
                     }
                 }
                 if (!nodes.map(e => e.name).includes(d.name)) {
@@ -118,7 +120,8 @@
                         d3.select('#tree-circle-' + d.name).attr('stroke',color.textlightest).attr('fill','white')
                         d3.select('#tree-text-'+d.name).attr('fill',color.textlight)
                         d3.select('#node-vocabulary-'+d.name).attr('fill',color.textlightest)
-                        d3.select('#alt-text-'+d.name).attr('fill',color.textlight)
+                        d3.select('#alt-text-'+d.name).attr('fill',()=>d.name === sidebarRoot.name ? color.text : color.textlight)
+                        d3.select("#button-symbol-"+d.name).attr('stroke', () => (d.leaf && d.children.length > 0 && d.descendant_counts !== d.total_counts) ? color.text : 'white')
                     }
                 }
                 if (!nodes.map(e => e.name).includes(d.name)) {
@@ -141,14 +144,12 @@
             const svgHeight = svgNode.getBoundingClientRect().height + padding*2
             const bbox = gNode.getBBox()
             const width = bbox.width
-            const height = !pruned ? bbox.height : bbox.height + 40
+            const height = bbox.height
             const x = bbox.x
             const y = bbox.y
             if (width === 0 || height === 0) return
-            const scale = Math.min(
-                (svgWidth - padding) / width,
-                (svgHeight - padding) / height
-            )
+            let scale = Math.min((svgWidth - padding) / width,(svgHeight - padding) / height)
+            if (nodes.length === 1) scale = scale / 2
             const translateX = (svgWidth - width * scale) / 2 - x * scale 
             const translateY = (svgHeight - height * scale) / 2 - y * scale + padding 
             d3.select('#tree-graphics').transition().attr("transform", `translate(${translateX},${translateY}) scale(${scale})`)
@@ -173,7 +174,7 @@
             let num = (svgHeight/(maxLevel+1) - 12) < 150 ? 150 : (svgHeight/(maxLevel+1) - 12)
             let length = maxLevel + 1
             let genHeight = Array.from({length}, (_, i) => i * num)
-            if (treeSelections.includes('mappings')) {
+            if (treeSelections.includes('mappings') || mapRoot.length > 0) {
                 genHeight = genHeight.map((h,i) => {
                     if (i === 0) return 0
                     else {
@@ -320,7 +321,7 @@
                                 .attr("d", d => {
                                     let sourceX = getMap(d).x 
                                     let sourceY = mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)
-                                    let targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? getPosition(d.source, 'x', cx, cy, d.source.name, nodes) - scaleRadius(Math.sqrt(d.source.total_counts)) - 14 : getMap(d).x + scaleRadius(Math.sqrt(d.total_counts)) + 14 : getPosition(d.source, 'x', cx, cy, d.source.name, nodes)
+                                    let targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? getPosition(d.source, 'x', cx, cy, d.source.name, nodes) - scaleRadius(Math.sqrt(d.source.total_counts)) - 14 : getPosition(d.source, 'x', cx, cy, d.source.name, nodes) + scaleRadius(Math.sqrt(d.source.total_counts)) + 14 : getPosition(d.source, 'x', cx, cy, d.source.name, nodes)
                                     let targetY = cy + (genHeight[d.distance])
                                     return curveX({source: [sourceX, sourceY], target: [targetX, targetY]})}
                                 )
@@ -331,7 +332,7 @@
                                 .attr('fill', d => conceptNames.includes(d.name) ? 'black' : color.darkbackground)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
-                                    let x = d.direction === -1 ? getPosition(d.source, 'x', cx, cy, d.source.name, nodes) - scaleRadius(Math.sqrt(d.source.total_counts)) - 16 : getMap(d).x + scaleRadius(Math.sqrt(d.total_counts)) + 16
+                                    let x = d.direction === -1 ? getPosition(d.source, 'x', cx, cy, d.source.name, nodes) - scaleRadius(Math.sqrt(d.source.total_counts)) - 16 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 6
                                     let y = d.direction === -1 ? cy + (genHeight[d.distance]) : getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)
                                     return "translate(" + x + "," + y + ")rotate(" + 90 + ")"
                                 }) 
@@ -470,9 +471,8 @@
                                     d3.select('#map-tree-text-'+d.name).style('font-weight',400)
                                     d3.select('#map-vocabulary-' + d.name).attr('y', getMap(d).y + 1)
                                 })
-                                .on('click', async (e,d) => {
-                                    const data = await getData(d.name)
-                                    setSidebarRoot({name:d.name,data:data})
+                                .on('click',(e,d) => {
+                                    navigate(`/${d.name}`)
                                     tooltipHover(d, 'leave', e, 'sidebar')
                                     conceptHover(d.name, "leave") 
                                 })
@@ -520,7 +520,7 @@
                                 .attr("d", d => {
                                     let sourceX = getMap(d).x
                                     let sourceY = mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)
-                                    let targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? getPosition(d.source, 'x', cx, cy, d.source.name, nodes) - scaleRadius(Math.sqrt(d.source.total_counts)) - 14 : getMap(d).x + scaleRadius(Math.sqrt(d.total_counts)) + 14 : getPosition(d.source, 'x', cx, cy, d.source.name, nodes)
+                                    let targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? getPosition(d.source, 'x', cx, cy, d.source.name, nodes) - scaleRadius(Math.sqrt(d.source.total_counts)) - 14 : getPosition(d.source, 'x', cx, cy, d.source.name, nodes) + scaleRadius(Math.sqrt(d.source.total_counts)) + 14 : getPosition(d.source, 'x', cx, cy, d.source.name, nodes)
                                     let targetY = cy + (genHeight[d.distance])
                                     return curveX({source: [sourceX, sourceY], target: [targetX, targetY]})}
                                 )
@@ -529,7 +529,7 @@
                                 .attr('fill', d => conceptNames.includes(d.name) ? 'black' : color.darkbackground)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
-                                    let x = d.direction === -1 ? getPosition(d.source, 'x', cx, cy, d.source.name, nodes) - scaleRadius(Math.sqrt(d.source.total_counts)) - 16 : getMap(d).x + scaleRadius(Math.sqrt(d.total_counts)) + 16
+                                    let x = d.direction === -1 ? getPosition(d.source, 'x', cx, cy, d.source.name, nodes) - scaleRadius(Math.sqrt(d.source.total_counts)) - 16 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 6
                                     let y = d.direction === -1 ? cy + (genHeight[d.distance]) : getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)
                                     return "translate(" + x + "," + y + ")rotate(" + 90 + ")"
                                 }) 
@@ -637,9 +637,8 @@
                                     d3.select('#map-tree-text-'+d.name).style('font-weight',400)
                                     d3.select('#map-vocabulary-' + d.name).attr('y', getMap(d).y + 1)
                                 })
-                                .on('click', async (e,d) => {
-                                    const data = await getData(d.name)
-                                    setSidebarRoot({name:d.name,data:data})
+                                .on('click', (e,d) => {
+                                    navigate(`/${d.name}`)
                                     tooltipHover(d, 'leave', e, 'sidebar')
                                     conceptHover(d.name, "leave") 
                                 })
@@ -683,7 +682,6 @@
                                 if (d.total_counts !== 0) {
                                     if (conceptNames.includes(d.name)) {
                                         let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
-                                        console.log('filtered concepts', filteredConcepts)
                                         setSelectedConcepts(filteredConcepts)   
                                         conceptHover(d.name, "leave") 
                                     } else if (!conceptNames.includes(d.name)){
@@ -741,21 +739,21 @@
                             })
                         closeMappings.append('line')
                             .classed('close-mappings-line-1', true)
-                            .attr('x1', d => getPosition(d, 'x', cx, cy, d.name, nodes) - scaleRadius(Math.sqrt(d.total_counts)) - 11)
+                            .attr('x1', d => !d.data.concept.standard_concept ? getPosition(d, 'x', cx, cy, d.name, nodes) + scaleRadius(Math.sqrt(d.total_counts)) + 11 : getPosition(d, 'x', cx, cy, d.name, nodes) - scaleRadius(Math.sqrt(d.total_counts)) - 11)
                             .attr('y1', d => cy + (genHeight[d.distance]) - 3)
-                            .attr('x2', d => getPosition(d, 'x', cx, cy, d.name, nodes) - scaleRadius(Math.sqrt(d.total_counts)) - 5)
+                            .attr('x2', d => !d.data.concept.standard_concept ? getPosition(d, 'x', cx, cy, d.name, nodes) + scaleRadius(Math.sqrt(d.total_counts)) + 5 : getPosition(d, 'x', cx, cy, d.name, nodes) - scaleRadius(Math.sqrt(d.total_counts)) - 5)
                             .attr('y2', d => cy + (genHeight[d.distance]) + 3)
                         closeMappings.append('line')
                             .classed('close-mappings-line-2', true)
-                            .attr('x1', d => getPosition(d, 'x', cx, cy, d.name, nodes) - scaleRadius(Math.sqrt(d.total_counts)) - 5)
+                            .attr('x1', d => !d.data.concept.standard_concept ? getPosition(d, 'x', cx, cy, d.name, nodes) + scaleRadius(Math.sqrt(d.total_counts)) + 5 : getPosition(d, 'x', cx, cy, d.name, nodes) - scaleRadius(Math.sqrt(d.total_counts)) - 5)
                             .attr('y1', d => cy + (genHeight[d.distance]) - 3)
-                            .attr('x2', d => getPosition(d, 'x', cx, cy, d.name, nodes) - scaleRadius(Math.sqrt(d.total_counts)) - 11)
+                            .attr('x2', d => !d.data.concept.standard_concept ? getPosition(d, 'x', cx, cy, d.name, nodes) + scaleRadius(Math.sqrt(d.total_counts)) + 11 : getPosition(d, 'x', cx, cy, d.name, nodes) - scaleRadius(Math.sqrt(d.total_counts)) - 11)
                             .attr('y2', d => cy + (genHeight[d.distance]) + 3)
                         const buttonSymbol = node.append('g')
                             .classed('button-symbol', true)
                             .attr('id', d => 'button-symbol-' + d.name)
                             .attr('visibility', 'hidden')
-                            .attr('stroke', d => (d.leaf && d.descendant_counts !== d.total_counts) ? color.text : 'white')
+                            .attr('stroke', d => (d.leaf && d.children.length > 0 && d.descendant_counts !== d.total_counts) ? color.text : 'white')
                             .attr('stroke-width', 1.5)
                             .attr('stroke-linecap', 'round')
                             .style('pointer-events', 'none')
@@ -792,7 +790,7 @@
                             .classed('alt-text',true)
                             .attr('id', d => 'alt-text-'+d.name)
                             .attr('text-anchor', 'middle')
-                            .attr('fill', d => d.name === sidebarRoot.name && !d.leaf ? color.text : d.leaf && conceptNames.includes(d.name) && d.total_counts !== d.descendant_counts  ? 'white' : conceptNames.includes(d.name) ? color.text : color.textlight)
+                            .attr('fill', d => d.name === sidebarRoot.name ? d.leaf && d.children.length > 0 ? 'white' : color.text : d.leaf && conceptNames.includes(d.name) && d.total_counts !== d.descendant_counts ? 'white' : conceptNames.includes(d.name) ? color.text : color.textlight)
                             .attr('x', d => getPosition(d, 'x', cx, cy, d.name, nodes))
                             .attr('y', d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 13)
                             .style('font-size', '8px')
@@ -803,7 +801,7 @@
                             .attr('id', d => 'alt-rect-'+d.name)
                             .attr('fill', d => d.leaf && conceptNames.includes(d.name) && d.total_counts !== d.descendant_counts  ? d.color : 'none')
                             .attr('stroke', d => d.name === sidebarRoot.name ? 'black' : 'none')
-                            .attr('stroke-dasharray', d => d.name === sidebarRoot.name ? '3 3' : 'none')
+                            .attr('stroke-dasharray', d => !d.data.concept.standard_concept ? '3 3' : 'none')
                             .attr("height",12)
                             .attr('width',d => d3.select('#alt-text-'+d.name).node().getBBox().width + 6)
                             .attr('x', d => getPosition(d, 'x', cx, cy, d.name, nodes) - (d3.select('#alt-text-'+d.name).node().getBBox().width + 6)/2)
@@ -833,9 +831,8 @@
                                 tooltipHover(d, "leave", e, 'sidebar')   
                                 d3.select('#node-vocabulary-' + d.name).transition().attr('y', () => d.name === sidebarRoot.name ? getLabel(d).y + 3 : getLabel(d).y + 1) 
                             })
-                            .on('click', async (e,d) => {
-                                const data = await getData(d.name)
-                                setSidebarRoot({name:d.name,data:data})  
+                            .on('click',(e,d) => {
+                                navigate(`/${d.name}`)  
                                 tooltipHover(d, 'leave', e, 'sidebar')
                                 conceptHover(d.name, "leave") 
                             })
@@ -976,7 +973,7 @@
                                 .attr("d", d => {
                                     let sourceX = getMap(d).x 
                                     let sourceY = mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)
-                                    let targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? getPosition(d.source, 'x', cx, cy, d.source.name, nodes) - scaleRadius(Math.sqrt(d.source.total_counts)) - 14 : getMap(d).x + scaleRadius(Math.sqrt(d.total_counts)) + 14 : getPosition(d.source, 'x', cx, cy, d.source.name, nodes)
+                                    let targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? getPosition(d.source, 'x', cx, cy, d.source.name, nodes) - scaleRadius(Math.sqrt(d.source.total_counts)) - 14 : getPosition(d.source, 'x', cx, cy, d.source.name, nodes) + scaleRadius(Math.sqrt(d.source.total_counts)) + 14 : getPosition(d.source, 'x', cx, cy, d.source.name, nodes)
                                     let targetY = cy + (genHeight[d.distance])
                                     return curveX({source: [sourceX, sourceY], target: [targetX, targetY]})}
                                 )
@@ -987,7 +984,7 @@
                                 .attr('fill', d => conceptNames.includes(d.name) ? 'black' : color.darkbackground)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
-                                    let x = d.direction === -1 ? getPosition(d.source, 'x', cx, cy, d.source.name, nodes) - scaleRadius(Math.sqrt(d.source.total_counts)) - 16 : getMap(d).x + scaleRadius(Math.sqrt(d.total_counts)) + 16
+                                    let x = d.direction === -1 ? getPosition(d.source, 'x', cx, cy, d.source.name, nodes) - scaleRadius(Math.sqrt(d.source.total_counts)) - 16 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 6
                                     let y = d.direction === -1 ? cy + (genHeight[d.distance]) : getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)
                                     return "translate(" + x + "," + y + ")rotate(" + 90 + ")"
                                 }) 
@@ -1126,9 +1123,8 @@
                                     d3.select('#map-tree-text-'+d.name).style('font-weight',400)
                                     d3.select('#map-vocabulary-' + d.name).attr('y', getMap(d).y + 1)
                                 })
-                                .on('click', async (e,d) => {
-                                    const data = await getData(d.name)
-                                    setSidebarRoot({name:d.name,data:data})
+                                .on('click',(e,d) => {
+                                    navigate(`/${d.name}`)
                                     tooltipHover(d, 'leave', e, 'sidebar')
                                     conceptHover(d.name, "leave") 
                                 })
@@ -1176,7 +1172,7 @@
                                 .attr("d", d => {
                                     let sourceX = getMap(d).x
                                     let sourceY = mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)
-                                    let targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? getPosition(d.source, 'x', cx, cy, d.source.name, nodes) - scaleRadius(Math.sqrt(d.source.total_counts)) - 14 : getMap(d).x + scaleRadius(Math.sqrt(d.total_counts)) + 14 : getPosition(d.source, 'x', cx, cy, d.source.name, nodes)
+                                    let targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? getPosition(d.source, 'x', cx, cy, d.source.name, nodes) - scaleRadius(Math.sqrt(d.source.total_counts)) - 14 : getPosition(d.source, 'x', cx, cy, d.source.name, nodes) + scaleRadius(Math.sqrt(d.source.total_counts)) + 14 : getPosition(d.source, 'x', cx, cy, d.source.name, nodes)
                                     let targetY = cy + (genHeight[d.distance])
                                     return curveX({source: [sourceX, sourceY], target: [targetX, targetY]})}
                                 )
@@ -1185,7 +1181,7 @@
                                 .attr('fill', d => conceptNames.includes(d.name) ? 'black' : color.darkbackground)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
-                                    let x = d.direction === -1 ? getPosition(d.source, 'x', cx, cy, d.source.name, nodes) - scaleRadius(Math.sqrt(d.source.total_counts)) - 16 : getMap(d).x + scaleRadius(Math.sqrt(d.total_counts)) + 16
+                                    let x = d.direction === -1 ? getPosition(d.source, 'x', cx, cy, d.source.name, nodes) - scaleRadius(Math.sqrt(d.source.total_counts)) - 16 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 6
                                     let y = d.direction === -1 ? cy + (genHeight[d.distance]) : getPosition(d.source, 'y', getPosition(d.source, 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)
                                     return "translate(" + x + "," + y + ")rotate(" + 90 + ")"
                                 }) 
@@ -1293,9 +1289,8 @@
                                     d3.select('#map-tree-text-'+d.name).style('font-weight',400)
                                     d3.select('#map-vocabulary-' + d.name).attr('y', getMap(d).y + 1)
                                 })
-                                .on('click', async (e,d) => {
-                                    const data = await getData(d.name)
-                                    setSidebarRoot({name:d.name,data:data})
+                                .on('click', (e,d) => {
+                                    navigate(`/${d.name}`)
                                     tooltipHover(d, 'leave', e, 'sidebar')
                                     conceptHover(d.name, "leave") 
                                 })
@@ -1333,7 +1328,6 @@
                                 if (d.total_counts !== 0) {
                                     if (conceptNames.includes(d.name)) {
                                         let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
-                                        console.log('filtered concepts', filteredConcepts)
                                         setSelectedConcepts(filteredConcepts)   
                                         conceptHover(d.name, "leave") 
                                     } else if (!conceptNames.includes(d.name)){
@@ -1377,17 +1371,17 @@
                                 setMapRoot(filteredRoots)
                             })
                         update.select('.close-mappings-line-1')
-                            .attr('x1', d => getPosition(d, 'x', cx, cy, d.name, nodes) - scaleRadius(Math.sqrt(d.total_counts)) - 11)
+                            .attr('x1', d => !d.data.concept.standard_concept ? getPosition(d, 'x', cx, cy, d.name, nodes) + scaleRadius(Math.sqrt(d.total_counts)) + 11 : getPosition(d, 'x', cx, cy, d.name, nodes) - scaleRadius(Math.sqrt(d.total_counts)) - 11)
                             .attr('y1', d => cy + (genHeight[d.distance]) - 3)
-                            .attr('x2', d => getPosition(d, 'x', cx, cy, d.name, nodes) - scaleRadius(Math.sqrt(d.total_counts)) - 5)
+                            .attr('x2', d => !d.data.concept.standard_concept ? getPosition(d, 'x', cx, cy, d.name, nodes) + scaleRadius(Math.sqrt(d.total_counts)) + 5 : getPosition(d, 'x', cx, cy, d.name, nodes) - scaleRadius(Math.sqrt(d.total_counts)) - 5)
                             .attr('y2', d => cy + (genHeight[d.distance]) + 3)
                         update.select('.close-mappings-line-2')
-                            .attr('x1', d => getPosition(d, 'x', cx, cy, d.name, nodes) - scaleRadius(Math.sqrt(d.total_counts)) - 5)
+                            .attr('x1', d => !d.data.concept.standard_concept ? getPosition(d, 'x', cx, cy, d.name, nodes) + scaleRadius(Math.sqrt(d.total_counts)) + 5 : getPosition(d, 'x', cx, cy, d.name, nodes) - scaleRadius(Math.sqrt(d.total_counts)) - 5)
                             .attr('y1', d => cy + (genHeight[d.distance]) - 3)
-                            .attr('x2', d => getPosition(d, 'x', cx, cy, d.name, nodes) - scaleRadius(Math.sqrt(d.total_counts)) - 11)
+                            .attr('x2', d => !d.data.concept.standard_concept ? getPosition(d, 'x', cx, cy, d.name, nodes) + scaleRadius(Math.sqrt(d.total_counts)) + 11 : getPosition(d, 'x', cx, cy, d.name, nodes) - scaleRadius(Math.sqrt(d.total_counts)) - 11)
                             .attr('y2', d => cy + (genHeight[d.distance]) + 3)
                         update.select('.button-symbol')
-                            .attr('stroke', d => (d.leaf && d.descendant_counts !== d.total_counts) ? color.text : 'white')
+                            .attr('stroke', d => (d.leaf && d.children.length > 0 && d.descendant_counts !== d.total_counts) ? color.text : 'white')
                         update.select('.button-line-1')
                             .attr('x1', d => getPosition(d, 'x', cx, cy, d.name, nodes) - 2.5)
                             .attr('y1', d => {
@@ -1411,14 +1405,14 @@
                             .attr('x2', d => conceptNames.includes(d.name) ? getPosition(d, 'x', cx, cy, d.name, nodes) - 2.5 : getPosition(d, 'x', cx, cy, d.name, nodes))
                             .attr('y2', d => cy + (genHeight[d.distance]) + 2.5)
                         update.select('.alt-text')
-                            .attr('fill', d => d.name === sidebarRoot.name && !d.leaf ? color.text : d.leaf && conceptNames.includes(d.name) && d.total_counts !== d.descendant_counts ? 'white' : conceptNames.includes(d.name) ? color.text : color.textlight)
+                            .attr('fill', d => d.name === sidebarRoot.name ? d.leaf && d.children.length > 0 ? 'white' : color.text : d.leaf && conceptNames.includes(d.name) && d.total_counts !== d.descendant_counts ? 'white' : conceptNames.includes(d.name) ? color.text : color.textlight)
                             .attr('x', d => getPosition(d, 'x', cx, cy, d.name, nodes))
                             .attr('y', d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 13)
                             .text(d => d.descendant_counts + ' DRC')
                         update.select('.alt-rect')
                             .attr('fill', d => d.leaf && conceptNames.includes(d.name) && d.total_counts !== d.descendant_counts  ? d.color : 'none')
                             .attr('stroke', d => d.name === sidebarRoot.name ? 'black' : 'none')
-                            .attr('stroke-dasharray', d => d.name === sidebarRoot.name ? '3 3' : 'none')
+                            .attr('stroke-dasharray', d => !d.data.concept.standard_concept ? '3 3' : 'none')
                             .attr('width',d => d3.select('#alt-text-'+d.name).node().getBBox().width + 6)
                             .attr('x', d => getPosition(d, 'x', cx, cy, d.name, nodes) - (d3.select('#alt-text-'+d.name).node().getBBox().width + 6)/2)
                             .attr('y', d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 4)
@@ -1442,9 +1436,8 @@
                                 tooltipHover(d, "leave", e, 'sidebar')   
                                 d3.select('#node-vocabulary-' + d.name).transition().attr('y', () => d.name === sidebarRoot.name ? getLabel(d).y + 3 : getLabel(d).y + 1) 
                             })
-                            .on('click', async (e,d) => {
-                                const data = await getData(d.name)
-                                setSidebarRoot({name:d.name,data:data})  
+                            .on('click', (e,d) => {
+                                navigate(`/${d.name}`) 
                                 tooltipHover(d, 'leave', e, 'sidebar')
                                 conceptHover(d.name, "leave") 
                             })
@@ -1710,9 +1703,8 @@
                         .html(d => d.data.concept.concept_name)
                         .style('padding-right', '4px')
                         .style('cursor','pointer')
-                        .on('click', async (e,d) => {
-                            const data = await getData(d.name)
-                            setSidebarRoot({name:d.name,data:data})  
+                        .on('click', (e,d) => {
+                            navigate(`/${d.name}`) 
                             conceptHover(d.name, "leave") 
                         })
                         .on('mouseover', (e,d) => {
@@ -2019,9 +2011,8 @@
                             .html(d => d.data.concept.concept_name || d.data.concept.concept_id)
                             .style('padding-right', '4px')
                             .style('cursor','pointer')
-                            .on('click', async (e,d) => {
-                                const data = await getData(d.name)
-                                setSidebarRoot({name:d.name,data:data})  
+                            .on('click', (e,d) => {
+                                navigate(`/${d.name}`) 
                                 conceptHover(d.name, "leave") 
                             })
                             .on('mouseover', (e,d) => {
@@ -2238,9 +2229,8 @@
                             .style("font-weight", d => d.name == sidebarRoot.name ? 700 : 400)
                             .style('color', d => conceptNames.includes(d.name) ? 'black' : color.textlight)
                             .html(d => d.data.concept.concept_name)
-                            .on('click', async (e,d) => {
-                                const data = await getData(d.name)
-                                setSidebarRoot({name:d.name,data:data})  
+                            .on('click', (e,d) => {
+                                navigate(`/${d.name}`) 
                                 conceptHover(d.name, "leave") 
                             })
                             .on('mouseover', (e,d) => {
@@ -2374,9 +2364,8 @@
                         .style("font-weight", d => d.name == sidebarRoot.name ? 700 : 400)
                         .style('color', d => conceptNames.includes(d.name) ? 'black' : color.textlight)
                         .html(d => d.data.concept.concept_name || d.data.concept.concept_id)
-                        .on('click', async (e,d) => {
-                            const data = await getData(d.name)
-                            setSidebarRoot({name:d.name,data:data})  
+                        .on('click', (e,d) => {
+                            navigate(`/${d.name}`)
                             conceptHover(d.name, "leave") 
                         })
                         .on('mouseover', (e,d) => {
@@ -2573,9 +2562,8 @@
                             .html(d => d.data.concept.concept_name || d.data.concept.concept_id)
                             .style('padding-right', '4px')
                             .style('cursor','pointer')
-                            .on('click', async (e,d) => {
-                                const data = await getData(d.name)
-                                setSidebarRoot({name:d.name,data:data})  
+                            .on('click', (e,d) => {
+                                navigate(`/${d.name}`) 
                                 conceptHover(d.name, "leave") 
                             })
                             .on('mouseover', (e,d) => {
@@ -2792,9 +2780,8 @@
                             .style("font-weight", d => d.name == sidebarRoot.name ? 700 : 400)
                             .style('color', d => conceptNames.includes(d.name) ? 'black' : color.textlight)
                             .html(d => d.data.concept.concept_name)
-                            .on('click', async (e,d) => {
-                                const data = await getData(d.name)
-                                setSidebarRoot({name:d.name,data:data})  
+                            .on('click', (e,d) => {
+                                navigate(`/${d.name}`) 
                                 conceptHover(d.name, "leave") 
                             })
                             .on('mouseover', (e,d) => {
@@ -2968,9 +2955,8 @@
                         .html(d => d.data.concept.concept_name)
                         .style('padding-right', '4px')
                         .style('cursor','pointer')
-                        .on('click', async (e,d) => {
-                            const data = await getData(d.name)
-                            setSidebarRoot({name:d.name,data:data})  
+                        .on('click', (e,d) => {
+                            navigate(`/${d.name}`) 
                             conceptHover(d.name, "leave") 
                         })
                         .on('mouseover', (e,d) => {
@@ -3277,9 +3263,8 @@
                             .html(d => d.data.concept.concept_name || d.data.concept.concept_id)
                             .style('padding-right', '4px')
                             .style('cursor','pointer')
-                            .on('click', async (e,d) => {
-                                const data = await getData(d.name)
-                                setSidebarRoot({name:d.name,data:data})  
+                            .on('click', (e,d) => {
+                                navigate(`/${d.name}`)
                                 conceptHover(d.name, "leave") 
                             })
                             .on('mouseover', (e,d) => {
@@ -3496,9 +3481,8 @@
                             .style("font-weight", d => d.name == sidebarRoot.name ? 700 : 400)
                             .style('color', d => conceptNames.includes(d.name) ? 'black' : color.textlight)
                             .html(d => d.data.concept.concept_name)
-                            .on('click', async (e,d) => {
-                                const data = await getData(d.name)
-                                setSidebarRoot({name:d.name,data:data})  
+                            .on('click', (e,d) => {
+                                navigate(`/${d.name}`)
                                 conceptHover(d.name, "leave") 
                             })
                             .on('mouseover', (e,d) => {
@@ -3632,9 +3616,8 @@
                         .style("font-weight", d => d.name == sidebarRoot.name ? 700 : 400)
                         .style('color', d => conceptNames.includes(d.name) ? 'black' : color.textlight)
                         .html(d => d.data.concept.concept_name || d.data.concept.concept_id)
-                        .on('click', async (e,d) => {
-                            const data = await getData(d.name)
-                            setSidebarRoot({name:d.name,data:data})  
+                        .on('click', (e,d) => {
+                            navigate(`/${d.name}`) 
                             conceptHover(d.name, "leave") 
                         })
                         .on('mouseover', (e,d) => {
@@ -3831,9 +3814,8 @@
                             .html(d => d.data.concept.concept_name || d.data.concept.concept_id)
                             .style('padding-right', '4px')
                             .style('cursor','pointer')
-                            .on('click', async (e,d) => {
-                                const data = await getData(d.name)
-                                setSidebarRoot({name:d.name,data:data})  
+                            .on('click', (e,d) => {
+                                navigate(`/${d.name}`) 
                                 conceptHover(d.name, "leave") 
                             })
                             .on('mouseover', (e,d) => {
@@ -4050,9 +4032,8 @@
                             .style("font-weight", d => d.name == sidebarRoot.name ? 700 : 400)
                             .style('color', d => conceptNames.includes(d.name) ? 'black' : color.textlight)
                             .html(d => d.data.concept.concept_name)
-                            .on('click', async (e,d) => {
-                                const data = await getData(d.name)
-                                setSidebarRoot({name:d.name,data:data})  
+                            .on('click', (e,d) => {
+                                navigate(`/${d.name}`)  
                                 conceptHover(d.name, "leave") 
                             })
                             .on('mouseover', (e,d) => {
@@ -4179,6 +4160,7 @@
                 } 
             } 
         })
+
         // drag behavior
         useEffect(() => {
             const graph = document.getElementById('graph-section')
@@ -4208,24 +4190,25 @@
                 }
             })    
         },[])
-        // dropdowns
+
+        // filter dropdowns 
         useEffect(()=>{
             if (nodes.length > 0) {
-                const levels = Array.from({length: fullTreeMax + 1}, (_, i) => i)
+                const levels = Array.from({length: fullTreeMax + 1}, (_, i) => i + 1)
                 d3.select('#levels-dropdown').selectAll('.level').data(levels, d => d)
                 .join(enter => {
                     enter.append('p')
                         .classed('level',true)
                         .attr('id', d => 'level-'+d)
-                        .style('font-weight', d => maxLevel === d ? 700 : 400)
+                        .style('font-weight', d => maxLevel === d - 1 ? 700 : 400)
                         .style('cursor','pointer')
                         .style('width','100%')
                         .style('text-align','center')
-                        .style('color', d => maxLevel === d ? color.text : color.textlight)
+                        .style('color', d => maxLevel === d - 1 ? color.text : color.textlight)
                         .on('mouseover', (e,d) => d3.select('#level-'+d).style('color', color.text).style('font-weight',700))
-                        .on('mouseout', (e,d) => d3.select('#level-'+d).style('color', d => maxLevel === d ? color.text : color.textlight).style('font-weight',() => maxLevel === d ? 700 : 400))
+                        .on('mouseout', (e,d) => d3.select('#level-'+d).style('color', d => maxLevel === d - 1 ? color.text : color.textlight).style('font-weight',() => maxLevel === d - 1 ? 700 : 400))
                         .on('click',(e,d) => {
-                            setLevelFilter(d)
+                            setLevelFilter(d - 1)
                             d3.select('#open-levels-btn').style('display', 'block')
                             d3.select('#close-levels-btn').style('display', 'none')  
                             d3.select('#levels-dropdown').style('visibility','hidden')  
@@ -4233,12 +4216,12 @@
                         .html(d => d)
                 },update =>{
                     update
-                        .style('font-weight', d => maxLevel === d ? 700 : 400)
-                        .style('color', d => maxLevel === d ? color.text : color.textlight)
+                        .style('font-weight', d => maxLevel === d - 1 ? 700 : 400)
+                        .style('color', d => maxLevel === d - 1 ? color.text : color.textlight)
                         .on('mouseover', (e,d) => d3.select('#level-'+d).style('color', color.text).style('font-weight',700))
-                        .on('mouseout', (e,d) => d3.select('#level-'+d).style('color', d => maxLevel === d ? color.text : color.textlight).style('font-weight',() => maxLevel === d ? 700 : 400))
+                        .on('mouseout', (e,d) => d3.select('#level-'+d).style('color', d => maxLevel === d - 1 ? color.text : color.textlight).style('font-weight',() => maxLevel === d - 1 ? 700 : 400))
                         .on('click',(e,d) => {
-                            setLevelFilter(d)
+                            setLevelFilter(d - 1)
                             d3.select('#open-levels-btn').style('display', 'block')
                             d3.select('#close-levels-btn').style('display', 'none')  
                             d3.select('#levels-dropdown').style('visibility','hidden')  
@@ -4315,9 +4298,11 @@
                 })
             }
         },[maxLevel,classFilter,allClasses])
+
         // call draw functions
         useEffect(()=>{
             if (nodes) {
+                document.getElementById("class-dropdown").style.maxWidth = d3.select("#sidebar").node().getBoundingClientRect().width - 260 - d3.select("#level-dropdown").node().getBoundingClientRect().width - (margin*2) + 'px'
                 if (view === 'Tree') {
                     let width = d3.select("#tree-container").node().getBoundingClientRect().width + margin*2;
                     let height = d3.select("#tree-container").node().getBoundingClientRect().height + margin*2;
@@ -4328,7 +4313,6 @@
                         .call(d3.zoom().on("start",()=>d3.select("#tree-graphics").style("pointer-events", "none")).on("zoom", zoomed)).on("end",()=>d3.select("#tree-graphics").style("pointer-events", "all"))
                     d3.select('#tree-container').style('display','block')
                     d3.select('#list-container').style('display','none')
-                    if (conceptNames.length === 0 && nodes.length > 0) setTreeSelections([])
                     drawTree()
                     setTimeout(() => zoomToFit(),400)
                 }
@@ -4338,7 +4322,11 @@
                     drawList()
                 }    
             }
-        },[nodes,list,conceptNames,mapRoot,graphSectionWidth,view,treeSelections,zoomCompleted])
+        },[nodes,list,conceptNames,mapRoot,graphSectionWidth,view,treeSelections])
+
+        useEffect(() => {
+            if (conceptNames.length === 0 && nodes.length > 0) setTreeSelections([])
+        },[conceptNames])
 
         return (
             <div id = "sidebar">
@@ -4354,8 +4342,9 @@
                             <div className = "selection-bar" style = {{opacity: view === 'List' ? 1 : 0}}></div>
                         </div>
                     </div> 
-                    <div id = "concept-selections">
-                        <div id = "selection-container">
+                    <div id = "tree-selections-container">
+                        <div id = "concept-selections">
+                            {/* <div id = "selection-container"> */}
                             <div className = "concept-selection-btn" id = "add-descendants" style = {{backgroundColor:treeSelections.includes('descendants') ? color.text : 'transparent',color:treeSelections.includes('descendants') ? 'white' : color.text,fontWeight:treeSelections.includes('descendants') ? 700 : 400}} 
                                 onMouseOver={() => d3.select('#add-descendants').style('font-weight', 700)}
                                 onMouseOut={() => d3.select('#add-descendants').style('font-weight', () => !treeSelections.includes('descendants') ? 400 : 700)}
@@ -4374,6 +4363,7 @@
                                         setSelectedConcepts([]) 
                                         // let newSelections = treeSelections.filter(s => s !== 'descendants')  
                                         setTreeSelections([])
+                                        setMapRoot([])
                                     }
                                     
                                 }}>
@@ -4396,6 +4386,7 @@
                                         d3.select('#add-mappings').style('background-color', 'transparent').style('color',color.text).style('font-weight',400)
                                         // let mapNames = mappings.map(d => d.name)
                                         // let filteredConcepts = selectedConcepts.filter(e => !mapNames.includes(e.name))
+                                        setMapRoot([])
                                         setSelectedConcepts([])   
                                         // let newSelections = treeSelections.filter(s => s !== 'mappings')  
                                         setTreeSelections([])
@@ -4403,88 +4394,90 @@
                                 }}>
                                 Mappings
                             </div>  
-                        </div>
-                        <div className = "concept-selection-btn" id = "remove-all" style = {{width: 100,border:'none'}}
-                                onMouseOver={() => d3.select('#remove-all').style('font-weight', 700)}
-                                onMouseOut={() => d3.select('#remove-all').style('font-weight', 400)}
-                                onClick = {() => {
-                                    d3.select('#add-mappings').style('background-color', 'transparent').style('color',color.text).style('font-weight',400)
-                                    d3.select('#add-descendants').style('background-color', 'transparent').style('color',color.text).style('font-weight',400)
-                                    setSelectedConcepts([])   
-                                    setTreeSelections([])
-                                }}>
-                                Remove all
-                        </div> 
-                    </div>
-                    <div id = "filter-container">
-                        {/* <p style = {{fontSize:10,fontWeight:700,paddingRight:5,paddingTop:3.5,margin:0}}>FILTERS |</p> */}
-                        <div className="dropdown-container" id = "level-dropdown">
-                            <div className = "concept-selection-btn" style = {{width:'auto',border:'none',alignItems:'flex-start'}}>
-                                <p style = {{paddingRight:4}}>Max level:</p>
-                                <div className = "dropdown-header" id = "levels-header"
-                                    onMouseOver={() => d3.select('#open-levels-btn').style('opacity', 1)}
-                                    onMouseOut={() => d3.select('#open-levels-btn').style('opacity', 0.3)}
+                            {/* </div> */}
+                            {/* <div className = "concept-selection-btn" id = "remove-all" style = {{width: 100,border:'none'}}
+                                    onMouseOver={() => d3.select('#remove-all').style('font-weight', 700)}
+                                    onMouseOut={() => d3.select('#remove-all').style('font-weight', 400)}
                                     onClick = {() => {
-                                        if (d3.select('#open-levels-btn').style('display') === 'block') {
-                                            d3.select('#open-levels-btn').style('display', 'none')
-                                            d3.select('#close-levels-btn').style('display', 'block') 
-                                            d3.select('#levels-dropdown').style('visibility','visible')
-                                        } else {
-                                            d3.select('#open-levels-btn').style('display', 'block')
-                                            d3.select('#close-levels-btn').style('display', 'none')  
-                                            d3.select('#levels-dropdown').style('visibility','hidden')
-                                        }
-                                    }}
-                                >
-                                    <p id = "max-level" style = {{marginTop:1,fontWeight:700,padding:'1px 5px 1px 3px'}}>{maxLevel}</p>
-                                    <FontAwesomeIcon className = "dropBtn fa-lg" id = 'open-levels-btn' icon={faCaretDown} style = {{display:'block',opacity: 0.3,padding:'1px 3px 1px 5px'}}/>
-                                    <FontAwesomeIcon className = "dropBtn fa-lg" id = 'close-levels-btn' icon={faCaretUp} style = {{display:'none',opacity: 1,padding:'2px 3px 1px 5px'}}/>     
-                                </div>
-                            </div>   
-                            <div className = "selections-dropdown-content" id = "levels-dropdown" style = {{right:10}}></div>  
-                             <FontAwesomeIcon style = {{display: levelFilter ? 'block' : 'none'}} className = "reset-filter fa-xs" id = "reset-level" icon={faX} 
-                                onClick = {() => {
-                                    setLevelFilter()
-                                    d3.select('#open-levels-btn').style('display', 'block')
-                                    d3.select('#close-levels-btn').style('display', 'none') 
-                                    d3.select('#levels-dropdown').style('visibility','hidden')
-                                }}
-                            />
-                        </div> 
-                        <div className="dropdown-container" id = "class-dropdown">
-                            <div className = "concept-selection-btn" style = {{width:'auto',border:'none',alignItems:'flex-start'}}>
-                                <p style = {{paddingRight:4,marginLeft:levelFilter ? 10 : 0}}>Classes:</p>
-                                <div className = "dropdown-header" id = "classes-header"
-                                    onMouseOver={() => d3.select('#open-classes-btn').style('opacity', 1)}
-                                    onMouseOut={() => d3.select('#open-classes-btn').style('opacity', 0.3)}
-                                    onClick = {() => {
-                                        if (d3.select('#open-classes-btn').style('display') === 'block') {
-                                            d3.select('#open-classes-btn').style('display', 'none')
-                                            d3.select('#close-classes-btn').style('display', 'block') 
-                                            d3.select('#classes-dropdown').style('visibility','visible')
-                                        } else {
-                                            d3.select('#open-classes-btn').style('display', 'block')
-                                            d3.select('#close-classes-btn').style('display', 'none')  
-                                            d3.select('#classes-dropdown').style('visibility','hidden')
-                                        }
-                                    }}
-                                >
-                                    <div id = "class-selections"></div>
-                                    <FontAwesomeIcon className = "dropBtn fa-lg" id = 'open-classes-btn' icon={faCaretDown} style = {{display:'block',opacity: 0.3,padding:'1px 3px 1px 5px'}}/>
-                                    <FontAwesomeIcon className = "dropBtn fa-lg" id = 'close-classes-btn' icon={faCaretUp} style = {{display:'none',opacity: 1,padding:'2px 3px 1px 5px'}}/>     
-                                </div>
-                            </div>   
-                            <div className = "selections-dropdown-content" id = "classes-dropdown" style = {{right:-15,alignItems:'flex-start'}}></div>  
-                            <FontAwesomeIcon style = {{display: (classFilter.length === allClasses.length && classFilter.every(c => allClasses.includes(c))) ? 'none' : 'block'}} className = "reset-filter fa-xs" id = "reset-class" icon={faX} 
-                                onClick = {() => {
-                                    setClassFilter(allClasses)
-                                    d3.select('#open-classes-btn').style('display', 'block')
-                                    d3.select('#close-classes-btn').style('display', 'none') 
-                                    d3.select('#classes-dropdown').style('visibility','hidden')
-                                }}
-                            />
+                                        d3.select('#add-mappings').style('background-color', 'transparent').style('color',color.text).style('font-weight',400)
+                                        d3.select('#add-descendants').style('background-color', 'transparent').style('color',color.text).style('font-weight',400)
+                                        setSelectedConcepts([])   
+                                        setTreeSelections([])
+                                    }}>
+                                    Remove all
+                            </div>  */}
                         </div>    
+                        <div id = "filter-container">
+                            {/* <p style = {{fontSize:10,fontWeight:700,paddingRight:5,paddingTop:3.5,margin:0}}>FILTERS |</p> */}
+                            <div className="dropdown-container" id = "level-dropdown">
+                                <div className = "concept-selection-btn" style = {{width:'auto',border:'none',alignItems:'flex-start'}}>
+                                    <p style = {{paddingRight:5}}>Max level</p>
+                                    <div className = "dropdown-header" id = "levels-header"
+                                        onMouseOver={() => d3.select('#open-levels-btn').style('opacity', 1)}
+                                        onMouseOut={() => d3.select('#open-levels-btn').style('opacity', 0.3)}
+                                        onClick = {() => {
+                                            if (d3.select('#open-levels-btn').style('display') === 'block') {
+                                                d3.select('#open-levels-btn').style('display', 'none')
+                                                d3.select('#close-levels-btn').style('display', 'block') 
+                                                d3.select('#levels-dropdown').style('visibility','visible')
+                                            } else {
+                                                d3.select('#open-levels-btn').style('display', 'block')
+                                                d3.select('#close-levels-btn').style('display', 'none')  
+                                                d3.select('#levels-dropdown').style('visibility','hidden')
+                                            }
+                                        }}
+                                    >
+                                        <p id = "max-level" style = {{marginTop:1,fontWeight:700,padding:'1px 5px 1px 3px'}}>{maxLevel + 1}</p>
+                                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'open-levels-btn' icon={faCaretDown} style = {{display:'block',opacity: 0.3,padding:'1px 3px 1px 5px'}}/>
+                                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'close-levels-btn' icon={faCaretUp} style = {{display:'none',opacity: 1,padding:'2px 3px 1px 5px'}}/>     
+                                    </div>
+                                </div>   
+                                <div className = "selections-dropdown-content" id = "levels-dropdown" style = {{right:10}}></div>  
+                                <FontAwesomeIcon style = {{display: levelFilter ? 'block' : 'none'}} className = "reset-filter fa-solid fa-2xs" id = "reset-level" icon={faX} 
+                                    onClick = {() => {
+                                        setLevelFilter()
+                                        d3.select('#open-levels-btn').style('display', 'block')
+                                        d3.select('#close-levels-btn').style('display', 'none') 
+                                        d3.select('#levels-dropdown').style('visibility','hidden')
+                                    }}
+                                />
+                            </div> 
+                            <div className="dropdown-container" id = "class-dropdown">
+                                <div className = "concept-selection-btn" style = {{width:'auto',border:'none',alignItems:'flex-start'}}>
+                                    <p style = {{paddingRight:5,marginLeft:levelFilter ? 10 : 0}}>Classes</p>
+                                    <div className = "dropdown-header" id = "classes-header"
+                                        onMouseOver={() => d3.select('#open-classes-btn').style('opacity', 1)}
+                                        onMouseOut={() => d3.select('#open-classes-btn').style('opacity', 0.3)}
+                                        onClick = {() => {
+                                            if (d3.select('#open-classes-btn').style('display') === 'block') {
+                                                d3.select('#open-classes-btn').style('display', 'none')
+                                                d3.select('#close-classes-btn').style('display', 'block') 
+                                                d3.select('#classes-dropdown').style('visibility','visible')
+                                            } else {
+                                                d3.select('#open-classes-btn').style('display', 'block')
+                                                d3.select('#close-classes-btn').style('display', 'none')  
+                                                d3.select('#classes-dropdown').style('visibility','hidden')
+                                            }
+                                        }}
+                                    >
+                                        <div id = "class-selections"></div>
+                                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'open-classes-btn' icon={faCaretDown} style = {{display:'block',opacity: 0.3,padding:'1px 3px 1px 5px'}}/>
+                                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'close-classes-btn' icon={faCaretUp} style = {{display:'none',opacity: 1,padding:'2px 3px 1px 5px'}}/>     
+                                    </div>
+                                </div>   
+                                <div className = "selections-dropdown-content" id = "classes-dropdown" style = {{right:-15,alignItems:'flex-start'}}></div>  
+                                <FontAwesomeIcon style = {{display: (classFilter.length === allClasses.length && classFilter.every(c => allClasses.includes(c))) ? 'none' : 'block'}} className = "reset-filter fa-2xs" id = "reset-class" icon={faX} 
+                                    onClick = {() => {
+                                        setClassFilter(allClasses)
+                                        d3.select('#open-classes-btn').style('display', 'block')
+                                        d3.select('#close-classes-btn').style('display', 'none') 
+                                        d3.select('#classes-dropdown').style('visibility','hidden')
+                                    }}
+                                />
+                            </div>    
+                        </div>
                     </div>
+                    
                 </div>
                 <div className = "box-shadow" id = "sidebar-content">
                     <FontAwesomeIcon style = {{display:'block'}} icon={faExpand} id = "expand" className = "fa-thin fa-lg expand-compress" onClick={handleExpand} />
