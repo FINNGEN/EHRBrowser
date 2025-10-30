@@ -48,6 +48,7 @@ function App() {
   const [pruned, setPruned] = useState(false)
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
+  const [poset, setPoset] = useState()
 
   const conceptNames = useMemo(() => selectedConcepts.map(d => d.name),[selectedConcepts])
   const allCounts = useMemo(() => selectedConcepts.map(d => d.data.code_counts).flat(),[selectedConcepts])
@@ -232,7 +233,7 @@ function App() {
       rootLineData = d3.group(rootLineData, d => d[0])
       rootLineData.forEach(e => e.unshift([e[0][0], e[0][1] - 1, 0]))
       setRootLine(rootLineData)
-      const allNodes = sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").filter(d => levelFilter === undefined || (d.levels === '-1' || parseInt(d.levels.split('-')[0]) <= levelFilter)).filter(d => !classFilter || classFilter.includes(getConceptInfo(d.child_concept_id).concept_class_id))
+      const allNodes = sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").filter(d => levelFilter === undefined || (d.levels === '-1' || parseInt(d.levels.split('-')[0]) <= levelFilter)).filter(d => !classFilter || getConceptInfo(d.child_concept_id).concept_class_id ? classFilter.includes(getConceptInfo(d.child_concept_id).concept_class_id) : d)
       let selected = allNodes.filter(d => d.levels !== '-1').map(d => d.child_concept_id).filter((e,n,l) => l.indexOf(e) === n)
       const mappings = sidebarRoot.data.concept_relationships.filter(d => d.levels === "Mapped from" || d.levels === "Maps to")
       const nodeList = allNodes.map(d => d.child_concept_id).filter((e,n,l) => l.indexOf(e) === n)
@@ -245,7 +246,6 @@ function App() {
       let filteredC = crossConnections.filter(c => !nodeList.includes(c.child)).map(d => ({...d,parents:d.parents.filter(e => nodeList.includes(e))}))
       filteredC = filteredC.map(d => ({...d,parents:d.parents.map(e => ({id:e,leaf:allNodes.filter(d => d.child_concept_id === e)[0].levels === "-1" ? nodeList.length === 1 ? true : false : !allNodes.map(d => d.parent_concept_id).includes(e) || selected.filter(d => d.name === e)[0]?.leaf ? true : false}))}))
       filteredC = filteredC.map(d => ({...d,parents:d.parents.filter(e => e.leaf)}))
-      console.log('cross connections',filteredC)
       // set nodes and links
       let listArray = nodeList.map(e=>({
           'name': e, 
@@ -276,49 +276,60 @@ function App() {
               })).sort((a, b) => b.total_counts - a.total_counts)
       }))
       let nodesArray = listArray.filter(d => d.relationship.includes("-") ||  d.relationship === '0')
+      let width = d3.select("#tree").node().getBoundingClientRect().width
+      const nodeWidth = 100
       // // POSET
-      // What to do if lowest layer has only one node?
-      // const edges = allNodes.filter(d => (d.levels.includes("-") || d.levels === '0') && d.parent_concept_id !== d.child_concept_id).filter(d => !classFilter || (classFilter.includes(getConceptInfo(d.parent_concept_id).concept_class_id) && classFilter.includes(getConceptInfo(d.child_concept_id).concept_class_id)))
-      // .map(d => {
-      //   if (d.levels === "-1") {
-      //       return {
-      //         ...d,
-      //         parent_concept_id: d.child_concept_id,
-      //         child_concept_id: d.parent_concept_id
-      //       }
-      //     }
-      //     return d
-      //   })
-      // .map(d => ([d.parent_concept_id.toString(),d.child_concept_id.toString()]))
-      // const matrix = po.domFromEdges(edges,"1","0")
-      // console.log('matrix',matrix)
-      // const poset = po.createPoset(matrix,nodesArray.map(d => d.name.toString()))
-      // poset.enrich()
-      // poset.feature("depth",node=>nodesArray.filter(d => d.name === parseInt(node))[0].distance)
-      // poset.setLayers("depth")
-      // //poset.analytics.suprema
-      // const embeddingData = poset.layers[poset.layers.length - 1].map(supremum=>poset.elements.indexOf(supremum)).map(supremumRow=>poset.getDomMatrix()[supremumRow])
-      // console.log('embedding data',embeddingData)
-      // const umap = new UMAP({
-      //     nComponents: 2,
-      //     nEpochs: 400,
-      //     nNeighbors: embeddingData.length - 1,
-      // })
-      // const embeddings = umap.fit(embeddingData)
-      // console.log('embeddings',embeddings)
-      // const xScale = d3.scaleLinear().domain(d3.extent(embeddings.map(d => d[0]))).range([0,d3.select("#tree").node().getBoundingClientRect().width])
-      // poset.layers[poset.layers.length - 1].map((supremum,n) => poset.features[supremum]["x"] = Math.round(xScale(embeddings[n][0]))) 
-      // var f = (layer,h)=> h > 0 && layer.map(node=>poset.features[node]["x"] = poset.getCovering(node).map(parent=>poset.features[parent].x).reduce((acc,el)=>acc+el)/poset.getCovering(node).length)
-      // poset.climber(poset,f)
-      // console.log('poset',poset)
-      // nodesArray = nodesArray.map(d => ({...d,x:poset.features[d.name].x}))
-      let linksArray = allNodes.filter(d => (d.levels.includes("-") || d.levels === '0') && d.parent_concept_id !== d.child_concept_id).filter(d => !classFilter || (classFilter.includes(getConceptInfo(d.parent_concept_id).concept_class_id) && classFilter.includes(getConceptInfo(d.child_concept_id).concept_class_id))).map(d=>({source: d.levels === "-1" ? nodesArray[nodeList.indexOf(d.child_concept_id)] : nodesArray[nodeList.indexOf(d.parent_concept_id)], target: d.levels === "-1" ? nodesArray[nodeList.indexOf(d.parent_concept_id)] : nodesArray[nodeList.indexOf(d.child_concept_id)], relationship: d.levels}))
+      const edges = allNodes.filter(d => (d.levels.includes("-") || d.levels === '0') && d.parent_concept_id !== d.child_concept_id).filter(d => !classFilter || getConceptInfo(d.parent_concept_id).concept_class_id && getConceptInfo(d.child_concept_id).concept_class_id ? (classFilter.includes(getConceptInfo(d.parent_concept_id).concept_class_id) && classFilter.includes(getConceptInfo(d.child_concept_id).concept_class_id)) : d)
+      .map(d => {
+        if (d.levels === "-1") {
+            return {
+              ...d,
+              parent_concept_id: d.child_concept_id,
+              child_concept_id: d.parent_concept_id
+            }
+          }
+          return d
+        })
+      .map(d => ([d.parent_concept_id.toString(),d.child_concept_id.toString()]))
+      const matrix = po.domFromEdges(edges,"1","0")
+      const poset = po.createPoset(matrix,nodesArray.map(d => d.name.toString()))
+      poset.enrich()
+      .feature("depth",node=>nodesArray.filter(d => d.name === parseInt(node))[0].distance)
+      .setLayers("depth")
+      .print()
+      .feature("children",node => nodesArray.filter(d => d.name === parseInt(node))[0].children)
+      .feature("parents",node => nodesArray.filter(d => d.name === parseInt(node))[0].parents)
+      .climber(function(_,h,d) {
+        const layer = poset.layers[h]
+        const center = width/2
+        if (h === 0) {
+          let unit = width/layer.length
+          let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
+          let median = Math.floor(layer.length/2) 
+          poset.layers[h].forEach((node,i) => poset.features[node].x = unit >= nodeWidth ? unit*i + unit/2 : i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
+        } else {
+          let xPositions = []
+          let unit = width/layer.length
+          let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
+          let median = Math.floor(layer.length/2) 
+          poset.layers[h].forEach(node => xPositions.push({id:node,x:d3.sum(poset.features[node].parents.map(parent => poset.features[parent].x))/poset.features[node].parents.length}))
+          xPositions.sort((a, b) => d3.ascending(a.x, b.x))
+          let minDistance = d3.min(d3.pairs(xPositions, (a, b) => b.x - a.x))
+          if (minDistance < nodeWidth && layer.length > 1) {
+            poset.layers[h].forEach(node => poset.features[node].x = unit >= nodeWidth ? unit*xPositions.findIndex(d => d.id === node) + unit/2 : xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
+          } else poset.layers[h].forEach(node => poset.features[node].x = xPositions.find(d => d.id === node)?.x)
+        }
+      })
+      .print()
+      nodesArray = nodesArray.map(d => ({...d,x:poset.features[d.name].x}))
+      let linksArray = allNodes.filter(d => (d.levels.includes("-") || d.levels === '0') && d.parent_concept_id !== d.child_concept_id).filter(d => !classFilter || getConceptInfo(d.parent_concept_id).concept_class_id && getConceptInfo(d.child_concept_id).concept_class_id ? (classFilter.includes(getConceptInfo(d.parent_concept_id).concept_class_id) && classFilter.includes(getConceptInfo(d.child_concept_id).concept_class_id)) : d).map(d=>({source: d.levels === "-1" ? nodesArray[nodeList.indexOf(d.child_concept_id)] : nodesArray[nodeList.indexOf(d.parent_concept_id)], target: d.levels === "-1" ? nodesArray[nodeList.indexOf(d.parent_concept_id)] : nodesArray[nodeList.indexOf(d.child_concept_id)], relationship: d.levels}))
       let isPruned = false
       nodesArray.filter(d => d.leaf).forEach(d => d.children.length > 0 ? isPruned = true : null)
       setPruned(isPruned)
       setList(listArray)
       setNodes(nodesArray)
-      setLinks(linksArray)   
+      setLinks(linksArray)  
+      setPoset(poset) 
     }    
   }, [sidebarRoot,levelFilter,classFilter])
 
@@ -378,6 +389,8 @@ function App() {
               setMapRoot = {setMapRoot}
               nodes = {nodes}
               links = {links}
+              setNodes = {setNodes}
+              setLinks = {setLinks}
               list = {list}
               rootLine = {rootLine}
               treeSelections = {treeSelections}
@@ -397,6 +410,7 @@ function App() {
               maxGender = {maxGender}
               getConceptInfo = {getConceptInfo}
               setLoading = {setLoading}
+              poset = {poset}
             />      
           } />
         </Routes>

@@ -32,8 +32,10 @@ function GraphSection (props) {
     const genderData = props.genderData
     const maxGender = props.maxGender
     const getConceptInfo = props.getConceptInfo
-    const margin = 15
+    const zoomed = props.zoomed
+    const setZoomed = props.setZoomed
     const graphContainerRef = useRef()
+    const margin = 20
     let hoverLabelCircle = false
     let brushing = false
     let zooming = false
@@ -406,6 +408,20 @@ function GraphSection (props) {
         d3.select("#graph-viz").raise()
     }
     // FUNCTIONS
+    const resetZoom = (e) => {
+        if (e) {
+            e.preventDefault()
+            e.stopPropagation()    
+        }
+        if (d3.select("#zoomUI").nodes().length === 0) {
+            let extent = d3.extent(selectedConcepts.map(d => d.data.code_counts).flat().map(d => d.calendar_year))
+            if (!extent[0] || !extent[1]) extent = d3.extent(rootLine.get(sidebarRoot.name).map(arr => arr[1]))
+            setExtent(extent)
+            d3.select("#zoomUI").remove()
+            zooming = false
+            setZoomed(false)
+        }
+    }
     // get graph
     function getGraph(groups, rollup, width, height, ticks) {
         // x and y scales
@@ -463,17 +479,6 @@ function GraphSection (props) {
                 }
             })
         }
-        const handleDoubleClick = (e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            if (d3.select("#zoomUI").nodes().length === 0) {
-                let extent = d3.extent(selectedConcepts.map(d => d.data.code_counts).flat().map(d => d.calendar_year))
-                if (!extent[0] || !extent[1]) extent = d3.extent(rootLine.get(sidebarRoot.name).map(arr => arr[1]))
-                setExtent(extent)
-                d3.select("#zoomUI").remove()
-                zooming = false
-            }
-        }
         //zoom
         let x1,x2
         d3.select('#graph')
@@ -491,13 +496,14 @@ function GraphSection (props) {
             .on("mouseup",(e)=>{
                 if ((x1 && x2) && (Math.round(scaleX.invert(x1)) !== Math.round(scaleX.invert(x2)))) {
                     if (x1 < x2) {setExtent([Math.round(scaleX.invert(x1)), Math.round(scaleX.invert(x2))])}
-                    else {setExtent([Math.round(scaleX.invert(x2)), Math.round(scaleX.invert(x1))])}    
+                    else {setExtent([Math.round(scaleX.invert(x2)), Math.round(scaleX.invert(x1))])} 
+                    setZoomed(true)   
                 }
                 d3.select("#zoomUI").remove()
                 zooming = false
             })
             .on("mousemove", handleMouseMove)
-            .on("dblclick", handleDoubleClick)
+            .on("dblclick", resetZoom)
         drawGraph(groups, rollup, scaleX, scaleY)
     }
     // hover filter
@@ -828,11 +834,12 @@ function GraphSection (props) {
                         />   
                     </div>
                 </div>      
-                <div className = "box-shadow" id = "graph-group">
+                <div className = "box-shadow" id = "graph-group" style = {{position:'relative'}}>
                     <div id = "graph-subheader">
                         <div id = "graph-labels"></div>  
                     </div> 
-                    <div ref={graphContainerRef} id = "graph-container">
+                    <div ref={graphContainerRef} id = "graph-container" style = {{position: 'relative'}}>
+                        <div id = "reset-zoom" style = {{display: zoomed ? 'block' : 'none'}} onClick = {() => resetZoom()}>Reset</div>
                         <svg style = {{display:'block'}} id = "graph">
                             <g className = "brush"></g>
                             <g className = "x-grid"></g>
@@ -844,7 +851,8 @@ function GraphSection (props) {
                             <g id = "graph-line"></g>
                             <circle id = "focus"></circle>
                         </svg>
-                    </div>        
+                    </div>  
+                    <div id = "y-label">Record Counts</div>
                 </div>       
             </div>  
         </div>    
