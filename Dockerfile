@@ -55,11 +55,11 @@ COPY nginx.conf /etc/nginx/sites-available/default
 
 # Update the romopapi package
 # Add cache bust to ensure latest ROMOPAPI is installed
-ARG CACHE_BUST=2
+ARG CACHE_BUST=4
 RUN --mount=type=secret,id=build_github_pat \
     cp /usr/local/lib/R/etc/Renviron /tmp/Renviron \
     && echo "GITHUB_PAT=$(cat /run/secrets/build_github_pat)" >> /usr/local/lib/R/etc/Renviron \
-    && Rscript -e 'remotes::install_github("FINNGEN/ROMOPAPI");remotes::install_github("javier-gracia-tabuenca-tuni/DatabaseConnector@BQ-DBI");install.packages("bigrquery")' \
+    && Rscript -e 'remotes::install_github("FINNGEN/ROMOPAPI");remotes::install_github("javier-gracia-tabuenca-tuni/DatabaseConnector@bigquery-DBI-2");install.packages("bigrquery")' \
     && cp /tmp/Renviron /usr/local/lib/R/etc/Renviron;
 
 # Expose only the main port (nginx will handle internal routing)

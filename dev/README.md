@@ -102,7 +102,7 @@ docker run --rm -p 8080:8080 -p 8585:8585 -e ROMOPAPI_DATABASE=Eunomia-Finngen e
 docker run --rm  -p 8585:8585 -p 8080:8080 -e ROMOPAPI_DATABASE=AtlasDevelopment-BQ5k -e GCP_SERVICE_KEY=/keys/atlas-development-270609-410deaacc58b.json -v /Users/javier/keys:/keys ehr_browser
 ```
 ```
-docker run --rm  -p 8585:8585 -p 8080:8080 -e ROMOPAPI_DATABASE=AtlasDevelopment-BQ5k -e GCP_SERVICE_KEY=/keys/atlas-development-270609-410deaacc58b.json -v /Users/javier/keys:/keys -e REBUILD_COUNTS_TABLE=TRUE ehr_browser
+docker run --rm  -p 8585:8585 -p 8080:8080 -e ROMOPAPI_DATABASE=AtlasDevelopment-BQ500k -e GCP_SERVICE_KEY=/keys/atlas-development-270609-410deaacc58b.json -v /Users/javier/keys:/keys -e REBUILD_COUNTS_TABLE=TRUE ehr_browser
 ```
 
 ## Sandbox DF13
