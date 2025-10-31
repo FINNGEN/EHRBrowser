@@ -857,4 +857,28 @@ textarea:focus {
 #gender-svg {
   overflow: visible;
 }
+#y-label {
+  position: absolute;
+  left: -20px;
+  transform: rotate(-90deg);
+  bottom: 70px;
+}
+#reset-zoom {
+  display: none;
+  position: absolute;
+  text-align: end;
+  right: 56px;
+  top: -10px;
+  padding: 3px 6px 3px 6px;
+  border: 1px solid var(--textlightest);
+  background-color: transparent;
+  color: var(--text);
+  font-weight: 400;
+  cursor: pointer;
+}
+#reset-zoom:hover {
+  background-color: var(--text);
+  color: white;
+  font-weight: 700;
+}
 

@@ -35,6 +35,8 @@ function Visualization (props) {
     const setMapRoot = props.setMapRoot
     const nodes = props.nodes
     const links = props.links
+    const setNodes = props.setNodes
+    const setLinks = props.setLinks
     const list = props.list
     const rootLine = props.rootLine
     const treeSelections = props.treeSelections
@@ -50,11 +52,13 @@ function Visualization (props) {
     const genderData = props.genderData
     const maxGender = props.maxGender
     const getConceptInfo = props.getConceptInfo
-    const [visible,setVisible] = useState(false)
     const openFilters = props.openFilters
     const setOpenFilters = props.setOpenFilters
     const pruned = props.pruned
     const setLoading = props.setLoading
+    const poset = props.poset
+    const [visible,setVisible] = useState(false)
+    const [zoomed, setZoomed] = useState(false)
     const hoverTimeout = useRef(null)
     const hideTimeout = useRef(null)
 
@@ -250,6 +254,9 @@ function Visualization (props) {
                         setMapRoot([])
                         setLoading(false)
                         clearTimeout(timer)    
+                    } else {
+                        setLoading(false)
+                        clearTimeout(timer)      
                     }
                 })
         }
@@ -316,6 +323,10 @@ function Visualization (props) {
                 classFilter = {classFilter}
                 setClassFilter = {setClassFilter}
                 pruned = {pruned}
+                poset = {poset}
+                getConceptInfo = {getConceptInfo}
+                setNodes = {setNodes}
+                setLinks = {setLinks}
                 // setRoot = {setRoot}
             ></SideBar> 
             <GraphSection
@@ -340,6 +351,8 @@ function Visualization (props) {
                 genderData = {genderData}
                 maxGender = {maxGender}
                 getConceptInfo = {getConceptInfo}
+                zoomed = {zoomed}
+                setZoomed = {setZoomed}
             />  
         </div> : null
     )

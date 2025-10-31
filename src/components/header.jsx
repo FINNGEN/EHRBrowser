@@ -46,7 +46,7 @@ function Header (props) {
                     // let searchIndex = listIndexes[input[0]]
                     newFiltered = filteredList
                         // .slice(searchIndex)
-                        .filter(d => d.concept_name.toLowerCase().includes(input) || d.concept_id.toString().includes(inputRef.current.value) || d.concept_code.toString().includes(inputRef.current.value))
+                        .filter(d => d.concept_name.toLowerCase().includes(input) || d.concept_id.toString().toLowerCase().includes(inputRef.current.value) || d.concept_code.toString().toLowerCase().includes(inputRef.current.value))
                         .sort((a, b) => {
                             if (!isNaN(input)) {
                                 // sort by id
