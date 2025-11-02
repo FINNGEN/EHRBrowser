@@ -398,7 +398,6 @@ function GraphSection (props) {
                         })
                 },exit => exit.remove())    
         }
-        
         const stackedData = d3.stack()
             .keys(conceptNames)
             (rollup)  

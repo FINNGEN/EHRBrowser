@@ -39,6 +39,7 @@ function Visualization (props) {
     const setLinks = props.setLinks
     const list = props.list
     const rootLine = props.rootLine
+    const setRootLine = props.setRootLine
     const treeSelections = props.treeSelections
     const setTreeSelections = props.setTreeSelections
     const levelFilter = props.levelFilter
@@ -51,12 +52,18 @@ function Visualization (props) {
     const ageData = props.ageData
     const genderData = props.genderData
     const maxGender = props.maxGender
-    const getConceptInfo = props.getConceptInfo
+    // const getConceptInfo = props.getConceptInfo
     const openFilters = props.openFilters
     const setOpenFilters = props.setOpenFilters
     const pruned = props.pruned
+    const setPruned = props.setPruned
     const setLoading = props.setLoading
     const poset = props.poset
+    const setPoset = props.setPoset
+    const fullTree = props.fullTree
+    const crossConnections = props.crossConnections
+    const rootExtent = props.rootExtent
+    const filteredCounts = props.filteredCounts
     const [visible,setVisible] = useState(false)
     const [zoomed, setZoomed] = useState(false)
     const hoverTimeout = useRef(null)
@@ -216,6 +223,9 @@ function Visualization (props) {
         let updatedConcepts = [...selectedConcepts,...newConcepts]
         setSelectedConcepts(updatedConcepts)
     }
+    function getConceptInfo(id) {
+        return sidebarRoot.data.concepts.filter(d => d.concept_id === id)[0]
+    }
     // tooltip interaction
     const showTooltip = () => {
         if (hideTimeout.current) clearTimeout(hideTimeout.current)
@@ -228,39 +238,107 @@ function Visualization (props) {
             setVisible(false)
         }, 200)
     }
-
+    
+    // filter tree
     useEffect(()=>{
-        if (root) {
-            const timer = setTimeout(() => {
-                setLoading(true)
-            }, 700)
-            fetch(`http://127.0.0.1:8585/getCodeCounts?conceptId=${root}`)
-                .then(res=> res.json())
-                .then(data=>{
-                    console.log('root', root)
-                    console.log('data', data)
-                    if (!data.error) {
-                        setRootData(data)
-                        setSidebarRoot({name:parseInt(root),data:data}) 
-                        setView('Tree') 
-                        d3.select("#graph-section").style('width', "60vw")
-                        d3.select('#expand').style('display', 'block') 
-                        d3.select('#compress').style('display', 'none') 
-                        setGraphFilter({gender:-1,age:[-1]})
-                        setClassFilter(data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined))
-                        setTreeSelections(['descendants'])
-                        setLevelFilter()
-                        setOpenFilters(true)
-                        setMapRoot([])
-                        setLoading(false)
-                        clearTimeout(timer)    
+        if (sidebarRoot) {
+            // filter nodes and links
+            let filteredNodes = fullTree.nodes
+                .filter(d => levelFilter === undefined || (d.levels === '-1' || parseInt(d.levels.split('-')[0]) <= levelFilter))
+                .filter(d => !classFilter || d.class ? classFilter.includes(d.class) : d)
+            let filteredLinks = fullTree.links
+                .filter(d => filteredNodes.map(d => d.name).includes(d.source.name) && filteredNodes.map(d => d.name).includes(d.target.name))
+            filteredNodes = filteredNodes
+                .map(e => ({
+                    ...e,
+                    distance: filteredNodes.map(d => d.levels).includes('-1') ? e.levels === "-1" ? 0 : parseInt(e.levels.split('-')[0]) + 1 : parseInt(e.levels.split('-')[0]),
+                    leaf: !filteredLinks.map(d => d.source).map(d => d.name).includes(e.name) ? true : false,
+                    parents: e.name === sidebarRoot.name ? filteredNodes.filter(d => d.levels === "-1").map(d => d.name) : e.levels === "-1" ? [] : filteredLinks.filter(d => d.target.name === e.name).map(d => d.source).map(d => d.name),
+                    children: e.levels === "-1" ? [sidebarRoot.name] : fullTree.links.filter(d => d.source.name === e.name && d.target.name !== e.name).map(d => d.target).map(d => d.name)
+                }))
+                .map(e => ({...e,mappings: e.mappings.map(map => ({...map,distance: e.distance,source: e}))}))
+            // filter connections 
+            const filteredConnections = crossConnections
+                .filter(c => !filteredNodes.map(d => d.name).includes(c.child))
+                .map(d => ({...d,parents:d.parents.filter(p => filteredNodes.map(d => d.name).includes(p)).filter(p => filteredNodes.filter(d => d.name === p)[0]?.leaf)}))
+            filteredNodes = filteredNodes
+                .map(e => ({...e,connections: filteredConnections.filter(c => c.parents.includes(e.name)).map(d => ({...d,source:e.name}))}))
+            // filter selected
+            const filteredSelected = filteredNodes
+                .filter(d => d.levels !== '-1')
+                .filter(d => !d.leaf ? d.total_counts !== 0 : d)
+                .map(d => ({name: d.name, leaf: d.leaf, data: d.data}))
+            setSelectedConcepts(filteredSelected)
+            // new poset
+            const width = d3.select("#tree").node().getBoundingClientRect().width
+            const nodeWidth = 100
+            let edges = filteredLinks
+                .map(d => d.levels === "-1" ? ({...d,source: d.target,target: d.source}) : d)
+                .map(d => ([d.source.name.toString(),d.target.name.toString()]))
+            if (edges.length === 0) edges = [[sidebarRoot.name,sidebarRoot.name]]
+            const matrix = po.domFromEdges(edges,"1","0")
+            const newPoset = po.createPoset(matrix,[...new Set(edges.flat())])
+            newPoset.enrich()
+                .feature("depth",node => filteredNodes.filter(d => d.name === parseInt(node))[0].distance)
+                .setLayers("depth")
+                .feature("parents",node => filteredNodes.filter(d => d.name === parseInt(node))[0].parents)
+                .print()
+                .climber(function(_,h,d) {
+                    const layer = newPoset.layers[h]
+                    const center = width/2
+                    if (!layer) return
+                    else if (h === 0) {
+                        let unit = width/layer.length
+                        let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
+                        let median = Math.floor(layer.length/2) 
+                        newPoset.layers[h].forEach((node,i) => newPoset.features[node].x = unit >= nodeWidth ? unit*i + unit/2 : i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
                     } else {
-                        setLoading(false)
-                        clearTimeout(timer)      
+                        let missingParent = false
+                        newPoset.layers[h].forEach(node => newPoset.features[node].parents.length === 0 ? missingParent = true : null)
+                        let xPositions = []
+                        let unit = width/layer.length
+                        let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
+                        let median = Math.floor(layer.length/2) 
+                        if (missingParent) xPositions = fullTree.nodes.filter(d => newPoset.layers[h].includes(d.name.toString())).map(d => ({id:d.name.toString(),x:d.x}))
+                        else newPoset.layers[h].forEach(node => xPositions.push({id:node,x:d3.sum(newPoset.features[node].parents.map(parent => newPoset.features[parent].x))/newPoset.features[node].parents.length}))  
+                        xPositions.sort((a, b) => d3.ascending(a.x, b.x))
+                        let minDistance = d3.min(d3.pairs(xPositions, (a, b) => b.x - a.x))
+                        if ((minDistance < nodeWidth && layer.length > 1) || missingParent) {
+                            newPoset.layers[h].forEach(node => newPoset.features[node].x = unit >= nodeWidth ? unit*xPositions.findIndex(d => d.id === node) + unit/2 : xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
+                        } else newPoset.layers[h].forEach(node => newPoset.features[node].x = xPositions.find(d => d.id === node)?.x)
+                        
+                        
                     }
                 })
-        }
-    },[root])
+                .print()
+            // x position
+            filteredNodes = filteredNodes.map(d => ({...d,x:newPoset.features[d.name] ? newPoset.features[d.name].x : fullTree.nodes.filter(e => e.name === d.name)[0].x}))
+            const nodeNames = filteredNodes.map(d => d.name)
+            filteredLinks = filteredLinks.map(d => ({source:filteredNodes[nodeNames.indexOf(d.source.name)],target:filteredNodes[nodeNames.indexOf(d.target.name)]}))
+            // pruned
+            let isPruned = false
+            filteredNodes.filter(d => d.leaf).forEach(d => d.children.length > 0 ? isPruned = true : null)
+            // set states
+            setPruned(isPruned)
+            setNodes(filteredNodes)
+            setLinks(filteredLinks)  
+            setPoset(newPoset) 
+        }    
+    }, [levelFilter,classFilter])
+
+    // update extent
+    useEffect(()=>{
+        if (sidebarRoot && rootExtent) {
+            let extent = rootExtent
+            let selectedExtent = d3.extent(filteredCounts.map(d => d.calendar_year)) 
+            if (!selectedExtent[0] || !selectedExtent[1]) setExtent(extent)
+            else {
+                (selectedExtent[0] <= rootExtent[0]) ? extent[0] = selectedExtent[0] : extent[0] = rootExtent[0]
+                (selectedExtent[1] >= rootExtent[1]) ? extent[1] = selectedExtent[1] : extent[1] = rootExtent[1]
+                setExtent(extent) 
+            } 
+        }   
+    },[filteredCounts])
 
     return ( sidebarRoot !== undefined ? 
         <div id = "visualization-container">
