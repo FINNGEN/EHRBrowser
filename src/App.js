@@ -199,6 +199,7 @@ function App() {
           'name': e.child_concept_id, 
           'distance': subsumesData.map(d => d.levels).includes('-1') ? e.levels === "-1" ? 0 : parseInt(e.levels.split('-')[0]) + 1 : parseInt(e.levels.split('-')[0]), 
           'levels': e.levels,
+          'relationship': e.levels,
           'class': e.concept_class_id,
           'color': generateColor(e.child_concept_id),
           'leaf': !subsumesData.map(d => d.parent_concept_id).includes(e.child_concept_id) ? true : false,
