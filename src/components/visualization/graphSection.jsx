@@ -60,18 +60,18 @@ function GraphSection (props) {
                     .attr("id", d => "area-" + d.key)
                     .attr("stroke-width", 1)
                     .attr('stroke','white')
-                    .style('fill', d => {
-                        if (!getConceptInfo(d.key).standard_concept) {
-                            let t = textures.lines()
-                                .size(3)
-                                .strokeWidth(1.5)
-                                .stroke(generateColor(d.key))  
-                            d3.select('#tree').call(t)
-                            return t.url()  
-                        } 
-                        else return generateColor(d.key)
-                    })
-                    // .style("fill", d => generateColor(d.key))
+                    // .style('fill', d => {
+                    //     if (!getConceptInfo(d.key).standard_concept) {
+                    //         let t = textures.lines()
+                    //             .size(3)
+                    //             .strokeWidth(1.5)
+                    //             .stroke(generateColor(d.key))  
+                    //         d3.select('#tree').call(t)
+                    //         return t.url()  
+                    //     } 
+                    //     else return generateColor(d.key)
+                    // })
+                    .style("fill", d => generateColor(d.key))
                     .style("transition", "0.5s all")
                     .transition()
                     .attr("d", d3.area()
@@ -113,18 +113,6 @@ function GraphSection (props) {
                     )
             },update => {
                 update.select('.area-path')
-                    .style('fill', d => {
-                        if (!getConceptInfo(d.key).standard_concept) {
-                            let t = textures.lines()
-                                .size(3)
-                                .strokeWidth(1.5)
-                                .stroke(generateColor(d.key))  
-                            d3.select('#tree').call(t)
-                            return t.url()  
-                        } 
-                        else return generateColor(d.key)
-                    })
-                    // .style("fill", d => generateColor(d.key))
                     .transition()
                     .attr("d", d3.area()
                         .x((d,i) => scaleX(d.data.year))
@@ -525,7 +513,7 @@ function GraphSection (props) {
         } else {
             d3.select('#btn-'+id).style('font-weight', graphFilter.age.includes(id) || graphFilter.gender === id ? 700 : 400).style('color', graphFilter.age.includes(id) || graphFilter.gender === id ? 'white' : color.textlight)
             d3.select('#bar-'+id).style('background-color', graphFilter.age.includes(id) || graphFilter.gender === id ? color.text : color.grey)  
-            d3.select('#arc-'+id).attr("fill", d => graphFilter.gender === id ? color.text : id === maxGender ? '#c6ccd3' : color.grey)
+            d3.select('#arc-'+id).attr("fill", d => graphFilter.gender === id ? color.text : id === maxGender ? '#bac2ca' : color.grey)
             d3.select('#age-p-'+id).style('color', d => graphFilter.age.includes(id) ? color.text : color.textlight)
             d3.select('#gender-text-'+id).style('fill', d => graphFilter.gender === id ? color.text : color.textlight)
         }
@@ -618,6 +606,9 @@ function GraphSection (props) {
                 .append('g')
                 .attr("transform", `translate(${width/2}, ${height/2 - 12}) scale(0.5) rotate(180)`) 
             const pieData = d3.pie().value(d => d.sum).sort(null)(genderData)
+            const arcGenerator = d3.arc()
+                .innerRadius(0)
+                .outerRadius(radius)
             d3.select("#gender-svg").selectAll(".arc").data(pieData, d => d.data.id)
             .join(enter => {
                 const container = enter.append('g')
@@ -625,8 +616,8 @@ function GraphSection (props) {
                 container.append('path')
                     .classed('arc-path',true)
                     .attr('id', d => 'arc-'+d.data.id)
-                    .attr("d", d3.arc().innerRadius(0).outerRadius(radius))
-                    .attr("fill", d => graphFilter.gender === d.data.id ? color.text : d.data.id === maxGender ? '#c6ccd3' : color.grey)
+                    .attr("d", d => d.endAngle === d.startAngle ? null : arcGenerator(d))
+                    .attr("fill", d => graphFilter.gender === d.data.id ? color.text : d.data.id === maxGender ? '#bac2ca' : color.grey)
                     .style("stroke", d => d.data.sum === 0 ? 'none' : color.background)
                     .style('stroke-width',2)
                     .style("cursor", "pointer")
@@ -649,8 +640,8 @@ function GraphSection (props) {
                     .on("mouseover", (e,d) => filterHover(d.data.id, "enter"))
                     .on("mouseout", (e,d) => filterHover(d.data.id, "leave"))
                     .transition()
-                    .attr("d", d3.arc().innerRadius(0).outerRadius(radius))
-                    .attr("fill", d => graphFilter.gender === d.data.id ? color.text : d.data.id === maxGender ? '#c6ccd3' : color.grey)
+                    .attr("d", d => d.endAngle === d.startAngle ? null : arcGenerator(d))
+                    .attr("fill", d => graphFilter.gender === d.data.id ? color.text : d.data.id === maxGender ? '#bac2ca' : color.grey)
                     .style("stroke", d => d.data.sum === 0 ? 'none' : color.background)
                 update.select('.arc-text')
                     .text(d => d.data.sum === 0 ? '' : d.data.sum)

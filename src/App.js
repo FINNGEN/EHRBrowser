@@ -21,7 +21,7 @@ function App() {
     textmedium: '#646475',
     textlight: '#213c5c85',
     textlightest: '#213c5c60',
-    grey: '#ced4da',
+    grey: '#c9d0d6',
   }
   const { urlCode } = useParams()
   const location = useLocation()
@@ -53,7 +53,7 @@ function App() {
   const [fullTree, setFullTree] = useState({})
   const [rootExtent, setRootExtent] = useState()
   const [crossConnections, setCrossConnections] = useState()
-  const conceptNames = useMemo(() => selectedConcepts.map(d => d.name),[selectedConcepts])
+  const conceptNames = useMemo(() => selectedConcepts.map(d => d.name).filter((e,n,l) => l.indexOf(e) === n),[selectedConcepts])
   const allCounts = useMemo(() => selectedConcepts.map(d => d.data.code_counts).flat(),[selectedConcepts])
   const maxLevel = useMemo(() => d3.max(nodes.filter(d => d.levels !== '-1').map(d => parseInt(d.levels.split('-')[0]))),[nodes])
   const fullTreeMax = useMemo(() => sidebarRoot ? d3.max(sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to" && d.levels !== "-1").map(d => parseInt(d.levels.split('-')[0]))) : null,[sidebarRoot])
@@ -122,6 +122,7 @@ function App() {
     }
   },[filteredCounts])
 
+  // filter selected concepts for duplicate ids?
   const genderData = useMemo(() => {
     let genderDataVar = []
     const genders = [8507,8532]
@@ -130,7 +131,6 @@ function App() {
     genders.forEach(g => genderDataVar.push({id:g, sum:d3.sum(sums.filter(d => d.id === g).map(d => d.sum))}))
     return genderDataVar
   },[filteredCounts,extent])
-
   const ageData = useMemo(() => {
     let ageDataVar = []
     const ages = [0,1,2,3,4,5,6,7,8,9]
@@ -210,19 +210,6 @@ function App() {
           'descendant_counts': data.concepts.filter(d => d.concept_id === e.child_concept_id)[0].descendant_record_counts || 0,
           'data': {code_counts: data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id), concept: data.concepts.filter(d => d.concept_id === e.child_concept_id)[0]}
       })) 
-      .map(node => ({
-          ...node,
-          mappings: mappingData.filter(d => d.parent_concept_id === node.name).map(e=>({
-              'name': e.child_concept_id,
-              'direction': e.levels === "Mapped from" ? -1 : 1,
-              'distance': node.distance,
-              'source': node,
-              'color': generateColor(e.child_concept_id),
-              'total_counts': data.concepts.filter(d => d.concept_id === e.child_concept_id)[0].record_counts || 0,
-              'descendant_counts': data.concepts.filter(d => d.concept_id === e.child_concept_id)[0].descendant_record_counts || 0,
-              'data': {code_counts: data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),concept: data.concepts.filter(d => d.concept_id === e.child_concept_id)[0]}
-              })).sort((a, b) => b.total_counts - a.total_counts)
-      }))
     // set selected
     const selectedNodes = nodeData
       .filter(d => d.levels !== '-1')
@@ -279,7 +266,21 @@ function App() {
       })
       .print()
     // set x position 
-    nodeData = nodeData.map(d => ({...d,x:poset.features[d.name].x}))
+    nodeData = nodeData
+      .map(d => ({...d,x:poset.features[d.name].x}))
+      .map(node => ({
+          ...node,
+          mappings: mappingData.filter(d => d.parent_concept_id === node.name).map(e=>({
+              'name': e.child_concept_id,
+              'direction': e.levels === "Mapped from" ? -1 : 1,
+              'distance': node.distance,
+              'source': node,
+              'color': generateColor(e.child_concept_id),
+              'total_counts': data.concepts.filter(d => d.concept_id === e.child_concept_id)[0].record_counts || 0,
+              'descendant_counts': data.concepts.filter(d => d.concept_id === e.child_concept_id)[0].descendant_record_counts || 0,
+              'data': {code_counts: data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),concept: data.concepts.filter(d => d.concept_id === e.child_concept_id)[0]}
+              })).sort((a, b) => b.total_counts - a.total_counts)
+      }))
     // set links
     const nodeNames = nodeData.map(d => d.name)
     const linkData = subsumesData.filter(d => d.parent_concept_id !== d.child_concept_id).map(d=>({source: d.levels === "-1" ? nodeData[nodeNames.indexOf(d.child_concept_id)] : nodeData[nodeNames.indexOf(d.parent_concept_id)], target: d.levels === "-1" ? nodeData[nodeNames.indexOf(d.parent_concept_id)] : nodeData[nodeNames.indexOf(d.child_concept_id)]}))

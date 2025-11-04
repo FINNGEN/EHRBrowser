@@ -55,20 +55,18 @@
 
         // TREE AND LIST FUNCTIONS        
         function getPosition(node, axis, cx, cy, name, nodes) {
-            let center = 0
-            axis === 'x' ? center = cx : center = cy
-            let generation = []
-            axis === 'x' ? generation = nodes.filter(n => n.distance === node.distance) : generation = nodes.filter(n => n.name === node.name)[0].mappings.sort((a,b) => b.total_counts - a.total_counts)
-            let index = generation.map(node => node.name).indexOf(name) 
+            const mappings = nodes.filter(n => n.name === node.name)[0].mappings
+            const direction = mappings.filter(d => d.name === name)[0].direction
+            const generation = mappings.filter(d => d.direction === direction).sort((a,b) => b.total_counts - a.total_counts)
+            const index = generation.map(node => node.name).indexOf(name) 
             let gap = 0
-            if (axis === 'x') return node.x
-            else if (axis === 'y') gap = !mapRoot.includes(node.name) ? 20 : 90
+            if (axis === 'y') gap = !mapRoot.includes(node.name) ? 20 : 90
             else gap = (d3.select("#tree").node().getBoundingClientRect().height/generation.length)/15 + 5
-            let adjustment = generation.length % 2 !== 0 ? 0 : gap/2
-            let median = Math.floor(generation.length/2) 
+            const adjustment = generation.length % 2 !== 0 ? 0 : gap/2
+            const median = Math.floor(generation.length/2) 
             let position = 0
-            if (index >= median) position = center + ((index - median) * gap) + adjustment
-            else position = center - ((median - index) * gap) + adjustment
+            if (index >= median) position = cy + ((index - median) * gap) + adjustment
+            else position = cy - ((median - index) * gap) + adjustment
             return position
         }   
         function hoverNode(d, mode) {
@@ -233,15 +231,15 @@
             const getMap = d => {
                 let mapPosition = {x: 0, y: 0}
                 if (mapRoot.includes(d.source.name)) {
-                    mapPosition.x = getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes) + d.direction*120
+                    mapPosition.x = d.source.x + d.direction*120
                 } else {
-                    mapPosition.x = getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes) + d.direction*(scaleRadius(Math.sqrt(d.source.total_counts)) + 20)
+                    mapPosition.x = d.source.x + d.direction*(scaleRadius(Math.sqrt(d.source.total_counts)) + 20)
                 }
-                mapPosition.y = d.total_counts > 0 ? getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) - scaleRadius(Math.sqrt(d.total_counts)) - 7 : getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) - scaleRadius(Math.sqrt(d.total_counts)) - 9
+                mapPosition.y = d.total_counts > 0 ? getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) - scaleRadius(Math.sqrt(d.total_counts)) - 7 : getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) - scaleRadius(Math.sqrt(d.total_counts)) - 9
                 return mapPosition
             }
             function getX(d) {return getMap(d).x}
-            function getY(d) {return getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + scaleRadius(Math.sqrt(d.total_counts)) + 11}
+            function getY(d) {return getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) + scaleRadius(Math.sqrt(d.total_counts)) + 11}
             // DRAW LINKS
             function updateLinks() {
                 d3.select('#links').selectAll('.tree-link').data(links, d => d.source.name+d.target.name)
@@ -260,8 +258,8 @@
                                     let sourceX = d.source.x
                                     let sourceY = cy + (genHeight[d.source.distance]) + scaleRadius(Math.sqrt(d.source.total_counts)) + 18
                                     let targetX = d.target.x
-                                    let targetY = cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 33
-                                    return curveY({source: [sourceX, sourceY], target: [targetX, targetY]})
+                                    let targetY = d.source.distance >= d.target.distance ? cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.total_counts)) + 23 : cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 33
+                                    return d.source.distance === d.target.distance ? curveX({source: [sourceX, sourceY], target: [targetX, targetY]}) : curveY({source: [sourceX, sourceY], target: [targetX, targetY]})
                                 })
                             line.append('path')
                                 .classed('tree-arrow', true)
@@ -269,8 +267,8 @@
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x = d.target.x
-                                    let y = d.target.total_counts !== 0 ? cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 33 : cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 35
-                                    return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
+                                    let y = d.source.distance >= d.target.distance ? d.target.total_counts !== 0 ? cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.total_counts)) + 23 : cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.total_counts)) + 25 : d.target.total_counts !== 0 ? cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 33 : cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 35
+                                    return d.source.distance >= d.target.distance ? "translate(" + x + "," + y + ")" : "translate(" + x + "," + y + ")rotate(" + 180 + ")"
                                 }) 
                         return geometry 
                     }, update => {
@@ -281,8 +279,8 @@
                                     let sourceX = d.source.x
                                     let sourceY = cy + (genHeight[d.source.distance]) + scaleRadius(Math.sqrt(d.source.total_counts)) + 18
                                     let targetX = d.target.x
-                                    let targetY = cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 33
-                                    return curveY({source: [sourceX, sourceY], target: [targetX, targetY]})
+                                    let targetY = d.source.distance >= d.target.distance ? cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.total_counts)) + 23 : cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 33
+                                    return d.source.distance === d.target.distance ? curveX({source: [sourceX, sourceY], target: [targetX, targetY]}) : curveY({source: [sourceX, sourceY], target: [targetX, targetY]})
                                 })
                             update.select('.tree-arrow')
                                 .transition()
@@ -291,8 +289,8 @@
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x = d.target.x
-                                    let y = d.target.total_counts !== 0 ? cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 33 : cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 35
-                                    return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
+                                    let y = d.source.distance >= d.target.distance ? d.target.total_counts !== 0 ? cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.total_counts)) + 23 : cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.total_counts)) + 25 : d.target.total_counts !== 0 ? cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 33 : cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 35
+                                    return d.source.distance >= d.target.distance ? "translate(" + x + "," + y + ")" : "translate(" + x + "," + y + ")rotate(" + 180 + ")"
                                 })    
                     },exit => exit.remove())
             }
@@ -319,8 +317,8 @@
                                 .attr('stroke', d => conceptNames.includes(d.name) ? 'black' : mapRoot.includes(d.source.name) ? color.darkbackground : color.textlightest)
                                 .attr("d", d => {
                                     let sourceX = getMap(d).x 
-                                    let sourceY = mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)
-                                    let targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes) - scaleRadius(Math.sqrt(d.source.total_counts)) - 14 : getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes) + scaleRadius(Math.sqrt(d.source.total_counts)) + 14 : getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes)
+                                    let sourceY = mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', d.source.x, cy + (genHeight[d.distance]), d.name, nodes)
+                                    let targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 14 : d.source.x + scaleRadius(Math.sqrt(d.source.total_counts)) + 14 : d.source.x
                                     let targetY = cy + (genHeight[d.distance])
                                     return curveX({source: [sourceX, sourceY], target: [targetX, targetY]})}
                                 )
@@ -331,8 +329,8 @@
                                 .attr('fill', d => conceptNames.includes(d.name) ? 'black' : color.darkbackground)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
-                                    let x = d.direction === -1 ? getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes) - scaleRadius(Math.sqrt(d.source.total_counts)) - 16 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 6
-                                    let y = d.direction === -1 ? cy + (genHeight[d.distance]) : getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)
+                                    let x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 16 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 6
+                                    let y = d.direction === -1 ? cy + (genHeight[d.distance]) : getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes)
                                     return "translate(" + x + "," + y + ")rotate(" + 90 + ")"
                                 }) 
                             mapNode.append('circle')
@@ -342,7 +340,7 @@
                                 .style('pointer-events', "none")
                                 .attr('r', d => mapRoot.includes(d.source.name) ? scaleRadius(Math.sqrt(d.total_counts)) + 2 : 10)
                                 .attr('cx', d => getMap(d).x)
-                                .attr('cy', d => mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes))
+                                .attr('cy', d => mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', d.source.x, cy + (genHeight[d.distance]), d.name, nodes))
                             mapNode.append('circle')
                                 .classed('map-tree-circle', true)
                                 .attr('id', d => 'map-tree-circle-' + d.name)
@@ -363,7 +361,7 @@
                                 .attr('stroke', d => conceptNames.includes(d.name) ? d.color : mapRoot.includes(d.source.name) ? d.total_counts === 0 ? 'none' : color.textlightest : color.background)
                                 .style('cursor', "pointer")
                                 .attr('cx', d => getMap(d).x)
-                                .attr('cy', d => mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes))
+                                .attr('cy', d => mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', d.source.x, cy + (genHeight[d.distance]), d.name, nodes))
                                 .style('pointer-events', 'all')
                                 .on('mouseover', (e,d) => {
                                     if (mapRoot.includes(d.source.name)) hoverNode(d, 'enter')
@@ -396,7 +394,7 @@
                                 .style('pointer-events', 'none')
                                 .attr('text-anchor', 'middle')
                                 .attr('x', d => getMap(d).x)
-                                .attr('y', d => mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 3 : getPosition(d.source, 'z', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 3)
+                                .attr('y', d => mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) + 3 : getPosition(d.source, 'z', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) + 3)
                             const buttonSymbol = mapNode.append('g')
                                 .classed('map-button-symbol', true)
                                 .attr('id', d => 'map-button-symbol-' + d.name)
@@ -411,25 +409,25 @@
                                 .attr('x1', d => getMap(d).x - 2.5)
                                 .attr('y1', d => {
                                     if (conceptNames.includes(d.name)) {
-                                        return getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) - 2.5      
+                                        return getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) - 2.5      
                                     } else {
-                                        return getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)     
+                                        return getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes)     
                                     }
                                 })
                                 .attr('x2', d => getMap(d).x + 2.5)
                                 .attr('y2', d => {
                                     if (conceptNames.includes(d.name)) {
-                                        return getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 2.5      
+                                        return getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) + 2.5      
                                     } else {
-                                        return getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)     
+                                        return getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes)     
                                     }
                                 })
                             buttonSymbol.append('line')
                                 .classed('map-button-line-2', true)
                                 .attr('x1', d => conceptNames.includes(d.name) ? getMap(d).x + 2.5 : getMap(d).x)
-                                .attr('y1', d => getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) - 2.5)
+                                .attr('y1', d => getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) - 2.5)
                                 .attr('x2', d => conceptNames.includes(d.name) ? getMap(d).x - 2.5 : getMap(d).x)
-                                .attr('y2', d => getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 2.5)
+                                .attr('y2', d => getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) + 2.5)
                             const altCounts = mapNode.append('g')
                                 .classed('map-alt-counts',true)
                                 .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
@@ -518,8 +516,8 @@
                                 .transition(2000)
                                 .attr("d", d => {
                                     let sourceX = getMap(d).x
-                                    let sourceY = mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)
-                                    let targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes) - scaleRadius(Math.sqrt(d.source.total_counts)) - 14 : getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes) + scaleRadius(Math.sqrt(d.source.total_counts)) + 14 : getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes)
+                                    let sourceY = mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', d.source.x, cy + (genHeight[d.distance]), d.name, nodes)
+                                    let targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 14 : d.source.x + scaleRadius(Math.sqrt(d.source.total_counts)) + 14 : d.source.x
                                     let targetY = cy + (genHeight[d.distance])
                                     return curveX({source: [sourceX, sourceY], target: [targetX, targetY]})}
                                 )
@@ -528,14 +526,14 @@
                                 .attr('fill', d => conceptNames.includes(d.name) ? 'black' : color.darkbackground)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
-                                    let x = d.direction === -1 ? getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes) - scaleRadius(Math.sqrt(d.source.total_counts)) - 16 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 6
-                                    let y = d.direction === -1 ? cy + (genHeight[d.distance]) : getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)
+                                    let x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 16 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 6
+                                    let y = d.direction === -1 ? cy + (genHeight[d.distance]) : getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes)
                                     return "translate(" + x + "," + y + ")rotate(" + 90 + ")"
                                 }) 
                             update.select('.map-tree-circle-background')
                                 .attr('r', d => mapRoot.includes(d.source.name) ? scaleRadius(Math.sqrt(d.total_counts)) + 2 : 10)
                                 .attr('cx', d => getMap(d).x)
-                                .attr('cy', d => mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes))
+                                .attr('cy', d => mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', d.source.x, cy + (genHeight[d.distance]), d.name, nodes))
                             update.select('.map-tree-circle')
                                 .on('mouseover', (e,d) => {
                                     if (mapRoot.includes(d.source.name)) hoverNode(d, 'enter')
@@ -574,36 +572,36 @@
                                 .attr('stroke', d => conceptNames.includes(d.name) ? d.color : mapRoot.includes(d.source.name) ? d.total_counts === 0 ? 'none' : color.textlightest : color.background)
                                 .transition(2000)
                                 .attr('cx', d => getMap(d).x)
-                                .attr('cy', d => mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes))
+                                .attr('cy', d => mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', d.source.x, cy + (genHeight[d.distance]), d.name, nodes))
                                 // .style('pointer-events', d => d.total_counts === 0 || !treeSelections.includes('mappings') ? 'none' : 'all')
                             update.select('.map-total-counts')
                                 .text(d => d.total_counts)
                                 .style('opacity', d => mapRoot.includes(d.source.name) ? 1 : 0)
                                 .attr('fill', d => d.total_counts === 0 ? color.text : conceptNames.includes(d.name) ? 'white' : color.text)
                                 .attr('x', d => getMap(d).x)
-                                .attr('y', d => mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 3 : getPosition(d.source, 'z', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 3)
+                                .attr('y', d => mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) + 3 : getPosition(d.source, 'z', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) + 3)
                             update.select('.map-button-line-1')
                                 .attr('x1', d => getMap(d).x - 2.5)
                                 .attr('y1', d => {
                                     if (conceptNames.includes(d.name)) {
-                                        return getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) - 2.5      
+                                        return getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) - 2.5      
                                     } else {
-                                        return getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)     
+                                        return getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes)     
                                     }
                                 })
                                 .attr('x2', d => getMap(d).x + 2.5)
                                 .attr('y2', d => {
                                     if (conceptNames.includes(d.name)) {
-                                        return getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 2.5      
+                                        return getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) + 2.5      
                                     } else {
-                                        return getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)     
+                                        return getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes)     
                                     }
                                 })
                             update.select('.map-button-line-2')
                                 .attr('x1', d => conceptNames.includes(d.name) ? getMap(d).x + 2.5 : getMap(d).x)
-                                .attr('y1', d => getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) - 2.5)
+                                .attr('y1', d => getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) - 2.5)
                                 .attr('x2', d => conceptNames.includes(d.name) ? getMap(d).x - 2.5 : getMap(d).x)
-                                .attr('y2', d => getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 2.5)
+                                .attr('y2', d => getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) + 2.5)
                             update.select('.map-alt-counts')
                                 .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
                             update.select('.map-alt-text')
@@ -971,8 +969,8 @@
                                 .attr('stroke', d => conceptNames.includes(d.name) ? 'black' : mapRoot.includes(d.source.name) ? color.darkbackground : color.textlightest)
                                 .attr("d", d => {
                                     let sourceX = getMap(d).x 
-                                    let sourceY = mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)
-                                    let targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes) - scaleRadius(Math.sqrt(d.source.total_counts)) - 14 : getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes) + scaleRadius(Math.sqrt(d.source.total_counts)) + 14 : getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes)
+                                    let sourceY = mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', d.source.x, cy + (genHeight[d.distance]), d.name, nodes)
+                                    let targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 14 : d.source.x + scaleRadius(Math.sqrt(d.source.total_counts)) + 14 : d.source.x
                                     let targetY = cy + (genHeight[d.distance])
                                     return curveX({source: [sourceX, sourceY], target: [targetX, targetY]})}
                                 )
@@ -983,8 +981,8 @@
                                 .attr('fill', d => conceptNames.includes(d.name) ? 'black' : color.darkbackground)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
-                                    let x = d.direction === -1 ? getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes) - scaleRadius(Math.sqrt(d.source.total_counts)) - 16 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 6
-                                    let y = d.direction === -1 ? cy + (genHeight[d.distance]) : getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)
+                                    let x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 16 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 6
+                                    let y = d.direction === -1 ? cy + (genHeight[d.distance]) : getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes)
                                     return "translate(" + x + "," + y + ")rotate(" + 90 + ")"
                                 }) 
                             mapNode.append('circle')
@@ -994,7 +992,7 @@
                                 .style('pointer-events', "none")
                                 .attr('r', d => mapRoot.includes(d.source.name) ? scaleRadius(Math.sqrt(d.total_counts)) + 2 : 10)
                                 .attr('cx', d => getMap(d).x)
-                                .attr('cy', d => mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes))
+                                .attr('cy', d => mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', d.source.x, cy + (genHeight[d.distance]), d.name, nodes))
                             mapNode.append('circle')
                                 .classed('map-tree-circle', true)
                                 .attr('id', d => 'map-tree-circle-' + d.name)
@@ -1015,7 +1013,7 @@
                                 .attr('stroke', d => conceptNames.includes(d.name) ? d.color : mapRoot.includes(d.source.name) ? d.total_counts === 0 ? 'none' : color.textlightest : color.background)
                                 .style('cursor', "pointer")
                                 .attr('cx', d => getMap(d).x)
-                                .attr('cy', d => mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes))
+                                .attr('cy', d => mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', d.source.x, cy + (genHeight[d.distance]), d.name, nodes))
                                 .style('pointer-events', 'all')
                                 .on('mouseover', (e,d) => {
                                     if (mapRoot.includes(d.source.name)) hoverNode(d, 'enter')
@@ -1048,7 +1046,7 @@
                                 .style('pointer-events', 'none')
                                 .attr('text-anchor', 'middle')
                                 .attr('x', d => getMap(d).x)
-                                .attr('y', d => mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 3 : getPosition(d.source, 'z', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 3)
+                                .attr('y', d => mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) + 3 : getPosition(d.source, 'z', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) + 3)
                             const buttonSymbol = mapNode.append('g')
                                 .classed('map-button-symbol', true)
                                 .attr('id', d => 'map-button-symbol-' + d.name)
@@ -1063,25 +1061,25 @@
                                 .attr('x1', d => getMap(d).x - 2.5)
                                 .attr('y1', d => {
                                     if (conceptNames.includes(d.name)) {
-                                        return getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) - 2.5      
+                                        return getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) - 2.5      
                                     } else {
-                                        return getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)     
+                                        return getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes)     
                                     }
                                 })
                                 .attr('x2', d => getMap(d).x + 2.5)
                                 .attr('y2', d => {
                                     if (conceptNames.includes(d.name)) {
-                                        return getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 2.5      
+                                        return getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) + 2.5      
                                     } else {
-                                        return getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)     
+                                        return getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes)     
                                     }
                                 })
                             buttonSymbol.append('line')
                                 .classed('map-button-line-2', true)
                                 .attr('x1', d => conceptNames.includes(d.name) ? getMap(d).x + 2.5 : getMap(d).x)
-                                .attr('y1', d => getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) - 2.5)
+                                .attr('y1', d => getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) - 2.5)
                                 .attr('x2', d => conceptNames.includes(d.name) ? getMap(d).x - 2.5 : getMap(d).x)
-                                .attr('y2', d => getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 2.5)
+                                .attr('y2', d => getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) + 2.5)
                             const altCounts = mapNode.append('g')
                                 .classed('map-alt-counts',true)
                                 .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
@@ -1170,8 +1168,8 @@
                                 .transition(2000)
                                 .attr("d", d => {
                                     let sourceX = getMap(d).x
-                                    let sourceY = mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)
-                                    let targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes) - scaleRadius(Math.sqrt(d.source.total_counts)) - 14 : getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes) + scaleRadius(Math.sqrt(d.source.total_counts)) + 14 : getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes)
+                                    let sourceY = mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', d.source.x, cy + (genHeight[d.distance]), d.name, nodes)
+                                    let targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 14 : d.source.x + scaleRadius(Math.sqrt(d.source.total_counts)) + 14 : d.source.x
                                     let targetY = cy + (genHeight[d.distance])
                                     return curveX({source: [sourceX, sourceY], target: [targetX, targetY]})}
                                 )
@@ -1180,14 +1178,14 @@
                                 .attr('fill', d => conceptNames.includes(d.name) ? 'black' : color.darkbackground)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
-                                    let x = d.direction === -1 ? getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes) - scaleRadius(Math.sqrt(d.source.total_counts)) - 16 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 6
-                                    let y = d.direction === -1 ? cy + (genHeight[d.distance]) : getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)
+                                    let x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 16 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 6
+                                    let y = d.direction === -1 ? cy + (genHeight[d.distance]) : getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes)
                                     return "translate(" + x + "," + y + ")rotate(" + 90 + ")"
                                 }) 
                             update.select('.map-tree-circle-background')
                                 .attr('r', d => mapRoot.includes(d.source.name) ? scaleRadius(Math.sqrt(d.total_counts)) + 2 : 10)
                                 .attr('cx', d => getMap(d).x)
-                                .attr('cy', d => mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes))
+                                .attr('cy', d => mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', d.source.x, cy + (genHeight[d.distance]), d.name, nodes))
                             update.select('.map-tree-circle')
                                 .on('mouseover', (e,d) => {
                                     if (mapRoot.includes(d.source.name)) hoverNode(d, 'enter')
@@ -1226,36 +1224,36 @@
                                 .attr('stroke', d => conceptNames.includes(d.name) ? d.color : mapRoot.includes(d.source.name) ? d.total_counts === 0 ? 'none' : color.textlightest : color.background)
                                 .transition(2000)
                                 .attr('cx', d => getMap(d).x)
-                                .attr('cy', d => mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes))
+                                .attr('cy', d => mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) : getPosition(d.source, 'z', d.source.x, cy + (genHeight[d.distance]), d.name, nodes))
                                 // .style('pointer-events', d => d.total_counts === 0 || !treeSelections.includes('mappings') ? 'none' : 'all')
                             update.select('.map-total-counts')
                                 .text(d => d.total_counts)
                                 .style('opacity', d => mapRoot.includes(d.source.name) ? 1 : 0)
                                 .attr('fill', d => d.total_counts === 0 ? color.text : conceptNames.includes(d.name) ? 'white' : color.text)
                                 .attr('x', d => getMap(d).x)
-                                .attr('y', d => mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 3 : getPosition(d.source, 'z', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 3)
+                                .attr('y', d => mapRoot.includes(d.source.name) ? getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) + 3 : getPosition(d.source, 'z', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) + 3)
                             update.select('.map-button-line-1')
                                 .attr('x1', d => getMap(d).x - 2.5)
                                 .attr('y1', d => {
                                     if (conceptNames.includes(d.name)) {
-                                        return getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) - 2.5      
+                                        return getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) - 2.5      
                                     } else {
-                                        return getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)     
+                                        return getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes)     
                                     }
                                 })
                                 .attr('x2', d => getMap(d).x + 2.5)
                                 .attr('y2', d => {
                                     if (conceptNames.includes(d.name)) {
-                                        return getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 2.5      
+                                        return getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) + 2.5      
                                     } else {
-                                        return getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes)     
+                                        return getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes)     
                                     }
                                 })
                             update.select('.map-button-line-2')
                                 .attr('x1', d => conceptNames.includes(d.name) ? getMap(d).x + 2.5 : getMap(d).x)
-                                .attr('y1', d => getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) - 2.5)
+                                .attr('y1', d => getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) - 2.5)
                                 .attr('x2', d => conceptNames.includes(d.name) ? getMap(d).x - 2.5 : getMap(d).x)
-                                .attr('y2', d => getPosition(d.source, 'y', getPosition(nodes.filter(n => n.name === d.source.name)[0], 'x', cx, cy, d.source.name, nodes), cy + (genHeight[d.distance]), d.name, nodes) + 2.5)
+                                .attr('y2', d => getPosition(d.source, 'y', d.source.x, cy + (genHeight[d.distance]), d.name, nodes) + 2.5)
                             update.select('.map-alt-counts')
                                 .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
                             update.select('.map-alt-text')
@@ -4359,7 +4357,9 @@
                 let nodesArray = nodes
                 let nodeList = nodes.map(d => d.name)
                 let allNodes = sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").filter(d => levelFilter === undefined || (d.levels === '-1' || parseInt(d.levels.split('-')[0]) <= levelFilter)).filter(d => !classFilter || getConceptInfo(d.child_concept_id).concept_class_id ? classFilter.includes(getConceptInfo(d.child_concept_id).concept_class_id) : d)
-                nodesArray = nodesArray.map(d => ({...d,x:poset.features[d.name].x}))
+                nodesArray = nodesArray
+                    .map(d => ({...d,x:poset.features[d.name].x}))
+                    .map(e => ({...e,mappings: e.mappings.map(map => ({...map,source: e}))}))
                 let linksArray = allNodes.filter(d => d.levels.includes("-") || d.levels === '0').filter(d => d.parent_concept_id !== d.child_concept_id).filter(d => !classFilter || getConceptInfo(d.parent_concept_id).concept_class_id && getConceptInfo(d.child_concept_id).concept_class_id ? (classFilter.includes(getConceptInfo(d.parent_concept_id).concept_class_id) && classFilter.includes(getConceptInfo(d.child_concept_id).concept_class_id)) : d).map(d=>({source: d.levels === "-1" ? nodesArray[nodeList.indexOf(d.child_concept_id)] : nodesArray[nodeList.indexOf(d.parent_concept_id)], target: d.levels === "-1" ? nodesArray[nodeList.indexOf(d.parent_concept_id)] : nodesArray[nodeList.indexOf(d.child_concept_id)], relationship: d.levels}))
                 setNodes(nodesArray)
                 setLinks(linksArray)      

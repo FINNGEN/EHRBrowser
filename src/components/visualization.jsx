@@ -239,7 +239,7 @@ function Visualization (props) {
         }, 200)
     }
     
-    // filter tree
+    // filter tree data
     useEffect(()=>{
         if (sidebarRoot) {
             // filter nodes and links
@@ -256,7 +256,7 @@ function Visualization (props) {
                     parents: e.name === sidebarRoot.name ? filteredNodes.filter(d => d.levels === "-1").map(d => d.name) : e.levels === "-1" ? [] : filteredLinks.filter(d => d.target.name === e.name).map(d => d.source).map(d => d.name),
                     children: e.levels === "-1" ? [sidebarRoot.name] : fullTree.links.filter(d => d.source.name === e.name && d.target.name !== e.name).map(d => d.target).map(d => d.name)
                 }))
-                .map(e => ({...e,mappings: e.mappings.map(map => ({...map,distance: e.distance,source: e}))}))
+                // .map(e => ({...e,mappings: e.mappings.map(map => ({...map,distance: e.distance,source: e}))}))
             // filter connections 
             const filteredConnections = crossConnections
                 .filter(c => !filteredNodes.map(d => d.name).includes(c.child))
@@ -312,7 +312,9 @@ function Visualization (props) {
                 })
                 .print()
             // x position
-            filteredNodes = filteredNodes.map(d => ({...d,x:newPoset.features[d.name] ? newPoset.features[d.name].x : fullTree.nodes.filter(e => e.name === d.name)[0].x}))
+            filteredNodes = filteredNodes
+                .map(d => ({...d,x:newPoset.features[d.name] ? newPoset.features[d.name].x : fullTree.nodes.filter(e => e.name === d.name)[0].x}))
+                .map(e => ({...e,mappings: e.mappings.map(map => ({...map,distance: e.distance,source: e}))}))
             const nodeNames = filteredNodes.map(d => d.name)
             filteredLinks = filteredLinks.map(d => ({source:filteredNodes[nodeNames.indexOf(d.source.name)],target:filteredNodes[nodeNames.indexOf(d.target.name)]}))
             // pruned
