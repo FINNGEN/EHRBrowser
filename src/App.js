@@ -53,12 +53,14 @@ function App() {
   const [fullTree, setFullTree] = useState({})
   const [rootExtent, setRootExtent] = useState()
   const [crossConnections, setCrossConnections] = useState()
+  const [drawingComplete, setDrawingComplete] = useState(true)
   const conceptNames = useMemo(() => selectedConcepts.map(d => d.name).filter((e,n,l) => l.indexOf(e) === n),[selectedConcepts])
   const allCounts = useMemo(() => selectedConcepts.map(d => d.data.code_counts).flat(),[selectedConcepts])
   const maxLevel = useMemo(() => d3.max(nodes.filter(d => d.levels !== '-1').map(d => parseInt(d.levels.split('-')[0]))),[nodes])
   const fullTreeMax = useMemo(() => sidebarRoot ? d3.max(sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to" && d.levels !== "-1").map(d => parseInt(d.levels.split('-')[0]))) : null,[sidebarRoot])
   const allClasses = useMemo(() => sidebarRoot ? sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").filter(d => levelFilter === undefined || (d.levels === '-1' || parseInt(d.levels.split('-')[0]) <= levelFilter)).map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined) : null,[sidebarRoot,levelFilter])
   const years = useMemo(() => extent ? Array.from({ length: extent[1] - extent[0] + 1 }, (_, i) => extent[0] + i) : null,[extent])
+  // let timer = null
 
   // update root line
   useEffect(()=>{
@@ -203,7 +205,7 @@ function App() {
           'class': e.concept_class_id,
           'color': generateColor(e.child_concept_id),
           'leaf': !subsumesData.map(d => d.parent_concept_id).includes(e.child_concept_id) ? true : false,
-          'parents': e.child_concept_id === parseInt(root) ? subsumesData.filter(d => d.levels === "-1").map(d => d.child_concept_id) : e.levels === "-1" ? [] : subsumesData.filter(d => d.child_concept_id === e.child_concept_id).map(d => d.parent_concept_id),
+          'parents': e.child_concept_id === parseInt(root) ? subsumesData.filter(d => d.levels === "-1").map(d => d.child_concept_id) : e.levels === "-1" ? [] : subsumesData.filter(d => d.child_concept_id === e.child_concept_id).map(d => d.parent_concept_id).filter(p => parseInt(e.levels.split('-')[0]) > parseInt(subsumesData.filter(n => n.child_concept_id === p)[0].levels.split('-')[0])),
           'children': e.levels === "-1" ? [parseInt(root)] : subsumesData.filter(d => d.parent_concept_id === e.child_concept_id && d.child_concept_id !== e.child_concept_id).map(d => d.child_concept_id),
           'connections': [],
           'total_counts': data.concepts.filter(d => d.concept_id === e.child_concept_id)[0].record_counts || 0,
@@ -232,7 +234,7 @@ function App() {
     setCrossConnections(connections)
     // set poset
     const width = window.innerWidth*0.4
-    const nodeWidth = 100
+    const nodeWidth = mappingData.map(d => d.levels).includes('Maps to') && mappingData.map(d => d.levels).includes('Mapped from') ? 120 : 100
     const edges = subsumesData
       .filter(d => subsumesData.length === 1 && d.parent_concept_id === d.child_concept_id ? d : d.parent_concept_id !== d.child_concept_id)
       .map(d => d.levels === "-1" ? ({...d,parent_concept_id: d.child_concept_id,child_concept_id: d.parent_concept_id}) : d)
@@ -265,7 +267,7 @@ function App() {
         }
       })
       .print()
-    // set x position 
+    // set x position and mappings
     nodeData = nodeData
       .map(d => ({...d,x:poset.features[d.name].x}))
       .map(node => ({
@@ -287,7 +289,7 @@ function App() {
     // set states
     setPoset(poset)
     setPruned(false)
-    setFullTree({nodes:nodeData,links:linkData,selected:selectedNodes})
+    setFullTree({nodes:nodeData,links:linkData,selected:selectedNodes,mappings:mappingData.map(d => d.child_concept_id)})
     setNodes(nodeData)
     setLinks(linkData)
   }
@@ -308,9 +310,10 @@ function App() {
   // on root load
   useEffect(()=>{
     if (root) {
+        // setDrawingComplete(true)
         const timer = setTimeout(() => {
             setLoading(true)
-        }, 700)
+        }, 300)
         fetch(`http://127.0.0.1:8585/getCodeCounts?conceptId=${root}`)
             .then(res=> res.json())
             .then(data=>{
@@ -329,16 +332,23 @@ function App() {
                     setLevelFilter()
                     setOpenFilters(true)
                     setMapRoot([])
+                    createInitialStates(root,data)  
                     setLoading(false)
-                    createInitialStates(root,data)
-                    clearTimeout(timer)    
+                    clearTimeout(timer) 
                 } else {
                     setLoading(false)
-                    clearTimeout(timer)      
+                    clearTimeout(timer) 
                 }
             })
       }
   },[root])
+
+  // useEffect(()=>{
+  //   if (drawingComplete) {
+  //     setLoading(false)
+  //     clearTimeout(timer)  
+  //   } else setLoading(true)
+  // },[drawingComplete])
 
   return ( loaded ?
     <div className = "App">
@@ -353,7 +363,9 @@ function App() {
         setFilteredList = {setFilteredList}
         listIndexes = {listIndexes}
       /> 
-      {loading && <div id = "loading" style={{ fontSize: '20px' }}>Loading...</div>}
+      {loading && <div id = "loading" style={{ fontSize: '20px' }}>
+        <div class="lds-grid"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+      </div>}
       <div id = "content" style={{ visibility: loading ? 'hidden' : 'visible',opacity: loading ? 0 : 1 }}>
         <Routes>
           <Route path="/" element={<Navigate to="/" replace />} />
@@ -413,6 +425,8 @@ function App() {
               crossConnections = {crossConnections}
               rootExtent = {rootExtent}
               filteredCounts = {filteredCounts}
+              drawingComplete = {drawingComplete}
+              setDrawingComplete = {setDrawingComplete}
             />      
           } />
         </Routes>

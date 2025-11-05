@@ -341,10 +341,10 @@ function GraphSection (props) {
                         .style("stroke", 'black')
                         .style("fill", "none")
                         .style("transition", "0.5s all")
-                        .style("stroke-dasharray", d => {
-                            if (sidebarRoot.data.concepts.filter(c => c.concept_id === sidebarRoot.name)[0].standard_concept) {return 'none'} 
-                            else {return '5px 3px'}
-                        })
+                        // .style("stroke-dasharray", d => {
+                        //     if (sidebarRoot.data.concepts.filter(c => c.concept_id === sidebarRoot.name)[0].standard_concept) {return 'none'} 
+                        //     else {return '5px 3px'}
+                        // })
                         .transition()
                         .attr("d", function(d) {
                             return d3.line()
