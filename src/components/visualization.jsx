@@ -66,9 +66,11 @@ function Visualization (props) {
     const filteredCounts = props.filteredCounts
     const drawingComplete = props.drawingComplete
     const setDrawingComplete = props.setDrawingComplete
+    const sendFeedback = props.sendFeedback
     const [visible,setVisible] = useState(false)
     const [zoomed, setZoomed] = useState(false)
     const [biDirectional, setBiDirectional] = useState()
+    const [text,setText] = useState('')
     const hoverTimeout = useRef(null)
     const hideTimeout = useRef(null)
 
@@ -241,6 +243,8 @@ function Visualization (props) {
             setVisible(false)
         }, 200)
     }
+
+    const handleChange = (e) => {setText(e.target.value)}
     
     // filter tree data
     useEffect(()=>{
@@ -367,6 +371,39 @@ function Visualization (props) {
 
     return ( sidebarRoot !== undefined ? 
         <div id = "visualization-container">
+            <div id="overlay">
+                <div id="popup">
+                    <FontAwesomeIcon className = 'fa-lg' id = "close-feedback" icon={faX} 
+                        onClick={() => {
+                            d3.select('#overlay').style('display','none')
+                            document.getElementById('feedback').value = ''
+                        }}
+                    />
+                    <h2 id = "popup-title">Send Feedback</h2>
+                    <h2 id = "feedback-sent" style = {{display:'none'}}>Feedback sent!</h2>
+                    <textarea id="feedback" placeholder="Write your feedback..." onChange={handleChange}></textarea>
+                    <button id="send-feedback" style = {{border: text.length > 0 ? '1px solid var(--textlight)' : 'none'}}
+                        onClick={ async () => {
+                            const text = document.getElementById('feedback').value.trim()
+                            if (!text) return
+                            try {
+                                await sendFeedback(text)
+                                d3.select('#feedback').style('display','none')
+                                d3.select('#send-feedback').style('display','none')
+                                d3.select('#close-feedback').style('display','none')
+                                d3.select('#popup-title').style('display','none')
+                                d3.select('#feedback-sent').style('display','block')
+                                setTimeout(() => {
+                                    d3.select('#overlay').style('display','none')
+                                    document.getElementById('feedback').value = ''
+                                }, 1000)
+                            } catch (err) {
+                                console.error(err)
+                            } 
+                        }}
+                    >Send</button>  
+                </div>
+            </div>
             <div className = "box-shadow" id = "tooltip" style = {{opacity: visible ? 1 : 0, pointerEvents: visible ? 'all' : 'none'}} 
             onMouseEnter={() => {showTooltip()}}
             onMouseLeave={() => {hideTooltip()}}>

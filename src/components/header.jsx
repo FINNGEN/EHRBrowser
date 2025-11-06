@@ -207,13 +207,23 @@ function Header (props) {
                     <FontAwesomeIcon onClick = {()=>handleClick()} className = "fa-lg fal fa-search" id = "searchBtn" icon={faSearch}></FontAwesomeIcon>
                     <div style = {{top:32}} className="dropdown-content" id = "suggestions-container"></div>
                 </div>    
-            </div>
+            </div>   
             <div id = "search-info" style = {{display: rootData.stratified_code_counts?.length > 0 ? 'flex' : 'none'}}>
                 <div className = "search-info-line"></div>
                 <div><span style = {{opacity:0.5,fontWeight:400,marginRight:8}}>Record Counts:</span>{rootData.stratified_code_counts?.length > 0 ? getCounts(rootData.stratified_code_counts.filter(d => d.concept_id === parseInt(root)),"node_record_counts") : null}</div>
                 <div className = "search-info-line"></div>
                 <div style = {{marginRight:10}}><span style = {{opacity:0.5,fontWeight:400,marginRight:8}}>Descendant Record Counts:</span>{rootData.stratified_code_counts?.length > 0 ? getCounts(rootData.stratified_code_counts.filter(d => d.concept_id === parseInt(root)),"node_descendant_record_counts") : null}</div>
-            </div>
+            </div> 
+            <div id = "feedback-btn" 
+                onClick={() => {
+                    d3.select('#feedback').style('display','block')
+                    d3.select('#send-feedback').style('display','block')
+                    d3.select('#close-feedback').style('display','block')
+                    d3.select('#popup-title').style('display','block')
+                    d3.select('#feedback-sent').style('display','none')
+                    d3.select('#overlay').style('display','flex')
+                }}
+            >Send Feedback</div>
         </div>
     )    
 }

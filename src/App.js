@@ -13,15 +13,16 @@ function App() {
     darkpurple: '#170540',
     mediumpurple: '#765ab6',
     purple: '#a790e2',
-    lightpurple: '#e8e4f3',
+    lightpurple: '#e0daef',
     background: '#eaeaec',
     lightbackground: '#EAEAEC90',
     darkbackground: '#dbdbe0',
-    text: '#213c5c',
-    textmedium: '#646475',
+    text: '#21295C',
+    textmedium: '#717185',
     textlight: '#213c5c85',
-    textlightest: '#213c5c60',
+    textlightest: '#c0c0c9',
     grey: '#c9d0d6',
+    blue: '#4A0EE0'
   }
   const { urlCode } = useParams()
   const location = useLocation()
@@ -61,6 +62,18 @@ function App() {
   const allClasses = useMemo(() => sidebarRoot ? sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").filter(d => levelFilter === undefined || (d.levels === '-1' || parseInt(d.levels.split('-')[0]) <= levelFilter)).map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined) : null,[sidebarRoot,levelFilter])
   const years = useMemo(() => extent ? Array.from({ length: extent[1] - extent[0] + 1 }, (_, i) => extent[0] + i) : null,[extent])
   // let timer = null
+
+  async function sendFeedback(text) {
+    const response = await fetch('http://127.0.0.1:8585/sendFeedback', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ feedback: text }) 
+    })
+    if (!response.ok) throw new Error(`Server error: ${response.status}`);
+    return response.json().catch(() => ({}))
+  }
 
   // update root line
   useEffect(()=>{
@@ -343,13 +356,6 @@ function App() {
       }
   },[root])
 
-  // useEffect(()=>{
-  //   if (drawingComplete) {
-  //     setLoading(false)
-  //     clearTimeout(timer)  
-  //   } else setLoading(true)
-  // },[drawingComplete])
-
   return ( loaded ?
     <div className = "App">
       <Header
@@ -427,6 +433,7 @@ function App() {
               filteredCounts = {filteredCounts}
               drawingComplete = {drawingComplete}
               setDrawingComplete = {setDrawingComplete}
+              sendFeedback = {sendFeedback}
             />      
           } />
         </Routes>

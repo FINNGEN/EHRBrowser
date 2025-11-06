@@ -159,7 +159,7 @@
             let width = d3.select("#tree").node().getBoundingClientRect().width + margin*2
             let maxLevel = d3.max(nodes.map(d => d.distance))
             let svgHeight = d3.select("#tree").node().getBoundingClientRect().height
-            let num = (svgHeight/(maxLevel+1) - 12) < 150 ? 150 : (svgHeight/(maxLevel+1) - 12)
+            let num = (svgHeight/(maxLevel+1) - 12) < 200 ? 200 : (svgHeight/(maxLevel+1) - 12)
             let length = maxLevel + 1
             let genHeight = Array.from({length}, (_, i) => i * num)
             let nodeHeight = 60
@@ -258,8 +258,8 @@
                             .classed('tree-line', true)
                             .attr('id', d => 'tree-line-' + d.source.name+d.target.name)
                             .attr('fill', 'none')
-                            .attr('stroke', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? color.textmedium : color.darkbackground)
-                            .attr('stroke-width', 1)
+                            .attr('stroke', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? color.textmedium : color.textlightest)
+                            .attr('stroke-width', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? 1.5 : 1)
                             line.append('path')
                                 .classed('line-path',true)
                                 .attr("d", d => {
@@ -281,7 +281,7 @@
                                 })
                             line.append('path')
                                 .classed('tree-arrow', true)
-                                .attr('fill', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? color.textmedium : color.darkbackground)
+                                .attr('fill', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? color.textmedium : color.textlightest)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x = d.target.x
@@ -291,7 +291,8 @@
                         return geometry 
                     }, update => {
                             update.select('.tree-line')
-                                .attr('stroke', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? color.textmedium : color.darkbackground)
+                                .attr('stroke', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? color.textmedium : color.textlightest)
+                                .attr('stroke-width', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? 1.5 : 1)
                             update.select('.line-path')
                                 .attr("d", d => {
                                     let sourceX = d.source.x
@@ -313,7 +314,7 @@
                             update.select('.tree-arrow')
                                 .transition()
                                 .duration(500)
-                                .attr('fill', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? color.textmedium : color.darkbackground)
+                                .attr('fill', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? color.textmedium : color.textlightest)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x = d.target.x
@@ -341,8 +342,9 @@
                             mapLine.append('path')
                                 .classed('map-line', true)
                                 .attr('fill','none')
-                                .attr('stroke-width', 0.75)
-                                .attr('stroke', d => conceptNames.includes(d.name) ? color.textmedium : mapRoot.includes(d.source.name) ? color.darkbackground : color.textlightest)
+                                .attr('stroke-width', d => conceptNames.includes(d.name) && mapRoot.includes(d.source.name) ? 2 : 1.5)
+                                .attr('stroke', d => conceptNames.includes(d.name) ? color.textmedium : mapRoot.includes(d.source.name) ? color.textlightest : color.textlightest)
+                                .attr('stroke-dasharray', d => mapRoot.includes(d.source.name) ? '4 2' : 'none')
                                 .attr("d", d => {
                                     let sourceX = getMap(d).x 
                                     let sourceY = mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : getYPosition(d.source, 'z', cy + (genHeight[d.distance]), d)
@@ -354,7 +356,7 @@
                                 .classed('map-tree-arrow', true)
                                 .attr('id', d => 'map-arrow-'+d.name)
                                 .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
-                                .attr('fill', d => d.source.mappings?.map(d => d.name).some(name => conceptNames.includes(name)) ? color.textmedium : color.darkbackground)
+                                .attr('fill', d => d.source.mappings?.map(d => d.name).some(name => conceptNames.includes(name)) ? color.textmedium : color.textlightest)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 16 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 6
@@ -387,6 +389,7 @@
                                     } else return 'white'
                                 })
                                 .attr('stroke', d => conceptNames.includes(d.name) ? d.color : mapRoot.includes(d.source.name) ? d.total_counts === 0 ? 'none' : color.textlightest : color.textlightest)
+                                .attr('stroke-width', d => mapRoot.includes(d.source.name) ? 1.5 : 1.25)
                                 .style('cursor', "pointer")
                                 .attr('cx', d => getMap(d).x)
                                 .attr('cy', d => mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : getYPosition(d.source, 'z', cy + (genHeight[d.distance]), d))
@@ -551,7 +554,9 @@
                             mapLabel.raise()
                         }, update => {
                             update.select('.map-line')
-                                .attr('stroke', d => conceptNames.includes(d.name) ? color.textmedium : mapRoot.includes(d.source.name) ? color.darkbackground : color.textlightest)
+                                .attr('stroke-width', d => conceptNames.includes(d.name) && mapRoot.includes(d.source.name) ? 2 : 1.5)
+                                .attr('stroke-dasharray', d => mapRoot.includes(d.source.name) ? '4 2' : 'none')
+                                .attr('stroke', d => conceptNames.includes(d.name) ? color.textmedium : mapRoot.includes(d.source.name) ? color.textlightest : color.textlightest)
                                 .transition(2000)
                                 .attr("d", d => {
                                     let sourceX = getMap(d).x
@@ -562,7 +567,7 @@
                                 )
                             update.select('.map-tree-arrow')
                                 .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
-                                .attr('fill', d => d.source.mappings?.map(d => d.name).some(name => conceptNames.includes(name)) ? color.textmedium : color.darkbackground)
+                                .attr('fill', d => d.source.mappings?.map(d => d.name).some(name => conceptNames.includes(name)) ? color.textmedium : color.textlightest)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 16 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 6
@@ -609,6 +614,7 @@
                                     } else return 'white'
                                 })
                                 .attr('stroke', d => conceptNames.includes(d.name) ? d.color : mapRoot.includes(d.source.name) ? d.total_counts === 0 ? 'none' : color.textlightest : color.textlightest)
+                                .attr('stroke-width', d => mapRoot.includes(d.source.name) ? 1.5 : 1.25)
                                 .transition(2000)
                                 .attr('cx', d => getMap(d).x)
                                 .attr('cy', d => mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : getYPosition(d.source, 'z', cy + (genHeight[d.distance]), d))
@@ -734,6 +740,7 @@
                             .classed('tree-circle', true)
                             .attr('id', d => 'tree-circle-' + d.name)
                             .attr('r', d => scaleRadius(Math.sqrt(d.total_counts)) + 2)
+                            .attr('stroke-width',1.5)
                             .attr('stroke', d => d.total_counts === 0 ? 'none' : !conceptNames.includes(d.name) || (d.leaf && d.descendant_counts !== d.total_counts) ? color.textlightest : d.color)
                             .attr('fill', d => {
                                 if (d.total_counts === 0 || (d.leaf && d.descendant_counts !== d.total_counts)) return 'white'
@@ -1022,8 +1029,9 @@
                             mapLine.append('path')
                                 .classed('map-line', true)
                                 .attr('fill','none')
-                                .attr('stroke-width', 0.75)
-                                .attr('stroke', d => conceptNames.includes(d.name) ? color.textmedium : mapRoot.includes(d.source.name) ? color.darkbackground : color.textlightest)
+                                .attr('stroke-width', d => conceptNames.includes(d.name) && mapRoot.includes(d.source.name) ? 2 : 1.5)
+                                .attr('stroke', d => conceptNames.includes(d.name) ? color.textmedium : mapRoot.includes(d.source.name) ? color.textlightest : color.textlightest)
+                                .attr('stroke-dasharray', d => mapRoot.includes(d.source.name) ? '4 2' : 'none')
                                 .attr("d", d => {
                                     let sourceX = getMap(d).x 
                                     let sourceY = mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : getYPosition(d.source, 'z', cy + (genHeight[d.distance]), d)
@@ -1035,7 +1043,7 @@
                                 .classed('map-tree-arrow', true)
                                 .attr('id', d => 'map-arrow-'+d.name)
                                 .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
-                                .attr('fill', d => d.source.mappings?.map(d => d.name).some(name => conceptNames.includes(name)) ? color.textmedium : color.darkbackground)
+                                .attr('fill', d => d.source.mappings?.map(d => d.name).some(name => conceptNames.includes(name)) ? color.textmedium : color.textlightest)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 16 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 6
@@ -1068,6 +1076,7 @@
                                     } else return 'white'
                                 })
                                 .attr('stroke', d => conceptNames.includes(d.name) ? d.color : mapRoot.includes(d.source.name) ? d.total_counts === 0 ? 'none' : color.textlightest : color.textlightest)
+                                .attr('stroke-width', d => mapRoot.includes(d.source.name) ? 1.5 : 1.25)
                                 .style('cursor', "pointer")
                                 .attr('cx', d => getMap(d).x)
                                 .attr('cy', d => mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : getYPosition(d.source, 'z', cy + (genHeight[d.distance]), d))
@@ -1232,7 +1241,9 @@
                             mapLabel.raise()
                         }, update => {
                             update.select('.map-line')
-                                .attr('stroke', d => conceptNames.includes(d.name) ? color.textmedium : mapRoot.includes(d.source.name) ? color.darkbackground : color.textlightest)
+                                .attr('stroke-width', d => conceptNames.includes(d.name) && mapRoot.includes(d.source.name) ? 2 : 1.5)
+                                .attr('stroke-dasharray', d => mapRoot.includes(d.source.name) ? '4 2' : 'none')
+                                .attr('stroke', d => conceptNames.includes(d.name) ? color.textmedium : mapRoot.includes(d.source.name) ? color.textlightest : color.textlightest)
                                 .transition(2000)
                                 .attr("d", d => {
                                     let sourceX = getMap(d).x
@@ -1243,7 +1254,7 @@
                                 )
                             update.select('.map-tree-arrow')
                                 .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
-                                .attr('fill', d => d.source.mappings?.map(d => d.name).some(name => conceptNames.includes(name)) ? color.textmedium : color.darkbackground)
+                                .attr('fill', d => d.source.mappings?.map(d => d.name).some(name => conceptNames.includes(name)) ? color.textmedium : color.textlightest)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 16 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 6
@@ -1290,6 +1301,7 @@
                                     } else return 'white'
                                 })
                                 .attr('stroke', d => conceptNames.includes(d.name) ? d.color : mapRoot.includes(d.source.name) ? d.total_counts === 0 ? 'none' : color.textlightest : color.textlightest)
+                                .attr('stroke-width', d => mapRoot.includes(d.source.name) ? 1.5 : 1.25)
                                 .transition(2000)
                                 .attr('cx', d => getMap(d).x)
                                 .attr('cy', d => mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : getYPosition(d.source, 'z', cy + (genHeight[d.distance]), d))
@@ -1661,7 +1673,7 @@
                     .classed('section-title',true)
                     .style('background-color', d => d.section === 'ROOT' ? color.purple : 'white')
                     .style('border-radius', '16px 16px 0px 0px')
-                    .style('height', d => d.section === 'ROOT' ? '26px' : '20px')
+                    .style('height', d => d.section === 'ROOT' ? '24px' : '20px')
                 title.append('i')
                     .classed('section-arrow fa-solid fa-arrow-up fa-xs',true)
                     .style('display', d => d.section === 'ROOT' ? 'none' : 'block')
@@ -4190,7 +4202,7 @@
                 update 
                     .style('padding-bottom', d => d.section === 'PARENTS' || d.section === 'ROOT' ? '5px' : '0px')
                 update.select('.section-title')
-                    .style('height', d => d.section === 'ROOT' ? '28px' : '20px')
+                    .style('height', d => d.section === 'ROOT' ? '24px' : '20px')
                     .style('background-color', d => d.section === 'ROOT' ? color.purple : 'white')
                 update.select('.section-arrow')
                     .style('display', d => d.section === 'ROOT' ? 'none' : 'block')
