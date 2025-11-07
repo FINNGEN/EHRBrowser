@@ -270,18 +270,20 @@ function Visualization (props) {
             filteredNodes = filteredNodes
                 .map(e => ({...e,connections: filteredConnections.filter(c => c.parents.includes(e.name)).map(d => ({...d,source:e.name}))}))
             // filter selected
-            let filteredSelected = selectedConcepts
-                .filter(d => levelFilter === undefined || (fullTree.mappings.includes(d.name) ? filteredNodes.map(e => e.mappings.map(m => m.name)).flat().includes(d.name) : filteredNodes.map(e => e.name).includes(d.name)))
-            filteredSelected.map(d => ({...d,leaf:filteredNodes.filter(e => e.name === d.name)[0] ? filteredNodes.filter(e => e.name === d.name)[0].leaf : false}))
-            let selectionsFromNodes = !treeSelections.includes('mappings') ? 
+            // let filteredSelected = selectedConcepts
+            //     .filter(d => levelFilter === undefined || (fullTree.mappings.includes(d.name) ? filteredNodes.map(e => e.mappings.map(m => m.name)).flat().includes(d.name) : filteredNodes.map(e => e.name).includes(d.name)))
+            // filteredSelected
+            //     .map(d => ({...d,leaf:!filteredLinks.map(e => e.source).map(e => e.name).includes(d.name) ? true : false}))
+            //     .filter(d => !d.leaf ? d.total_counts !== 0 : d.descendant_counts !== 0)
+            const filteredSelected = !treeSelections.includes('mappings') ? 
                 filteredNodes
                     .filter(d => d.levels !== '-1')
-                    .filter(d => !d.leaf ? d.total_counts !== 0 : d)
+                    .filter(d => !d.leaf ? d.total_counts !== 0 : d.descendant_counts !== 0)
                     .map(d => ({name: d.name, leaf: d.leaf, data: d.data})) : 
                 filteredNodes.filter(d => d.levels !== '-1').map(d => d.mappings).flat()
                     .filter(d => d.total_counts !== 0)
                     .map(d => ({name: d.name, leaf: false, data: d.data}))
-            filteredSelected = [...filteredSelected,...selectionsFromNodes].filter((obj, index, self) => index === self.findIndex(o => o.name === obj.name))
+            // filteredSelected = [...filteredSelected,...selectionsFromNodes].filter((obj, index, self) => index === self.findIndex(o => o.name === obj.name))
             setSelectedConcepts(filteredSelected)
             // new poset
             const width = d3.select("#tree").node().getBoundingClientRect().width

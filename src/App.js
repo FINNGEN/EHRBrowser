@@ -228,7 +228,7 @@ function App() {
     // set selected
     const selectedNodes = nodeData
       .filter(d => d.levels !== '-1')
-      .filter(d => !d.leaf ? d.total_counts !== 0 : d)
+      .filter(d => !d.leaf ? d.total_counts !== 0 : d.descendant_counts !== 0)
       .map(d => ({name: d.name, leaf: d.leaf, data: d.data}))
     setSelectedConcepts(selectedNodes)
     // set extent
