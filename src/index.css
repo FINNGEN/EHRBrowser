@@ -771,11 +771,11 @@ textarea:focus {
   padding: 0px 6px 0px 6px;
   align-items: flex-start;
   justify-content: space-between;
-  background-color: var(--background);
+  /* background-color: var(--background); */
   width: auto;
   height: 20px;
   border: 0.5px solid var(--textlightest);
-  color: var(--text);
+  /* color: var(--text); */
   border-radius: 16px;
   z-index: 500;
   max-width: 100%;
@@ -783,7 +783,7 @@ textarea:focus {
 }
 .dropdown-header p {
   background-color: transparent;
-  color: var(--text);
+  /* color: var(--text); */
   z-index: 500;
 }
 .selections-dropdown-content {
@@ -960,24 +960,63 @@ textarea:focus {
     opacity: 0.5;
   }
 }
+#header-btns {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  position: absolute;
+  right: 10px;
+  color: white;
+}
 #feedback-btn {
   width: 110px;
   border-radius: 20px;
   border: 1px solid #ffffff60;
-  color: white;
   height: 30px;
-  position: absolute;
-  right: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-weight: 400;
+  font-weight: 400;  
+  margin-right: 10px;
 }
 #feedback-btn:hover {
   background-color: white;
   color: var(--darkpurple);
   font-weight: 700;
+}
+#api-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  border: 0.5px solid #ffffff60;
+  border-radius: 18px;
+  width: 18px;
+  height: 18px;
+  font-size: 10px;
+  cursor: pointer;
+}
+#api-popup {
+  width: auto;
+  height: auto;
+  background-color: white;
+  display: none;
+  position: absolute;
+  right:10px;
+  top: 50px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+#api-popup p {
+  margin: 0;
+}
+.api-popup-title {
+  font-weight: 700;
+  margin-right: 5px;
 }
 #overlay {
   position: fixed;

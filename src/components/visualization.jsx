@@ -67,6 +67,8 @@ function Visualization (props) {
     const drawingComplete = props.drawingComplete
     const setDrawingComplete = props.setDrawingComplete
     const sendFeedback = props.sendFeedback
+    const initialPrune = props.initialPrune
+    const setInitialPrune = props.setInitialPrune
     const [visible,setVisible] = useState(false)
     const [zoomed, setZoomed] = useState(false)
     const [biDirectional, setBiDirectional] = useState()
@@ -82,21 +84,14 @@ function Visualization (props) {
             conceptHover(d.name, 'enter', component, sidebarRoot.name)
             d3.select("#tooltip")
                 .style('left', function() {
-                    //use trackNodes variable to base it off tree position
-                    if (event.x + 150 > window.innerWidth) {
-                        return (event.x - 110 + 'px')   
-                    } else {
-                        return (event.x + 10 + 'px')    
-                    } 
+                    if (event.x + 150 > window.innerWidth) return (event.x - 110 + 'px')   
+                    else return (event.x + 10 + 'px')    
                 })
                 .style('top', function() {
-                    //use trackNodes variable to base it off tree position
-                    if (event.y + 150 > window.innerHeight) {
-                        return (event.y - 110 + 'px')    
-                    } else {
-                        return (event.y + 10 + 'px')
-                    } 
+                    if (event.y + 150 > window.innerHeight) return (event.y - 110 + 'px')    
+                    else return (event.y + 10 + 'px')
                 })
+            // add color change on hover 
             d3.select('#tooltip-root')  
                 .style('display', () => d.name === sidebarRoot.name ? 'none' : 'block') 
                 .on('click', () => {
@@ -108,7 +103,7 @@ function Visualization (props) {
             d3.select('#tooltip-RC').html(d.total_counts + ' RC')
             d3.select('#tooltip-DRC').html(d.descendant_counts + ' DRC')
             d3.select('#counts-btn-circle')
-                .style('display', d.total_counts === 0 ? 'none' : 'flex')
+                .style('display', d.total_counts === 0 || d.levels === "-1" ? 'none' : 'flex')
                 .on('mouseover', () => {
                     if (!conceptNames.includes(d.name)) {
                         d3.select("#tooltip-plus").style('color', 'white')
@@ -205,7 +200,8 @@ function Visualization (props) {
             d3.selectAll(".tree-link").transition('allOpacities').attr("opacity", 0.15) 
         } else {
             if (!nodes.map(d => d.name).includes(id)) {
-                d3.selectAll('.subsumes-node').transition('allOpacities').style('opacity', 1)
+                d3.selectAll('.subsumes-node').filter(d => d.levels !== "-1").transition('allOpacities').style('opacity', 1)
+                d3.selectAll('.subsumes-node').filter(d => d.levels === "-1").transition('allOpacities').style('opacity', 0.6)
                 d3.selectAll('.label').transition('allOpacities').style('opacity', 1)
                 d3.selectAll('.alt-text').transition('allOpacities').style('opacity', 1)
                 d3.selectAll('.map-node').transition('allOpacities').style('opacity', 1)
@@ -213,7 +209,8 @@ function Visualization (props) {
             } else {
                 d3.selectAll(".label-rect").transition('allOpacities').attr('fill', d => d.name === sidebarRoot.name ? color.lightpurple : 'none').attr('fill-opacity', d => d.name === sidebarRoot.name ? 1 : 0.7)
                 d3.select("#tree-text-" + id).transition('allOpacities').attr("font-weight", id === sidebarRoot.name ? 700 : null).style('opacity', 1)
-                d3.selectAll('.tree-node').transition('allOpacities').style('opacity', 1)  
+                d3.selectAll('.tree-node').filter(d => d.levels !== "-1").transition('allOpacities').style('opacity', 1)  
+                d3.selectAll('.tree-node').filter(d => d.levels === "-1").transition('allOpacities').style('opacity', 0.6)
             }
             d3.selectAll('.small-multiples').transition('allOpacities').attr("opacity", 1)
             d3.selectAll('.area-path').transition('allOpacities').attr("opacity", 1).attr("stroke-width", 2)
@@ -248,11 +245,11 @@ function Visualization (props) {
     
     // filter tree data
     useEffect(()=>{
-        if (sidebarRoot) {
+        if (sidebarRoot && !initialPrune) {
             // filter nodes and links
             let filteredNodes = fullTree.nodes
                 .filter(d => levelFilter === undefined || (d.levels === '-1' || parseInt(d.levels.split('-')[0]) <= levelFilter))
-                .filter(d => !classFilter || d.class ? classFilter.includes(d.class) : d)
+                .filter(d => (!classFilter || classFilter.includes('All')) ? d : d.class ? classFilter.includes(d.class) : d)
             let filteredLinks = fullTree.links
                 .filter(d => filteredNodes.map(d => d.name).includes(d.source.name) && filteredNodes.map(d => d.name).includes(d.target.name))
             filteredNodes = filteredNodes
@@ -473,7 +470,8 @@ function Visualization (props) {
                 biDirectional = {biDirectional}
                 drawingComplete = {drawingComplete}
                 setDrawingComplete = {setDrawingComplete}
-                // setRoot = {setRoot}
+                initialPrune = {initialPrune}
+                setInitialPrune = {setInitialPrune}
             ></SideBar> 
             <GraphSection
                 color = {color}

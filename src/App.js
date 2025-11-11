@@ -45,7 +45,7 @@ function App() {
   const [treeSelections, setTreeSelections] = useState(['descendants'])
   const [openFilters,setOpenFilters] = useState(true)
   const [levelFilter, setLevelFilter] = useState()
-  const [classFilter, setClassFilter] = useState([])
+  const [classFilter, setClassFilter] = useState(['All'])
   const [pruned, setPruned] = useState(false)
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
@@ -55,6 +55,8 @@ function App() {
   const [rootExtent, setRootExtent] = useState()
   const [crossConnections, setCrossConnections] = useState()
   const [drawingComplete, setDrawingComplete] = useState(true)
+  const [initialPrune, setInitialPrune] = useState(true)
+  const [apiInfo, setApiInfo] = useState()
   const conceptNames = useMemo(() => selectedConcepts.map(d => d.name).filter((e,n,l) => l.indexOf(e) === n),[selectedConcepts])
   const allCounts = useMemo(() => selectedConcepts.map(d => d.data.code_counts).flat(),[selectedConcepts])
   const maxLevel = useMemo(() => d3.max(nodes.filter(d => d.levels !== '-1').map(d => parseInt(d.levels.split('-')[0]))),[nodes])
@@ -191,7 +193,7 @@ function App() {
     setOpenFilters(true)
     setMapRoot([])
   }
-  function createInitialStates(root,data) {
+  function createInitialStates(root,data,prune) {
     // set descendant count line
     const rootData = data.stratified_code_counts.filter(e => e.concept_id === parseInt(root))
     const rootExtentData = d3.extent(rootData.map(d => d.calendar_year))
@@ -208,6 +210,7 @@ function App() {
     setRootLine(rootLineData)
     // set nodes 
     const subsumesData = data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to")
+      // .filter(d => !prune || (d.levels === '-1' || parseInt(d.levels.split('-')[0]) <= 2))
     const mappingData = data.concept_relationships.filter(d => d.levels === "Mapped from" || d.levels === "Maps to")
     let nodeData = subsumesData.map(({parent_concept_id, ...rest }) => rest).filter((obj, index, self) => index === self.findIndex(o => o.child_concept_id === obj.child_concept_id))
       .map(e=>({
@@ -303,8 +306,10 @@ function App() {
     setPoset(poset)
     setPruned(false)
     setFullTree({nodes:nodeData,links:linkData,selected:selectedNodes,mappings:mappingData.map(d => d.child_concept_id)})
-    setNodes(nodeData)
-    setLinks(linkData)
+    if (!prune) {
+      setNodes(nodeData)
+      setLinks(linkData)
+    } 
   }
 
   // on page load
@@ -312,6 +317,11 @@ function App() {
     console.log('run app')
     const params = new URLSearchParams(window.location.search)
     setLoaded(true)
+    fetch(`http://127.0.0.1:8585/getAPIInfo`)
+      .then(res=> res.json())
+      .then(data=>{
+        setApiInfo(data)
+      })
     fetch(`http://127.0.0.1:8585/getListOfConcepts`)
       .then(res=> res.json())
       .then(data=>{
@@ -340,16 +350,22 @@ function App() {
                     d3.select('#expand').style('display', 'block') 
                     d3.select('#compress').style('display', 'none') 
                     setGraphFilter({gender:-1,age:[-1]})
-                    setClassFilter(data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined))
+                    setClassFilter(['All'])
                     setTreeSelections(['descendants'])
-                    setLevelFilter()
                     setOpenFilters(true)
                     setMapRoot([])
-                    createInitialStates(root,data)  
+                    setNodes([])
+                    setLinks([])
+                    const prune = data.concepts.length > 1000 ? true : false
+                    if (prune) setLevelFilter(2)
+                    else setLevelFilter()
+                    setInitialPrune(!prune)
+                    createInitialStates(root,data,prune) 
                     setLoading(false)
                     clearTimeout(timer) 
                 } else {
-                    setLoading(false)
+                    // show some error
+                    setLoading(true)
                     clearTimeout(timer) 
                 }
             })
@@ -368,6 +384,7 @@ function App() {
         filteredList = {filteredList}
         setFilteredList = {setFilteredList}
         listIndexes = {listIndexes}
+        apiInfo = {apiInfo}
       /> 
       {loading && <div id = "loading" style={{ fontSize: '20px' }}>
         <div class="lds-grid"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
@@ -434,6 +451,8 @@ function App() {
               drawingComplete = {drawingComplete}
               setDrawingComplete = {setDrawingComplete}
               sendFeedback = {sendFeedback}
+              initialPrune = {initialPrune}
+              setInitialPrune = {setInitialPrune}
             />      
           } />
         </Routes>

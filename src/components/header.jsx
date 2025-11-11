@@ -15,6 +15,7 @@ function Header (props) {
     const conceptList = props.conceptList
     const filteredList = props.filteredList
     const setFilteredList = props.setFilteredList
+    const apiInfo = props.apiInfo
     // const listIndexes = props.listIndexes
     const codes = conceptList.map(d => d.concept_id.toString())
     const names = conceptList.map(d => d.concept_name.toLowerCase())
@@ -214,16 +215,28 @@ function Header (props) {
                 <div className = "search-info-line"></div>
                 <div style = {{marginRight:10}}><span style = {{opacity:0.5,fontWeight:400,marginRight:8}}>Descendant Record Counts:</span>{rootData.stratified_code_counts?.length > 0 ? getCounts(rootData.stratified_code_counts.filter(d => d.concept_id === parseInt(root)),"node_descendant_record_counts") : null}</div>
             </div> 
-            <div id = "feedback-btn" 
-                onClick={() => {
-                    d3.select('#feedback').style('display','block')
-                    d3.select('#send-feedback').style('display','block')
-                    d3.select('#close-feedback').style('display','block')
-                    d3.select('#popup-title').style('display','block')
-                    d3.select('#feedback-sent').style('display','none')
-                    d3.select('#overlay').style('display','flex')
-                }}
-            >Send Feedback</div>
+            <div id = "header-btns">
+                <div id = "feedback-btn" 
+                    onClick={() => {
+                        d3.select('#feedback').style('display','block')
+                        d3.select('#send-feedback').style('display','block')
+                        d3.select('#close-feedback').style('display','block')
+                        d3.select('#popup-title').style('display','block')
+                        d3.select('#feedback-sent').style('display','none')
+                        d3.select('#overlay').style('display','flex')
+                    }}
+                >Send Feedback</div>
+                <div id = "api-info"
+                    onMouseOver={() => d3.select('#api-popup').style('display','block')}
+                    onMouseOut={() => d3.select('#api-popup').style('display','none')}
+                >i</div>    
+            </div> 
+            <div id = "api-popup" style = {{display:'none'}}>
+                <p><span className = "api-popup-title">cdm source abbreviation:</span>{apiInfo?.cdm_source_abbreviation}</p>
+                <p><span className = "api-popup-title">cdm source name:</span>{apiInfo?.cdm_source_name}</p>
+                <p><span className = "api-popup-title">romop api version:</span>{apiInfo?.romop_api_version}</p>
+                <p><span className = "api-popup-title">vocabulary version:</span>{apiInfo?.vocabulary_version}</p>
+            </div>
         </div>
     )    
 }

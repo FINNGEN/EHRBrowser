@@ -51,6 +51,8 @@
         const biDirectional = props.biDirectional
         const drawingComplete = props.drawingComplete
         const setDrawingComplete = props.setDrawingComplete
+        const initialPrune = props.initialPrune
+        const setInitialPrune = props.setInitialPrune
         // const setRoot = props.setRoot
         const [graphSectionWidth, setGraphSectionWidth] = useState()
         const margin = 10
@@ -206,27 +208,28 @@
                 .attr("y2", "100%")
             linearGradient.append("stop")
                 .attr("offset", "0%")
-                .attr("stop-color", color.darkbackground)
+                .attr("stop-color", color.textlightest)
                 .attr("stop-opacity", 1)
             linearGradient.append("stop")
                 .attr("offset", "100%")
-                .attr("stop-color", color.darkbackground)
+                .attr("stop-color", color.textlightest)
                 .attr("stop-opacity", 0.2)
             // get midpoint between nodes
-            function getMidXAndMaxY(ids) {
+            function getMidX(ids) {
                 let xPositions = []
                 ids.forEach(id => xPositions.push(nodes.filter(d => d.name === id)[0].x))
-                const boxes = ids
-                    .map(id => document.getElementById('alt-group-'+id))
-                    .filter(el => el)
-                    .map(el => el.getBoundingClientRect())
-                if (boxes.length === 0) return null
-                // const minX = Math.min(...boxes.map(b => b.left))
-                // const maxX = Math.max(...boxes.map(b => b.right))
-                // const midX = (minX + maxX) / 2
-                const maxY = Math.max(...boxes.map(b => b.bottom))
+                // const boxes = ids
+                //     .map(id => document.getElementById('alt-group-'+id))
+                //     .filter(el => el)
+                //     .map(el => el.getBoundingClientRect())
+                // if (boxes.length === 0) return null
+                // // const minX = Math.min(...boxes.map(b => b.left))
+                // // const maxX = Math.max(...boxes.map(b => b.right))
+                // // const midX = (minX + maxX) / 2
+                // const maxY = Math.max(...boxes.map(b => b.bottom))
                 const midX = d3.sum(xPositions)/xPositions.length
-                return { midX, maxY }
+                return midX
+                // return { midX, maxY }
             }
             // get subsumes label positioning
             const getLabel = d => {
@@ -257,11 +260,11 @@
                         const line = geometry.append('g')
                             .classed('tree-line', true)
                             .attr('id', d => 'tree-line-' + d.source.name+d.target.name)
-                            .attr('fill', 'none')
-                            .attr('stroke', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? color.textmedium : color.textlightest)
-                            .attr('stroke-width', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? 1.5 : 1)
                             line.append('path')
                                 .classed('line-path',true)
+                                .attr('fill','none')
+                                .attr('stroke', d => nodes.find(n => n.name === d.source.name).levels === "-1" ? color.darkbackground : conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? color.textmedium : color.textlightest)
+                                .attr('stroke-width', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? 1.5 : 1)
                                 .attr("d", d => {
                                     let sourceX = d.source.x
                                     let sourceY = d.source.distance > d.target.distance ? cy + (genHeight[d.source.distance]) - scaleRadius(Math.sqrt(d.source.total_counts)) - 43 : cy + (genHeight[d.source.distance]) + scaleRadius(Math.sqrt(d.source.total_counts)) + 18
@@ -290,10 +293,9 @@
                                 }) 
                         return geometry 
                     }, update => {
-                            update.select('.tree-line')
-                                .attr('stroke', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? color.textmedium : color.textlightest)
-                                .attr('stroke-width', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? 1.5 : 1)
                             update.select('.line-path')
+                                .attr('stroke', d => nodes.find(n => n.name === d.source.name).levels === "-1" ? color.darkbackground : conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? color.textmedium : color.textlightest)
+                                .attr('stroke-width', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? 1.5 : 1)
                                 .attr("d", d => {
                                     let sourceX = d.source.x
                                     let sourceY = d.source.distance > d.target.distance ? cy + (genHeight[d.source.distance]) - scaleRadius(Math.sqrt(d.source.total_counts)) - 43 : cy + (genHeight[d.source.distance]) + scaleRadius(Math.sqrt(d.source.total_counts)) + 18
@@ -714,6 +716,7 @@
                         //Subsumes node
                         const node = geometry.append('g')
                             .classed('subsumes-node', true)
+                            .style('opacity', d => d.levels === '-1' ? 0.6 : null)
                         node.append('circle')
                             .classed('tree-circle-background', true)
                             .style('opacity', 1)
@@ -761,7 +764,7 @@
                             .style('cursor', "pointer")
                             .attr('cx', d => d.x)
                             .attr('cy', d => cy + (genHeight[d.distance]))
-                            .attr('pointer-events', d => d.total_counts === 0 ? "none" : "all")
+                            .attr('pointer-events', d => d.total_counts === 0 || d.levels === "-1" ? "none" : "all")
                         node.append('text')
                             .classed('total-counts', true)
                             .attr('id', d => 'total-counts-' + d.name)
@@ -955,14 +958,14 @@
                                 .attr('x1',d => d.x)
                                 .attr('y1',d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 18)
                                 .attr('x2',d => d.x + 0.1)
-                                .attr('y2',d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 60)
+                                .attr('y2',d => cy + (genHeight[d.distance]) + 100)
                             pruneLine.append('path')
                                 .classed('prune-arrow', true)
                                 .attr('fill', color.background)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x = d.x
-                                    let y = cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 60
+                                    let y = cy + (genHeight[d.distance]) + 100
                                     return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
                                 }) 
                         node.selectAll(".prune-curve").data(d => d.connections, d => d.child)
@@ -977,11 +980,11 @@
                                 .style('display', pruned ? 'block' : 'none')
                                 .attr("d", d => {
                                     let sourceNode = nodes.filter(e => e.name === d.source)[0]
-                                    let coordinates = getMidXAndMaxY(d.parents)
+                                    // let coordinates = getMidXAndMaxY(d.parents)
                                     let x1 = sourceNode.x
                                     let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18
-                                    let x2 = coordinates.midX
-                                    let y2 = coordinates.maxY + 50
+                                    let x2 = getMidX(d.parents)
+                                    let y2 = cy + (genHeight[sourceNode.distance]) + 100
                                     return curveY({source: [x1, y1], target: [x2, y2]})
                                 })
                             curve.append('path')
@@ -989,8 +992,8 @@
                                 .attr('fill', color.background)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
-                                    let x = getMidXAndMaxY(d.parents).midX
-                                    let y = getMidXAndMaxY(d.parents).maxY + 50
+                                    let x = getMidX(d.parents)
+                                    let y = cy + (genHeight[nodes.filter(e => e.name === d.source)[0].distance]) + 100
                                     return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
                                 }) 
                         },update => {
@@ -998,17 +1001,17 @@
                                 .style('display', pruned ? 'block' : 'none')
                                 .attr("d", d => {
                                     let sourceNode = nodes.filter(e => e.name === d.source)[0]
-                                    let coordinates = getMidXAndMaxY(d.parents)
+                                    // let coordinates = getMidXAndMaxY(d.parents)
                                     let x1 = sourceNode.x
                                     let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18
-                                    let x2 = coordinates.midX
-                                    let y2 = coordinates.maxY + 50
+                                    let x2 = getMidX(d.parents)
+                                    let y2 = cy + (genHeight[sourceNode.distance]) + 100
                                     return curveY({source: [x1, y1], target: [x2, y2]})
                                 })
                             update.select('.prune-curve-arrow')
                                 .attr("transform", d => {
-                                    let x = getMidXAndMaxY(d.parents).midX
-                                    let y = getMidXAndMaxY(d.parents).maxY + 50
+                                    let x = getMidX(d.parents)
+                                    let y = cy + (genHeight[nodes.filter(e => e.name === d.source)[0].distance]) + 100
                                     return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
                                 })    
                         })
@@ -1399,6 +1402,8 @@
                                 .text(d => d.data.concept.vocabulary_id)
                         },exit => exit.remove())
                         //Subsumes node
+                        update 
+                            .style('opacity', d => d.levels === '-1' ? 0.6 : null)
                         update.select('.tree-circle-background') 
                             .transition()
                             .attr('r', d => scaleRadius(Math.sqrt(d.total_counts)) + 2)
@@ -1436,7 +1441,7 @@
                                     } else {return 'white'}    
                                 }
                             })
-                            .attr('pointer-events', d => d.total_counts === 0 ? "none" : "all")
+                            .attr('pointer-events', d => d.total_counts === 0 || d.levels === "-1" ? "none" : "all")
                             .transition('nodePosition')
                             .duration(500)
                             .attr('cx', d => d.x)
@@ -1567,11 +1572,11 @@
                             .attr('x1',d => d.x)
                             .attr('y1',d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 18)
                             .attr('x2',d => d.x + 0.1)
-                            .attr('y2',d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 60)
+                            .attr('y2',d => cy + (genHeight[d.distance]) + 100)
                         update.select('.prune-arrow')
                             .attr("transform", d => {
                                 let x = d.x
-                                let y = cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 60
+                                let y = cy + (genHeight[d.distance]) + 100
                                 return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
                             }) 
                         update.selectAll(".prune-curve").data(d => d.connections, d => d.child)
@@ -1586,11 +1591,11 @@
                                 .style('display', pruned ? 'block' : 'none')
                                 .attr("d", d => {
                                     let sourceNode = nodes.filter(e => e.name === d.source)[0]
-                                    let coordinates = getMidXAndMaxY(d.parents)
+                                    // let coordinates = getMidXAndMaxY(d.parents)
                                     let x1 = sourceNode.x
                                     let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18
-                                    let x2 = coordinates.midX
-                                    let y2 = coordinates.maxY + 50
+                                    let x2 = getMidX(d.parents)
+                                    let y2 = cy + (genHeight[sourceNode.distance]) + 100
                                     return curveY({source: [x1, y1], target: [x2, y2]})
                                 })
                             curve.append('path')
@@ -1598,8 +1603,8 @@
                                 .attr('fill', color.background)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
-                                    let x = getMidXAndMaxY(d.parents).midX
-                                    let y = getMidXAndMaxY(d.parents).maxY + 50
+                                    let x = getMidX(d.parents)
+                                    let y = cy + (genHeight[nodes.filter(e => e.name === d.source)[0].distance]) + 100
                                     return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
                                 }) 
                         },update => {
@@ -1607,17 +1612,17 @@
                                 .style('display', pruned ? 'block' : 'none')
                                 .attr("d", d => {
                                     let sourceNode = nodes.filter(e => e.name === d.source)[0]
-                                    let coordinates = getMidXAndMaxY(d.parents)
+                                    // let coordinates = getMidXAndMaxY(d.parents)
                                     let x1 = sourceNode.x
                                     let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18
-                                    let x2 = coordinates.midX
-                                    let y2 = coordinates.maxY + 50
+                                    let x2 = getMidX(d.parents)
+                                    let y2 = cy + (genHeight[sourceNode.distance]) + 100
                                     return curveY({source: [x1, y1], target: [x2, y2]})
                                 })
                             update.select('.prune-curve-arrow')
                                 .attr("transform", d => {
-                                    let x = getMidXAndMaxY(d.parents).midX
-                                    let y = getMidXAndMaxY(d.parents).maxY + 50
+                                    let x = getMidX(d.parents)
+                                    let y = cy + (genHeight[nodes.filter(e => e.name === d.source)[0].distance]) + 100
                                     return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
                                 })    
                         })
@@ -1753,7 +1758,8 @@
                             if (!conceptNames.includes(d.name)) {
                                 d3.select('#plus-'+d.name).transition().style('color', 'white')
                                 d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`) 
-                                d3.select('#title-name-'+d.name).transition().style('color','black')   
+                                d3.select('#title-name-'+d.name).transition().style('color',color.text)   
+                                d3.select('#title-code-'+d.name).transition().style('color',color.text) 
                                 d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                 d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                 d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
@@ -1764,6 +1770,7 @@
                                 d3.select('#plus-'+d.name).transition().style('color', color.text)
                                 d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
                                 d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
+                                d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
                                 d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                 d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                 d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
@@ -1789,7 +1796,7 @@
                         .classed('title-name',true)
                         .attr('id', d => 'title-name-'+d.name)
                         .style("font-weight", d => d.name == sidebarRoot.name ? 700 : 400)
-                        .style('color', d => conceptNames.includes(d.name) ? 'black' : color.textlight)
+                        .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
                         .html(d => d.data.concept.concept_name)
                         .style('padding-right', '4px')
                         .style('cursor','pointer')
@@ -1803,7 +1810,8 @@
                             if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
                                 d3.select('#plus-'+d.name).transition().style('color', 'white')
                                 d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`)  
-                                d3.select('#title-name-'+d.name).transition().style('color','black') 
+                                d3.select('#title-name-'+d.name).transition().style('color',color.text) 
+                                d3.select('#title-code-'+d.name).transition().style('color',color.text) 
                                 d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                 d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                 d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color)     
@@ -1824,6 +1832,7 @@
                                     d3.select('#plus-'+d.name).transition().style('color', color.text)
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
                                     d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest) 
@@ -1834,6 +1843,14 @@
                             currentTarget = null  
                             conceptHover(d.name, "leave")
                         })
+                    titleP.append('span')
+                        .classed('title-code',true)
+                        .attr('id', d => 'title-code-'+d.name)
+                        .style('font-size', '10px')
+                        .style('font-weight',700)
+                        .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
+                        .html(d => d.data.concept.concept_code)
+                        .style('margin-right','5px')
                     titleP.append('span')
                         .classed('title-vocab',true)
                         .attr('id', d => 'title-vocab-'+d.name)
@@ -2061,7 +2078,8 @@
                                 if (!conceptNames.includes(d.name)) {
                                     d3.select('#plus-'+d.name).transition().style('color', 'white')
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`) 
-                                    d3.select('#title-name-'+d.name).transition().style('color','black')   
+                                    d3.select('#title-name-'+d.name).transition().style('color',color.text)   
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.text) 
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
@@ -2072,6 +2090,7 @@
                                     d3.select('#plus-'+d.name).transition().style('color', color.text)
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
                                     d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
@@ -2097,7 +2116,7 @@
                             .classed('map-title-name',true)
                             .attr('id', d => 'title-name-'+d.name)
                             .style("font-weight", d => d.name == sidebarRoot.name ? 700 : 400)
-                            .style('color', d => conceptNames.includes(d.name) ? 'black' : color.textlight)
+                            .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
                             .html(d => d.data.concept.concept_name || d.data.concept.concept_id)
                             .style('padding-right', '4px')
                             .style('cursor','pointer')
@@ -2111,7 +2130,8 @@
                                 if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
                                     d3.select('#plus-'+d.name).transition().style('color', 'white')
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`)  
-                                    d3.select('#title-name-'+d.name).transition().style('color','black') 
+                                    d3.select('#title-name-'+d.name).transition().style('color',color.text) 
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.text) 
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color)     
@@ -2132,6 +2152,7 @@
                                         d3.select('#plus-'+d.name).transition().style('color', color.text)
                                         d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
                                         d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
+                                        d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
                                         d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                         d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                         d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest) 
@@ -2142,6 +2163,14 @@
                                 currentTarget = null
                                 conceptHover(d.name, "leave")
                             })
+                        mapTitleP.append('span')
+                            .classed('map-title-code',true)
+                            .attr('id', d => 'title-code-'+d.name)
+                            .style('font-size', '10px')
+                            .style('font-weight',700)
+                            .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
+                            .html(d => d.data.concept.concept_code)
+                            .style('margin-right', '5px')     
                         mapTitleP.append('span')
                             .classed('map-title-vocab',true)
                             .attr('id', d => 'title-vocab-'+d.name)
@@ -2297,7 +2326,8 @@
                                 if (!conceptNames.includes(d.name)) {
                                     d3.select('#plus-'+d.name).transition().style('color', 'white')
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`) 
-                                    d3.select('#title-name-'+d.name).transition().style('color','black')   
+                                    d3.select('#title-name-'+d.name).transition().style('color',color.text)  
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.text)  
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
@@ -2308,6 +2338,7 @@
                                     d3.select('#plus-'+d.name).transition().style('color', color.text)
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
                                     d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
@@ -2317,7 +2348,7 @@
                             .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 ? 'block' : 'none')
                         update.select('.map-title-name')
                             .style("font-weight", d => d.name == sidebarRoot.name ? 700 : 400)
-                            .style('color', d => conceptNames.includes(d.name) ? 'black' : color.textlight)
+                            .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
                             .html(d => d.data.concept.concept_name)
                             .on('click', (e,d) => {
                                 navigate(`/${d.name}`) 
@@ -2329,7 +2360,8 @@
                                 if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
                                     d3.select('#plus-'+d.name).transition().style('color', 'white')
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`)  
-                                    d3.select('#title-name-'+d.name).transition().style('color','black') 
+                                    d3.select('#title-name-'+d.name).transition().style('color',color.text) 
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.text) 
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color)     
@@ -2350,6 +2382,7 @@
                                         d3.select('#plus-'+d.name).transition().style('color', color.text)
                                         d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
                                         d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
+                                        d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
                                         d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                         d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                         d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest) 
@@ -2360,6 +2393,9 @@
                                 currentTarget = null
                                 conceptHover(d.name, "leave")
                             })
+                        update.select('.map-title-code')
+                            .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
+                            .html(d => d.data.concept.concept_code)
                         update.select('.map-title-vocab')
                             .style('color', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
                             .html(d => d.data.concept.vocabulary_id) 
@@ -2432,7 +2468,8 @@
                             if (!conceptNames.includes(d.name)) {
                                 d3.select('#plus-'+d.name).transition().style('color', 'white')
                                 d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`) 
-                                d3.select('#title-name-'+d.name).transition().style('color','black')   
+                                d3.select('#title-name-'+d.name).transition().style('color',color.text)  
+                                d3.select('#title-code-'+d.name).transition().style('color',color.text)  
                                 d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                 d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                 d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
@@ -2443,6 +2480,7 @@
                                 d3.select('#plus-'+d.name).transition().style('color', color.text)
                                 d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
                                 d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
+                                d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
                                 d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                 d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                 d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
@@ -2452,7 +2490,7 @@
                         .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 ? 'block' : 'none')
                     update.select('.title-name')
                         .style("font-weight", d => d.name == sidebarRoot.name ? 700 : 400)
-                        .style('color', d => conceptNames.includes(d.name) ? 'black' : color.textlight)
+                        .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
                         .html(d => d.data.concept.concept_name || d.data.concept.concept_id)
                         .on('click', (e,d) => {
                             navigate(`/${d.name}`)
@@ -2464,7 +2502,8 @@
                             if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
                                 d3.select('#plus-'+d.name).transition().style('color', 'white')
                                 d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`)  
-                                d3.select('#title-name-'+d.name).transition().style('color','black') 
+                                d3.select('#title-name-'+d.name).transition().style('color',color.text) 
+                                d3.select('#title-code-'+d.name).transition().style('color',color.text) 
                                 d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                 d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                 d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color)     
@@ -2485,6 +2524,7 @@
                                     d3.select('#plus-'+d.name).transition().style('color', color.text)
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
                                     d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest) 
@@ -2495,6 +2535,9 @@
                             currentTarget = null  
                             conceptHover(d.name, "leave")
                         })
+                    update.select('.title-code')
+                        .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
+                        .html(d => d.data.concept.concept_code)
                     update.select('.title-vocab')
                         .style('color', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
                         .html(d => d.data.concept.vocabulary_id)
@@ -2612,7 +2655,8 @@
                                 if (!conceptNames.includes(d.name)) {
                                     d3.select('#plus-'+d.name).transition().style('color', 'white')
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`) 
-                                    d3.select('#title-name-'+d.name).transition().style('color','black')   
+                                    d3.select('#title-name-'+d.name).transition().style('color',color.text)   
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.text) 
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
@@ -2623,6 +2667,7 @@
                                     d3.select('#plus-'+d.name).transition().style('color', color.text)
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
                                     d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
@@ -2648,7 +2693,7 @@
                             .classed('map-title-name',true)
                             .attr('id', d => 'title-name-'+d.name)
                             .style("font-weight", d => d.name == sidebarRoot.name ? 700 : 400)
-                            .style('color', d => conceptNames.includes(d.name) ? 'black' : color.textlight)
+                            .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
                             .html(d => d.data.concept.concept_name || d.data.concept.concept_id)
                             .style('padding-right', '4px')
                             .style('cursor','pointer')
@@ -2662,7 +2707,8 @@
                                 if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
                                     d3.select('#plus-'+d.name).transition().style('color', 'white')
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`)  
-                                    d3.select('#title-name-'+d.name).transition().style('color','black') 
+                                    d3.select('#title-name-'+d.name).transition().style('color',color.text) 
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.text) 
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color)     
@@ -2683,6 +2729,7 @@
                                         d3.select('#plus-'+d.name).transition().style('color', color.text)
                                         d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
                                         d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
+                                        d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
                                         d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                         d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                         d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest) 
@@ -2693,6 +2740,14 @@
                                 currentTarget = null
                                 conceptHover(d.name, "leave")
                             })
+                        mapTitleP.append('span')
+                            .classed('map-title-code',true)
+                            .attr('id', d => 'title-code-'+d.name)
+                            .style('font-size', '10px')
+                            .style('font-weight',700)
+                            .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
+                            .html(d => d.data.concept.concept_code)
+                            .style('margin-right', '5px')     
                         mapTitleP.append('span')
                             .classed('map-title-vocab',true)
                             .attr('id', d => 'title-vocab-'+d.name)
@@ -2848,7 +2903,8 @@
                                 if (!conceptNames.includes(d.name)) {
                                     d3.select('#plus-'+d.name).transition().style('color', 'white')
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`) 
-                                    d3.select('#title-name-'+d.name).transition().style('color','black')   
+                                    d3.select('#title-name-'+d.name).transition().style('color',color.text)  
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.text)  
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
@@ -2859,6 +2915,7 @@
                                     d3.select('#plus-'+d.name).transition().style('color', color.text)
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
                                     d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
@@ -2868,7 +2925,7 @@
                             .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 ? 'block' : 'none')
                         update.select('.map-title-name')
                             .style("font-weight", d => d.name == sidebarRoot.name ? 700 : 400)
-                            .style('color', d => conceptNames.includes(d.name) ? 'black' : color.textlight)
+                            .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
                             .html(d => d.data.concept.concept_name)
                             .on('click', (e,d) => {
                                 navigate(`/${d.name}`) 
@@ -2880,7 +2937,8 @@
                                 if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
                                     d3.select('#plus-'+d.name).transition().style('color', 'white')
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`)  
-                                    d3.select('#title-name-'+d.name).transition().style('color','black') 
+                                    d3.select('#title-name-'+d.name).transition().style('color',color.text) 
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.text) 
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color)     
@@ -2901,6 +2959,7 @@
                                         d3.select('#plus-'+d.name).transition().style('color', color.text)
                                         d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
                                         d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
+                                        d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
                                         d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                         d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                         d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest) 
@@ -2911,6 +2970,9 @@
                                 currentTarget = null
                                 conceptHover(d.name, "leave")
                             })
+                        update.select('.map-title-code')
+                            .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
+                            .html(d => d.data.concept.concept_code)
                         update.select('.map-title-vocab')
                             .style('color', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
                             .html(d => d.data.concept.vocabulary_id) 
@@ -3005,7 +3067,8 @@
                             if (!conceptNames.includes(d.name)) {
                                 d3.select('#plus-'+d.name).transition().style('color', 'white')
                                 d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`) 
-                                d3.select('#title-name-'+d.name).transition().style('color','black')   
+                                d3.select('#title-name-'+d.name).transition().style('color',color.text)   
+                                d3.select('#title-code-'+d.name).transition().style('color',color.text) 
                                 d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                 d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                 d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
@@ -3016,6 +3079,7 @@
                                 d3.select('#plus-'+d.name).transition().style('color', color.text)
                                 d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
                                 d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
+                                d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
                                 d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                 d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                 d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
@@ -3041,7 +3105,7 @@
                         .classed('title-name',true)
                         .attr('id', d => 'title-name-'+d.name)
                         .style("font-weight", d => d.name == sidebarRoot.name ? 700 : 400)
-                        .style('color', d => conceptNames.includes(d.name) ? 'black' : color.textlight)
+                        .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
                         .html(d => d.data.concept.concept_name)
                         .style('padding-right', '4px')
                         .style('cursor','pointer')
@@ -3055,7 +3119,8 @@
                             if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
                                 d3.select('#plus-'+d.name).transition().style('color', 'white')
                                 d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`)  
-                                d3.select('#title-name-'+d.name).transition().style('color','black') 
+                                d3.select('#title-name-'+d.name).transition().style('color',color.text) 
+                                d3.select('#title-code-'+d.name).transition().style('color',color.text) 
                                 d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                 d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                 d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color)     
@@ -3076,6 +3141,7 @@
                                     d3.select('#plus-'+d.name).transition().style('color', color.text)
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
                                     d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest) 
@@ -3086,6 +3152,14 @@
                             currentTarget = null  
                             conceptHover(d.name, "leave")
                         })
+                    titleP.append('span')
+                        .classed('title-code',true)
+                        .attr('id', d => 'title-code-'+d.name)
+                        .style('font-size', '10px')
+                        .style('font-weight',700)
+                        .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
+                        .html(d => d.data.concept.concept_code)
+                        .style('margin-right','5px')
                     titleP.append('span')
                         .classed('title-vocab',true)
                         .attr('id', d => 'title-vocab-'+d.name)
@@ -3313,7 +3387,8 @@
                                 if (!conceptNames.includes(d.name)) {
                                     d3.select('#plus-'+d.name).transition().style('color', 'white')
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`) 
-                                    d3.select('#title-name-'+d.name).transition().style('color','black')   
+                                    d3.select('#title-name-'+d.name).transition().style('color',color.text)   
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.text) 
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
@@ -3324,6 +3399,7 @@
                                     d3.select('#plus-'+d.name).transition().style('color', color.text)
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
                                     d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
@@ -3349,12 +3425,12 @@
                             .classed('map-title-name',true)
                             .attr('id', d => 'title-name-'+d.name)
                             .style("font-weight", d => d.name == sidebarRoot.name ? 700 : 400)
-                            .style('color', d => conceptNames.includes(d.name) ? 'black' : color.textlight)
+                            .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
                             .html(d => d.data.concept.concept_name || d.data.concept.concept_id)
                             .style('padding-right', '4px')
                             .style('cursor','pointer')
                             .on('click', (e,d) => {
-                                navigate(`/${d.name}`)
+                                navigate(`/${d.name}`) 
                                 conceptHover(d.name, "leave") 
                             })
                             .on('mouseover', (e,d) => {
@@ -3363,7 +3439,8 @@
                                 if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
                                     d3.select('#plus-'+d.name).transition().style('color', 'white')
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`)  
-                                    d3.select('#title-name-'+d.name).transition().style('color','black') 
+                                    d3.select('#title-name-'+d.name).transition().style('color',color.text) 
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.text) 
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color)     
@@ -3384,6 +3461,7 @@
                                         d3.select('#plus-'+d.name).transition().style('color', color.text)
                                         d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
                                         d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
+                                        d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
                                         d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                         d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                         d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest) 
@@ -3394,6 +3472,14 @@
                                 currentTarget = null
                                 conceptHover(d.name, "leave")
                             })
+                        mapTitleP.append('span')
+                            .classed('map-title-code',true)
+                            .attr('id', d => 'title-code-'+d.name)
+                            .style('font-size', '10px')
+                            .style('font-weight',700)
+                            .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
+                            .html(d => d.data.concept.concept_code)
+                            .style('margin-right', '5px')     
                         mapTitleP.append('span')
                             .classed('map-title-vocab',true)
                             .attr('id', d => 'title-vocab-'+d.name)
@@ -3549,7 +3635,8 @@
                                 if (!conceptNames.includes(d.name)) {
                                     d3.select('#plus-'+d.name).transition().style('color', 'white')
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`) 
-                                    d3.select('#title-name-'+d.name).transition().style('color','black')   
+                                    d3.select('#title-name-'+d.name).transition().style('color',color.text)  
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.text)  
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
@@ -3560,6 +3647,7 @@
                                     d3.select('#plus-'+d.name).transition().style('color', color.text)
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
                                     d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
@@ -3569,10 +3657,10 @@
                             .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 ? 'block' : 'none')
                         update.select('.map-title-name')
                             .style("font-weight", d => d.name == sidebarRoot.name ? 700 : 400)
-                            .style('color', d => conceptNames.includes(d.name) ? 'black' : color.textlight)
+                            .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
                             .html(d => d.data.concept.concept_name)
                             .on('click', (e,d) => {
-                                navigate(`/${d.name}`)
+                                navigate(`/${d.name}`) 
                                 conceptHover(d.name, "leave") 
                             })
                             .on('mouseover', (e,d) => {
@@ -3581,7 +3669,8 @@
                                 if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
                                     d3.select('#plus-'+d.name).transition().style('color', 'white')
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`)  
-                                    d3.select('#title-name-'+d.name).transition().style('color','black') 
+                                    d3.select('#title-name-'+d.name).transition().style('color',color.text) 
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.text) 
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color)     
@@ -3602,6 +3691,7 @@
                                         d3.select('#plus-'+d.name).transition().style('color', color.text)
                                         d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
                                         d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
+                                        d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
                                         d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                         d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                         d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest) 
@@ -3612,6 +3702,9 @@
                                 currentTarget = null
                                 conceptHover(d.name, "leave")
                             })
+                        update.select('.map-title-code')
+                            .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
+                            .html(d => d.data.concept.concept_code)
                         update.select('.map-title-vocab')
                             .style('color', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
                             .html(d => d.data.concept.vocabulary_id) 
@@ -3684,7 +3777,8 @@
                             if (!conceptNames.includes(d.name)) {
                                 d3.select('#plus-'+d.name).transition().style('color', 'white')
                                 d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`) 
-                                d3.select('#title-name-'+d.name).transition().style('color','black')   
+                                d3.select('#title-name-'+d.name).transition().style('color',color.text)  
+                                d3.select('#title-code-'+d.name).transition().style('color',color.text)  
                                 d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                 d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                 d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
@@ -3695,6 +3789,7 @@
                                 d3.select('#plus-'+d.name).transition().style('color', color.text)
                                 d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
                                 d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
+                                d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
                                 d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                 d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                 d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
@@ -3704,10 +3799,10 @@
                         .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 ? 'block' : 'none')
                     update.select('.title-name')
                         .style("font-weight", d => d.name == sidebarRoot.name ? 700 : 400)
-                        .style('color', d => conceptNames.includes(d.name) ? 'black' : color.textlight)
+                        .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
                         .html(d => d.data.concept.concept_name || d.data.concept.concept_id)
                         .on('click', (e,d) => {
-                            navigate(`/${d.name}`) 
+                            navigate(`/${d.name}`)
                             conceptHover(d.name, "leave") 
                         })
                         .on('mouseover', (e,d) => {
@@ -3716,7 +3811,8 @@
                             if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
                                 d3.select('#plus-'+d.name).transition().style('color', 'white')
                                 d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`)  
-                                d3.select('#title-name-'+d.name).transition().style('color','black') 
+                                d3.select('#title-name-'+d.name).transition().style('color',color.text) 
+                                d3.select('#title-code-'+d.name).transition().style('color',color.text) 
                                 d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                 d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                 d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color)     
@@ -3737,6 +3833,7 @@
                                     d3.select('#plus-'+d.name).transition().style('color', color.text)
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
                                     d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest) 
@@ -3747,6 +3844,9 @@
                             currentTarget = null  
                             conceptHover(d.name, "leave")
                         })
+                    update.select('.title-code')
+                        .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
+                        .html(d => d.data.concept.concept_code)
                     update.select('.title-vocab')
                         .style('color', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
                         .html(d => d.data.concept.vocabulary_id)
@@ -3864,7 +3964,8 @@
                                 if (!conceptNames.includes(d.name)) {
                                     d3.select('#plus-'+d.name).transition().style('color', 'white')
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`) 
-                                    d3.select('#title-name-'+d.name).transition().style('color','black')   
+                                    d3.select('#title-name-'+d.name).transition().style('color',color.text)   
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.text) 
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
@@ -3875,6 +3976,7 @@
                                     d3.select('#plus-'+d.name).transition().style('color', color.text)
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
                                     d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
@@ -3900,7 +4002,7 @@
                             .classed('map-title-name',true)
                             .attr('id', d => 'title-name-'+d.name)
                             .style("font-weight", d => d.name == sidebarRoot.name ? 700 : 400)
-                            .style('color', d => conceptNames.includes(d.name) ? 'black' : color.textlight)
+                            .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
                             .html(d => d.data.concept.concept_name || d.data.concept.concept_id)
                             .style('padding-right', '4px')
                             .style('cursor','pointer')
@@ -3914,7 +4016,8 @@
                                 if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
                                     d3.select('#plus-'+d.name).transition().style('color', 'white')
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`)  
-                                    d3.select('#title-name-'+d.name).transition().style('color','black') 
+                                    d3.select('#title-name-'+d.name).transition().style('color',color.text) 
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.text) 
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color)     
@@ -3935,6 +4038,7 @@
                                         d3.select('#plus-'+d.name).transition().style('color', color.text)
                                         d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
                                         d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
+                                        d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
                                         d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                         d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                         d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest) 
@@ -3945,6 +4049,14 @@
                                 currentTarget = null
                                 conceptHover(d.name, "leave")
                             })
+                        mapTitleP.append('span')
+                            .classed('map-title-code',true)
+                            .attr('id', d => 'title-code-'+d.name)
+                            .style('font-size', '10px')
+                            .style('font-weight',700)
+                            .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
+                            .html(d => d.data.concept.concept_code)
+                            .style('margin-right', '5px')     
                         mapTitleP.append('span')
                             .classed('map-title-vocab',true)
                             .attr('id', d => 'title-vocab-'+d.name)
@@ -4100,7 +4212,8 @@
                                 if (!conceptNames.includes(d.name)) {
                                     d3.select('#plus-'+d.name).transition().style('color', 'white')
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`) 
-                                    d3.select('#title-name-'+d.name).transition().style('color','black')   
+                                    d3.select('#title-name-'+d.name).transition().style('color',color.text)  
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.text)  
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
@@ -4111,6 +4224,7 @@
                                     d3.select('#plus-'+d.name).transition().style('color', color.text)
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
                                     d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
@@ -4120,10 +4234,10 @@
                             .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 ? 'block' : 'none')
                         update.select('.map-title-name')
                             .style("font-weight", d => d.name == sidebarRoot.name ? 700 : 400)
-                            .style('color', d => conceptNames.includes(d.name) ? 'black' : color.textlight)
+                            .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
                             .html(d => d.data.concept.concept_name)
                             .on('click', (e,d) => {
-                                navigate(`/${d.name}`)  
+                                navigate(`/${d.name}`) 
                                 conceptHover(d.name, "leave") 
                             })
                             .on('mouseover', (e,d) => {
@@ -4132,7 +4246,8 @@
                                 if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
                                     d3.select('#plus-'+d.name).transition().style('color', 'white')
                                     d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`)  
-                                    d3.select('#title-name-'+d.name).transition().style('color','black') 
+                                    d3.select('#title-name-'+d.name).transition().style('color',color.text) 
+                                    d3.select('#title-code-'+d.name).transition().style('color',color.text) 
                                     d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
                                     d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
                                     d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color)     
@@ -4153,6 +4268,7 @@
                                         d3.select('#plus-'+d.name).transition().style('color', color.text)
                                         d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
                                         d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
+                                        d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
                                         d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
                                         d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
                                         d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest) 
@@ -4163,6 +4279,9 @@
                                 currentTarget = null
                                 conceptHover(d.name, "leave")
                             })
+                        update.select('.map-title-code')
+                            .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
+                            .html(d => d.data.concept.concept_code)
                         update.select('.map-title-vocab')
                             .style('color', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
                             .html(d => d.data.concept.vocabulary_id) 
@@ -4298,10 +4417,19 @@
                         .on('mouseover', (e,d) => d3.select('#level-'+d).style('color', color.text).style('font-weight',700))
                         .on('mouseout', (e,d) => d3.select('#level-'+d).style('color', d => maxLevel === d - 1 ? color.text : color.textlight).style('font-weight',() => maxLevel === d - 1 ? 700 : 400))
                         .on('click',(e,d) => {
-                            setLevelFilter(d - 1)
-                            d3.select('#open-levels-btn').style('display', 'block')
-                            d3.select('#close-levels-btn').style('display', 'none')  
-                            d3.select('#levels-dropdown').style('visibility','hidden')  
+                            const level = d-1
+                            if (levelFilter !== level) {
+                                if (initialPrune) setInitialPrune(false)
+                                if (level > levelFilter && !classFilter.includes('All')) {
+                                    const newAllClasses = sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").filter(d => d.levels === '-1' || parseInt(d.levels.split('-')[0]) <= level).map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined)
+                                    const notIncluded = newAllClasses.filter(d => !allClasses.includes(d)).filter(d => !classFilter.includes(d))
+                                    setClassFilter(prev => [...prev, ...notIncluded])
+                                }
+                                setLevelFilter(level)
+                                d3.select('#open-levels-btn').style('display', 'block')
+                                d3.select('#close-levels-btn').style('display', 'none')  
+                                d3.select('#levels-dropdown').style('visibility','hidden')     
+                            } 
                         })
                         .html(d => d)
                 },update =>{
@@ -4311,10 +4439,19 @@
                         .on('mouseover', (e,d) => d3.select('#level-'+d).style('color', color.text).style('font-weight',700))
                         .on('mouseout', (e,d) => d3.select('#level-'+d).style('color', d => maxLevel === d - 1 ? color.text : color.textlight).style('font-weight',() => maxLevel === d - 1 ? 700 : 400))
                         .on('click',(e,d) => {
-                            setLevelFilter(d - 1)
-                            d3.select('#open-levels-btn').style('display', 'block')
-                            d3.select('#close-levels-btn').style('display', 'none')  
-                            d3.select('#levels-dropdown').style('visibility','hidden')  
+                            const level = d-1
+                            if (levelFilter !== level) {
+                                if (initialPrune) setInitialPrune(false)
+                                if (level > levelFilter && !classFilter.includes('All')) {
+                                    const newAllClasses = sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").filter(d => d.levels === '-1' || parseInt(d.levels.split('-')[0]) <= level).map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined)
+                                    const notIncluded = newAllClasses.filter(d => !allClasses.includes(d)).filter(d => !classFilter.includes(d))
+                                    setClassFilter(prev => [...prev, ...notIncluded])
+                                }
+                                setLevelFilter(level)
+                                d3.select('#open-levels-btn').style('display', 'block')
+                                d3.select('#close-levels-btn').style('display', 'none')  
+                                d3.select('#levels-dropdown').style('visibility','hidden')     
+                            } 
                         })
                         .html(d => d)
                 })
@@ -4326,10 +4463,17 @@
                         .classed('check-box',true)
                         .style('cursor','pointer')
                         .attr('id', d => 'check-box-'+d.replace(/\s+/g, ""))
-                        .style('background-color', d => classFilter.includes(d) ? color.text : 'transparent')
-                        .style('border', d => classFilter.includes(d) ? '1px solid var(--text)' : '1px solid var(--textlightest)')
+                        .style('background-color', d => classFilter.includes(d) || classFilter.includes('All') ? color.text : 'transparent')
+                        .style('border', d => classFilter.includes(d) || classFilter.includes('All') ? '1px solid var(--text)' : '1px solid var(--textlightest)')
                         .on('click', (e,d) => {
-                            if (!classFilter.includes(d)) setClassFilter(prev => [...prev, d])
+                            if (classFilter.includes('All')) {
+                                if (initialPrune) setInitialPrune(false)
+                                if (allClasses.length > 1) {
+                                    let newFilter = allClasses.filter(c => c !== d)
+                                    setClassFilter(newFilter)
+                                } 
+                            }
+                            else if (!classFilter.includes(d)) setClassFilter(prev => [...prev, d])
                             else {
                                 if (classFilter.length > 1) {
                                     let newFilter = classFilter.filter(c => c !== d)  
@@ -4345,20 +4489,27 @@
                     checkBox.append('i')
                         .classed('check-mark fa-solid fa-check fa-xs',true)
                         .style('color','white')
-                        .style('display', d => classFilter.includes(d) ? 'block' : 'none')
+                        .style('display', d => classFilter.includes(d) || classFilter.includes('All') ? 'block' : 'none')
                     container.append('p')
                         .classed('class-p',true)
                         .attr('id', d => 'class-'+d.replace(/\s+/g, ""))
-                        .style('font-weight', d => classFilter.includes(d) ? 700 : 400)
+                        .style('font-weight', d => classFilter.includes(d) || classFilter.includes('All') ? 700 : 400)
                         .style('width','100%')
-                        .style('color', d => classFilter.includes(d) ? color.text : color.textlight)
+                        .style('color', d => classFilter.includes(d) || classFilter.includes('All') ? color.text : color.textlight)
                         .html(d => d)
                 },update =>{
                     update.select('.check-box')
-                        .style('background-color', d => classFilter.includes(d) ? color.text : 'transparent')
-                        .style('border', d => classFilter.includes(d) ? '1px solid var(--text)' : '1px solid var(--textlightest)')
+                        .style('background-color', d => classFilter.includes(d) || classFilter.includes('All') ? color.text : 'transparent')
+                        .style('border', d => classFilter.includes(d) || classFilter.includes('All') ? '1px solid var(--text)' : '1px solid var(--textlightest)')
                         .on('click', (e,d) => {
-                            if (!classFilter.includes(d)) setClassFilter(prev => [...prev, d])
+                            if (classFilter.includes('All')) {
+                                if (initialPrune) setInitialPrune(false)
+                                if (allClasses.length > 1) {
+                                    let newFilter = allClasses.filter(c => c !== d)
+                                    setClassFilter(newFilter)
+                                } 
+                            }
+                            else if (!classFilter.includes(d)) setClassFilter(prev => [...prev, d])
                             else {
                                 if (classFilter.length > 1) {
                                     let newFilter = classFilter.filter(c => c !== d)  
@@ -4372,14 +4523,14 @@
                             }
                         })
                     update.select('.check-mark')
-                        .style('display', d => classFilter.includes(d) ? 'block' : 'none')
+                        .style('display', d => classFilter.includes(d) || classFilter.includes('All') ? 'block' : 'none')
                     update.select('.class-p')
-                        .style('font-weight', d => classFilter.includes(d) ? 700 : 400)
-                        .style('color', d => classFilter.includes(d) ? color.text : color.textlight)
+                        .style('font-weight', d => classFilter.includes(d) || classFilter.includes('All') ? 700 : 400)
+                        .style('color', d => classFilter.includes(d) || classFilter.includes('All') ? color.text : color.textlight)
                         .html(d => d)
                 })
                 let classSelections = classFilter
-                if (classSelections.length === allClasses.length && classSelections.every(c => allClasses.includes(c))) classSelections = ['All']
+                if (allClasses.every(c => classSelections.includes(c))) classSelections = ['All']
                 d3.select('#class-selections').selectAll('.class-selection').data(classSelections, d => d)
                 .join(enter => {
                     enter.append('p')
@@ -4391,7 +4542,7 @@
 
         // call draw functions
         useEffect(()=>{
-            if (nodes) {
+            if (nodes && nodes.length > 0) {
                 document.getElementById("class-dropdown").style.maxWidth = d3.select("#sidebar").node().getBoundingClientRect().width - 260 - d3.select("#level-dropdown").node().getBoundingClientRect().width - (margin*2) + 'px'
                 if (view === 'Tree') {
                     let width = d3.select("#tree-container").node().getBoundingClientRect().width + margin*2;
@@ -4413,10 +4564,6 @@
                 }    
             }
         },[nodes,conceptNames,mapRoot,graphSectionWidth,view,treeSelections])
-
-        useEffect(() => {
-            if (conceptNames.length === 0 && nodes.length > 0) setTreeSelections([])
-        },[conceptNames])
 
         useEffect(() => {
             if (poset) {
@@ -4477,7 +4624,7 @@
                     <div id = "tree-selections-container">
                         <div id = "concept-selections">
                             {/* <div id = "selection-container"> */}
-                            <div className = "concept-selection-btn" id = "add-descendants" style = {{backgroundColor:treeSelections.includes('descendants') ? color.text : 'transparent',color:treeSelections.includes('descendants') ? 'white' : color.text,fontWeight:treeSelections.includes('descendants') ? 700 : 400}} 
+                            <div className = "concept-selection-btn" id = "add-descendants" style = {{border:treeSelections.includes('descendants') ? '1px solid var(--text)' : '1px solid var(--textlightest)', backgroundColor:treeSelections.includes('descendants') ? color.text : 'transparent',color:treeSelections.includes('descendants') ? 'white' : color.text,fontWeight:treeSelections.includes('descendants') ? 700 : 400}} 
                                 onMouseOver={() => d3.select('#add-descendants').style('font-weight', 700)}
                                 onMouseOut={() => d3.select('#add-descendants').style('font-weight', () => !treeSelections.includes('descendants') ? 400 : 700)}
                                 onClick = {() => {
@@ -4501,7 +4648,7 @@
                                 }}>
                                 Descendants
                             </div>
-                            <div className = "concept-selection-btn" id = "add-mappings" style = {{opacity: nodes.filter(d => d.levels !== '-1').flatMap(d => d.mappings).length === 0 ? 0.3 : 1, pointerEvents: nodes.filter(d => d.levels !== '-1').flatMap(d => d.mappings).length === 0 ? 'none' : 'all', backgroundColor:treeSelections.includes('mappings') ? color.text : 'transparent',color:treeSelections.includes('mappings') ? 'white' : color.text,fontWeight:treeSelections.includes('mappings') ? 700 : 400}}
+                            <div className = "concept-selection-btn" id = "add-mappings" style = {{opacity: nodes.filter(d => d.levels !== '-1').flatMap(d => d.mappings).length === 0 ? 0.3 : 1, pointerEvents: nodes.filter(d => d.levels !== '-1').flatMap(d => d.mappings).length === 0 ? 'none' : 'all',border:treeSelections.includes('mappings') ? '1px solid var(--text)' : '1px solid var(--textlightest)',  backgroundColor:treeSelections.includes('mappings') ? color.text : 'transparent',color:treeSelections.includes('mappings') ? 'white' : color.text,fontWeight:treeSelections.includes('mappings') ? 700 : 400}}
                                 onMouseOver={() => d3.select('#add-mappings').style('font-weight', 700)}
                                 onMouseOut={() => d3.select('#add-mappings').style('font-weight', () => !treeSelections.includes('mappings') ? 400 : 700)}
                                 onClick = {() => {
@@ -4543,8 +4690,8 @@
                             {/* <p style = {{fontSize:10,fontWeight:700,paddingRight:5,paddingTop:3.5,margin:0}}>FILTERS |</p> */}
                             <div className="dropdown-container" id = "level-dropdown">
                                 <div className = "concept-selection-btn" style = {{width:'auto',border:'none',alignItems:'flex-start'}}>
-                                    <p style = {{paddingRight:5}}>Max level</p>
-                                    <div className = "dropdown-header" id = "levels-header" style = {{overflow:'hidden'}}
+                                    <p style = {{fontWeight: levelFilter && levelFilter < fullTreeMax ? 700: 400, paddingRight:5}}>Max level</p>
+                                    <div className = "dropdown-header" id = "levels-header" style = {{border:levelFilter && levelFilter < fullTreeMax ? '0.5px solid var(--text)' : '0.5px solid var(--textlightest)', color: levelFilter && levelFilter < fullTreeMax ? 'white' : 'var(--text)', backgroundColor: levelFilter && levelFilter < fullTreeMax ? 'var(--text)' : 'var(--background)',overflow:'hidden'}}
                                         onMouseOver={() => d3.select('#open-levels-btn').style('opacity', 1)}
                                         onMouseOut={() => d3.select('#open-levels-btn').style('opacity', 0.3)}
                                         onClick = {() => {
@@ -4560,8 +4707,8 @@
                                         }}
                                     >
                                         <p id = "max-level" style = {{marginTop:1,fontWeight:700,padding:'1px 5px 1px 3px'}}>{maxLevel + 1}</p>
-                                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'open-levels-btn' icon={faCaretDown} style = {{display:'block',opacity: 0.3,padding:'1px 3px 1px 5px'}}/>
-                                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'close-levels-btn' icon={faCaretUp} style = {{display:'none',opacity: 1,padding:'2px 3px 1px 5px'}}/>     
+                                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'open-levels-btn' icon={faCaretDown} style = {{display:'block',opacity: 0.3,padding:'1px 3px 1px 5px',color: levelFilter && levelFilter < fullTreeMax ? 'white' : 'var(--text)'}}/>
+                                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'close-levels-btn' icon={faCaretUp} style = {{display:'none',opacity: 1,padding:'2px 3px 1px 5px',color: levelFilter && levelFilter < fullTreeMax ? 'white' : 'var(--text)'}}/>     
                                     </div>
                                 </div>   
                                 <div className = "selections-dropdown-content" id = "levels-dropdown" style = {{right:10}}></div>  
@@ -4576,8 +4723,8 @@
                             </div> 
                             <div className="dropdown-container" id = "class-dropdown">
                                 <div className = "concept-selection-btn" style = {{width:'auto',border:'none',alignItems:'flex-start'}}>
-                                    <p style = {{paddingRight:5,marginLeft:levelFilter ? 10 : 0}}>Classes</p>
-                                    <div className = "dropdown-header" id = "classes-header" style = {{overflow:'hidden'}}
+                                    <p style = {{fontWeight: classFilter && !classFilter.includes('All') && !allClasses.every(c => classFilter.includes(c)) ? 700: 400, paddingRight:5,marginLeft:levelFilter ? 10 : 0}}>Classes</p>
+                                    <div className = "dropdown-header" id = "classes-header" style = {{border:classFilter && !classFilter.includes('All') && !allClasses.every(c => classFilter.includes(c)) ? '0.5px solid var(--text)' : '0.5px solid var(--textlightest)', color: classFilter && !classFilter.includes('All') && !allClasses.every(c => classFilter.includes(c)) ? 'white' : 'var(--text)', backgroundColor: classFilter && !classFilter.includes('All') && !allClasses.every(c => classFilter.includes(c)) ? 'var(--text)' : 'var(--background)',overflow:'hidden'}}
                                         onMouseOver={() => d3.select('#open-classes-btn').style('opacity', 1)}
                                         onMouseOut={() => d3.select('#open-classes-btn').style('opacity', 0.3)}
                                         onClick = {() => {
@@ -4593,12 +4740,12 @@
                                         }}
                                     >
                                         <div id = "class-selections"></div>
-                                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'open-classes-btn' icon={faCaretDown} style = {{display:'block',opacity: 0.3,padding:'1px 3px 1px 5px'}}/>
-                                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'close-classes-btn' icon={faCaretUp} style = {{display:'none',opacity: 1,padding:'2px 3px 1px 5px'}}/>     
+                                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'open-classes-btn' icon={faCaretDown} style = {{color: classFilter && !classFilter.includes('All') && !allClasses.every(c => classFilter.includes(c)) ? 'white' : 'var(--text)', display:'block',opacity: 0.3,padding:'1px 3px 1px 5px'}}/>
+                                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'close-classes-btn' icon={faCaretUp} style = {{color: classFilter && !classFilter.includes('All') && !allClasses.every(c => classFilter.includes(c)) ? 'white' : 'var(--text)', display:'none',opacity: 1,padding:'2px 3px 1px 5px'}}/>     
                                     </div>
                                 </div>   
                                 <div className = "selections-dropdown-content" id = "classes-dropdown" style = {{right:-15,alignItems:'flex-start'}}></div>  
-                                <FontAwesomeIcon style = {{display: (classFilter.length === allClasses.length && classFilter.every(c => allClasses.includes(c))) ? 'none' : 'block'}} className = "reset-filter fa-2xs" id = "reset-class" icon={faX} 
+                                <FontAwesomeIcon style = {{display: classFilter && (classFilter.includes('All') || allClasses.every(c => classFilter.includes(c))) ? 'none' : 'block'}} className = "reset-filter fa-2xs" id = "reset-class" icon={faX} 
                                     onClick = {() => {
                                         setClassFilter(allClasses)
                                         d3.select('#open-classes-btn').style('display', 'block')

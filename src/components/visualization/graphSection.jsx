@@ -765,7 +765,7 @@ function GraphSection (props) {
                     </div>
                     <div id = "graph-filters" style = {{display:'flex',marginBottom:3,alignItems:'flex-end'}}>
                         <div className = "graph-selection" id = "gender-container" style = {{marginRight:15}}>
-                            <p style = {{margin:0,paddingBottom:3,paddingRight:0}}>Sex</p>
+                            <p style = {{fontWeight: graphFilter.gender !== -1 ? 700 : 400,margin:0,paddingBottom:3,paddingRight:0}}>Sex</p>
                             <div className = "filter-container">
                                 <div className = "filter-viz" style = {{marginBottom:5}} id = "gender-viz">
                                     <svg style = {{zIndex:0}} id = "gender-svg"></svg>
@@ -782,7 +782,7 @@ function GraphSection (props) {
                             />
                         </div>
                         <div className = "graph-selection" id = "age-container" style = {{marginRight:10}}>
-                            <p style = {{margin:0,paddingBottom:3,paddingRight:5}}>Age</p>
+                            <p style = {{fontWeight: graphFilter.age.length > 1 ? 700 : 400, margin:0,paddingBottom:3,paddingRight:5}}>Age</p>
                             <div className = "filter-container" id = "age-filter" onMouseDown = {(e) => ageBrush(e,'down')} onMouseUp = {(e) => ageBrush(e,'up')} onMouseMove = {(e) => ageBrush(e,'move')} style = {{cursor:'pointer'}}>
                                 <div className = "filter-viz" style = {{marginBottom:5}} id = "age-viz"></div>
                                 <div className = "toggle-container" style = {{width: 360}}>
