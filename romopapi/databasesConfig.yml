@@ -56,6 +56,32 @@ DF13:
     cdm:
       cdmDatabaseSchema: finngen-production-library.finngen_omop_r13_v3
       vocabularyDatabaseSchema: finngen-production-library.finngen_omop_r13_v3
+      resultsDatabaseSchema: finngen-production-library.finngen_omop_result_r13_v3
+    cohortTable:
+      cohortDatabaseSchema: <sandboxProject>.sandbox
+      cohortTableName: co2_d13_<sessionManager>_<timestamp>
+  atlasConfig:
+    webapiurl: https://ohdsi-webapi.app.finngen.fi/WebAPI
+    sourcekey: FINNGEN_CDM_R13
+    resultsshchema: finngen-production-library.finngen_omop_result_r13_v3
+    regexPersonSourceValue: ^FG[A-Z0-9]{8}$
+DF13test:
+  cohortTableHandler:
+    database:
+      databaseId: DF13test
+      databaseName: FinnGen DF13test
+      databaseDescription: FinnGen database 13
+    connection:
+      connectionDetailsSettings:
+        dbms: bigquery
+        drv: bigrquery::bigquery()
+        project: <sandboxProject>
+        billing: <sandboxProject>
+        bigint: integer64
+      tempEmulationSchema: <sandboxProject>.sandbox #needed for creating tmp table in BigQuery
+    cdm:
+      cdmDatabaseSchema: finngen-production-library.finngen_omop_r13_v3
+      vocabularyDatabaseSchema: finngen-production-library.finngen_omop_r13_v3
       resultsDatabaseSchema: <sandboxProject>.sandbox
     cohortTable:
       cohortDatabaseSchema: <sandboxProject>.sandbox
