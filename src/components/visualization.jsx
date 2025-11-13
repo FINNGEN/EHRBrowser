@@ -69,7 +69,8 @@ function Visualization (props) {
     const sendFeedback = props.sendFeedback
     const initialPrune = props.initialPrune
     const setInitialPrune = props.setInitialPrune
-    const [visible,setVisible] = useState(false)
+    const visible = props.visible
+    const setVisible = props.setVisible
     const [zoomed, setZoomed] = useState(false)
     const [biDirectional, setBiDirectional] = useState()
     const [text,setText] = useState('')
@@ -122,7 +123,7 @@ function Visualization (props) {
                 })
                 .on('click', () => {
                     if (d.total_counts !== 0) {
-                        if (conceptNames.includes(d.name) && selectedConcepts.length > 1) {
+                        if (conceptNames.includes(d.name)) {
                             let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
                             setSelectedConcepts(filteredConcepts)   
                         } else if (!conceptNames.includes(d.name)){
@@ -411,7 +412,7 @@ function Visualization (props) {
                         <div className = "tooltip-btn" id = 'tooltip-root'><img style = {{width:15}} src={rootIcon} alt="root icon"/></div>
                         <div className = "tooltip-btn" id = "counts-btn-circle">
                             <FontAwesomeIcon style = {{opacity:0,display:'none',color:'var(--text)'}} className = 'tooltip-icon fa-solid fa-plus fa-sm' id = "tooltip-plus" icon={faPlus} />
-                            <FontAwesomeIcon style = {{opacity:0,display:'none',color:'white'}} className = 'tooltip-icon fa-solid fa-x fa-sm' id = "tooltip-x" icon={faX} />
+                            <FontAwesomeIcon style = {{opacity:0,display:'none',color:'white'}} className = 'tooltip-icon fa-solid fa-x fa-xs' id = "tooltip-x" icon={faX} />
                             <img style = {{paddingBottom:1,width:10,opacity:1,display:'block'}} className = 'tooltip-icon' id = "graph-icon-white" src={graphIconWhite} alt="graph icon"/>
                         </div>
                     </div>

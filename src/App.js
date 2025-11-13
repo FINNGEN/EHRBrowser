@@ -57,6 +57,7 @@ function App() {
   const [drawingComplete, setDrawingComplete] = useState(true)
   const [initialPrune, setInitialPrune] = useState(true)
   const [apiInfo, setApiInfo] = useState()
+  const [visible,setVisible] = useState(false)
   const conceptNames = useMemo(() => selectedConcepts.map(d => d.name).filter((e,n,l) => l.indexOf(e) === n),[selectedConcepts])
   const allCounts = useMemo(() => selectedConcepts.map(d => d.data.code_counts).flat(),[selectedConcepts])
   const maxLevel = useMemo(() => d3.max(nodes.filter(d => d.levels !== '-1').map(d => parseInt(d.levels.split('-')[0]))),[nodes])
@@ -334,6 +335,7 @@ function App() {
   useEffect(()=>{
     if (root) {
         // setDrawingComplete(true)
+        // d3.select('#overlayBlock').style('pointer-events','all')
         const timer = setTimeout(() => {
             setLoading(true)
         }, 300)
@@ -356,6 +358,7 @@ function App() {
                     setMapRoot([])
                     setNodes([])
                     setLinks([])
+                    setVisible(false)
                     const prune = data.concepts.length > 1000 ? true : false
                     if (prune) setLevelFilter(2)
                     else setLevelFilter()
@@ -363,9 +366,11 @@ function App() {
                     createInitialStates(root,data,prune) 
                     setLoading(false)
                     clearTimeout(timer) 
+
                 } else {
-                    // show some error
                     setLoading(true)
+                    d3.select('#error-message').style('display','block')
+                    d3.select('#loading-animation').style('visibility','hidden')
                     clearTimeout(timer) 
                 }
             })
@@ -374,6 +379,7 @@ function App() {
 
   return ( loaded ?
     <div className = "App">
+      {/* <div id = "overlayBlock"></div> */}
       <Header
         root = {root}
         rootData = {rootData}
@@ -387,7 +393,8 @@ function App() {
         apiInfo = {apiInfo}
       /> 
       {loading && <div id = "loading" style={{ fontSize: '20px' }}>
-        <div class="lds-grid"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+        <div style = {{display: 'none',fontSize:16}} id = "error-message">Concept not found</div>
+        <div id = "loading-animation" class="lds-grid" style = {{visibility: 'visible'}}><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
       </div>}
       <div id = "content" style={{ visibility: loading ? 'hidden' : 'visible',opacity: loading ? 0 : 1 }}>
         <Routes>
@@ -453,6 +460,8 @@ function App() {
               sendFeedback = {sendFeedback}
               initialPrune = {initialPrune}
               setInitialPrune = {setInitialPrune}
+              visible = {visible}
+              setVisible = {setVisible}
             />      
           } />
         </Routes>
