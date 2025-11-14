@@ -53,6 +53,13 @@ h4 {
   max-height: 100vh;
   overflow: hidden;
 }
+#overlayBlock {
+  position: absolute;
+  width: 100vw;
+  height: 100vh;
+  background-color: transparent;
+  z-index: 5000;
+}
 #loading {
   position: fixed;
   top: 0;
@@ -136,6 +143,7 @@ h4 {
   align-items: center;
   padding-left: 14px;
   padding-right: 14px;
+  overflow: scroll;
 }
 #searchBtn {
   position: absolute;
@@ -814,7 +822,7 @@ textarea:focus {
   align-items: center;
 }
 #filter-container {
-  flex-grow: 1;
+  /* flex-grow: 1; */
   /* width: 100%; */
   display: flex;
   align-items: center;

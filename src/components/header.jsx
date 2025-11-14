@@ -173,6 +173,11 @@ function Header (props) {
         return () => {inputRef.current.removeEventListener('keydown', handleKeyDown)}
     }, [handleClick])
 
+    useEffect(() => {
+        inputRef.current.value = ''
+        setRefresh(true)
+    }, [rootData])
+
     return (
         <div id = "header">
             <div id = "header-title"><img src={finngen} alt="Finngen logo"/></div>
@@ -201,7 +206,7 @@ function Header (props) {
                         onKeyDown = {(e) => {if (e.key === 'Enter') e.preventDefault()}}
                     />
                     <div id = "search-root" style = {{pointerEvents: 'none',display: rootData.concepts?.length > 0 && refresh && rootData.concepts.filter(d => d.concept_id === parseInt(root))[0] ? 'flex' : 'none'}}>
-                        <p>{rootData.concepts?.length > 0 ? rootData.concepts.filter(d => d.concept_id === parseInt(root))[0] ? rootData.concepts.filter(d => d.concept_id === parseInt(root))[0].concept_name : null : null}
+                        <p>{rootData.concepts?.length > 0 ? rootData.concepts.filter(d => d.concept_id === parseInt(root))[0] ? rootData.concepts.filter(d => d.concept_id === parseInt(root))[0].concept_name.substring(0, 60) + (rootData.concepts.filter(d => d.concept_id === parseInt(root))[0].concept_name.length > 60 ? '...' : '') : null : null}
                             <span style = {{marginLeft:4,fontSize:'10px',fontWeight:700,color:'#ffffff'}}>{rootData.concepts?.length > 0 ? rootData.concepts.filter(d => d.concept_id === parseInt(root))[0] ? rootData.concepts.filter(d => d.concept_id === parseInt(root))[0].concept_code : null : null}</span>
                             <span style = {{marginLeft:4,fontSize:'10px',fontWeight:400,color:'#ffffff80'}}>{rootData.concepts?.length > 0 ? rootData.concepts.filter(d => d.concept_id === parseInt(root))[0] ? rootData.concepts.filter(d => d.concept_id === parseInt(root))[0].vocabulary_id : null : null}</span></p>
                     </div>
