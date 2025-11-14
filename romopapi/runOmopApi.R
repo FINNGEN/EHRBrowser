@@ -1,7 +1,7 @@
 # get database from environment variable
 database <- Sys.getenv("ROMOPAPI_DATABASE")
 host <- "0.0.0.0"
-port <- 8585
+port <- 8563
 
 # check is one of the following databases
 if (!(database %in% c("OnlyCounts-FinnGen", "AtlasDevelopment-BQ5k", "AtlasDevelopment-BQ500k", "Sandbox-DF13", "Sandbox-DF13test"))) {
