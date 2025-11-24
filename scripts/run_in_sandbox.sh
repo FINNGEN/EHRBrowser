@@ -60,7 +60,7 @@ fi
 #
 docker pull eu.gcr.io/finngen-sandbox-v3-containers/ehr_browser:${TAG}
 
-docker run --rm -d -p 8562:8562 -p 8563:8563 \
+docker run --rm -d -p 8563:8563 -p 8564:8564 \
     --name ehr_browser \
     -e ROMOPAPI_DATABASE="$DATABASE" \
     -e SANDBOX_PROJECT="$SANDBOX_PROJECT" \
@@ -73,7 +73,7 @@ docker run --rm -d -p 8562:8562 -p 8563:8563 \
 #
 echo "Waiting for EHR Browser to be ready, may take few seconds"
 counter=0
-until [ "$(curl -s -o /dev/null -I -w '%{http_code}' "http://localhost:8562")" -eq 200 ]
+until [ "$(curl -s -o /dev/null -I -w '%{http_code}' "http://localhost:8563")" -eq 200 ]
 do
     sleep 1
     ((counter++))
@@ -82,4 +82,4 @@ done
 
 # open the cohort operations in the browser
 echo "Opening EHR Browser in the browser"
-firefox --new-tab 'http://localhost:8562'
+firefox --new-tab 'http://localhost:8563'

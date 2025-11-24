@@ -3,13 +3,13 @@
 # Run build in local host
 
 python 3
-python -m http.server 8562
+python -m http.server 8563
 
 python 2 
-python -m SimpleHTTPServer 8562
+python -m SimpleHTTPServer 8563
 
 follow the address in localhost
-http://localhost:8562
+http://localhost:8563
 
 ––––––––––
 >cd /
@@ -93,16 +93,16 @@ This section has moved here: [https://facebook.github.io/create-react-app/docs/t
 ## FinnGen Eunomia
 
 ```
-docker run --rm -p 8562:8562 -p 8563:8563 -e ROMOPAPI_DATABASE=Eunomia-Finngen ehr_browser 
+docker run --rm -p 8563:8563 -p 8564:8564 -e ROMOPAPI_DATABASE=Eunomia-Finngen ehr_browser 
 ```
 
 ## Atlas Development
 
 ```
-docker run --rm  -p 8563:8563 -p 8562:8562 -e ROMOPAPI_DATABASE=AtlasDevelopment-BQ5k -e GCP_SERVICE_KEY=/keys/atlas-development-270609-410deaacc58b.json -v /Users/javier/keys:/keys ehr_browser
+docker run --rm  -p 8564:8564 -p 8563:8563 -e ROMOPAPI_DATABASE=AtlasDevelopment-BQ5k -e GCP_SERVICE_KEY=/keys/atlas-development-270609-410deaacc58b.json -v /Users/javier/keys:/keys ehr_browser
 ```
 ```
-docker run --rm  -p 8563:8563 -p 8562:8562 -e ROMOPAPI_DATABASE=AtlasDevelopment-BQ500k -e GCP_SERVICE_KEY=/keys/atlas-development-270609-410deaacc58b.json -v /Users/javier/keys:/keys -e REBUILD_COUNTS_TABLE=TRUE ehr_browser
+docker run --rm  -p 8564:8564 -p 8563:8563 -e ROMOPAPI_DATABASE=AtlasDevelopment-BQ500k -e GCP_SERVICE_KEY=/keys/atlas-development-270609-410deaacc58b.json -v /Users/javier/keys:/keys -e REBUILD_COUNTS_TABLE=TRUE ehr_browser
 ```
 
 ## Sandbox DF13
@@ -112,18 +112,18 @@ docker pull eu.gcr.io/finngen-sandbox-v3-containers/ehr_browser
 ```
 
 ```
-docker run --rm -p 8562:8562 -p 8563:8563 -e ROMOPAPI_DATABASE=Sandbox-DF13 -e SANDBOX_PROJECT="$SANDBOX_PROJECT" -e SESSION_MANAGER="$SESSION_MANAGER" ehr_browser 
+docker run --rm -p 8563:8563 -p 8564:8564 -e ROMOPAPI_DATABASE=Sandbox-DF13 -e SANDBOX_PROJECT="$SANDBOX_PROJECT" -e SESSION_MANAGER="$SESSION_MANAGER" ehr_browser 
 ```
 
 Optionally add the flag `-e REBUILD_COUNTS_TABLE=TRUE` to rebuild the counts table
 
 for example:
 ```
-docker run --rm -p 8562:8562 -p 8563:8563 -e ROMOPAPI_DATABASE=Sandbox-DF13 -e SANDBOX_PROJECT="$SANDBOX_PROJECT" -e SESSION_MANAGER="$SESSION_MANAGER" -e REBUILD_COUNTS_TABLE=TRUE  eu.gcr.io/finngen-sandbox-v3-containers/ehr_browser:dev 
+docker run --rm -p 8563:8563 -p 8564:8564 -e ROMOPAPI_DATABASE=Sandbox-DF13 -e SANDBOX_PROJECT="$SANDBOX_PROJECT" -e SESSION_MANAGER="$SESSION_MANAGER" -e REBUILD_COUNTS_TABLE=TRUE  eu.gcr.io/finngen-sandbox-v3-containers/ehr_browser:dev 
 ```
 
 Browser:
-http://localhost:8562/?conceptIds=<conceptId>
+http://localhost:8563/?conceptIds=<conceptId>
 
 
 
@@ -147,7 +147,7 @@ gcloud run deploy ehr-browser-demo \
   --platform managed \
   --region europe-west1 \
   --allow-unauthenticated\
-  --port 8562
+  --port 8563
 
 
 https://ehr-browser-demo-xxxxxx-uc.a.run.app
