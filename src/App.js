@@ -70,7 +70,7 @@ function App() {
   // let timer = null
 
   async function sendFeedback(text) {
-    const response = await fetch('http://127.0.0.1:8585/sendFeedback', {
+    const response = await fetch('http://127.0.0.1:8564/sendFeedback', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -335,12 +335,12 @@ function App() {
     console.log('run app')
     const params = new URLSearchParams(window.location.search)
     setLoaded(true)
-    fetch(`http://127.0.0.1:8585/getAPIInfo`)
+    fetch(`http://127.0.0.1:8564/getAPIInfo`)
       .then(res=> res.json())
       .then(data=>{
         setApiInfo(data)
       })
-    fetch(`http://127.0.0.1:8585/getListOfConcepts`)
+    fetch(`http://127.0.0.1:8564/getListOfConcepts`)
       .then(res=> res.json())
       .then(data=>{
         setConceptList(data)
@@ -356,7 +356,7 @@ function App() {
         const timer = setTimeout(() => {
             setLoading(true)
         }, 300)
-        fetch(`http://127.0.0.1:8585/getCodeCounts?conceptId=${root}`)
+        fetch(`http://127.0.0.1:8564/getCodeCounts?conceptId=${root}`)
             .then(res=> res.json())
             .then(data=>{
                 console.log('root', root)

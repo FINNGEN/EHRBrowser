@@ -63,7 +63,7 @@ RUN --mount=type=secret,id=build_github_pat \
     && cp /tmp/Renviron /usr/local/lib/R/etc/Renviron;
 
 # Expose only the main port (nginx will handle internal routing)
-EXPOSE 8080
+EXPOSE 8563
 
 # Install npm dependencies and build the React app
 ENV REACT_APP_API_BASE_URL=/api/
@@ -72,6 +72,6 @@ RUN npm run build
 
 
 # Run both the APIb & Rscript -e \"source('/romopapi/runOmopApi.R')\""] 
-# CMD ["sh", "-c", "Rscript -e \"source('/romopapi/runOmopApi.R')\" & python3 -m http.server 8080 --directory build"]
+# CMD ["sh", "-c", "Rscript -e \"source('/romopapi/runOmopApi.R')\" & python3 -m http.server 8563 --directory build"]
 # Run both the R API service and nginx reverse proxy
 CMD ["sh", "-c", "Rscript -e \"source('/romopapi/runOmopApi.R')\" & nginx -g 'daemon off;'"]
