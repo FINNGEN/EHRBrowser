@@ -18,7 +18,7 @@ function GraphSection (props) {
     const tooltipHover = props.tooltipHover
     const graphFilter = props.graphFilter
     const setGraphFilter = props.setGraphFilter
-    const conceptHover = props.conceptHover
+    // const conceptHover = props.conceptHover
     const extent = props.extent
     const setExtent = props.setExtent
     const openFilters = props.openFilters
@@ -34,6 +34,9 @@ function GraphSection (props) {
     const getConceptInfo = props.getConceptInfo
     const zoomed = props.zoomed
     const setZoomed = props.setZoomed
+    const hovered = props.hovered
+    const setHovered = props.setHovered
+    const graphSectionWidth = props.graphSectionWidth
     const graphContainerRef = useRef()
     const margin = 20
     let hoverLabelCircle = false
@@ -44,8 +47,36 @@ function GraphSection (props) {
     let currentTarget = null
 
     // DRAWING
+    function createLinePattern(key, color) {
+        const patternId = `pattern-${key}`
+        const defs = d3.select('#graph').select("defs")
+        const size = 4
+        const patt = defs.append("pattern")
+            .attr("id", patternId)
+            .attr("patternUnits", "userSpaceOnUse")
+            .attr("width", size)
+            .attr("height", size)
+        patt.append("path")
+            .attr("d", `
+                M0,${size} L${size},0
+                M-${size/2},${size/2} L${size/2},-${size/2}
+            `)
+            .attr("stroke", color)
+            .attr("stroke-width", 1.5)
+            .attr("fill", "none")
+        patt.append("path")
+            .attr("d", `
+                M0,${size*2} L${size*2},-0
+                M-${size},${size} L${size},-${size}
+            `)
+            .attr("stroke", color)
+            .attr("stroke-width", 1.5)
+            .attr("fill", "none")
+        return `url(#${patternId})`
+    }
     // draw line chart
-    function drawGraph(groups, rollup, scaleX, scaleY) {
+    function drawGraph(rollup, scaleX, scaleY) {
+        // console.log('draw graph')
         // draw stacked area
         function updateStack(stackedData) {
             d3.select("#graph-stack").selectAll('.areas').data(stackedData, d => d.key)
@@ -60,18 +91,29 @@ function GraphSection (props) {
                     .attr("id", d => "area-" + d.key)
                     .attr("stroke-width", 1)
                     .attr('stroke','white')
+                    .attr('fill', d => {
+                        if (!getConceptInfo(d.key).standard_concept) {
+                            const url = createLinePattern(d.key, generateColor(d.key))
+                            return url 
+                        } else return generateColor(d.key)
+                    })
                     // .style('fill', d => {
+                    //     // console.log('set fill')
                     //     if (!getConceptInfo(d.key).standard_concept) {
                     //         let t = textures.lines()
                     //             .size(3)
                     //             .strokeWidth(1.5)
                     //             .stroke(generateColor(d.key))  
                     //         d3.select('#tree').call(t)
+                    //         console.log('not standard', t.url(), generateColor(d.key), d)
                     //         return t.url()  
                     //     } 
-                    //     else return generateColor(d.key)
+                    //     else {
+                    //         console.log('standard', generateColor(d.key))
+                    //         return generateColor(d.key)
+                    //     }
                     // })
-                    .style("fill", d => generateColor(d.key))
+                    // .style("fill", d => generateColor(d.key))
                     .style("transition", "0.5s all")
                     .transition()
                     .attr("d", d3.area()
@@ -79,6 +121,7 @@ function GraphSection (props) {
                         .y0(d => scaleY(d[0]))
                         .y1(d => scaleY(d[1]))
                     )
+                    .attr('opacity', d => hovered && hovered !== d.key ? 0.2 : 1)
                 geometry.append("path")
                     .classed("area-path-background", true)
                     .attr("cursor", "pointer")
@@ -86,21 +129,23 @@ function GraphSection (props) {
                     .on('click', (e,d) => navigate(`/${d.key}`))
                     .on("mouseover", (e,d) => {
                         let element = selectedConcepts.filter(c => c.name === d.key)[0]
-                        clearTimeout(hoverTimeout)
-                        currentTarget = d.key
-                        hoverTimeout = setTimeout(() => {
-                            if (currentTarget === d.key) {
-                                conceptHover(d.key, "enter")  
+                        // clearTimeout(hoverTimeout)
+                        // currentTarget = d.key
+                        // hoverTimeout = setTimeout(() => {
+                        //     if (currentTarget === d.key) {
+                                //conceptHover(d.key, "enter")  
+                                setHovered(d.key)
                                 tooltipHover(element, "enter", e, 'graph')  
-                            }
-                        }, 400) 
+                        //     }
+                        // }, 400) 
                     })
                     .on("mouseout", (e,d) => {
                         let element = selectedConcepts.filter(c => c.name === d.key)[0]
-                        clearTimeout(hoverTimeout)
-                        hoverTimeout = null
-                        currentTarget = null
-                        conceptHover(d.key, "leave") 
+                        // clearTimeout(hoverTimeout)
+                        // hoverTimeout = null
+                        // currentTarget = null
+                        //conceptHover(d.key, "leave") 
+                        setHovered()
                         tooltipHover(element, "leave", e, 'graph')    
                     })
                     .style("fill", "transparent")
@@ -114,30 +159,45 @@ function GraphSection (props) {
             },update => {
                 update.select('.area-path')
                     .transition()
+                    .attr('opacity', d => hovered && hovered !== d.key ? 0.2 : 1)
                     .attr("d", d3.area()
                         .x((d,i) => scaleX(d.data.year))
                         .y0(d => scaleY(d[0]))
                         .y1(d => scaleY(d[1]))
                     )
+                    // .style('fill', d => {
+                    //     if (!getConceptInfo(d.key).standard_concept) {
+                    //         let t = textures.lines()
+                    //             .size(3)
+                    //             .strokeWidth(1.5)
+                    //             .stroke(generateColor(d.key))  
+                    //         d3.select('#tree').call(t)
+                    //         console.log('not standard', t.url(), generateColor(d.key), d)
+                    //         return t.url()  
+                    //     } 
+                    //     else return generateColor(d.key)
+                    // })
                 update.select('.area-path-background')
                     .on('click', (e,d) => navigate(`/${d.key}`))
                     .on("mouseover", (e,d) => {
                         let element = selectedConcepts.filter(c => c.name === d.key)[0]
-                        clearTimeout(hoverTimeout)
-                        currentTarget = d.key
-                        hoverTimeout = setTimeout(() => {
-                            if (currentTarget === d.key) {
-                                conceptHover(d.key, "enter")  
+                        // clearTimeout(hoverTimeout)
+                        // currentTarget = d.key
+                        // hoverTimeout = setTimeout(() => {
+                        //     if (currentTarget === d.key) {
+                                //conceptHover(d.key, "enter") 
+                                setHovered(d.key) 
                                 tooltipHover(element, "enter", e, 'graph')  
-                            }
-                        }, 400) 
+                        //     }
+                        // }, 400) 
                     })
                     .on("mouseout", (e,d) => {
                         let element = selectedConcepts.filter(c => c.name === d.key)[0]
-                        clearTimeout(hoverTimeout)
-                        hoverTimeout = null
-                        currentTarget = null
-                        conceptHover(d.key, "leave") 
+                        // clearTimeout(hoverTimeout)
+                        // hoverTimeout = null
+                        // currentTarget = null
+                        //conceptHover(d.key, "leave") 
+                        setHovered()
                         tooltipHover(element, "leave", e, 'graph')    
                     })
                     .transition()
@@ -148,183 +208,203 @@ function GraphSection (props) {
                     )
             },exit => exit.remove())
         }
-        // draw labels
-        function updateLabels(groups) {
-            d3.select('#graph-labels').selectAll('.labels').data(groups, d => d[0])
-                .join(enter => {
-                    const labels = enter.append('div')  
-                        .classed('labels', true) 
-                        .attr('id', d => 'label-' + d[0])
-                        .style("cursor", "pointer")
-                        .style('background-color', d => d[0] === sidebarRoot.name ? color.lightpurple : 'none')
-                        .style('border-radius', '20px')
-                        .style('margin-right', '2px')
-                        .on('click', (e,d) => {
-                            if (!hoverLabelCircle) navigate(`/${d[0]}`)
-                        })
-                        .on("mouseover", (e,d) => {
-                            clearTimeout(hoverTimeout)
-                            currentTarget = d[0]
-                            hoverTimeout = setTimeout(() => {
-                                if (currentTarget === d[0]) {
-                                    conceptHover(d[0], "enter")  
-                                }
-                            }, 400) 
-                        })
-                        .on("mouseout", (e,d) => {
-                            clearTimeout(hoverTimeout)
-                            hoverTimeout = null
-                            currentTarget = null
-                            conceptHover(d[0], "leave")  
-                        })
-                    labels.append("div")
-                        .classed('label-circle', true)
-                        .attr("id", d => "label-circle-" + d[0])
-                        .style('background', d => {
-                            if (!d[1][0].data.concept.standard_concept) {
-                                let colorVar = generateColor(d[0])
-                                return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ colorVar + " 0.5px," + colorVar + " 2px)"
-                            } else {return "none"}    
-                        })
-                        .style("background-color", d => {
-                            if (d[1][0].data.concept.standard_concept) {
-                                return generateColor(d[0])
-                            } else {return "none"}
-                        }) 
-                        .on('mouseover', function(e,d) {
-                            if (selectedConcepts.length > 1) {
-                                tooltipHover(d[1][0], "leave", e, 'graph') 
-                                hoverLabelCircle = true
-                                d3.select('#label-circle-' + d[0]).transition().style('background-color', 'none').style('background','none') 
-                                d3.select('#x-'+d[0]).transition().style('opacity',1)
-                            }
-                        })
-                        .on('mouseout', function(e,d) {
-                            hoverLabelCircle = false
-                            if (selectedConcepts.length > 1) {
-                                d3.select('#x-'+d[0]).transition().style('opacity',0)
-                                d3.select('#label-circle-' + d[0]).transition()
-                                .style('background', d => {
-                                    if (!d[1][0].data.concept.standard_concept) {
-                                        let colorVar = generateColor(d[0])
-                                        return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ colorVar + " 0.5px," + colorVar + " 2px)"
-                                    } else {return "none"}    
-                                })
-                                .style("background-color", d => {
-                                    if (d[1][0].data.concept.standard_concept) {
-                                        return generateColor(d[0])
-                                    } else {return "none"}
-                                }) 
-                            }
-                        })
-                        .on('click', function(e,d) {
-                            if (selectedConcepts.length > 1) {
-                                let filteredConcepts = selectedConcepts.filter(e => e.name !== d.key)
-                                setSelectedConcepts(filteredConcepts)   
-                                conceptHover(d[0], "leave") 
-                                tooltipHover(d[1][0], "leave", e, 'graph') 
-                            }   
-                        })
-                        .append('i')
-                            .classed('fa-solid fa-x fa-xs',true)
-                            .attr('id',d => 'x-'+d[0])
-                            .style('color',color.text)
-                            .style('opacity', 0)
-                            .style('pointer-events','none')
-                    const text = labels.append("div")
-                        .style("cursor", "pointer")
-                    text.append('tspan')
-                        .classed('label-text', true)
-                        .attr("id", d => "label-text-" + d[0])
-                        .style("font-weight", d => d[0] === sidebarRoot.name ? 700 : 400)
-                        .html(d => d[1][0].data.concept.concept_name)
-                    text.append('tspan')
-                        .classed('label-code',true)
-                        .attr("id", d => "label-vocab-" + d[0])
-                        .style('color', color.text)
-                        .style('font-weight',700)
-                        .style('font-size', '10px')
-                        .html(d => d[1][0].data.concept.concept_code)    
-                    text.append('tspan')
-                        .classed('label-vocab', true)
-                        .attr("id", d => "label-vocab-" + d[0])
-                        .style('color', color.textlight)
-                        .style('font-size', '10px')
-                        .html(d => d[1][0].data.concept.vocabulary_id)
-                }, update => {
-                    const labels = update
-                        .style('background-color', d => d[0] === sidebarRoot.name ? color.lightpurple : 'white')
-                        .on('click', (e,d) => {
-                            if (!hoverLabelCircle) navigate(`/${d[0]}`)
-                        })
-                        .on("mouseover", (e,d) => {
-                            clearTimeout(hoverTimeout)
-                            currentTarget = d[0]
-                            hoverTimeout = setTimeout(() => {
-                                if (currentTarget === d[0]) {
-                                    conceptHover(d[0], "enter")  
-                                }
-                            }, 400) 
-                        })
-                        .on("mouseout", (e,d) => {
-                            clearTimeout(hoverTimeout)
-                            hoverTimeout = null
-                            currentTarget = null
-                            conceptHover(d[0], "leave")  
-                        })
-                    labels.select('.label-circle')
-                        .style('background', d => {
-                            if (!d[1][0].data.concept.standard_concept) {
-                                let colorVar = generateColor(d[0])
-                                return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ colorVar + " 0.5px," + colorVar + " 2px)"
-                            } else {return "none"}    
-                        })
-                        .style("background-color", d => {
-                            if (d[1][0].data.concept.standard_concept) {
-                                return generateColor(d[0])
-                            } else {return "none"}
-                        }) 
-                        .on('mouseover', function(e,d) {
-                            if (selectedConcepts.length > 1) {
-                                tooltipHover(d[1][0], "leave", e, 'graph') 
-                                hoverLabelCircle = true
-                                d3.select('#label-circle-' + d[0]).transition().style('background-color', 'none').style('background','none')
-                                d3.select('#x-'+d[0]).transition().style('opacity',1)
-                            }
-                        })
-                        .on('mouseout', function(e,d) {
-                            hoverLabelCircle = false
-                            if (selectedConcepts.length > 1) {
-                                d3.select('#x-'+d[0]).transition().style('opacity',0)
-                                d3.select('#label-circle-' + d[0]).transition()
-                                .style('background', d => {
-                                    if (!d[1][0].data.concept.standard_concept) {
-                                        let colorVar = generateColor(d[0])
-                                        return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ colorVar + " 0.5px," + colorVar + " 2px)"
-                                    } else {return "none"}    
-                                })
-                                .style("background-color", d => {
-                                    if (d[1][0].data.concept.standard_concept) {
-                                        return generateColor(d[0])
-                                    } else {return "none"}
-                                }) 
-                            }
-                        })
-                        .on('click', function(e,d) {
-                            if (selectedConcepts.length > 1) {
-                                let filteredConcepts = selectedConcepts.filter(e => e.name !== d.key)
-                                setSelectedConcepts(filteredConcepts)   
-                                conceptHover(d[0], "leave") 
-                                tooltipHover(d[1][0], "leave", e, 'graph') 
-                            }   
-                        })
-                    labels.select('.label-text')
-                        .html(d => d[1][0].data.concept.concept_name)
-                        .style("font-weight", d => d[0] === sidebarRoot.name ? 700 : 400)
-                    labels.select('.label-vocab')
-                        .html(d => d[1][0].data.concept.vocabulary_id)
-                },exit => exit.remove())    
-        }
+        // // draw labels
+        // function updateLabels(groups) {
+        //     d3.select('#graph-labels').selectAll('.labels').data(groups, d => d[0])
+        //         .join(enter => {
+        //             const labels = enter.append('div')  
+        //                 .classed('labels', true) 
+        //                 .attr('id', d => 'label-' + d[0])
+        //                 .style("cursor", "pointer")
+        //                 .style('background-color', d => d[0] === sidebarRoot.name || hovered === d[0] ? color.lightpurple : 'none')
+        //                 .style('border-radius', '20px')
+        //                 .style('margin-right', '2px')
+        //                 .on('click', (e,d) => {
+        //                     if (!hoverLabelCircle) navigate(`/${d[0]}`)
+        //                 })
+        //                 .on("mouseover", (e,d) => {
+        //                     d3.select("#label-text-" + d[0]).style('font-weight',700)
+        //                     d3.select('#label-' + d[0]).style('background-color', color.lightpurple)
+        //                     setHovered(d[0])
+        //                     // clearTimeout(hoverTimeout)
+        //                     // currentTarget = d[0]
+        //                     // hoverTimeout = setTimeout(() => {
+        //                     //     if (currentTarget === d[0]) {
+        //                     //         // conceptHover(d[0], "enter")  
+        //                     //     }
+        //                     // }, 400) 
+        //                 })
+        //                 .on("mouseout", (e,d) => {
+        //                     d3.select("#label-text-" + d[0]).style("font-weight", d => d[0] === sidebarRoot.name ? 700 : 400)
+        //                     d3.select('#label-' + d[0]).style('background-color', d => d[0] === sidebarRoot.name ? color.lightpurple : 'none')
+        //                     setHovered()
+        //                     // clearTimeout(hoverTimeout)
+        //                     // hoverTimeout = null
+        //                     // currentTarget = null
+        //                     // conceptHover(d[0], "leave")  
+        //                 })
+        //                 // .transition()
+        //                 .style('opacity', d => hovered && hovered !== d[0] ? 0.2 : 1)
+        //             labels.append("div")
+        //                 .classed('label-circle', true)
+        //                 .attr("id", d => "label-circle-" + d[0])
+        //                 .style('background', d => {
+        //                     if (!d[1][0].data.concept.standard_concept) {
+        //                         let colorVar = generateColor(d[0])
+        //                         return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ colorVar + " 0.5px," + colorVar + " 2px)"
+        //                     } else {return "none"}    
+        //                 })
+        //                 .style("background-color", d => {
+        //                     if (d[1][0].data.concept.standard_concept) {
+        //                         return generateColor(d[0])
+        //                     } else {return "none"}
+        //                 }) 
+        //                 .on('mouseover', function(e,d) {
+        //                     if (selectedConcepts.length > 1) {
+        //                         tooltipHover(d[1][0], "leave", e, 'graph') 
+        //                         hoverLabelCircle = true
+        //                         d3.select('#label-circle-' + d[0]).transition().style('background-color', 'none').style('background','none') 
+        //                         d3.select('#x-'+d[0]).transition().style('opacity',1)
+        //                     }
+        //                 })
+        //                 .on('mouseout', function(e,d) {
+        //                     hoverLabelCircle = false
+        //                     if (selectedConcepts.length > 1) {
+        //                         d3.select('#x-'+d[0]).transition().style('opacity',0)
+        //                         d3.select('#label-circle-' + d[0]).transition()
+        //                         .style('background', d => {
+        //                             if (!d[1][0].data.concept.standard_concept) {
+        //                                 let colorVar = generateColor(d[0])
+        //                                 return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ colorVar + " 0.5px," + colorVar + " 2px)"
+        //                             } else {return "none"}    
+        //                         })
+        //                         .style("background-color", d => {
+        //                             if (d[1][0].data.concept.standard_concept) {
+        //                                 return generateColor(d[0])
+        //                             } else {return "none"}
+        //                         }) 
+        //                     }
+        //                 })
+        //                 .on('click', function(e,d) {
+        //                     if (selectedConcepts.length > 1) {
+        //                         let filteredConcepts = selectedConcepts.filter(e => e.name !== d.key)
+        //                         setSelectedConcepts(filteredConcepts) 
+        //                         setHovered()  
+        //                         // conceptHover(d[0], "leave") 
+        //                         tooltipHover(d[1][0], "leave", e, 'graph') 
+        //                     }   
+        //                 })
+        //                 .append('i')
+        //                     .classed('fa-solid fa-x fa-xs',true)
+        //                     .attr('id',d => 'x-'+d[0])
+        //                     .style('color',color.text)
+        //                     .style('opacity', 0)
+        //                     .style('pointer-events','none')
+        //             const text = labels.append("div")
+        //                 .style("cursor", "pointer")
+        //             text.append('tspan')
+        //                 .classed('label-text', true)
+        //                 .attr("id", d => "label-text-" + d[0])
+        //                 .style("font-weight", d => d[0] === sidebarRoot.name || hovered === d[0] ? 700 : 400)
+        //                 .html(d => d[1][0].data.concept.concept_name)
+        //                 .style('pointer-events','none')
+        //             text.append('tspan')
+        //                 .classed('label-code',true)
+        //                 .attr("id", d => "label-vocab-" + d[0])
+        //                 .style('color', color.text)
+        //                 .style('font-weight',700)
+        //                 .style('font-size', '10px')
+        //                 .html(d => d[1][0].data.concept.concept_code)   
+        //                 .style('pointer-events','none') 
+        //             text.append('tspan')
+        //                 .classed('label-vocab', true)
+        //                 .attr("id", d => "label-vocab-" + d[0])
+        //                 .style('color', color.textlight)
+        //                 .style('font-size', '10px')
+        //                 .html(d => d[1][0].data.concept.vocabulary_id)
+        //                 .style('pointer-events','none')
+        //         }, update => {
+        //             const labels = update
+        //                 .style('background-color', d => d[0] === sidebarRoot.name || hovered === d[0] ? color.lightpurple : 'white')
+        //                 .on('click', (e,d) => {
+        //                     if (!hoverLabelCircle) navigate(`/${d[0]}`)
+        //                 })
+        //                 .on("mouseover", (e,d) => {
+        //                     d3.select("#label-text-" + d[0]).style('font-weight',700)
+        //                     d3.select('#label-' + d[0]).style('background-color', color.lightpurple)
+        //                     setHovered(d[0])
+        //                     // clearTimeout(hoverTimeout)
+        //                     // currentTarget = d[0]
+        //                     // hoverTimeout = setTimeout(() => {
+        //                     //     if (currentTarget === d[0]) {
+        //                     //         // conceptHover(d[0], "enter")  
+        //                     //     }
+        //                     // }, 400) 
+        //                 })
+        //                 .on("mouseout", (e,d) => {
+        //                     d3.select("#label-text-" + d[0]).style("font-weight", d => d[0] === sidebarRoot.name ? 700 : 400)
+        //                     d3.select('#label-' + d[0]).style('background-color', d => d[0] === sidebarRoot.name ? color.lightpurple : 'none')
+        //                     setHovered()
+        //                     // clearTimeout(hoverTimeout)
+        //                     // hoverTimeout = null
+        //                     // currentTarget = null
+        //                     // conceptHover(d[0], "leave")  
+        //                 })
+        //                 // .transition()
+        //                 .style('opacity', d => hovered && hovered !== d[0] ? 0.2 : 1)
+        //             labels.select('.label-circle')
+        //                 .style('background', d => {
+        //                     if (!d[1][0].data.concept.standard_concept) {
+        //                         let colorVar = generateColor(d[0])
+        //                         return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ colorVar + " 0.5px," + colorVar + " 2px)"
+        //                     } else {return "none"}    
+        //                 })
+        //                 .style("background-color", d => {
+        //                     if (d[1][0].data.concept.standard_concept) {
+        //                         return generateColor(d[0])
+        //                     } else {return "none"}
+        //                 }) 
+        //                 .on('mouseover', function(e,d) {
+        //                     if (selectedConcepts.length > 1) {
+        //                         tooltipHover(d[1][0], "leave", e, 'graph') 
+        //                         hoverLabelCircle = true
+        //                         d3.select('#label-circle-' + d[0]).transition().style('background-color', 'none').style('background','none')
+        //                         d3.select('#x-'+d[0]).transition().style('opacity',1)
+        //                     }
+        //                 })
+        //                 .on('mouseout', function(e,d) {
+        //                     hoverLabelCircle = false
+        //                     if (selectedConcepts.length > 1) {
+        //                         d3.select('#x-'+d[0]).transition().style('opacity',0)
+        //                         d3.select('#label-circle-' + d[0]).transition()
+        //                         .style('background', d => {
+        //                             if (!d[1][0].data.concept.standard_concept) {
+        //                                 let colorVar = generateColor(d[0])
+        //                                 return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ colorVar + " 0.5px," + colorVar + " 2px)"
+        //                             } else {return "none"}    
+        //                         })
+        //                         .style("background-color", d => {
+        //                             if (d[1][0].data.concept.standard_concept) {
+        //                                 return generateColor(d[0])
+        //                             } else {return "none"}
+        //                         }) 
+        //                     }
+        //                 })
+        //                 .on('click', function(e,d) {
+        //                     if (selectedConcepts.length > 1) {
+        //                         let filteredConcepts = selectedConcepts.filter(e => e.name !== d.key)
+        //                         setSelectedConcepts(filteredConcepts)   
+        //                         setHovered()
+        //                         tooltipHover(d[1][0], "leave", e, 'graph') 
+        //                     }   
+        //                 })
+        //             labels.select('.label-text')
+        //                 .html(d => d[1][0].data.concept.concept_name)
+        //                 .style("font-weight", d => d[0] === sidebarRoot.name || hovered === d[0] ? 700 : 400)
+        //             labels.select('.label-vocab')
+        //                 .html(d => d[1][0].data.concept.vocabulary_id)
+        //         },exit => exit.remove())    
+        // }
         // draw root descendant count line
         function updateRootLine() {
             d3.select("#graph-line").selectAll('.lines').data(rootLine, d => d[0])
@@ -390,7 +470,7 @@ function GraphSection (props) {
             .keys(conceptNames)
             (rollup)  
         updateStack(stackedData) 
-        updateLabels(groups)    
+        // updateLabels(groups)    
         updateRootLine()
         d3.select("#graph-viz").raise()
     }
@@ -410,7 +490,7 @@ function GraphSection (props) {
         }
     }
     // get graph
-    function getGraph(groups, rollup, width, height, ticks) {
+    function getGraph(rollup, width, height, ticks) {
         // x and y scales
         let maxRollup = d3.max(rollup, obj => Object.entries(obj).reduce((sum, [key, val]) => key !== 'year' ? sum + val : sum, 0))
         let maxRootLine = rootLine.get(sidebarRoot.name) ? Math.max(...rootLine.get(sidebarRoot.name).map(arr => arr[2])) : 0
@@ -491,29 +571,25 @@ function GraphSection (props) {
             })
             .on("mousemove", handleMouseMove)
             .on("dblclick", resetZoom)
-        drawGraph(groups, rollup, scaleX, scaleY)
+        drawGraph(rollup, scaleX, scaleY)
     }
     // hover filter
     function filterHover(id,mode) {
         if (mode === 'enter') {
             if (id === 8507 || id === 8532) {
-                if (graphFilter.gender !== id) {
-                    d3.select('#btn-'+id).style('color', color.text).style('font-weight', 700)
-                }
-                    d3.select('#arc-'+id).attr('fill', color.text)
-                    d3.select('#gender-text-'+id).style('fill',color.text)
+                if (graphFilter.gender !== id) d3.select('#btn-'+id).style('font-weight', 700)
+                d3.select('#arc-'+id).attr('fill', color.text)
+                d3.select('#gender-text-'+id).style('fill',color.text)
             }
             else {
-                if (!graphFilter.age.includes(id)) {
-                    d3.select('#btn-'+id).style('color', color.text).style('font-weight', 700)
-                }
-                    d3.select('#bar-'+id).style('background-color', color.text)
-                    d3.select('#age-p-'+id).style('color',color.text)   
+                if (!graphFilter.age.includes(id)) d3.select('#btn-'+id).style('font-weight', 700)
+                d3.select('#bar-'+id).style('background-color', color.text)
+                d3.select('#age-p-'+id).style('color',color.text)   
             }
         } else {
-            d3.select('#btn-'+id).style('font-weight', graphFilter.age.includes(id) || graphFilter.gender === id ? 700 : 400).style('color', graphFilter.age.includes(id) || graphFilter.gender === id ? 'white' : color.textlight)
+            d3.select('#btn-'+id).style('font-weight', graphFilter.age.includes(id) || graphFilter.gender === id ? 700 : 400)
             d3.select('#bar-'+id).style('background-color', graphFilter.age.includes(id) || graphFilter.gender === id ? color.text : color.grey)  
-            d3.select('#arc-'+id).attr("fill", d => graphFilter.gender === id ? color.text : id === maxGender ? '#bac2ca' : color.grey)
+            d3.select('#arc-'+id).attr("fill", d => graphFilter.gender === id ? color.text : id === maxGender ? '#b1bbc4' : color.grey)
             d3.select('#age-p-'+id).style('color', d => graphFilter.age.includes(id) ? color.text : color.textlight)
             d3.select('#gender-text-'+id).style('fill', d => graphFilter.gender === id ? color.text : color.textlight)
         }
@@ -617,7 +693,7 @@ function GraphSection (props) {
                     .classed('arc-path',true)
                     .attr('id', d => 'arc-'+d.data.id)
                     .attr("d", d => d.endAngle === d.startAngle ? null : arcGenerator(d))
-                    .attr("fill", d => graphFilter.gender === d.data.id ? color.text : d.data.id === maxGender ? '#bac2ca' : color.grey)
+                    .attr("fill", d => graphFilter.gender === d.data.id ? color.text : d.data.id === maxGender ? '#b1bbc4' : color.grey)
                     .style("stroke", d => d.data.sum === 0 ? 'none' : color.background)
                     .style('stroke-width',2)
                     .style("cursor", "pointer")
@@ -641,7 +717,7 @@ function GraphSection (props) {
                     .on("mouseout", (e,d) => filterHover(d.data.id, "leave"))
                     .transition()
                     .attr("d", d => d.endAngle === d.startAngle ? null : arcGenerator(d))
-                    .attr("fill", d => graphFilter.gender === d.data.id ? color.text : d.data.id === maxGender ? '#bac2ca' : color.grey)
+                    .attr("fill", d => graphFilter.gender === d.data.id ? color.text : d.data.id === maxGender ? '#b1bbc4' : color.grey)
                     .style("stroke", d => d.data.sum === 0 ? 'none' : color.background)
                 update.select('.arc-text')
                     .text(d => d.data.sum === 0 ? '' : d.data.sum)
@@ -704,49 +780,237 @@ function GraphSection (props) {
         }
     },[genderData,ageData])
 
+    // update graph
     useEffect(() => {
-        const updateGraph = () => {
-            if (graphContainerRef.current && extent) {
-                const containerWidth = graphContainerRef.current.offsetWidth * 0.9 
-                if (containerWidth < window.innerWidth*0.5) d3.select('#graph-filters').style('display','none')
-                else d3.select('#graph-filters').style('display','flex')
-                const containerHeight = graphContainerRef.current.offsetHeight * 0.9 
-                graphContainerRef.current.style.height = `${containerHeight}px`
-                const width = containerWidth + (margin * 2)
-                const height = containerHeight + (margin * 2)
-                const ticks1 = ((extent[1]-extent[0])/(Math.round((extent[1]-extent[0])/10)))*Math.round((extent[1]-extent[0])/10)
-                const rollup = stackData
-                const groups = d3.group(selectedConcepts, d => d.name)
-                const ticks2 = width < 400 ? Math.round(width/60) : ticks1 < 10 || !ticks1 ? Math.round(extent[1]-extent[0]) : 10
-                const ticks = {one:ticks1,two:ticks2}
-                let maxHeightSubheader = document.getElementById('graph-section').clientHeight*0.09
-                document.getElementById("graph-labels").style.maxHeight = `${maxHeightSubheader}px`
-                d3.select("#graph")
-                    .attr("width", '94%')
-                    .attr("height", '94%')
-                    .attr("viewBox", `${-margin} ${0} ${width} ${height}`)
-                    .attr("preserveAspectRatio", "xMidYMid meet")
-                    .append("g")
-                    .attr("transform", `translate(${margin}, ${margin})`)
-                d3.select("#clip rect")
-                    .attr("width", width)
-                    .attr("height", height)
-                if (rootLine) getGraph(groups, rollup, width, height, ticks)  
-            }
-        }  
-        const resizeObserver = new ResizeObserver(() => {
-            requestAnimationFrame(updateGraph)
-        })
-        if (graphContainerRef.current) {
-            resizeObserver.observe(graphContainerRef.current)
-        }   
-        updateGraph() 
-        return () => {
-            if (graphContainerRef.current) {
-                resizeObserver.unobserve(graphContainerRef.current)
-            }
+        if (graphContainerRef.current && extent) {
+            console.log('update graph')
+            d3.select('#graph').append("defs")
+            const containerWidth = document.getElementById('graph-container').clientWidth*0.9
+            if (containerWidth < window.innerWidth*0.5 || graphSectionWidth === '40vw') d3.select('#graph-filters').style('display','none')
+            else d3.select('#graph-filters').style('display','flex')
+            const containerHeight = document.getElementById('graph-group').clientHeight*0.8
+            const width = containerWidth + (margin * 2)
+            const height = containerHeight + (margin * 2)
+            const ticks1 = ((extent[1]-extent[0])/(Math.round((extent[1]-extent[0])/10)))*Math.round((extent[1]-extent[0])/10)
+            const ticks2 = width < 400 ? Math.round(width/60) : ticks1 < 10 || !ticks1 ? Math.round(extent[1]-extent[0]) : 10
+            const ticks = {one:ticks1,two:ticks2}
+            document.getElementById("graph-container").style.height = containerHeight + 'px'
+            document.getElementById("graph-labels").style.maxHeight = document.getElementById('graph-group').clientHeight*0.15 - margin + 'px'
+            d3.select("#graph")
+                .attr("width", '95%')
+                .attr("height", '95%')
+                .attr("viewBox", `${-margin*2} ${margin*1.5} ${width} ${height}`)
+                .attr("preserveAspectRatio", "xMidYMid meet")
+                .append("g")
+                .attr("transform", `translate(${margin}, ${margin})`)
+            d3.select("#clip rect")
+                .attr("width", width)
+                .attr("height", height)
+            if (rootLine) getGraph(stackData, width, height, ticks)  
         }
-    }, [stackData, rootLine, extent, openFilters])
+    }, [stackData, rootLine, extent, graphSectionWidth, conceptNames.length < 100 ? hovered : null])
+
+    // update labels
+    useEffect(()=> {
+        const groups = d3.group(selectedConcepts, d => d.name)
+        function updateLabels(groups) {
+            d3.select('#graph-labels').selectAll('.labels').data(groups, d => d[0])
+                .join(enter => {
+                    const labels = enter.append('div')  
+                        .classed('labels', true) 
+                        .attr('id', d => 'label-' + d[0])
+                        .style("cursor", "pointer")
+                        .style('background-color', d => d[0] === sidebarRoot.name || hovered === d[0] ? color.lightpurple : 'none')
+                        .style('border-radius', '20px')
+                        .style('margin-right', '2px')
+                        .on('click', (e,d) => {
+                            if (!hoverLabelCircle) navigate(`/${d[0]}`)
+                        })
+                        .on("mouseover", (e,d) => {
+                            d3.select("#label-text-" + d[0]).style('font-weight',700)
+                            d3.select('#label-' + d[0]).style('background-color', color.lightpurple)
+                            setHovered(d[0])
+                            // clearTimeout(hoverTimeout)
+                            // currentTarget = d[0]
+                            // hoverTimeout = setTimeout(() => {
+                            //     if (currentTarget === d[0]) {
+                            //         // conceptHover(d[0], "enter")  
+                            //     }
+                            // }, 400) 
+                        })
+                        .on("mouseout", (e,d) => {
+                            d3.select("#label-text-" + d[0]).style("font-weight", d => d[0] === sidebarRoot.name ? 700 : 400)
+                            d3.select('#label-' + d[0]).style('background-color', d => d[0] === sidebarRoot.name ? color.lightpurple : 'none')
+                            setHovered()
+                            // clearTimeout(hoverTimeout)
+                            // hoverTimeout = null
+                            // currentTarget = null
+                            // conceptHover(d[0], "leave")  
+                        })
+                        // .transition()
+                        .style('opacity', d => hovered && hovered !== d[0] ? 0.2 : 1)
+                    labels.append("div")
+                        .classed('label-circle', true)
+                        .attr("id", d => "label-circle-" + d[0])
+                        .style('background', d => {
+                            if (!d[1][0].data.concept.standard_concept) {
+                                let colorVar = generateColor(d[0])
+                                return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ colorVar + " 0.5px," + colorVar + " 2px)"
+                            } else {return "none"}    
+                        })
+                        .style("background-color", d => {
+                            if (d[1][0].data.concept.standard_concept) {
+                                return generateColor(d[0])
+                            } else {return "none"}
+                        }) 
+                        .on('mouseover', function(e,d) {
+                            if (selectedConcepts.length > 1) {
+                                tooltipHover(d[1][0], "leave", e, 'graph') 
+                                hoverLabelCircle = true
+                                d3.select('#label-circle-' + d[0]).transition().style('background-color', 'none').style('background','none') 
+                                d3.select('#x-'+d[0]).transition().style('opacity',1)
+                            }
+                        })
+                        .on('mouseout', function(e,d) {
+                            hoverLabelCircle = false
+                            if (selectedConcepts.length > 1) {
+                                d3.select('#x-'+d[0]).transition().style('opacity',0)
+                                d3.select('#label-circle-' + d[0]).transition()
+                                .style('background', d => {
+                                    if (!d[1][0].data.concept.standard_concept) {
+                                        let colorVar = generateColor(d[0])
+                                        return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ colorVar + " 0.5px," + colorVar + " 2px)"
+                                    } else {return "none"}    
+                                })
+                                .style("background-color", d => {
+                                    if (d[1][0].data.concept.standard_concept) {
+                                        return generateColor(d[0])
+                                    } else {return "none"}
+                                }) 
+                            }
+                        })
+                        .on('click', function(e,d) {
+                            if (selectedConcepts.length > 1) {
+                                let filteredConcepts = selectedConcepts.filter(e => e.name !== d.key)
+                                setSelectedConcepts(filteredConcepts) 
+                                setHovered()  
+                                // conceptHover(d[0], "leave") 
+                                tooltipHover(d[1][0], "leave", e, 'graph') 
+                            }   
+                        })
+                        .append('i')
+                            .classed('fa-solid fa-x fa-xs',true)
+                            .attr('id',d => 'x-'+d[0])
+                            .style('color',color.text)
+                            .style('opacity', 0)
+                            .style('pointer-events','none')
+                    const text = labels.append("div")
+                        .style("cursor", "pointer")
+                    text.append('tspan')
+                        .classed('label-text', true)
+                        .attr("id", d => "label-text-" + d[0])
+                        .style("font-weight", d => d[0] === sidebarRoot.name || hovered === d[0] ? 700 : 400)
+                        .html(d => d[1][0].data.concept.concept_name)
+                        .style('pointer-events','none')
+                    text.append('tspan')
+                        .classed('label-code',true)
+                        .attr("id", d => "label-vocab-" + d[0])
+                        .style('color', color.text)
+                        .style('font-weight',700)
+                        .style('font-size', '10px')
+                        .html(d => d[1][0].data.concept.concept_code)   
+                        .style('pointer-events','none') 
+                    text.append('tspan')
+                        .classed('label-vocab', true)
+                        .attr("id", d => "label-vocab-" + d[0])
+                        .style('color', color.textlight)
+                        .style('font-size', '10px')
+                        .html(d => d[1][0].data.concept.vocabulary_id)
+                        .style('pointer-events','none')
+                }, update => {
+                    const labels = update
+                        .style('background-color', d => d[0] === sidebarRoot.name || hovered === d[0] ? color.lightpurple : 'white')
+                        .on('click', (e,d) => {
+                            if (!hoverLabelCircle) navigate(`/${d[0]}`)
+                        })
+                        .on("mouseover", (e,d) => {
+                            d3.select("#label-text-" + d[0]).style('font-weight',700)
+                            d3.select('#label-' + d[0]).style('background-color', color.lightpurple)
+                            setHovered(d[0])
+                            // clearTimeout(hoverTimeout)
+                            // currentTarget = d[0]
+                            // hoverTimeout = setTimeout(() => {
+                            //     if (currentTarget === d[0]) {
+                            //         // conceptHover(d[0], "enter")  
+                            //     }
+                            // }, 400) 
+                        })
+                        .on("mouseout", (e,d) => {
+                            d3.select("#label-text-" + d[0]).style("font-weight", d => d[0] === sidebarRoot.name ? 700 : 400)
+                            d3.select('#label-' + d[0]).style('background-color', d => d[0] === sidebarRoot.name ? color.lightpurple : 'none')
+                            setHovered()
+                            // clearTimeout(hoverTimeout)
+                            // hoverTimeout = null
+                            // currentTarget = null
+                            // conceptHover(d[0], "leave")  
+                        })
+                        // .transition()
+                        .style('opacity', d => hovered && hovered !== d[0] ? 0.2 : 1)
+                    labels.select('.label-circle')
+                        .style('background', d => {
+                            if (!d[1][0].data.concept.standard_concept) {
+                                let colorVar = generateColor(d[0])
+                                return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ colorVar + " 0.5px," + colorVar + " 2px)"
+                            } else {return "none"}    
+                        })
+                        .style("background-color", d => {
+                            if (d[1][0].data.concept.standard_concept) {
+                                return generateColor(d[0])
+                            } else {return "none"}
+                        }) 
+                        .on('mouseover', function(e,d) {
+                            if (selectedConcepts.length > 1) {
+                                tooltipHover(d[1][0], "leave", e, 'graph') 
+                                hoverLabelCircle = true
+                                d3.select('#label-circle-' + d[0]).transition().style('background-color', 'none').style('background','none')
+                                d3.select('#x-'+d[0]).transition().style('opacity',1)
+                            }
+                        })
+                        .on('mouseout', function(e,d) {
+                            hoverLabelCircle = false
+                            if (selectedConcepts.length > 1) {
+                                d3.select('#x-'+d[0]).transition().style('opacity',0)
+                                d3.select('#label-circle-' + d[0]).transition()
+                                .style('background', d => {
+                                    if (!d[1][0].data.concept.standard_concept) {
+                                        let colorVar = generateColor(d[0])
+                                        return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ colorVar + " 0.5px," + colorVar + " 2px)"
+                                    } else {return "none"}    
+                                })
+                                .style("background-color", d => {
+                                    if (d[1][0].data.concept.standard_concept) {
+                                        return generateColor(d[0])
+                                    } else {return "none"}
+                                }) 
+                            }
+                        })
+                        .on('click', function(e,d) {
+                            if (selectedConcepts.length > 1) {
+                                let filteredConcepts = selectedConcepts.filter(e => e.name !== d.key)
+                                setSelectedConcepts(filteredConcepts)   
+                                setHovered()
+                                tooltipHover(d[1][0], "leave", e, 'graph') 
+                            }   
+                        })
+                    labels.select('.label-text')
+                        .html(d => d[1][0].data.concept.concept_name)
+                        .style("font-weight", d => d[0] === sidebarRoot.name || hovered === d[0] ? 700 : 400)
+                    labels.select('.label-vocab')
+                        .html(d => d[1][0].data.concept.vocabulary_id)
+                },exit => exit.remove())    
+        }
+        updateLabels(groups)
+    },[selectedConcepts,hovered])
 
     return (
         <div id = "graph-section">
@@ -761,21 +1025,21 @@ function GraphSection (props) {
                 <div id = "graph-selections">
                     <div style = {{display:'flex',alignItems:'center'}}>
                         <div style = {{paddingRight:5}}><h2 style = {{marginBottom:3}}>Record Counts</h2></div>
-                        <p style = {{display: extent ? 'block' : 'none',fontSize:12,marginBottom:3}}>{extent ? extent[0] + "-" + extent[1] : null}</p>    
+                        <p style = {{display: extent ? 'block' : 'none',fontSize:12,marginBottom:2}}>{extent ? extent[0] + "-" + extent[1] : null}</p>    
                     </div>
                     <div id = "graph-filters" style = {{display:'flex',marginBottom:3,alignItems:'flex-end'}}>
                         <div className = "graph-selection" id = "gender-container" style = {{marginRight:15}}>
-                            <p style = {{fontWeight: graphFilter.gender !== -1 ? 700 : 400,margin:0,paddingBottom:3,paddingRight:0}}>Sex</p>
+                            <p style = {{fontWeight: graphFilter.gender !== -1 ? 700 : 400,margin:0,paddingBottom:3,paddingRight:openFilters ? 0 : 5}}>Sex</p>
                             <div className = "filter-container">
                                 <div className = "filter-viz" style = {{marginBottom:5}} id = "gender-viz">
                                     <svg style = {{zIndex:0}} id = "gender-svg"></svg>
                                 </div>
                                 <div className = "toggle-container" style = {{zIndex:500,width: 110}}>
-                                    <div className = "toggle" id = "btn-8507" onMouseOver = {() => filterHover(8507,'enter')} onMouseOut = {() => filterHover(8507,'leave')} onClick = {() => filterSelect(8507,'gender')} style = {{fontSize:10,padding: 3, fontWeight: graphFilter.gender === 8507 ? 700 : 400, border: '1px solid var(--background)', borderRight: '1px solid var(--background)', color: graphFilter.gender === 8507 ? 'white' : color.textlight, backgroundColor: graphFilter.gender === 8507 ? color.text : color.grey, borderTopLeftRadius:20,borderBottomLeftRadius:20}}>Male</div>
-                                    <div className = "toggle" id = "btn-8532" onMouseOver = {() => filterHover(8532,'enter')} onMouseOut = {() => filterHover(8532,'leave')} onClick = {() => filterSelect(8532,'gender')} style = {{fontSize:10,padding: 3, fontWeight: graphFilter.gender === 8532 ? 700 : 400, border: '1px solid var(--background)', borderLeft: 'none', color: graphFilter.gender === 8532 ? 'white' : color.textlight, backgroundColor: graphFilter.gender === 8532 ? color.text : color.grey, borderTopRightRadius:20,borderBottomRightRadius:20}}>Female</div>
+                                    <div className = "toggle" id = "btn-8507" onMouseOver = {() => filterHover(8507,'enter')} onMouseOut = {() => filterHover(8507,'leave')} onClick = {() => filterSelect(8507,'gender')} style = {{fontSize:10,padding: 3, fontWeight: graphFilter.gender === 8507 ? 700 : 400, border: '1px solid var(--background)', borderRight: '1px solid var(--background)', color: graphFilter.gender === 8507 ? 'white' : color.text, backgroundColor: graphFilter.gender === 8507 ? color.text : color.greylight, borderTopLeftRadius:20,borderBottomLeftRadius:20}}>Male</div>
+                                    <div className = "toggle" id = "btn-8532" onMouseOver = {() => filterHover(8532,'enter')} onMouseOut = {() => filterHover(8532,'leave')} onClick = {() => filterSelect(8532,'gender')} style = {{fontSize:10,padding: 3, fontWeight: graphFilter.gender === 8532 ? 700 : 400, border: '1px solid var(--background)', borderLeft: 'none', color: graphFilter.gender === 8532 ? 'white' : color.text, backgroundColor: graphFilter.gender === 8532 ? color.text : color.greylight, borderTopRightRadius:20,borderBottomRightRadius:20}}>Female</div>
                                 </div>
                             </div>
-                            <FontAwesomeIcon style = {{display: graphFilter.gender !== -1 ? 'block' : 'none'}} className = "reset-dropdown fa-2xs" id = "reset-gender" icon={faX} 
+                            <FontAwesomeIcon style = {{display: graphFilter.gender !== -1 ? 'block' : 'none', paddingLeft: openFilters ? 0 : 5}} className = "reset-dropdown fa-2xs" id = "reset-gender" icon={faX} 
                                 onClick = {() => {
                                     setGraphFilter({gender:-1,age:graphFilter.age})
                                 }}
@@ -786,16 +1050,16 @@ function GraphSection (props) {
                             <div className = "filter-container" id = "age-filter" onMouseDown = {(e) => ageBrush(e,'down')} onMouseUp = {(e) => ageBrush(e,'up')} onMouseMove = {(e) => ageBrush(e,'move')} style = {{cursor:'pointer'}}>
                                 <div className = "filter-viz" style = {{marginBottom:5}} id = "age-viz"></div>
                                 <div className = "toggle-container" style = {{width: 360}}>
-                                    <div onMouseOver = {() => filterHover(0,'enter')} onMouseLeave = {() => filterHover(0,'leave')} onClick = {() => filterSelect(0,'age')} className = "toggle" id = "btn-0" style = {{fontWeight: graphFilter.age.includes(0) ? 700 : 400,color:graphFilter.age.includes(0) ? 'white' : color.textlight,backgroundColor:graphFilter.age.includes(0) ? color.text : color.grey,borderTop:'1px solid var(--background)',borderBottom:'1px solid var(--background)',borderLeft:'1px solid var(--background)',borderRight:'1px solid var(--background)',borderTopLeftRadius:20,borderBottomLeftRadius:20}}>0-9</div>
-                                    <div onMouseOver = {() => filterHover(1,'enter')} onMouseLeave = {() => filterHover(1,'leave')} onClick = {() => filterSelect(1,'age')} className = "toggle" id = "btn-1" style = {{fontWeight: graphFilter.age.includes(1) ? 700 : 400,color:graphFilter.age.includes(1) ? 'white' : color.textlight,borderLeft:graphFilter.age.includes(1) && !graphFilter.age.includes(0) ? '1px solid var(--background)' : 'none',backgroundColor:graphFilter.age.includes(1) ? color.text : color.grey,borderTop:'1px solid var(--background)',borderBottom:'1px solid var(--background)',borderRight:'1px solid var(--background)'}}>10-19</div>
-                                    <div onMouseOver = {() => filterHover(2,'enter')} onMouseLeave = {() => filterHover(2,'leave')} onClick = {() => filterSelect(2,'age')} className = "toggle" id = "btn-2" style = {{fontWeight: graphFilter.age.includes(2) ? 700 : 400,color:graphFilter.age.includes(2) ? 'white' : color.textlight,borderLeft:graphFilter.age.includes(2) && !graphFilter.age.includes(1) ? '1px solid var(--background)' : 'none',backgroundColor:graphFilter.age.includes(2) ? color.text : color.grey,borderTop:'1px solid var(--background)',borderBottom:'1px solid var(--background)',borderRight:'1px solid var(--background)'}}>20-29</div>
-                                    <div onMouseOver = {() => filterHover(3,'enter')} onMouseLeave = {() => filterHover(3,'leave')} onClick = {() => filterSelect(3,'age')} className = "toggle" id = "btn-3" style = {{fontWeight: graphFilter.age.includes(3) ? 700 : 400,color:graphFilter.age.includes(3) ? 'white' : color.textlight,borderLeft:graphFilter.age.includes(3) && !graphFilter.age.includes(2) ? '1px solid var(--background)' : 'none',backgroundColor:graphFilter.age.includes(3) ? color.text : color.grey,borderTop:'1px solid var(--background)',borderBottom:'1px solid var(--background)',borderRight:'1px solid var(--background)'}}>30-39</div>
-                                    <div onMouseOver = {() => filterHover(4,'enter')} onMouseLeave = {() => filterHover(4,'leave')} onClick = {() => filterSelect(4,'age')} className = "toggle" id = "btn-4" style = {{fontWeight: graphFilter.age.includes(4) ? 700 : 400,color:graphFilter.age.includes(4) ? 'white' : color.textlight,borderLeft:graphFilter.age.includes(4) && !graphFilter.age.includes(3) ? '1px solid var(--background)' : 'none',backgroundColor:graphFilter.age.includes(4) ? color.text : color.grey,borderTop:'1px solid var(--background)',borderBottom:'1px solid var(--background)',borderRight:'1px solid var(--background)'}}>40-49</div>
-                                    <div onMouseOver = {() => filterHover(5,'enter')} onMouseLeave = {() => filterHover(5,'leave')} onClick = {() => filterSelect(5,'age')} className = "toggle" id = "btn-5" style = {{fontWeight: graphFilter.age.includes(5) ? 700 : 400,color:graphFilter.age.includes(5) ? 'white' : color.textlight,borderLeft:graphFilter.age.includes(5) && !graphFilter.age.includes(4) ? '1px solid var(--background)' : 'none',backgroundColor:graphFilter.age.includes(5) ? color.text : color.grey,borderTop:'1px solid var(--background)',borderBottom:'1px solid var(--background)',borderRight:'1px solid var(--background)'}}>50-59</div>
-                                    <div onMouseOver = {() => filterHover(6,'enter')} onMouseLeave = {() => filterHover(6,'leave')} onClick = {() => filterSelect(6,'age')} className = "toggle" id = "btn-6" style = {{fontWeight: graphFilter.age.includes(6) ? 700 : 400,color:graphFilter.age.includes(6) ? 'white' : color.textlight,borderLeft:graphFilter.age.includes(6) && !graphFilter.age.includes(5) ? '1px solid var(--background)' : 'none',backgroundColor:graphFilter.age.includes(6) ? color.text : color.grey,borderTop:'1px solid var(--background)',borderBottom:'1px solid var(--background)',borderRight:'1px solid var(--background)'}}>60-69</div>
-                                    <div onMouseOver = {() => filterHover(7,'enter')} onMouseLeave = {() => filterHover(7,'leave')} onClick = {() => filterSelect(7,'age')} className = "toggle" id = "btn-7" style = {{fontWeight: graphFilter.age.includes(7) ? 700 : 400,color:graphFilter.age.includes(7) ? 'white' : color.textlight,borderLeft:graphFilter.age.includes(7) && !graphFilter.age.includes(6) ? '1px solid var(--background)' : 'none',backgroundColor:graphFilter.age.includes(7) ? color.text : color.grey,borderTop:'1px solid var(--background)',borderBottom:'1px solid var(--background)',borderRight:'1px solid var(--background)'}}>70-79</div>
-                                    <div onMouseOver = {() => filterHover(8,'enter')} onMouseLeave = {() => filterHover(8,'leave')} onClick = {() => filterSelect(8,'age')} className = "toggle" id = "btn-8" style = {{fontWeight: graphFilter.age.includes(8) ? 700 : 400,color:graphFilter.age.includes(8) ? 'white' : color.textlight,borderLeft:graphFilter.age.includes(8) && !graphFilter.age.includes(7) ? '1px solid var(--background)' : 'none',backgroundColor:graphFilter.age.includes(8) ? color.text : color.grey,borderTop:'1px solid var(--background)',borderBottom:'1px solid var(--background)',borderRight:'1px solid var(--background)'}}>80-89</div>
-                                    <div onMouseOver = {() => filterHover(9,'enter')} onMouseLeave = {() => filterHover(9,'leave')} onClick = {() => filterSelect(9,'age')} className = "toggle" id = "btn-9" style = {{fontWeight: graphFilter.age.includes(9) ? 700 : 400,color:graphFilter.age.includes(9) ? 'white' : color.textlight,borderLeft:graphFilter.age.includes(9) && !graphFilter.age.includes(8) ? '1px solid var(--background)' : 'none',backgroundColor:graphFilter.age.includes(9) ? color.text : color.grey,borderTop:'1px solid var(--background)',borderBottom:'1px solid var(--background)',borderRight:'1px solid var(--background)',borderTopRightRadius:20,borderBottomRightRadius:20}}>90-99</div>
+                                    <div onMouseOver = {() => filterHover(0,'enter')} onMouseLeave = {() => filterHover(0,'leave')} onClick = {() => filterSelect(0,'age')} className = "toggle" id = "btn-0" style = {{fontWeight: graphFilter.age.includes(0) ? 700 : 400,color:graphFilter.age.includes(0) ? 'white' : color.text,backgroundColor:graphFilter.age.includes(0) ? color.text : color.greylight,borderTop:'1px solid var(--background)',borderBottom:'1px solid var(--background)',borderLeft:'1px solid var(--background)',borderRight:'1px solid var(--background)',borderTopLeftRadius:20,borderBottomLeftRadius:20}}>0-9</div>
+                                    <div onMouseOver = {() => filterHover(1,'enter')} onMouseLeave = {() => filterHover(1,'leave')} onClick = {() => filterSelect(1,'age')} className = "toggle" id = "btn-1" style = {{fontWeight: graphFilter.age.includes(1) ? 700 : 400,color:graphFilter.age.includes(1) ? 'white' : color.text,borderLeft:graphFilter.age.includes(1) && !graphFilter.age.includes(0) ? '1px solid var(--background)' : 'none',backgroundColor:graphFilter.age.includes(1) ? color.text : color.greylight,borderTop:'1px solid var(--background)',borderBottom:'1px solid var(--background)',borderRight:'1px solid var(--background)'}}>10-19</div>
+                                    <div onMouseOver = {() => filterHover(2,'enter')} onMouseLeave = {() => filterHover(2,'leave')} onClick = {() => filterSelect(2,'age')} className = "toggle" id = "btn-2" style = {{fontWeight: graphFilter.age.includes(2) ? 700 : 400,color:graphFilter.age.includes(2) ? 'white' : color.text,borderLeft:graphFilter.age.includes(2) && !graphFilter.age.includes(1) ? '1px solid var(--background)' : 'none',backgroundColor:graphFilter.age.includes(2) ? color.text : color.greylight,borderTop:'1px solid var(--background)',borderBottom:'1px solid var(--background)',borderRight:'1px solid var(--background)'}}>20-29</div>
+                                    <div onMouseOver = {() => filterHover(3,'enter')} onMouseLeave = {() => filterHover(3,'leave')} onClick = {() => filterSelect(3,'age')} className = "toggle" id = "btn-3" style = {{fontWeight: graphFilter.age.includes(3) ? 700 : 400,color:graphFilter.age.includes(3) ? 'white' : color.text,borderLeft:graphFilter.age.includes(3) && !graphFilter.age.includes(2) ? '1px solid var(--background)' : 'none',backgroundColor:graphFilter.age.includes(3) ? color.text : color.greylight,borderTop:'1px solid var(--background)',borderBottom:'1px solid var(--background)',borderRight:'1px solid var(--background)'}}>30-39</div>
+                                    <div onMouseOver = {() => filterHover(4,'enter')} onMouseLeave = {() => filterHover(4,'leave')} onClick = {() => filterSelect(4,'age')} className = "toggle" id = "btn-4" style = {{fontWeight: graphFilter.age.includes(4) ? 700 : 400,color:graphFilter.age.includes(4) ? 'white' : color.text,borderLeft:graphFilter.age.includes(4) && !graphFilter.age.includes(3) ? '1px solid var(--background)' : 'none',backgroundColor:graphFilter.age.includes(4) ? color.text : color.greylight,borderTop:'1px solid var(--background)',borderBottom:'1px solid var(--background)',borderRight:'1px solid var(--background)'}}>40-49</div>
+                                    <div onMouseOver = {() => filterHover(5,'enter')} onMouseLeave = {() => filterHover(5,'leave')} onClick = {() => filterSelect(5,'age')} className = "toggle" id = "btn-5" style = {{fontWeight: graphFilter.age.includes(5) ? 700 : 400,color:graphFilter.age.includes(5) ? 'white' : color.text,borderLeft:graphFilter.age.includes(5) && !graphFilter.age.includes(4) ? '1px solid var(--background)' : 'none',backgroundColor:graphFilter.age.includes(5) ? color.text : color.greylight,borderTop:'1px solid var(--background)',borderBottom:'1px solid var(--background)',borderRight:'1px solid var(--background)'}}>50-59</div>
+                                    <div onMouseOver = {() => filterHover(6,'enter')} onMouseLeave = {() => filterHover(6,'leave')} onClick = {() => filterSelect(6,'age')} className = "toggle" id = "btn-6" style = {{fontWeight: graphFilter.age.includes(6) ? 700 : 400,color:graphFilter.age.includes(6) ? 'white' : color.text,borderLeft:graphFilter.age.includes(6) && !graphFilter.age.includes(5) ? '1px solid var(--background)' : 'none',backgroundColor:graphFilter.age.includes(6) ? color.text : color.greylight,borderTop:'1px solid var(--background)',borderBottom:'1px solid var(--background)',borderRight:'1px solid var(--background)'}}>60-69</div>
+                                    <div onMouseOver = {() => filterHover(7,'enter')} onMouseLeave = {() => filterHover(7,'leave')} onClick = {() => filterSelect(7,'age')} className = "toggle" id = "btn-7" style = {{fontWeight: graphFilter.age.includes(7) ? 700 : 400,color:graphFilter.age.includes(7) ? 'white' : color.text,borderLeft:graphFilter.age.includes(7) && !graphFilter.age.includes(6) ? '1px solid var(--background)' : 'none',backgroundColor:graphFilter.age.includes(7) ? color.text : color.greylight,borderTop:'1px solid var(--background)',borderBottom:'1px solid var(--background)',borderRight:'1px solid var(--background)'}}>70-79</div>
+                                    <div onMouseOver = {() => filterHover(8,'enter')} onMouseLeave = {() => filterHover(8,'leave')} onClick = {() => filterSelect(8,'age')} className = "toggle" id = "btn-8" style = {{fontWeight: graphFilter.age.includes(8) ? 700 : 400,color:graphFilter.age.includes(8) ? 'white' : color.text,borderLeft:graphFilter.age.includes(8) && !graphFilter.age.includes(7) ? '1px solid var(--background)' : 'none',backgroundColor:graphFilter.age.includes(8) ? color.text : color.greylight,borderTop:'1px solid var(--background)',borderBottom:'1px solid var(--background)',borderRight:'1px solid var(--background)'}}>80-89</div>
+                                    <div onMouseOver = {() => filterHover(9,'enter')} onMouseLeave = {() => filterHover(9,'leave')} onClick = {() => filterSelect(9,'age')} className = "toggle" id = "btn-9" style = {{fontWeight: graphFilter.age.includes(9) ? 700 : 400,color:graphFilter.age.includes(9) ? 'white' : color.text,borderLeft:graphFilter.age.includes(9) && !graphFilter.age.includes(8) ? '1px solid var(--background)' : 'none',backgroundColor:graphFilter.age.includes(9) ? color.text : color.greylight,borderTop:'1px solid var(--background)',borderBottom:'1px solid var(--background)',borderRight:'1px solid var(--background)',borderTopRightRadius:20,borderBottomRightRadius:20}}>90-99</div>
                                 </div>
                             </div>
                             <FontAwesomeIcon style = {{left:6,display: graphFilter.age.length > 1 ? 'block' : 'none'}} className = "reset-dropdown fa-2xs" id = "reset-age" icon={faX} 
@@ -828,7 +1092,7 @@ function GraphSection (props) {
                     <div id = "graph-subheader">
                         <div id = "graph-labels"></div>  
                     </div> 
-                    <div ref={graphContainerRef} id = "graph-container" style = {{position: 'relative'}}>
+                    <div ref={graphContainerRef} id = "graph-container" style = {{position:'relative'}}>
                         <div id = "reset-zoom" style = {{display: zoomed ? 'block' : 'none'}} onClick = {() => resetZoom()}>Reset</div>
                         <svg style = {{display:'block'}} id = "graph">
                             <g className = "brush"></g>

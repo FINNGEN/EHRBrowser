@@ -71,9 +71,14 @@ function Visualization (props) {
     const setInitialPrune = props.setInitialPrune
     const visible = props.visible
     const setVisible = props.setVisible
+    const removedClasses = props.removedClasses
+    const setRemovedClasses = props.setRemovedClasses
+    const hovered = props.hovered
+    const setHovered = props.setHovered
     const [zoomed, setZoomed] = useState(false)
     const [biDirectional, setBiDirectional] = useState()
     const [text,setText] = useState('')
+    const [graphSectionWidth, setGraphSectionWidth] = useState('60vw')
     const hoverTimeout = useRef(null)
     const hideTimeout = useRef(null)
 
@@ -82,7 +87,6 @@ function Visualization (props) {
         let concept_info = d.data.concept
         if (mode === "enter") {
             showTooltip()
-            conceptHover(d.name, 'enter', component, sidebarRoot.name)
             d3.select("#tooltip")
                 .style('left', function() {
                     if (event.x + 150 > window.innerWidth) return (event.x - 110 + 'px')   
@@ -92,12 +96,14 @@ function Visualization (props) {
                     if (event.y + 150 > window.innerHeight) return (event.y - 110 + 'px')    
                     else return (event.y + 10 + 'px')
                 })
-            // add color change on hover 
             d3.select('#tooltip-root')  
                 .style('display', () => d.name === sidebarRoot.name ? 'none' : 'block') 
+                .on('mouseover', () => d3.select('#tooltip-root').style('opacity',1))
+                .on('mouseout', () => d3.select('#tooltip-root').style('opacity',0.5))
                 .on('click', () => {
                     if (d.name !== sidebarRoot.name) {  
                         navigate(`/${d.name}`)
+                        setHovered()
                         setVisible(false) 
                     }
                 })   
@@ -175,51 +181,6 @@ function Visualization (props) {
             hideTooltip()
         }
     }
-    // hover on concept
-    function conceptHover(id, mode) {
-        if (mode === "enter") {
-            if (!nodes.map(d => d.name).includes(id)) {
-                d3.selectAll('.map-node').transition('allOpacities').style('opacity', 0.15)
-                d3.select('#map-node-'+id).transition('allOpacities').style('opacity', 1)
-                d3.selectAll('.subsumes-node').filter(function () {return !this.classList.contains('tree-circle-background')}).transition('allOpacities').style('opacity', 0.15)
-                d3.selectAll('.label').transition('allOpacities').style('opacity', 0.15)
-                d3.selectAll('.alt-text').transition('allOpacities').style('opacity', 0.15)
-                d3.selectAll('.map-link').transition('allOpacities').style('opacity', 0.15)
-            } else {
-                d3.selectAll('.tree-node').filter(function () {return !this.classList.contains('tree-circle-background')}).transition('allOpacities').style('opacity', 0.15)
-                d3.select('#tree-node-'+id).transition('allOpacities').style('opacity', 1)
-                d3.select("#tree-text-" + id).transition('allOpacities').attr("font-weight", 700).style('opacity', 1)
-                d3.select("#label-rect-" + id).transition('allOpacities').attr('fill', color.lightpurple).attr('fill-opacity',1)    
-            }
-            d3.selectAll('.area-path').transition('allOpacities').attr("opacity", 0.15)
-            d3.selectAll('.small-multiples').transition('allOpacities').attr("opacity", 0.15)
-            d3.select('#sm-'+id).transition('allOpacities').attr("opacity", 1)
-            d3.selectAll(".labels").transition('allOpacities').style("opacity", 0.15)
-            d3.select('#area-' + id).transition('allOpacities').attr("opacity", 1).attr("stroke-width", 2.5) 
-            d3.select("#label-" + id).transition('allOpacities').style("opacity", 1).style('background-color', color.lightpurple)
-            d3.select("#label-text-" + id).transition('allOpacities').style("font-weight", 700)
-            d3.selectAll(".tree-link").transition('allOpacities').attr("opacity", 0.15) 
-        } else {
-            if (!nodes.map(d => d.name).includes(id)) {
-                d3.selectAll('.subsumes-node').filter(d => d.levels !== "-1").transition('allOpacities').style('opacity', 1)
-                d3.selectAll('.subsumes-node').filter(d => d.levels === "-1").transition('allOpacities').style('opacity', 0.6)
-                d3.selectAll('.label').transition('allOpacities').style('opacity', 1)
-                d3.selectAll('.alt-text').transition('allOpacities').style('opacity', 1)
-                d3.selectAll('.map-node').transition('allOpacities').style('opacity', 1)
-                d3.selectAll('.map-link').transition('allOpacities').style('opacity', 1)
-            } else {
-                d3.selectAll(".label-rect").transition('allOpacities').attr('fill', d => d.name === sidebarRoot.name ? color.lightpurple : 'none').attr('fill-opacity', d => d.name === sidebarRoot.name ? 1 : 0.7)
-                d3.select("#tree-text-" + id).transition('allOpacities').attr("font-weight", id === sidebarRoot.name ? 700 : null).style('opacity', 1)
-                d3.selectAll('.tree-node').filter(d => d.levels !== "-1").transition('allOpacities').style('opacity', 1)  
-                d3.selectAll('.tree-node').filter(d => d.levels === "-1").transition('allOpacities').style('opacity', 0.6)
-            }
-            d3.selectAll('.small-multiples').transition('allOpacities').attr("opacity", 1)
-            d3.selectAll('.area-path').transition('allOpacities').attr("opacity", 1).attr("stroke-width", 2)
-            d3.select("#label-text-" + id).transition('allOpacities').style("font-weight", id === sidebarRoot.name ? 700 : 400)
-            d3.selectAll(".tree-link").transition('allOpacities').attr("opacity", 1)  
-            d3.selectAll(".labels").transition('allOpacities').style("opacity", 1).style('background-color', d => d[0] === sidebarRoot.name ? color.lightpurple : 'transparent') 
-        }    
-    }
     // add concepts to graph 
     function addConcepts(newConcepts) {
         newConcepts = newConcepts.filter(d => !d.leaf ? d.total_counts !== 0 : d).map(d => {return {name:d.name,leaf:d.leaf,data:d.data}})
@@ -264,15 +225,10 @@ function Visualization (props) {
             // filter connections 
             const filteredConnections = crossConnections
                 .filter(c => !filteredNodes.map(d => d.name).includes(c.child))
+                .filter(c => classFilter.includes('All') ? c : classFilter.includes(fullTree.nodes.filter(d => d.name === c.child)[0].class))
                 .map(d => ({...d,parents:d.parents.filter(p => filteredNodes.map(d => d.name).includes(p)).filter(p => filteredNodes.filter(d => d.name === p)[0]?.leaf)}))
             filteredNodes = filteredNodes
                 .map(e => ({...e,connections: filteredConnections.filter(c => c.parents.includes(e.name)).map(d => ({...d,source:e.name}))}))
-            // filter selected
-            // let filteredSelected = selectedConcepts
-            //     .filter(d => levelFilter === undefined || (fullTree.mappings.includes(d.name) ? filteredNodes.map(e => e.mappings.map(m => m.name)).flat().includes(d.name) : filteredNodes.map(e => e.name).includes(d.name)))
-            // filteredSelected
-            //     .map(d => ({...d,leaf:!filteredLinks.map(e => e.source).map(e => e.name).includes(d.name) ? true : false}))
-            //     .filter(d => !d.leaf ? d.total_counts !== 0 : d.descendant_counts !== 0)
             const filteredSelected = !treeSelections.includes('mappings') ? 
                 filteredNodes
                     .filter(d => d.levels !== '-1')
@@ -281,14 +237,12 @@ function Visualization (props) {
                 filteredNodes.filter(d => d.levels !== '-1').map(d => d.mappings).flat()
                     .filter(d => d.total_counts !== 0)
                     .map(d => ({name: d.name, leaf: false, data: d.data}))
-            // filteredSelected = [...filteredSelected,...selectionsFromNodes].filter((obj, index, self) => index === self.findIndex(o => o.name === obj.name))
             setSelectedConcepts(filteredSelected)
             // new poset
             const width = d3.select("#tree").node().getBoundingClientRect().width
             const mappingDirections = filteredNodes.map(d => d.mappings).flat().map(d => d.direction)
             const biDirectionalMapping = mappingDirections.includes(1) && mappingDirections.includes(-1)
             setBiDirectional(biDirectionalMapping)
-            // const nodeWidth = biDirectionalMapping ? 120 : 100
             let edges = filteredLinks
                 .map(d => d.levels === "-1" ? ({...d,source: d.target,target: d.source}) : d)
                 .map(d => ([d.source.name.toString(),d.target.name.toString()]))
@@ -336,6 +290,10 @@ function Visualization (props) {
                     }
                 })
                 .print()
+            // const colorMatrix = po.domFromEdges(edges,"0","1")
+            // const colorPoset = po.createPoset(colorMatrix,[...new Set(edges.flat())])
+            // colorPoset.enrich()
+            //     .color(-100)
             // x position
             filteredNodes = filteredNodes
                 .map(d => ({...d,x:newPoset.features[d.name] ? newPoset.features[d.name].x : fullTree.nodes.filter(e => e.name === d.name)[0].x}))
@@ -409,7 +367,7 @@ function Visualization (props) {
             onMouseLeave={() => {hideTooltip()}}>
                 <div id = "tooltip-header">
                     <div id = "tooltip-btn-container">
-                        <div className = "tooltip-btn" id = 'tooltip-root'><img style = {{width:15}} src={rootIcon} alt="root icon"/></div>
+                        <div className = "tooltip-btn" id = 'tooltip-root' style = {{opacity: 0.5}}><img style = {{width:18}} src={rootIcon} alt="root icon"/></div>
                         <div className = "tooltip-btn" id = "counts-btn-circle">
                             <FontAwesomeIcon style = {{opacity:0,display:'none',color:'var(--text)'}} className = 'tooltip-icon fa-solid fa-plus fa-sm' id = "tooltip-plus" icon={faPlus} />
                             <FontAwesomeIcon style = {{opacity:0,display:'none',color:'white'}} className = 'tooltip-icon fa-solid fa-x fa-xs' id = "tooltip-x" icon={faX} />
@@ -444,7 +402,7 @@ function Visualization (props) {
                 mapRoot = {mapRoot}
                 setMapRoot = {setMapRoot}
                 tooltipHover = {tooltipHover}
-                conceptHover = {conceptHover}
+                // conceptHover = {conceptHover}
                 addConcepts = {addConcepts}
                 conceptNames = {conceptNames}
                 view = {view}
@@ -473,6 +431,12 @@ function Visualization (props) {
                 setDrawingComplete = {setDrawingComplete}
                 initialPrune = {initialPrune}
                 setInitialPrune = {setInitialPrune}
+                hovered = {hovered}
+                setHovered = {setHovered}
+                removedClasses = {removedClasses}
+                setRemovedClasses = {setRemovedClasses}
+                graphSectionWidth = {graphSectionWidth}
+                setGraphSectionWidth = {setGraphSectionWidth}
             ></SideBar> 
             <GraphSection
                 color = {color}
@@ -482,7 +446,7 @@ function Visualization (props) {
                 tooltipHover = {tooltipHover}
                 graphFilter = {graphFilter}
                 setGraphFilter = {setGraphFilter}
-                conceptHover = {conceptHover}
+                // conceptHover = {conceptHover}
                 extent = {extent}
                 setExtent = {setExtent}
                 openFilters = {openFilters}
@@ -498,6 +462,9 @@ function Visualization (props) {
                 getConceptInfo = {getConceptInfo}
                 zoomed = {zoomed}
                 setZoomed = {setZoomed}
+                hovered = {hovered}
+                setHovered = {setHovered}
+                graphSectionWidth = {graphSectionWidth}
             />  
         </div> : null
     )

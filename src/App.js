@@ -13,15 +13,16 @@ function App() {
     darkpurple: '#170540',
     mediumpurple: '#765ab6',
     purple: '#a790e2',
-    lightpurple: '#e0daef',
-    background: '#eaeaec',
-    lightbackground: '#EAEAEC90',
-    darkbackground: '#dbdbe0',
+    lightpurple: '#e3def1',
+    background: '#EBECED',
+    lightbackground: '#EBECED90',
+    darkbackground: '#c9d0d670',
     text: '#21295C',
     textmedium: '#717185',
-    textlight: '#213c5c85',
+    textlight: '#191a1c85',
     textlightest: '#c0c0c9',
-    grey: '#c9d0d6',
+    grey: '#c2cad1',
+    greylight: '#ccd3d8',
     blue: '#4A0EE0'
   }
   const { urlCode } = useParams()
@@ -58,6 +59,8 @@ function App() {
   const [initialPrune, setInitialPrune] = useState(true)
   const [apiInfo, setApiInfo] = useState()
   const [visible,setVisible] = useState(false)
+  const [removedClasses,setRemovedClasses] = useState([])
+  const [hovered,setHovered] = useState()
   const conceptNames = useMemo(() => selectedConcepts.map(d => d.name).filter((e,n,l) => l.indexOf(e) === n),[selectedConcepts])
   const allCounts = useMemo(() => selectedConcepts.map(d => d.data.code_counts).flat(),[selectedConcepts])
   const maxLevel = useMemo(() => d3.max(nodes.filter(d => d.levels !== '-1').map(d => parseInt(d.levels.split('-')[0]))),[nodes])
@@ -260,10 +263,13 @@ function App() {
     const poset = po.createPoset(matrix,[...new Set(edges.flat())])
     poset.enrich()
       .feature("depth",node => nodeData.filter(d => d.name === parseInt(node))[0].distance)
-      .setLayers("depth")
+      .setLayers('depth')
+      // .analyze('max-depth',function() {return d3.max(poset.feature('depth'))})
+      // .setLayers(node => poset.analytics['max-depth']-poset.features[node].depth)
       .feature("parents",node => nodeData.filter(d => d.name === parseInt(node))[0].parents)
       .climber(function(_,h,d) {
         const layer = poset.layers[h]
+        // console.log('layer correct',layer)
         const center = width/2
         if (h === 0) {
           let unit = width/layer.length
@@ -283,8 +289,19 @@ function App() {
           } else poset.layers[h].forEach(node => poset.features[node].x = xPositions.find(d => d.id === node)?.x)
         }
       })
+      // .color()
       .print()
+    // poset.color(3,10,80)
     // set x position and mappings
+    // const colorEdges = subsumesData
+    //   .filter(d => subsumesData.length === 1 && d.parent_concept_id === d.child_concept_id ? d : d.parent_concept_id !== d.child_concept_id)
+    //   .map(d => d.levels === "-1" ? ({...d,parent_concept_id: d.child_concept_id,child_concept_id: d.parent_concept_id}) : d)
+    //   .map(d => (['A'+d.parent_concept_id.toString(),'A'+d.child_concept_id.toString()]))
+    // console.log('edges',colorEdges)
+    // const colorMatrix = po.domFromEdges(colorEdges,'1','0')
+    // const colorPoset = po.createPoset(colorMatrix,[...new Set(colorEdges.flat())])
+    // colorPoset.enrich()
+    //   .color(-100)
     nodeData = nodeData
       .map(d => ({...d,x:poset.features[d.name].x}))
       .map(node => ({
@@ -355,6 +372,7 @@ function App() {
                     setClassFilter(['All'])
                     setTreeSelections(['descendants'])
                     setOpenFilters(true)
+                    setHovered()
                     setMapRoot([])
                     setNodes([])
                     setLinks([])
@@ -462,6 +480,10 @@ function App() {
               setInitialPrune = {setInitialPrune}
               visible = {visible}
               setVisible = {setVisible}
+              removedClasses = {removedClasses}
+              setRemovedClasses = {setRemovedClasses}
+              hovered = {hovered}
+              setHovered = {setHovered}
             />      
           } />
         </Routes>

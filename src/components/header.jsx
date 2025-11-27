@@ -21,6 +21,7 @@ function Header (props) {
     const names = conceptList.map(d => d.concept_name.toLowerCase())
     const [suggestions,setSuggestions] = useState([])
     const [refresh,setRefresh] = useState(false)
+    const [prevSearch,setPrevSearch] = useState()
     const navigate = useNavigate()
    
     const handleClick = () => {
@@ -43,54 +44,41 @@ function Header (props) {
             if (filteredList) {
                 let newFiltered = []
                 let input = inputRef.current.value.toLowerCase()
-                // if (filteredList.length === conceptList.length) {
-                    // let searchIndex = listIndexes[input[0]]
-                    newFiltered = filteredList
-                        // .slice(searchIndex)
-                        .filter(d => d.concept_name.toLowerCase().includes(input) || d.concept_id.toString().toLowerCase().includes(inputRef.current.value) || d.concept_code.toString().toLowerCase().includes(inputRef.current.value))
-                        .sort((a, b) => {
-                            if (!isNaN(input)) {
-                                // sort by id
-                                const aId = a.concept_id.toString()
-                                const bId = b.concept_id.toString()
-                                const aStarts = aId.startsWith(input)
-                                const bStarts = bId.startsWith(input)
+                const base = inputRef.current.value.startsWith(prevSearch) ? filteredList : conceptList
+                newFiltered = base
+                    // .slice(searchIndex)
+                    .filter(d => d.concept_name.toLowerCase().includes(input) || d.concept_id.toString().toLowerCase().includes(inputRef.current.value) || d.concept_code.toString().toLowerCase().includes(inputRef.current.value))
+                    .sort((a, b) => {
+                        if (!isNaN(input)) {
+                            // sort by id
+                            const aId = a.concept_id.toString()
+                            const bId = b.concept_id.toString()
+                            const aStarts = aId.startsWith(input)
+                            const bStarts = bId.startsWith(input)
+                            if (aStarts && !bStarts) return -1
+                            if (!aStarts && bStarts) return 1
+                            else {return aId.localeCompare(bId) }
+                        } else {
+                            // sort by name
+                            const aName = a.concept_name.toLowerCase()
+                            const bName = b.concept_name.toLowerCase()
+                            const aStarts = aName.startsWith(input)
+                            const bStarts = bName.startsWith(input)
+                            if (aStarts && !bStarts) return -1
+                            if (!aStarts && bStarts) return 1
+                            else {
+                                // sort by code
+                                const aCode = a.concept_code.toString()
+                                const bCode = b.concept_code.toString()
+                                const aStarts = aCode.startsWith(input)
+                                const bStarts = bCode.startsWith(input)
                                 if (aStarts && !bStarts) return -1
                                 if (!aStarts && bStarts) return 1
-                                else {return aId.localeCompare(bId) }
-                            } else {
-                                // sort by name
-                                const aName = a.concept_name.toLowerCase()
-                                const bName = b.concept_name.toLowerCase()
-                                const aStarts = aName.startsWith(input)
-                                const bStarts = bName.startsWith(input)
-                                if (aStarts && !bStarts) return -1
-                                if (!aStarts && bStarts) return 1
-                                else {
-                                    // sort by code
-                                    const aCode = a.concept_code.toString()
-                                    const bCode = b.concept_code.toString()
-                                    const aStarts = aCode.startsWith(input)
-                                    const bStarts = bCode.startsWith(input)
-                                    if (aStarts && !bStarts) return -1
-                                    if (!aStarts && bStarts) return 1
-                                    else {return aName.localeCompare(bName)}
-                                }  
-                            }
-                        })
-                // }
-                // else newFiltered = filteredList
-                //         .filter(d => d.concept_name.toLowerCase().includes(input))
-                //         .sort((a, b) => {
-                //             const aName = a.concept_name.toLowerCase()
-                //             const bName = b.concept_name.toLowerCase()
-                //             const aStarts = aName.startsWith(input)
-                //             const bStarts = bName.startsWith(input)
-                //             if (aStarts && !bStarts) return -1
-                //             if (!aStarts && bStarts) return 1
-                //             else return aName.localeCompare(bName)
-                //         })
-                //  || d.concept_id.toString().includes(inputRef.current.value)
+                                else {return aName.localeCompare(bName)}
+                            }  
+                        }
+                    })
+                console.log('check',newFiltered)
                 setSuggestions(newFiltered) 
                 setFilteredList(newFiltered)
                 d3.select('#searchConcept').style('box-shadow','0px 0px 6px rgba(0, 0, 0, 0.2)')       
@@ -101,6 +89,7 @@ function Header (props) {
             setSuggestions([])  
             setFilteredList(conceptList)
         }  
+        setPrevSearch(inputRef.current.value)    
     }
 
     // close suggestions
@@ -118,7 +107,11 @@ function Header (props) {
             let count = suggestions.length  
             d3.select('#searchConcept').style('height', (count*50+28)+'px').style('border-radius', '18px') 
             d3.select('#suggestions-container').style('visibility','visible').style('height', (count*50)+'px')
-            d3.select('#suggestions-container').selectAll('.suggestion').data(suggestions, d => d.concept_id)
+        } else {
+            d3.select('#searchConcept').style('height', '18px').style('border-radius', '20px') 
+            d3.select('#suggestions-container').style('visibility','hidden')     
+        }
+        d3.select('#suggestions-container').selectAll('.suggestion').data(suggestions, d => d.concept_id)
             .join(enter => {
                 const div = enter.append('div')
                     .classed('suggestion',true)
@@ -163,7 +156,6 @@ function Header (props) {
                 update.selectAll('.suggestion-id')
                     .html(d => d.concept_id)   
             },exit => exit.remove())  
-        } 
     }, [suggestions])
     
     useEffect(() => {
