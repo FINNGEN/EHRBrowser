@@ -236,12 +236,11 @@ const po = {//edges need to be unique
                 return this
             },
             print: function(){
-                console.log(JSON.parse(JSON.stringify(this)))
+                
                 return this
             },
             analyze:  function(name,f,args=[]){
                 poset.analytics[name] = f(...args)
-                return this
             }
         };
 
@@ -289,8 +288,8 @@ const po = {//edges need to be unique
             const dominanceMatrix = poset.getDomMatrix()
             //poset.feature
             poset.enrich()
-                .feature("subScore",(node)=>poset.getUpset(node).length)
-                .feature("supScore",(node)=>poset.getDownset(node).length)
+                .feature("subScore",(node)=>poset.getUpset(parseInt(node)).length)
+                .feature("supScore",(node)=>poset.getDownset(parseInt(node)).length)
                 .setLayers()
                 .feature("depth",d=>poset.layers.length-poset.layers.findIndex(layer=>layer.includes(d)))
 
@@ -519,7 +518,7 @@ const po = {//edges need to be unique
         poset.drawHasse = drawHasse
         
         function circularSOM(profiles,ids = Array.from({length:profiles.length},(_,n)=>n), cells = 12, iterations = 100, learningRate = 0.1, seed=42) {
-                // console.log('profiles',profiles)
+                
                 function createSeededRandom(seed) {
                     // LCG constants (commonly used values from Numerical Recipes)
                     // 'a' (multiplier): Large prime number
@@ -843,97 +842,79 @@ const po = {//edges need to be unique
         }
         poset.colorInterpolation = colorInterpolation  
 
-        function setLayers(depth,impute){
-            //TODO layers should be imputable by a function
-            //if (typeof impute === 'function') do imputation
+        function setLayers(impute){
             if(poset.layers?.length >0)return this
+            function lImp(poset, impute=false) {
+                
+                const nodes = poset.elements, edges = poset.relations
+                const succ = new Map();
+                const predCount = new Map();
+                const layer = new Map();
             
-            if(depth === undefined){
-                
-                function lImp(poset, impute=false) {
-                    
-                    const nodes = poset.elements, edges = poset.relations
-                    const succ = new Map();
-                    const predCount = new Map();
-                    const layer = new Map();
-                
-                    // Initialize
-                    for (const node of nodes) {
-                        succ.set(node, []);
-                        predCount.set(node, 0);
-                    }
-                
-                    for (const [from, to] of edges) {
-                        succ.get(from).push(to);
-                        predCount.set(to, (predCount.get(to) || 0) + 1);
-                    }
-                
-                    // Build reverse topological order (from leaves up)
-                    const reverseTopo = [];
-                    const visited = new Set();
-                    function dfs(n) {
-                        if (visited.has(n)) return;
-                        visited.add(n);
-                        for (const child of succ.get(n)) dfs(child);
-                        reverseTopo.push(n);
-                    }
-                
-                    for (const node of nodes) {
-                        if (predCount.get(node) === 0) dfs(node);  // start from roots
-                    }
-                
-                    // Assign layers from leaves up
-                    for (const node of reverseTopo) {
-                        const children = succ.get(node);
-                        if (children.length === 0) {
-                            layer.set(node, 0); // leaves
-                        } else {
-                            let maxChildLayer = Math.max(...children.map(c => layer.get(c)));
-                            layer.set(node, maxChildLayer + 1);
-                        }
-                    }
-                
-                    // Flip layer values so that roots are at layer 0, leaves last
-                    const maxLayer = Math.max(...layer.values());
-                    for (const node of nodes) {
-                        layer.set(node, maxLayer - layer.get(node));
-                    }
-                
-                    // Group by layer
-                    const grouped = Array.from(layer.entries()).reduce((acc, [node, depth]) => {
-                        if (!acc[depth]) acc[depth] = [];
-                        acc[depth].push(node);
-                        return acc;
-                    }, []);
-                
-                    if(impute){
-                        grouped.forEach((layer,n)=>{
-                            n>0&&layer.filter(node=>{
-                                if(poset.analytics.infima.includes(node)){
-                                    grouped[0].push(node)
-                                    return false
-                                }
-                                return true
-                            })
-                        })
-                    }
-                    
-                    return grouped;
+                // Initialize
+                for (const node of nodes) {
+                    succ.set(node, []);
+                    predCount.set(node, 0);
                 }
-                this.layers = lImp(this,impute)
-            }else if(typeof depth === "string" ){
-                const layers = []
+            
+                for (const [from, to] of edges) {
+                    succ.get(from).push(to);
+                    predCount.set(to, (predCount.get(to) || 0) + 1);
+                }
+            
+                // Build reverse topological order (from leaves up)
+                const reverseTopo = [];
+                const visited = new Set();
+                function dfs(n) {
+                    if (visited.has(n)) return;
+                    visited.add(n);
+                    for (const child of succ.get(n)) dfs(child);
+                    reverseTopo.push(n);
+                }
+            
+                for (const node of nodes) {
+                    if (predCount.get(node) === 0) dfs(node);  // start from roots
+                }
+            
+                // Assign layers from leaves up
+                for (const node of reverseTopo) {
+                    const children = succ.get(node);
+                    if (children.length === 0) {
+                        layer.set(node, 0); // leaves
+                    } else {
+                        let maxChildLayer = Math.max(...children.map(c => layer.get(c)));
+                        layer.set(node, maxChildLayer + 1);
+                    }
+                }
+            
+                // Flip layer values so that roots are at layer 0, leaves last
+                const maxLayer = Math.max(...layer.values());
+                for (const node of nodes) {
+                    layer.set(node, maxLayer - layer.get(node));
+                }
+            
+                // Group by layer
+                const grouped = Array.from(layer.entries()).reduce((acc, [node, depth]) => {
+                    if (!acc[depth]) acc[depth] = [];
+                    acc[depth].push(node);
+                    return acc;
+                }, []);
+            
+                if(impute){
+                    grouped.forEach((layer,n)=>{
+                        n>0&&layer.filter(node=>{
+                            if(poset.analytics.infima.includes(node)){
+                                grouped[0].push(node)
+                                return false
+                            }
+                            return true
+                        })
+                    })
+                }
                 
-                //this.eachFeature(depth,(name,feature)=>layers[feature] === undefined ? layers[feature] = [name] : layers[feature].push(name))
-                this.eachFeature(depth,(name,feature)=>layers[feature] === undefined ? layers[feature] = [name] : layers[feature].push(name))
-                this.layers = layers
-            }else if(typeof depth === "function"){
-                console.log("F")
-                const layers = []
-                this.elements.forEach(name=>layers[depth(name)]  === undefined ? layers[depth(name)] = [name] : layers[depth(name)].push(name))
-                this.layers = layers
+                return grouped;
             }
-
+            this.layers = lImp(this,impute)
             return this
         }
         poset.setLayers = setLayers
@@ -1063,15 +1044,14 @@ const po = {//edges need to be unique
         poset.polarRepulsion = polarRepulsion
 
 
-        function climber(f=()=>null,args=[],iNeg=0){
+        function climber(poset,f=()=>null,args=[],iNeg=0){
             //poset = poset || this
             
             poset.enrich().setLayers()
             const i = poset.layers.length - 1 - iNeg
             const layer =  poset.layers[i]
-            // console.log('layer',layer)
             f(layer,iNeg,i,...args)
-            if(poset.layers.length > iNeg+1)climber(f,args,iNeg+1)
+            if(poset.layers.length > iNeg+1)climber(poset,f,args,iNeg+1)
                 
             return this
         }
@@ -1174,7 +1154,7 @@ const po = {//edges need to be unique
             poset.setDepth()
             
             const {coloringLogic} = poset
-            poset.climber(coloringLogic,[delta,seed])
+            poset.climber(poset,coloringLogic,[delta,seed])
 
             poset.feature("fill",(node)=>{
                 const d = poset.features[node]

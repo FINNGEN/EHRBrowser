@@ -1,7 +1,7 @@
-BQ5k:
+BQ5K:
   cohortTableHandler:
     database:
-      databaseId: BQ5k
+      databaseId: BQ5K
       databaseName: bigquery5k
       databaseDescription: BigQuery database
     connection:
@@ -13,17 +13,15 @@ BQ5k:
           bigint: integer64
       tempEmulationSchema: atlas-development-270609.sandbox
     cdm:
-        cdmDatabaseSchema: atlas-development-270609.etl_sam_r12_5k_omop
-        vocabularyDatabaseSchema: atlas-development-270609.etl_sam_r12_5k_omop
-        resultsDatabaseSchema: atlas-development-270609.sandbox
-    cohortTable:
-        cohortDatabaseSchema: atlas-development-270609.sandbox
-        cohortTableName: hadesextras_test_cohort_table_<timestamp>
-BQ500k:
+        cdmDatabaseSchema: atlas-development-270609.finngen_omop_r13_v3_5k
+        vocabularyDatabaseSchema: atlas-development-270609.finngen_omop_r13_v3_5k
+        resultsDatabaseSchema: atlas-development-270609.finngen_omop_result_r13_v3_5k
+# AtlasDevelopment-full
+BQ5:
   cohortTableHandler:
     database:
-      databaseId: BQ500k
-      databaseName: bigquery500k
+      databaseId: BQ
+      databaseName: bigquery
       databaseDescription: BigQuery database with 500k patients
     connection:
       connectionDetailsSettings:
@@ -34,12 +32,9 @@ BQ500k:
           bigint: integer64
       tempEmulationSchema: atlas-development-270609.sandbox
     cdm:
-        cdmDatabaseSchema: atlas-development-270609.etl_sam_dev_omop
-        vocabularyDatabaseSchema: atlas-development-270609.etl_sam_dev_omop
-        resultsDatabaseSchema: atlas-development-270609.sandbox
-    cohortTable:
-        cohortDatabaseSchema: atlas-development-270609.sandbox
-        cohortTableName: hadesextras_test_cohort_table_<timestamp>
+        cdmDatabaseSchema: atlas-development-270609.finngen_omop_r13_v3
+        vocabularyDatabaseSchema: atlas-development-270609.finngen_omop_r13_v3
+        resultsDatabaseSchema: atlas-development-270609.finngen_omop_result_r13_v3
 DF13:
   cohortTableHandler:
     database:
@@ -55,14 +50,24 @@ DF13:
         bigint: integer64
       tempEmulationSchema: <sandboxProject>.sandbox #needed for creating tmp table in BigQuery
     cdm:
-      cdmDatabaseSchema: finngen-production-library.finngen_omop_r13
-      vocabularyDatabaseSchema: finngen-production-library.finngen_omop_r13
+      cdmDatabaseSchema: finngen-production-library.finngen_omop_r13_v3
+      vocabularyDatabaseSchema: finngen-production-library.finngen_omop_r13_v3
+      resultsDatabaseSchema: finngen-production-library.finngen_omop_result_r13_v3
+DF13test:
+  cohortTableHandler:
+    database:
+      databaseId: DF13test
+      databaseName: FinnGen DF13test
+      databaseDescription: FinnGen database 13
+    connection:
+      connectionDetailsSettings:
+        dbms: bigquery
+        drv: bigrquery::bigquery()
+        project: <sandboxProject>
+        billing: <sandboxProject>
+        bigint: integer64
+      tempEmulationSchema: <sandboxProject>.sandbox #needed for creating tmp table in BigQuery
+    cdm:
+      cdmDatabaseSchema: finngen-production-library.finngen_omop_r13_v3
+      vocabularyDatabaseSchema: finngen-production-library.finngen_omop_r13_v3
       resultsDatabaseSchema: <sandboxProject>.sandbox
-    cohortTable:
-      cohortDatabaseSchema: <sandboxProject>.sandbox
-      cohortTableName: co2_d13_<sessionManager>_<timestamp>
-  atlasConfig:
-    webapiurl: https://ohdsi-webapi.app.finngen.fi/WebAPI
-    sourcekey: FINNGEN_CDM_R13
-    resultsshchema: finngen-production-library.finngen_omop_result_r13
-    regexPersonSourceValue: ^FG[A-Z0-9]{8}$

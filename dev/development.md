@@ -3,13 +3,13 @@
 # Run build in local host
 
 python 3
-python -m http.server 8080
+python -m http.server 8563
 
 python 2 
-python -m SimpleHTTPServer 8080
+python -m SimpleHTTPServer 8563
 
 follow the address in localhost
-http://localhost:8080
+http://localhost:8563
 
 ––––––––––
 >cd /
@@ -85,80 +85,3 @@ This section has moved here: [https://facebook.github.io/create-react-app/docs/d
 
 This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
 
-
-
-
-# Run Docker
-
-## FinnGen Eunomia
-
-```
-docker run --rm -p 8080:8080 -p 8585:8585 -e ROMOPAPI_DATABASE=Eunomia-Finngen ehr_browser 
-```
-
-## Atlas Development
-
-```
-docker run --rm  -p 8585:8585 -p 8080:8080 -e ROMOPAPI_DATABASE=AtlasDevelopment-BQ5k -e GCP_SERVICE_KEY=/keys/atlas-development-270609-410deaacc58b.json -v /Users/javier/keys:/keys ehr_browser
-```
-```
-docker run --rm  -p 8585:8585 -p 8080:8080 -e ROMOPAPI_DATABASE=AtlasDevelopment-BQ5k -e GCP_SERVICE_KEY=/keys/atlas-development-270609-410deaacc58b.json -v /Users/javier/keys:/keys -e REBUILD_COUNTS_TABLE=TRUE ehr_browser
-```
-
-## Sandbox DF13
-
-```
-docker pull eu.gcr.io/finngen-sandbox-v3-containers/ehr_browser
-```
-
-```
-docker run --rm -p 8080:8080 -p 8585:8585 -e ROMOPAPI_DATABASE=Sandbox-DF13 -e SANDBOX_PROJECT="$SANDBOX_PROJECT" -e SESSION_MANAGER="$SESSION_MANAGER" ehr_browser 
-```
-
-Optionally add the flag `-e REBUILD_COUNTS_TABLE=TRUE` to rebuild the counts table
-
-for example:
-```
-docker run --rm -p 8080:8080 -p 8585:8585 -e ROMOPAPI_DATABASE=Sandbox-DF13 -e SANDBOX_PROJECT="$SANDBOX_PROJECT" -e SESSION_MANAGER="$SESSION_MANAGER" -e REBUILD_COUNTS_TABLE=TRUE  eu.gcr.io/finngen-sandbox-v3-containers/ehr_browser:dev 
-```
-
-Browser:
-http://localhost:8080/?conceptIds=<conceptId>
-
-
-
-# deploy demo to Google Cloud Run
-
-gcloud services enable artifactregistry.googleapis.com
-
-gcloud artifacts repositories create ehr-browser-repo \
-  --repository-format=docker \
-  --location=europe-west1 \
-  --description="Docker repo for EHR Browser"
-
-# push to Google Artifact Registry
-gcloud auth configure-docker europe-west1-docker.pkg.dev
-docker tag ehr_browser europe-west1-docker.pkg.dev/atlas-development-270609/ehr-browser-repo/ehr_browser:latest
-docker push europe-west1-docker.pkg.dev/atlas-development-270609/ehr-browser-repo/ehr_browser:latest
-
-
-gcloud run deploy ehr-browser-demo \
-  --image europe-west1-docker.pkg.dev/atlas-development-270609/ehr-browser-repo/ehr_browser:latest \
-  --platform managed \
-  --region europe-west1 \
-  --allow-unauthenticated\
-  --port 8080
-
-
-https://ehr-browser-demo-xxxxxx-uc.a.run.app
-
-
-gcloud run services list --region europe-west1
-
-
-gcloud logs read "projects/atlas-development-270609/logs/run.googleapis.com%2Frequests" \
-  --region europe-west1 \
-  --limit 50
-
-  gcloud run services delete your-service \
-  --region europe-west1

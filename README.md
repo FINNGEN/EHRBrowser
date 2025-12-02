@@ -15,7 +15,7 @@ Use cases:
 - How each source concept contributes to the record counts of a concept, over time, gender and age?
 
 
-![EHR Browser](img/image.png)
+![EHR Browser](img/screenshot.png)
 
 # Demo
 
@@ -35,12 +35,12 @@ This contains a limited set of concepts that work.
 
 # Deployment
 
- see dev/README.md for instructions on how to deploy the EHR Browser in a local OMOP-CDM instance.
+ see dev/deployment.md for instructions on how to deploy the EHR Browser in a local OMOP-CDM instance.
 
 
 # Development
 
-see dev/README.md for instructions on how to develop the EHR Browser.
+see dev/development.md for instructions on how to develop the EHR Browser.
 
 
 

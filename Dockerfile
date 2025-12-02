@@ -53,17 +53,21 @@ WORKDIR /app
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/sites-available/default
 
+# Install the drivers for the database, Uncomment to install the drivers for your database
+# ENV DATABASECONNECTOR_JAR_FOLDER=/drivers
+# RUN Rscript -e 'DatabaseConnector::downloadJdbcDrivers(dbms = "postgresql")'
+
 # Update the romopapi package
 # Add cache bust to ensure latest ROMOPAPI is installed
-ARG CACHE_BUST=2
+ARG CACHE_BUST=4
 RUN --mount=type=secret,id=build_github_pat \
     cp /usr/local/lib/R/etc/Renviron /tmp/Renviron \
     && echo "GITHUB_PAT=$(cat /run/secrets/build_github_pat)" >> /usr/local/lib/R/etc/Renviron \
-    && Rscript -e 'remotes::install_github("FINNGEN/ROMOPAPI");remotes::install_github("javier-gracia-tabuenca-tuni/DatabaseConnector@BQ-DBI");install.packages("bigrquery")' \
+    && Rscript -e 'remotes::install_github("FINNGEN/ROMOPAPI");remotes::install_github("javier-gracia-tabuenca-tuni/DatabaseConnector@bigquery-DBI-2");install.packages("bigrquery")' \
     && cp /tmp/Renviron /usr/local/lib/R/etc/Renviron;
 
 # Expose only the main port (nginx will handle internal routing)
-EXPOSE 8080
+EXPOSE 8563
 
 # Install npm dependencies and build the React app
 ENV REACT_APP_API_BASE_URL=/api/
@@ -72,6 +76,6 @@ RUN npm run build
 
 
 # Run both the APIb & Rscript -e \"source('/romopapi/runOmopApi.R')\""] 
-# CMD ["sh", "-c", "Rscript -e \"source('/romopapi/runOmopApi.R')\" & python3 -m http.server 8080 --directory build"]
+# CMD ["sh", "-c", "Rscript -e \"source('/romopapi/runOmopApi.R')\" & python3 -m http.server 8563 --directory build"]
 # Run both the R API service and nginx reverse proxy
 CMD ["sh", "-c", "Rscript -e \"source('/romopapi/runOmopApi.R')\" & nginx -g 'daemon off;'"]

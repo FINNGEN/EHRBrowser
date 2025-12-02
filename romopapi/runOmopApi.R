@@ -1,11 +1,11 @@
 # get database from environment variable
 database <- Sys.getenv("ROMOPAPI_DATABASE")
 host <- "0.0.0.0"
-port <- 8585
+port <- 8564
 
 # check is one of the following databases
-if (!(database %in% c("OnlyCounts-FinnGen", "AtlasDevelopment-BQ5k", "AtlasDevelopment-BQ500k", "Sandbox-DF13"))) {
-    stop("ROMOPAPI_DATABASE must be one of: OnlyCounts-FinnGen, AtlasDevelopment-BQ5K, AtlasDevelopment-BQ500k, Sandbox-DF13")
+if (!(database %in% c("OnlyCounts-FinnGen", "AtlasDevelopment-BQ5k", "AtlasDevelopment-BQ500k", "Sandbox-DF13", "Sandbox-DF13test"))) {
+    stop("ROMOPAPI_DATABASE must be one of: OnlyCounts-FinnGen, AtlasDevelopment-BQ5K, AtlasDevelopment-BQ500k, Sandbox-DF13, Sandbox-DF13test")
 }
 
 # Create the cohortTableHandlerConfig based on the database
@@ -33,7 +33,7 @@ if (database |> stringr::str_detect("AtlasDevelopment")) {
     }
 }
 
-if (database == "Sandbox-DF13") {
+if (database |> stringr::str_starts("Sandbox-DF13")) {
     message("Running Sandbox-DF13 API")
 
 
@@ -79,7 +79,11 @@ if (database == "Sandbox-DF13") {
         sessionManager = stringr::str_extract(Sys.getenv("SESSION_MANAGER"), "ivm-[0-9]+") |> stringr::str_remove("ivm-")
     )
 
-    cohortTableHandlerConfig <- databasesConfig$DF13$cohortTableHandler
+    if (database == "Sandbox-DF13") {
+        cohortTableHandlerConfig <- databasesConfig$DF13$cohortTableHandler
+    } else if (database == "Sandbox-DF13test") {
+        cohortTableHandlerConfig <- databasesConfig$DF13test$cohortTableHandler
+    }
 }
 
 # rebuild the counts table if the flag is set

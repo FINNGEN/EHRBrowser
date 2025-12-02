@@ -241,7 +241,6 @@ const po = {//edges need to be unique
             },
             analyze:  function(name,f,args=[]){
                 poset.analytics[name] = f(...args)
-                return this
             }
         };
 
@@ -519,7 +518,7 @@ const po = {//edges need to be unique
         poset.drawHasse = drawHasse
         
         function circularSOM(profiles,ids = Array.from({length:profiles.length},(_,n)=>n), cells = 12, iterations = 100, learningRate = 0.1, seed=42) {
-                // console.log('profiles',profiles)
+                
                 function createSeededRandom(seed) {
                     // LCG constants (commonly used values from Numerical Recipes)
                     // 'a' (multiplier): Large prime number
@@ -1063,15 +1062,14 @@ const po = {//edges need to be unique
         poset.polarRepulsion = polarRepulsion
 
 
-        function climber(f=()=>null,args=[],iNeg=0){
+        function climber(poset,f=()=>null,args=[],iNeg=0){
             //poset = poset || this
             
             poset.enrich().setLayers()
             const i = poset.layers.length - 1 - iNeg
             const layer =  poset.layers[i]
-            // console.log('layer',layer)
             f(layer,iNeg,i,...args)
-            if(poset.layers.length > iNeg+1)climber(f,args,iNeg+1)
+            if(poset.layers.length > iNeg+1)climber(poset,f,args,iNeg+1)
                 
             return this
         }
@@ -1174,7 +1172,7 @@ const po = {//edges need to be unique
             poset.setDepth()
             
             const {coloringLogic} = poset
-            poset.climber(coloringLogic,[delta,seed])
+            poset.climber(poset,coloringLogic,[delta,seed])
 
             poset.feature("fill",(node)=>{
                 const d = poset.features[node]
