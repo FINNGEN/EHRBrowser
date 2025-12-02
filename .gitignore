@@ -4,3 +4,4 @@ keys/*
 build/*
 
 GITHUBPAT.txt
+yarn-error.log

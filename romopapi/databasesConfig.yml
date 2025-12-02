@@ -15,9 +15,7 @@ BQ5K:
     cdm:
         cdmDatabaseSchema: atlas-development-270609.finngen_omop_r13_v3_5k
         vocabularyDatabaseSchema: atlas-development-270609.finngen_omop_r13_v3_5k
-    cohortTable:
-        cohortDatabaseSchema: atlas-development-270609.sandbox
-        cohortTableName: hadesextras_test_cohort_table_<timestamp>
+        resultsDatabaseSchema: atlas-development-270609.finngen_omop_result_r13_v3_5k
 # AtlasDevelopment-full
 BQ5:
   cohortTableHandler:
@@ -36,9 +34,7 @@ BQ5:
     cdm:
         cdmDatabaseSchema: atlas-development-270609.finngen_omop_r13_v3
         vocabularyDatabaseSchema: atlas-development-270609.finngen_omop_r13_v3
-    cohortTable:
-        cohortDatabaseSchema: atlas-development-270609.sandbox
-        cohortTableName: hadesextras_test_cohort_table_<timestamp>
+        resultsDatabaseSchema: atlas-development-270609.finngen_omop_result_r13_v3
 DF13:
   cohortTableHandler:
     database:
@@ -57,14 +53,6 @@ DF13:
       cdmDatabaseSchema: finngen-production-library.finngen_omop_r13_v3
       vocabularyDatabaseSchema: finngen-production-library.finngen_omop_r13_v3
       resultsDatabaseSchema: finngen-production-library.finngen_omop_result_r13_v3
-    cohortTable:
-      cohortDatabaseSchema: <sandboxProject>.sandbox
-      cohortTableName: co2_d13_<sessionManager>_<timestamp>
-  atlasConfig:
-    webapiurl: https://ohdsi-webapi.app.finngen.fi/WebAPI
-    sourcekey: FINNGEN_CDM_R13
-    resultsshchema: finngen-production-library.finngen_omop_result_r13_v3
-    regexPersonSourceValue: ^FG[A-Z0-9]{8}$
 DF13test:
   cohortTableHandler:
     database:
@@ -83,11 +71,3 @@ DF13test:
       cdmDatabaseSchema: finngen-production-library.finngen_omop_r13_v3
       vocabularyDatabaseSchema: finngen-production-library.finngen_omop_r13_v3
       resultsDatabaseSchema: <sandboxProject>.sandbox
-    cohortTable:
-      cohortDatabaseSchema: <sandboxProject>.sandbox
-      cohortTableName: co2_d13_<sessionManager>_<timestamp>
-  atlasConfig:
-    webapiurl: https://ohdsi-webapi.app.finngen.fi/WebAPI
-    sourcekey: FINNGEN_CDM_R13
-    resultsshchema: finngen-production-library.finngen_omop_result_r13_v3
-    regexPersonSourceValue: ^FG[A-Z0-9]{8}$

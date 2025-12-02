@@ -53,6 +53,10 @@ WORKDIR /app
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/sites-available/default
 
+# Install the drivers for the database, Uncomment to install the drivers for your database
+# ENV DATABASECONNECTOR_JAR_FOLDER=/drivers
+# RUN Rscript -e 'DatabaseConnector::downloadJdbcDrivers(dbms = "postgresql")'
+
 # Update the romopapi package
 # Add cache bust to ensure latest ROMOPAPI is installed
 ARG CACHE_BUST=4
