@@ -1,9 +1,15 @@
-// ****** EDIT
+//TODO closure (poset operations in general) 
+    //* close edges down with phi (and pass it as infima)
+    //* close edges up with higher node (and pass it as suprema)
+
+//TODO check if PO
 import * as d3 from "d3";
-const po = {
+
+const po = {//edges need to be unique
     domFromEdges : (edges, s = null, t = null) => {
-        const source = s || Object.keys(edges[0])[0];
-        const target = t || Object.keys(edges[0])[1];
+        const isArray = Array.isArray(edges[0])
+        const source = s || isArray ? Object.keys(edges[0])[0] : 0;
+        const target = t || isArray ? Object.keys(edges[0])[1] : 1;
     
         edges = edges.map(e => [e[source], e[target]]);
         const nodes = [...new Set(edges.flat())];
@@ -13,6 +19,7 @@ const po = {
     
         // Step 1: Initialize the adjacency matrix
         for (const [sourceNode, targetNode] of edges) {
+            
             const sourceIdx = nodeIndex[sourceNode];
             const targetIdx = nodeIndex[targetNode];
             matrix[sourceIdx][targetIdx] = 1;
@@ -26,9 +33,17 @@ const po = {
                 }
             }
         }
-        // ****** EDIT(REVERSED)
-        return matrix 
-        // return {matrix:matrix, nodeIndex:nodeIndex};
+        // const nodeDict = Object.entries(nodeIndex)
+        //     .map((e)=>{
+        //         e.row = matrix[e[1]]
+        //         return e
+        //     })
+        //     console.log(nodeDict)
+        
+
+        //matrix.sort((a,b)=>a.filter(v=>v!==0).length-b.filter(v=>v!==0).length)
+        
+        return matrix;
     },
 
 
@@ -39,8 +54,6 @@ const po = {
         if (isDominanceMatrix) {
             // Input is a dominance matrix
             dominanceMatrix = input;
-            // ****** EDIT(REVERSED)
-            // elements = elementNames || Array.from({length: dominanceMatrix.length}, (_, i) => `${i}`);
             elements = elementNames || Array.from({length: dominanceMatrix.length}, (_, i) => `profile_${i}`);
             profiles = elements.map((_, i) => dominanceMatrix[i]);
         } else {
@@ -67,66 +80,126 @@ const po = {
             relationsMSI: [],
             relations: [],
             relationsP: [],
-            suprema: [],
-            infima: [],
+            analytics: { 
+                suprema: [],
+                infima: [],
+            },
+           
 
-            getUpset: function(element) {
+            getUpset: function(element,mask=false) {
                 const index = this.elements.indexOf(element);
-                return this.elements.map((_, i) => 
+                return mask
+                ? this.elements.map((_, i) => 
                     this.dominanceMatrix[index][i] === 1 ? 1 : 0
-                );
+                )
+                : this.elements.filter((_,i)=>this.dominanceMatrix[index][i] === 1 ? 1 : 0)
             },
 
-            getDownset: function(element) {
+            getDownset: function(element,mask=false) {
                 const index = this.elements.indexOf(element);
-                return this.elements.map((_, i) => 
+                return mask
+                ? this.elements.map((_, i) => 
                     this.dominanceMatrix[i][index] === 1 ? 1 : 0
-                );
+                )
+                : this.elements.filter((_,i)=>this.dominanceMatrix[i][index] === 1 ? 1 : 0)
             },
 
             getDomMatrix: function() {
                 return this.dominanceMatrix;
             },
 
+            // getCovMatrix: function() {
+            //     if (this.covMatrix) return this.covMatrix;
+
+            //     const n = this.dominanceMatrix.length;
+            //     const coveringMatrix = this.dominanceMatrix.map(row => [...row]);
+
+            //     // Remove transitive edges
+            //     for (let i = 0; i < n; i++) {
+            //         for (let j = 0; j < n; j++) {
+            //             if (i !== j && coveringMatrix[i][j] === 1) {
+            //                 for (let k = 0; k < n; k++) {
+            //                     if (i !== k && j !== k) {
+            //                         if (coveringMatrix[i][k] === 1 && coveringMatrix[k][j] === 1) {
+            //                             coveringMatrix[i][j] = 0;
+            //                             break;
+            //                         }
+            //                     }
+            //                 }
+            //             }
+            //         }
+            //     }
+                
+                
+
+            //     this.covMatrix = coveringMatrix;
+            //     return coveringMatrix;
+            // },
+
             getCovMatrix: function() {
                 if (this.covMatrix) return this.covMatrix;
-
+            
                 const n = this.dominanceMatrix.length;
+                // Start with a copy of the dominance matrix
                 const coveringMatrix = this.dominanceMatrix.map(row => [...row]);
-
-                // Remove transitive edges
+            
+                // Iterate through all possible (i, j) pairs
                 for (let i = 0; i < n; i++) {
                     for (let j = 0; j < n; j++) {
-                        if (i !== j && coveringMatrix[i][j] === 1) {
+                        // If i dominates j (transitive closure)
+                        if (i !== j && coveringMatrix[i][j] === 1) { // We keep i !== j as self-loops typically don't represent dominance
+                            // Check for any intermediate node k
                             for (let k = 0; k < n; k++) {
-                                if (i !== k && j !== k) {
-                                    if (coveringMatrix[i][k] === 1 && coveringMatrix[k][j] === 1) {
+                                // k must be different from i and j
+                                if (k !== i && k !== j) {
+                                    // If i dominates k AND k dominates j
+                                    // (using the original dominanceMatrix for this check!)
+                                    if (this.dominanceMatrix[i][k] === 1 && this.dominanceMatrix[k][j] === 1) {
+                                        // Then i does NOT directly cover j, so remove this edge
                                         coveringMatrix[i][j] = 0;
-                                        break;
+                                        break; // No need to check other k's for this (i, j) pair
                                     }
                                 }
                             }
                         }
                     }
                 }
-
+            
                 this.covMatrix = coveringMatrix;
                 return coveringMatrix;
             },
+            getCoverRelations: function() {
+                if(this.coverRelations) return this.coverRelations
+                
+                const matrix = this.getCovMatrix()
+                const coverRelations = [];
+                for (let i = 0; i < matrix.length; i++) {
+                    for (let j = 0; j < matrix[i].length; j++) {
+                        if (matrix[i][j] === 1) {
+                                coverRelations.push({ source: this.elements[i], target: this.elements[j] });
+                        }
+                    }
+                }
+                this.coverRelations = coverRelations
+                return coverRelations;
+            },
+
 
             getCovering: function(element) {
                 const row = this.elements.indexOf(element);
                 return this.getCovMatrix()[row]
                     .map((e, n) => e === 1 ? n : -1)
-                    .filter(e => e !== -1);
+                    .filter(e => e !== -1).map(n=>this.elements[n]);
             },
 
             getCovered: function(element) {
                 const col = this.elements.indexOf(element);
                 return this.getCovMatrix().map(row => row[col])
                     .map((e, n) => e === 1 ? n : -1)
-                    .filter(e => e !== -1);
+                    .filter(e => e !== -1).map(n=>this.elements[n]);
             },
+
+
 
             enrich: function() {
                 this.features = {};
@@ -136,8 +209,8 @@ const po = {
                     if (value === undefined) {
                         return Object.keys(this.features).map(node => this.features[node][key]);
                     } else if (typeof value === 'function') {
-                        Object.keys(this.features).forEach(node => 
-                            this.features[node][key] = JSON.parse(JSON.stringify(value(node)))
+                        Object.keys(this.features).forEach((node,row) => 
+                            this.features[node][key] = JSON.parse(JSON.stringify(value(node,this.features[node])))
                         );
                     } else {
                         Object.keys(this.features).forEach(node => 
@@ -153,13 +226,26 @@ const po = {
                     );
                     return this
                 };
+
+                this.toTable = function(){
+                    return this.elements.map((e,n)=>({
+                        i:n, 
+                        relations:this.relations.filter(r=>r[0]===e||r[1]===e), 
+                        ...this.features[e]}))
+                }
                 return this
             },
             print: function(){
                 console.log(JSON.parse(JSON.stringify(this)))
                 return this
+            },
+            analyze:  function(name,f,args=[]){
+                poset.analytics[name] = f(...args)
+                return this
             }
         };
+
+        
 
         // Derive relations from dominance matrix
         for (let i = 0; i < dominanceMatrix.length; i++) {
@@ -174,20 +260,37 @@ const po = {
 
         // Find suprema and infima
         const dominants = poset.relations.map(e => e[1]);
-        poset.infima = poset.elements.filter(p => !dominants.includes(p));
+        poset.analytics.infima = poset.elements.filter(p => !dominants.includes(p));
 
         const dominated = poset.relations.map(e => e[0]);
-        poset.suprema = poset.elements.filter(p => !dominated.includes(p));
+        poset.analytics.suprema = poset.elements.filter(p => !dominated.includes(p));
 
 
+        // function getCoverRelations() {
+        //     if(poset.coverRelations) return poset.coverRelations
+
+        //     const matrix = poset.getCovMatrix()
+        //     const coverRelations = [];
+        //     for (let i = 0; i < matrix.length; i++) {
+        //         for (let j = 0; j < matrix[i].length; j++) {
+        //             if (matrix[i][j] === 1) {
+        //                 coverRelations.push({ source: i, target: j });
+        //             }
+        //         }
+        //     }
+        //     poset.coverRelations = coverRelations
+        //     return coverRelations;
+        // }
+        // poset.getCoverRelations = getCoverRelations
 
 
         function drawHasse(container,poset=this) {
+            container = container || document.querySelector("body")
             const dominanceMatrix = poset.getDomMatrix()
             //poset.feature
             poset.enrich()
-                .feature("subScore",(node)=>poset.getUpset(node).filter(n=>n!=0).length)
-                .feature("supScore",(node)=>poset.getDownset(node).filter(n=>n!=0).length)
+                .feature("subScore",(node)=>poset.getUpset(node).length)
+                .feature("supScore",(node)=>poset.getDownset(node).length)
                 .setLayers()
                 .feature("depth",d=>poset.layers.length-poset.layers.findIndex(layer=>layer.includes(d)))
 
@@ -238,19 +341,9 @@ const po = {
                 }
                 return result;
             }
-        
             // Step 2: Convert the matrix to edges
-            function matrixToEdges(matrix) {
-                const edges = [];
-                for (let i = 0; i < matrix.length; i++) {
-                    for (let j = 0; j < matrix[i].length; j++) {
-                        if (matrix[i][j] === 1) {
-                            edges.push({ source: i, target: j });
-                        }
-                    }
-                }
-                return edges;
-            }
+            
+            
         
             // Step 3: Perform topological sort to calculate levels
             function topologicalSort(edges, numNodes) {
@@ -289,10 +382,15 @@ const po = {
                 return levels;
             }
             
-        
+            
             // Preprocess the dominance matrix to remove transitive edges
-            const filteredMatrix = removeTransitiveEdges(dominanceMatrix);
-            const edges = matrixToEdges(filteredMatrix);
+            //const filteredMatrix = removeTransitiveEdges(dominanceMatrix);
+            //const edges = matrixToEdges(filteredMatrix);
+            const edges =  this.getCoverRelations().map(cr=>({
+                    source: poset.elements.indexOf(cr.source),
+                    target: poset.elements.indexOf(cr.target)
+                })
+            )
             const numNodes = dominanceMatrix.length;
             const levels = poset.elements.map(el=>poset.layers.length-poset.layers.findIndex(l=>l.includes(el)))//topologicalSort(edges, numNodes);
             
@@ -371,7 +469,7 @@ const po = {
                 .attr("cx", d => d.x)
                 .attr("cy", d => d.depth)
                 //.attr("fill", d=>(Object.values(poset.features)[d.id].isLeaf?"green":"lightgray"))
-                .attr("fill", "lightgray")
+                .attr("fill", d=>poset.features[poset.elements[0]]?.fill?poset.features[poset.elements[d.id]].fill:"lightgray")
                 //.attr("opacity",d => scaleOpacity(d.depth))
                 .call(d3.drag()
                     .on("start", function (event, d) {
@@ -396,7 +494,7 @@ const po = {
                 .enter().append("text")
                 .attr("x", d => d.x)
                 .attr("y", d => d.depth)
-                .text(d => d.id)
+                .text(d => poset.elements[d.id])
                 .attr("dy", 5)
                 .attr("text-anchor", "middle")
                 .attr("font-family", "sans-serif");
@@ -420,9 +518,8 @@ const po = {
             }
         poset.drawHasse = drawHasse
         
-        
         function circularSOM(profiles,ids = Array.from({length:profiles.length},(_,n)=>n), cells = 12, iterations = 100, learningRate = 0.1, seed=42) {
-                
+                // console.log('profiles',profiles)
                 function createSeededRandom(seed) {
                     // LCG constants (commonly used values from Numerical Recipes)
                     // 'a' (multiplier): Large prime number
@@ -573,9 +670,9 @@ const po = {
                     toHue : d3.scaleLinear([0,cells],[0,360])
                 };
         }
+        
         poset.circularSOM = circularSOM  
-            
-            
+              
         function hSep(adjacencyMatrix) {
             const n = adjacencyMatrix.length;
             const INF = Infinity;
@@ -669,7 +766,6 @@ const po = {
         }
         poset.hSep = hSep
         
-        
         function colorInterpolation(selectedHues,depth) {
                 // Convert Hue to Cartesian coordinates (x, y)
             function hueToCartesian(hue) {
@@ -747,146 +843,97 @@ const po = {
         }
         poset.colorInterpolation = colorInterpolation  
 
-
-        // function color(seed=42){
-
-        //     const roots = poset.suprema
-        //     const rootPositions = roots.map(r=>poset.elements.indexOf(r))
-            
-        //     //coloring logic
-        //     const { shortestPaths, longestPaths, scores } = poset.hSep(dominanceMatrix);
-        //     const rootsSpace = rootPositions.map(rp=>scores[rp])
-        //     const embeddings = poset.circularSOM(rootsSpace,poset.suprema,rootsSpace.length,seed=seed)
-            
-            
-        //     poset.feature("color",[])
-        //     const {toHue} = embeddings
-        //     //set up position of the roots
-            
-            
-        //     embeddings.neurons.filter(neuron=>neuron.bmus.length > 0)
-        //     .forEach(neuron=>{
-                
-        //         neuron
-        //         .ref
-        //         .forEach(ref=>{
-                    
-        //             poset.features[ref]["color"].push(toHue(neuron.position))
-        //             })
-        //         })
-                
-            
-        //     function recursiveColoring(poset,layer){
-                
-        //             layer.forEach(node=>{
-                        
-                        
-        //                 const covered = poset.getCovered(node)
-                        
-        //                 covered.forEach(cov=>{
-                            
-        //                     const spectrum = poset.features[poset.elements[cov]]["color"]
-        //                     poset.features[node].color.forEach(hue=>spectrum.push(hue))  
-        //                 })
-                        
-        //             })
-        //             layer.forEach(node=>{
-
-        //                 const covered = poset.getCovered(node)     
-                            
-        //                 recursiveColoring(poset,covered.map(id=>poset.elements[id]))
-                        
-        //             })
-                    
-        //         }
-        //         const depthExt = d3.extent(Object.values(poset.features),d=>d.depth)
-        //         recursiveColoring(poset,roots)
-
-
-        //         const scaleDepth = d3.scaleLinear(depthExt,[60,10])
-        //         // d3.selectAll(querySelector).attr("fill",d=>poset.colorInterpolation(
-        //         //     poset.features["profile_"+d.id].color,
-        //         //     scaleDepth(poset.features["profile_"+d.id].depth)
-        //         // ))
-        //         //.each(d=>console.log(scaleDepth(poset.features["profile_"+d.id].depth)))
-
-
-        // }
-        // poset.color = color  
-
-        function setLayers(impute){
+        function setLayers(depth,impute){
+            //TODO layers should be imputable by a function
+            //if (typeof impute === 'function') do imputation
             if(poset.layers?.length >0)return this
-            function lImp(poset, impute=false) {
-
-                const nodes = poset.elements, edges = poset.relations
-                const succ = new Map();
-                const predCount = new Map();
-                const layer = new Map();
             
-                // Initialize
-                for (const node of nodes) {
-                    succ.set(node, []);
-                    predCount.set(node, 0);
-                }
-            
-                for (const [from, to] of edges) {
-                    succ.get(from).push(to);
-                    predCount.set(to, (predCount.get(to) || 0) + 1);
-                }
-            
-                // Build reverse topological order (from leaves up)
-                const reverseTopo = [];
-                const visited = new Set();
-                function dfs(n) {
-                    if (visited.has(n)) return;
-                    visited.add(n);
-                    for (const child of succ.get(n)) dfs(child);
-                    reverseTopo.push(n);
-                }
-            
-                for (const node of nodes) {
-                    if (predCount.get(node) === 0) dfs(node);  // start from roots
-                }
-            
-                // Assign layers from leaves up
-                for (const node of reverseTopo) {
-                    const children = succ.get(node);
-                    if (children.length === 0) {
-                        layer.set(node, 0); // leaves
-                    } else {
-                        let maxChildLayer = Math.max(...children.map(c => layer.get(c)));
-                        layer.set(node, maxChildLayer + 1);
-                    }
-                }
-            
-                // Flip layer values so that roots are at layer 0, leaves last
-                const maxLayer = Math.max(...layer.values());
-                for (const node of nodes) {
-                    layer.set(node, maxLayer - layer.get(node));
-                }
-            
-                // Group by layer
-                const grouped = Array.from(layer.entries()).reduce((acc, [node, depth]) => {
-                    if (!acc[depth]) acc[depth] = [];
-                    acc[depth].push(node);
-                    return acc;
-                }, []);
-            
-                if(impute){
-                    grouped.forEach((layer,n)=>{
-                        n>0&&layer.filter(node=>{
-                            if(poset.infima.includes(node)){
-                                grouped[0].push(node)
-                                return false
-                            }
-                            return true
-                        })
-                    })
-                }
+            if(depth === undefined){
                 
-                return grouped;
+                function lImp(poset, impute=false) {
+                    
+                    const nodes = poset.elements, edges = poset.relations
+                    const succ = new Map();
+                    const predCount = new Map();
+                    const layer = new Map();
+                
+                    // Initialize
+                    for (const node of nodes) {
+                        succ.set(node, []);
+                        predCount.set(node, 0);
+                    }
+                
+                    for (const [from, to] of edges) {
+                        succ.get(from).push(to);
+                        predCount.set(to, (predCount.get(to) || 0) + 1);
+                    }
+                
+                    // Build reverse topological order (from leaves up)
+                    const reverseTopo = [];
+                    const visited = new Set();
+                    function dfs(n) {
+                        if (visited.has(n)) return;
+                        visited.add(n);
+                        for (const child of succ.get(n)) dfs(child);
+                        reverseTopo.push(n);
+                    }
+                
+                    for (const node of nodes) {
+                        if (predCount.get(node) === 0) dfs(node);  // start from roots
+                    }
+                
+                    // Assign layers from leaves up
+                    for (const node of reverseTopo) {
+                        const children = succ.get(node);
+                        if (children.length === 0) {
+                            layer.set(node, 0); // leaves
+                        } else {
+                            let maxChildLayer = Math.max(...children.map(c => layer.get(c)));
+                            layer.set(node, maxChildLayer + 1);
+                        }
+                    }
+                
+                    // Flip layer values so that roots are at layer 0, leaves last
+                    const maxLayer = Math.max(...layer.values());
+                    for (const node of nodes) {
+                        layer.set(node, maxLayer - layer.get(node));
+                    }
+                
+                    // Group by layer
+                    const grouped = Array.from(layer.entries()).reduce((acc, [node, depth]) => {
+                        if (!acc[depth]) acc[depth] = [];
+                        acc[depth].push(node);
+                        return acc;
+                    }, []);
+                
+                    if(impute){
+                        grouped.forEach((layer,n)=>{
+                            n>0&&layer.filter(node=>{
+                                if(poset.analytics.infima.includes(node)){
+                                    grouped[0].push(node)
+                                    return false
+                                }
+                                return true
+                            })
+                        })
+                    }
+                    
+                    return grouped;
+                }
+                this.layers = lImp(this,impute)
+            }else if(typeof depth === "string" ){
+                const layers = []
+                
+                //this.eachFeature(depth,(name,feature)=>layers[feature] === undefined ? layers[feature] = [name] : layers[feature].push(name))
+                this.eachFeature(depth,(name,feature)=>layers[feature] === undefined ? layers[feature] = [name] : layers[feature].push(name))
+                this.layers = layers
+            }else if(typeof depth === "function"){
+                console.log("F")
+                const layers = []
+                this.elements.forEach(name=>layers[depth(name)]  === undefined ? layers[depth(name)] = [name] : layers[depth(name)].push(name))
+                this.layers = layers
             }
-            this.layers = lImp(this,impute)
+
             return this
         }
         poset.setLayers = setLayers
@@ -900,32 +947,23 @@ const po = {
             poset.feature("depth",d=>depthOf(d))
         }
         poset.setDepth = setDepth
-        function polarRepulsion(points,delta=1,f=()=>{}){
+        function polarRepulsion(points,delta=1,alpha=1,f=()=>{}){
 
 
-            const diameter = 2
+            const diameter = alpha*2
             const tolerance = (diameter/points.length)
             
             //const repulsionStrength = 1;
             //const attractionStrength = -1;
             const l =  0.10//0.05//0.35
             // //(2*Math.PI*(diameter/2))/tolerance
-            
             //*0.0000001
-            
-            
-            
-            
-            
-            
-            
-            
             //original//const position = (r,theta)=>({x:r*Math.cos(theta*(Math.PI/180)), y:r*Math.sin(theta*(Math.PI/180)), theta:theta})
             const position = (d,theta)=>(
                 {
                     id:d.id, 
-                    x:Math.cos(theta*(Math.PI/180)), 
-                    y:Math.sin(theta*(Math.PI/180)), 
+                    x:Math.cos(theta*(Math.PI/180))*alpha, 
+                    y:Math.sin(theta*(Math.PI/180))*alpha, 
                     theta:theta
             
                 }
@@ -996,7 +1034,7 @@ const po = {
             
                     
                     
-                    //console.log(data[0])
+                    
                     if(isTooCloseL)data[n]=position(data[n],decrement(p.theta , delta))
                     if(isTooCloseR)data[n]=position(data[n],increment(p.theta , delta))
                     f()
@@ -1025,14 +1063,17 @@ const po = {
         poset.polarRepulsion = polarRepulsion
 
 
-        function climber(poset,f=()=>null,args=[],iNeg=0){
+        function climber(f=()=>null,args=[],iNeg=0){
+            //poset = poset || this
+            
             poset.enrich().setLayers()
             const i = poset.layers.length - 1 - iNeg
             const layer =  poset.layers[i]
+            // console.log('layer',layer)
             f(layer,iNeg,i,...args)
-            if(poset.layers.length > iNeg+1)climber(poset,f,args,iNeg+1)
+            if(poset.layers.length > iNeg+1)climber(f,args,iNeg+1)
                 
-            
+            return this
         }
         poset.climber = climber
 
@@ -1051,7 +1092,7 @@ const po = {
                     .map((ri,n)=>[poset.elements[ri],rootsDimensions
                         .map(line=>(line[n]))]
                     )
- 
+                    
                 const categories = circularSOM(roots.map(r=>r[1]),roots.map(r=>r[0]),seed=seed)
                 const rootsCategorized =  categories.neurons.filter(neuron=>neuron.bmus.length>0)
                     .map(neuron=>(neuron.ref
@@ -1068,7 +1109,7 @@ const po = {
                     .flat()
                 
                     
-                polarRepulsion(rootsCategorized,delta).forEach(pNode=>(
+                polarRepulsion(rootsCategorized,delta,1).forEach(pNode=>(
                     poset.features[pNode.id]["pX"] = pNode.x,
                     poset.features[pNode.id]["pY"] = pNode.y,
                     poset.features[pNode.id]["pTheta"] = pNode.theta,
@@ -1089,25 +1130,38 @@ const po = {
                         }
                     ))
                 //assign descendants to parents
-                parents.forEach((p,n)=>parents[n].descendants=poset.getCovered(p.id).map(i=>poset.elements[i]))
+                parents.forEach((p,n)=>parents[n].descendants=poset.getCovered(p.id))
+                //parents.forEach((p,n)=>parents[n].descendants=poset.getCovered(p.id).map(i=>poset.elements[i]))
                 
                 const points = layer.map(node=>{
                     //subset ancestor between parents 
                     const ancestors = parents.filter(p=>p.descendants.includes(node))
                     
                     const id = node
-                    const x = ancestors.map(e=>e.x).reduce((a,e)=>a+e)/ancestors.length
-                    const y = ancestors.map(e=>e.y).reduce((a,e)=>a+e)/ancestors.length
+                    const x = (ancestors.map(e=>e.x).reduce((a,e)=>a+e)/ancestors.length)
+                    const y = (ancestors.map(e=>e.y).reduce((a,e)=>a+e)/ancestors.length)
+                    
+                    const alpha = ancestors
+                        .map(a=>poset.features[a.id].pAlpha)
+                        .reduce((a,b)=>a+b)
+                        /ancestors.length
+                    
                     
                     const theta = Math.atan2(y,x) * (180 / Math.PI)
                     
-                    return { id,x,y,theta }
+                    return { id,x,y,theta,alpha }
                 })
-                polarRepulsion(points,delta).forEach(pNode=>(
+                console.log("______")
+                const inputPoints = JSON.parse(JSON.stringify(points))
+                polarRepulsion(inputPoints,delta,inputPoints[0].alpha).forEach((pNode,n)=>(
+                    
                     poset.features[pNode.id]["pX"] = pNode.x,
                     poset.features[pNode.id]["pY"] = pNode.y,
                     poset.features[pNode.id]["pTheta"] = pNode.theta,
                     poset.features[pNode.id]["pAlpha"] = Math.sqrt( Math.pow(pNode.x,2)+Math.pow(pNode.y,2)   ) 
+                    
+                    //TODO
+                    //? fixes the color but not xy Math.sqrt( Math.pow(points[n].x,2)+Math.pow(points[n].y,2)   ) 
                 )) 
                 
                 
@@ -1120,12 +1174,12 @@ const po = {
             poset.setDepth()
             
             const {coloringLogic} = poset
-            poset.climber(poset,coloringLogic,[delta,seed])
+            poset.climber(coloringLogic,[delta,seed])
 
             poset.feature("fill",(node)=>{
                 const d = poset.features[node]
-                let l = (lThreshold+(d.depth/poset.layers.length)*(hThreshold-lThreshold))
-                    if(flip)l=hThreshold-l
+                let l = flip ? hThreshold-l :(lThreshold+(d.depth/poset.layers.length)*(hThreshold-lThreshold))
+                    
                 
                 //TODO
                 //const fill = d3?.s?null:`hsl(${d.pTheta},${d.pAlpha*100}%,${l}%)` 
@@ -1139,5 +1193,4 @@ const po = {
         return poset;
     }
 }
-//EDIT
 export default po;

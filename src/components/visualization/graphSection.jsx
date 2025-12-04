@@ -37,6 +37,7 @@ function GraphSection (props) {
     const hovered = props.hovered
     const setHovered = props.setHovered
     const graphSectionWidth = props.graphSectionWidth
+    const colorList = props.colorList
     const graphContainerRef = useRef()
     const margin = 20
     let hoverLabelCircle = false
@@ -76,7 +77,6 @@ function GraphSection (props) {
     }
     // draw line chart
     function drawGraph(rollup, scaleX, scaleY) {
-        // console.log('draw graph')
         // draw stacked area
         function updateStack(stackedData) {
             d3.select("#graph-stack").selectAll('.areas').data(stackedData, d => d.key)
@@ -93,27 +93,10 @@ function GraphSection (props) {
                     .attr('stroke','white')
                     .attr('fill', d => {
                         if (!getConceptInfo(d.key).standard_concept) {
-                            const url = createLinePattern(d.key, generateColor(d.key))
+                            const url = createLinePattern(d.key, colorList[d.key])
                             return url 
-                        } else return generateColor(d.key)
+                        } else return colorList[d.key]
                     })
-                    // .style('fill', d => {
-                    //     // console.log('set fill')
-                    //     if (!getConceptInfo(d.key).standard_concept) {
-                    //         let t = textures.lines()
-                    //             .size(3)
-                    //             .strokeWidth(1.5)
-                    //             .stroke(generateColor(d.key))  
-                    //         d3.select('#tree').call(t)
-                    //         console.log('not standard', t.url(), generateColor(d.key), d)
-                    //         return t.url()  
-                    //     } 
-                    //     else {
-                    //         console.log('standard', generateColor(d.key))
-                    //         return generateColor(d.key)
-                    //     }
-                    // })
-                    // .style("fill", d => generateColor(d.key))
                     .style("transition", "0.5s all")
                     .transition()
                     .attr("d", d3.area()
@@ -127,24 +110,18 @@ function GraphSection (props) {
                     .attr("cursor", "pointer")
                     .attr("id", d => "area-background-" + d.key)
                     .on('click', (e,d) => navigate(`/${d.key}`))
-                    .on("mouseover", (e,d) => {
+                    .on("mouseover", function (e,d) {
                         let element = selectedConcepts.filter(c => c.name === d.key)[0]
-                        // clearTimeout(hoverTimeout)
-                        // currentTarget = d.key
-                        // hoverTimeout = setTimeout(() => {
-                        //     if (currentTarget === d.key) {
-                                //conceptHover(d.key, "enter")  
-                                setHovered(d.key)
-                                tooltipHover(element, "enter", e, 'graph')  
-                        //     }
-                        // }, 400) 
+                        const el = this
+                        el.__hoverTimeout__ = setTimeout(() => {
+                            setHovered(d.key)
+                            tooltipHover(element, "enter", e, 'graph') 
+                        },400) 
                     })
-                    .on("mouseout", (e,d) => {
+                    .on("mouseout", function (e,d) {
+                        const el = this
+                        clearTimeout(el.__hoverTimeout__)
                         let element = selectedConcepts.filter(c => c.name === d.key)[0]
-                        // clearTimeout(hoverTimeout)
-                        // hoverTimeout = null
-                        // currentTarget = null
-                        //conceptHover(d.key, "leave") 
                         setHovered()
                         tooltipHover(element, "leave", e, 'graph')    
                     })
@@ -165,38 +142,26 @@ function GraphSection (props) {
                         .y0(d => scaleY(d[0]))
                         .y1(d => scaleY(d[1]))
                     )
-                    // .style('fill', d => {
-                    //     if (!getConceptInfo(d.key).standard_concept) {
-                    //         let t = textures.lines()
-                    //             .size(3)
-                    //             .strokeWidth(1.5)
-                    //             .stroke(generateColor(d.key))  
-                    //         d3.select('#tree').call(t)
-                    //         console.log('not standard', t.url(), generateColor(d.key), d)
-                    //         return t.url()  
-                    //     } 
-                    //     else return generateColor(d.key)
-                    // })
+                    .attr('fill', d => {
+                        if (!getConceptInfo(d.key).standard_concept) {
+                            const url = createLinePattern(d.key, colorList[d.key])
+                            return url 
+                        } else return colorList[d.key]
+                    })
                 update.select('.area-path-background')
                     .on('click', (e,d) => navigate(`/${d.key}`))
-                    .on("mouseover", (e,d) => {
+                    .on("mouseover", function (e,d) {
                         let element = selectedConcepts.filter(c => c.name === d.key)[0]
-                        // clearTimeout(hoverTimeout)
-                        // currentTarget = d.key
-                        // hoverTimeout = setTimeout(() => {
-                        //     if (currentTarget === d.key) {
-                                //conceptHover(d.key, "enter") 
-                                setHovered(d.key) 
-                                tooltipHover(element, "enter", e, 'graph')  
-                        //     }
-                        // }, 400) 
+                        const el = this
+                        el.__hoverTimeout__ = setTimeout(() => {
+                            setHovered(d.key)
+                            tooltipHover(element, "enter", e, 'graph') 
+                        },400) 
                     })
-                    .on("mouseout", (e,d) => {
+                    .on("mouseout", function (e,d) {
+                        const el = this
+                        clearTimeout(el.__hoverTimeout__)
                         let element = selectedConcepts.filter(c => c.name === d.key)[0]
-                        // clearTimeout(hoverTimeout)
-                        // hoverTimeout = null
-                        // currentTarget = null
-                        //conceptHover(d.key, "leave") 
                         setHovered()
                         tooltipHover(element, "leave", e, 'graph')    
                     })
@@ -208,203 +173,6 @@ function GraphSection (props) {
                     )
             },exit => exit.remove())
         }
-        // // draw labels
-        // function updateLabels(groups) {
-        //     d3.select('#graph-labels').selectAll('.labels').data(groups, d => d[0])
-        //         .join(enter => {
-        //             const labels = enter.append('div')  
-        //                 .classed('labels', true) 
-        //                 .attr('id', d => 'label-' + d[0])
-        //                 .style("cursor", "pointer")
-        //                 .style('background-color', d => d[0] === sidebarRoot.name || hovered === d[0] ? color.lightpurple : 'none')
-        //                 .style('border-radius', '20px')
-        //                 .style('margin-right', '2px')
-        //                 .on('click', (e,d) => {
-        //                     if (!hoverLabelCircle) navigate(`/${d[0]}`)
-        //                 })
-        //                 .on("mouseover", (e,d) => {
-        //                     d3.select("#label-text-" + d[0]).style('font-weight',700)
-        //                     d3.select('#label-' + d[0]).style('background-color', color.lightpurple)
-        //                     setHovered(d[0])
-        //                     // clearTimeout(hoverTimeout)
-        //                     // currentTarget = d[0]
-        //                     // hoverTimeout = setTimeout(() => {
-        //                     //     if (currentTarget === d[0]) {
-        //                     //         // conceptHover(d[0], "enter")  
-        //                     //     }
-        //                     // }, 400) 
-        //                 })
-        //                 .on("mouseout", (e,d) => {
-        //                     d3.select("#label-text-" + d[0]).style("font-weight", d => d[0] === sidebarRoot.name ? 700 : 400)
-        //                     d3.select('#label-' + d[0]).style('background-color', d => d[0] === sidebarRoot.name ? color.lightpurple : 'none')
-        //                     setHovered()
-        //                     // clearTimeout(hoverTimeout)
-        //                     // hoverTimeout = null
-        //                     // currentTarget = null
-        //                     // conceptHover(d[0], "leave")  
-        //                 })
-        //                 // .transition()
-        //                 .style('opacity', d => hovered && hovered !== d[0] ? 0.2 : 1)
-        //             labels.append("div")
-        //                 .classed('label-circle', true)
-        //                 .attr("id", d => "label-circle-" + d[0])
-        //                 .style('background', d => {
-        //                     if (!d[1][0].data.concept.standard_concept) {
-        //                         let colorVar = generateColor(d[0])
-        //                         return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ colorVar + " 0.5px," + colorVar + " 2px)"
-        //                     } else {return "none"}    
-        //                 })
-        //                 .style("background-color", d => {
-        //                     if (d[1][0].data.concept.standard_concept) {
-        //                         return generateColor(d[0])
-        //                     } else {return "none"}
-        //                 }) 
-        //                 .on('mouseover', function(e,d) {
-        //                     if (selectedConcepts.length > 1) {
-        //                         tooltipHover(d[1][0], "leave", e, 'graph') 
-        //                         hoverLabelCircle = true
-        //                         d3.select('#label-circle-' + d[0]).transition().style('background-color', 'none').style('background','none') 
-        //                         d3.select('#x-'+d[0]).transition().style('opacity',1)
-        //                     }
-        //                 })
-        //                 .on('mouseout', function(e,d) {
-        //                     hoverLabelCircle = false
-        //                     if (selectedConcepts.length > 1) {
-        //                         d3.select('#x-'+d[0]).transition().style('opacity',0)
-        //                         d3.select('#label-circle-' + d[0]).transition()
-        //                         .style('background', d => {
-        //                             if (!d[1][0].data.concept.standard_concept) {
-        //                                 let colorVar = generateColor(d[0])
-        //                                 return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ colorVar + " 0.5px," + colorVar + " 2px)"
-        //                             } else {return "none"}    
-        //                         })
-        //                         .style("background-color", d => {
-        //                             if (d[1][0].data.concept.standard_concept) {
-        //                                 return generateColor(d[0])
-        //                             } else {return "none"}
-        //                         }) 
-        //                     }
-        //                 })
-        //                 .on('click', function(e,d) {
-        //                     if (selectedConcepts.length > 1) {
-        //                         let filteredConcepts = selectedConcepts.filter(e => e.name !== d.key)
-        //                         setSelectedConcepts(filteredConcepts) 
-        //                         setHovered()  
-        //                         // conceptHover(d[0], "leave") 
-        //                         tooltipHover(d[1][0], "leave", e, 'graph') 
-        //                     }   
-        //                 })
-        //                 .append('i')
-        //                     .classed('fa-solid fa-x fa-xs',true)
-        //                     .attr('id',d => 'x-'+d[0])
-        //                     .style('color',color.text)
-        //                     .style('opacity', 0)
-        //                     .style('pointer-events','none')
-        //             const text = labels.append("div")
-        //                 .style("cursor", "pointer")
-        //             text.append('tspan')
-        //                 .classed('label-text', true)
-        //                 .attr("id", d => "label-text-" + d[0])
-        //                 .style("font-weight", d => d[0] === sidebarRoot.name || hovered === d[0] ? 700 : 400)
-        //                 .html(d => d[1][0].data.concept.concept_name)
-        //                 .style('pointer-events','none')
-        //             text.append('tspan')
-        //                 .classed('label-code',true)
-        //                 .attr("id", d => "label-vocab-" + d[0])
-        //                 .style('color', color.text)
-        //                 .style('font-weight',700)
-        //                 .style('font-size', '10px')
-        //                 .html(d => d[1][0].data.concept.concept_code)   
-        //                 .style('pointer-events','none') 
-        //             text.append('tspan')
-        //                 .classed('label-vocab', true)
-        //                 .attr("id", d => "label-vocab-" + d[0])
-        //                 .style('color', color.textlight)
-        //                 .style('font-size', '10px')
-        //                 .html(d => d[1][0].data.concept.vocabulary_id)
-        //                 .style('pointer-events','none')
-        //         }, update => {
-        //             const labels = update
-        //                 .style('background-color', d => d[0] === sidebarRoot.name || hovered === d[0] ? color.lightpurple : 'white')
-        //                 .on('click', (e,d) => {
-        //                     if (!hoverLabelCircle) navigate(`/${d[0]}`)
-        //                 })
-        //                 .on("mouseover", (e,d) => {
-        //                     d3.select("#label-text-" + d[0]).style('font-weight',700)
-        //                     d3.select('#label-' + d[0]).style('background-color', color.lightpurple)
-        //                     setHovered(d[0])
-        //                     // clearTimeout(hoverTimeout)
-        //                     // currentTarget = d[0]
-        //                     // hoverTimeout = setTimeout(() => {
-        //                     //     if (currentTarget === d[0]) {
-        //                     //         // conceptHover(d[0], "enter")  
-        //                     //     }
-        //                     // }, 400) 
-        //                 })
-        //                 .on("mouseout", (e,d) => {
-        //                     d3.select("#label-text-" + d[0]).style("font-weight", d => d[0] === sidebarRoot.name ? 700 : 400)
-        //                     d3.select('#label-' + d[0]).style('background-color', d => d[0] === sidebarRoot.name ? color.lightpurple : 'none')
-        //                     setHovered()
-        //                     // clearTimeout(hoverTimeout)
-        //                     // hoverTimeout = null
-        //                     // currentTarget = null
-        //                     // conceptHover(d[0], "leave")  
-        //                 })
-        //                 // .transition()
-        //                 .style('opacity', d => hovered && hovered !== d[0] ? 0.2 : 1)
-        //             labels.select('.label-circle')
-        //                 .style('background', d => {
-        //                     if (!d[1][0].data.concept.standard_concept) {
-        //                         let colorVar = generateColor(d[0])
-        //                         return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ colorVar + " 0.5px," + colorVar + " 2px)"
-        //                     } else {return "none"}    
-        //                 })
-        //                 .style("background-color", d => {
-        //                     if (d[1][0].data.concept.standard_concept) {
-        //                         return generateColor(d[0])
-        //                     } else {return "none"}
-        //                 }) 
-        //                 .on('mouseover', function(e,d) {
-        //                     if (selectedConcepts.length > 1) {
-        //                         tooltipHover(d[1][0], "leave", e, 'graph') 
-        //                         hoverLabelCircle = true
-        //                         d3.select('#label-circle-' + d[0]).transition().style('background-color', 'none').style('background','none')
-        //                         d3.select('#x-'+d[0]).transition().style('opacity',1)
-        //                     }
-        //                 })
-        //                 .on('mouseout', function(e,d) {
-        //                     hoverLabelCircle = false
-        //                     if (selectedConcepts.length > 1) {
-        //                         d3.select('#x-'+d[0]).transition().style('opacity',0)
-        //                         d3.select('#label-circle-' + d[0]).transition()
-        //                         .style('background', d => {
-        //                             if (!d[1][0].data.concept.standard_concept) {
-        //                                 let colorVar = generateColor(d[0])
-        //                                 return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ colorVar + " 0.5px," + colorVar + " 2px)"
-        //                             } else {return "none"}    
-        //                         })
-        //                         .style("background-color", d => {
-        //                             if (d[1][0].data.concept.standard_concept) {
-        //                                 return generateColor(d[0])
-        //                             } else {return "none"}
-        //                         }) 
-        //                     }
-        //                 })
-        //                 .on('click', function(e,d) {
-        //                     if (selectedConcepts.length > 1) {
-        //                         let filteredConcepts = selectedConcepts.filter(e => e.name !== d.key)
-        //                         setSelectedConcepts(filteredConcepts)   
-        //                         setHovered()
-        //                         tooltipHover(d[1][0], "leave", e, 'graph') 
-        //                     }   
-        //                 })
-        //             labels.select('.label-text')
-        //                 .html(d => d[1][0].data.concept.concept_name)
-        //                 .style("font-weight", d => d[0] === sidebarRoot.name || hovered === d[0] ? 700 : 400)
-        //             labels.select('.label-vocab')
-        //                 .html(d => d[1][0].data.concept.vocabulary_id)
-        //         },exit => exit.remove())    
-        // }
         // draw root descendant count line
         function updateRootLine() {
             d3.select("#graph-line").selectAll('.lines').data(rootLine, d => d[0])
@@ -783,7 +551,6 @@ function GraphSection (props) {
     // update graph
     useEffect(() => {
         if (graphContainerRef.current && extent) {
-            console.log('update graph')
             d3.select('#graph').append("defs")
             const containerWidth = document.getElementById('graph-container').clientWidth*0.9
             if (containerWidth < window.innerWidth*0.5 || graphSectionWidth === '40vw') d3.select('#graph-filters').style('display','none')
@@ -808,7 +575,7 @@ function GraphSection (props) {
                 .attr("height", height)
             if (rootLine) getGraph(stackData, width, height, ticks)  
         }
-    }, [stackData, rootLine, extent, graphSectionWidth, conceptNames.length < 100 ? hovered : null])
+    }, [stackData, rootLine, extent, graphSectionWidth, conceptNames.length < 60 ? hovered : null])
 
     // update labels
     useEffect(()=> {
@@ -826,41 +593,35 @@ function GraphSection (props) {
                         .on('click', (e,d) => {
                             if (!hoverLabelCircle) navigate(`/${d[0]}`)
                         })
-                        .on("mouseover", (e,d) => {
-                            d3.select("#label-text-" + d[0]).style('font-weight',700)
-                            d3.select('#label-' + d[0]).style('background-color', color.lightpurple)
-                            setHovered(d[0])
-                            // clearTimeout(hoverTimeout)
-                            // currentTarget = d[0]
-                            // hoverTimeout = setTimeout(() => {
-                            //     if (currentTarget === d[0]) {
-                            //         // conceptHover(d[0], "enter")  
-                            //     }
-                            // }, 400) 
+                        .on("mouseover", function (e,d) {
+                            const el = this
+                            el.__hoverTimeout__ = setTimeout(() => {
+                                d3.select("#label-text-" + d[0]).style('font-weight',700)
+                                d3.select('#label-' + d[0]).style('background-color', color.lightpurple)
+                                setHovered(d[0])
+                            },200)
                         })
-                        .on("mouseout", (e,d) => {
+                        .on("mouseout", function (e,d) {
+                            const el = this
+                            clearTimeout(el.__hoverTimeout__)
                             d3.select("#label-text-" + d[0]).style("font-weight", d => d[0] === sidebarRoot.name ? 700 : 400)
                             d3.select('#label-' + d[0]).style('background-color', d => d[0] === sidebarRoot.name ? color.lightpurple : 'none')
                             setHovered()
-                            // clearTimeout(hoverTimeout)
-                            // hoverTimeout = null
-                            // currentTarget = null
-                            // conceptHover(d[0], "leave")  
                         })
-                        // .transition()
+                        .style('transition','0.5s opacity')
                         .style('opacity', d => hovered && hovered !== d[0] ? 0.2 : 1)
                     labels.append("div")
                         .classed('label-circle', true)
                         .attr("id", d => "label-circle-" + d[0])
                         .style('background', d => {
                             if (!d[1][0].data.concept.standard_concept) {
-                                let colorVar = generateColor(d[0])
+                                let colorVar = colorList[d[0]]
                                 return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ colorVar + " 0.5px," + colorVar + " 2px)"
                             } else {return "none"}    
                         })
                         .style("background-color", d => {
                             if (d[1][0].data.concept.standard_concept) {
-                                return generateColor(d[0])
+                                return colorList[d[0]]
                             } else {return "none"}
                         }) 
                         .on('mouseover', function(e,d) {
@@ -878,13 +639,13 @@ function GraphSection (props) {
                                 d3.select('#label-circle-' + d[0]).transition()
                                 .style('background', d => {
                                     if (!d[1][0].data.concept.standard_concept) {
-                                        let colorVar = generateColor(d[0])
+                                        let colorVar = colorList[d[0]]
                                         return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ colorVar + " 0.5px," + colorVar + " 2px)"
                                     } else {return "none"}    
                                 })
                                 .style("background-color", d => {
                                     if (d[1][0].data.concept.standard_concept) {
-                                        return generateColor(d[0])
+                                        return colorList[d[0]]
                                     } else {return "none"}
                                 }) 
                             }
@@ -894,7 +655,6 @@ function GraphSection (props) {
                                 let filteredConcepts = selectedConcepts.filter(e => e.name !== d.key)
                                 setSelectedConcepts(filteredConcepts) 
                                 setHovered()  
-                                // conceptHover(d[0], "leave") 
                                 tooltipHover(d[1][0], "leave", e, 'graph') 
                             }   
                         })
@@ -933,39 +693,32 @@ function GraphSection (props) {
                         .on('click', (e,d) => {
                             if (!hoverLabelCircle) navigate(`/${d[0]}`)
                         })
-                        .on("mouseover", (e,d) => {
-                            d3.select("#label-text-" + d[0]).style('font-weight',700)
-                            d3.select('#label-' + d[0]).style('background-color', color.lightpurple)
-                            setHovered(d[0])
-                            // clearTimeout(hoverTimeout)
-                            // currentTarget = d[0]
-                            // hoverTimeout = setTimeout(() => {
-                            //     if (currentTarget === d[0]) {
-                            //         // conceptHover(d[0], "enter")  
-                            //     }
-                            // }, 400) 
+                        .on("mouseover", function (e,d) {
+                            const el = this
+                            el.__hoverTimeout__ = setTimeout(() => {
+                                d3.select("#label-text-" + d[0]).style('font-weight',700)
+                                d3.select('#label-' + d[0]).style('background-color', color.lightpurple)
+                                setHovered(d[0])
+                            },200)
                         })
-                        .on("mouseout", (e,d) => {
+                        .on("mouseout", function (e,d) {
+                            const el = this
+                            clearTimeout(el.__hoverTimeout__)
                             d3.select("#label-text-" + d[0]).style("font-weight", d => d[0] === sidebarRoot.name ? 700 : 400)
                             d3.select('#label-' + d[0]).style('background-color', d => d[0] === sidebarRoot.name ? color.lightpurple : 'none')
                             setHovered()
-                            // clearTimeout(hoverTimeout)
-                            // hoverTimeout = null
-                            // currentTarget = null
-                            // conceptHover(d[0], "leave")  
                         })
-                        // .transition()
                         .style('opacity', d => hovered && hovered !== d[0] ? 0.2 : 1)
                     labels.select('.label-circle')
                         .style('background', d => {
                             if (!d[1][0].data.concept.standard_concept) {
-                                let colorVar = generateColor(d[0])
+                                let colorVar = colorList[d[0]]
                                 return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ colorVar + " 0.5px," + colorVar + " 2px)"
                             } else {return "none"}    
                         })
                         .style("background-color", d => {
                             if (d[1][0].data.concept.standard_concept) {
-                                return generateColor(d[0])
+                                return colorList[d[0]]
                             } else {return "none"}
                         }) 
                         .on('mouseover', function(e,d) {
@@ -983,13 +736,13 @@ function GraphSection (props) {
                                 d3.select('#label-circle-' + d[0]).transition()
                                 .style('background', d => {
                                     if (!d[1][0].data.concept.standard_concept) {
-                                        let colorVar = generateColor(d[0])
+                                        let colorVar = colorList[d[0]]
                                         return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ colorVar + " 0.5px," + colorVar + " 2px)"
                                     } else {return "none"}    
                                 })
                                 .style("background-color", d => {
                                     if (d[1][0].data.concept.standard_concept) {
-                                        return generateColor(d[0])
+                                        return colorList[d[0]]
                                     } else {return "none"}
                                 }) 
                             }
@@ -1024,7 +777,7 @@ function GraphSection (props) {
             <div style = {{width:'100%',height:'100%',display:'flex',flexDirection:'column'}}>
                 <div id = "graph-selections">
                     <div style = {{display:'flex',alignItems:'center'}}>
-                        <div style = {{paddingRight:5}}><h2 style = {{marginBottom:3}}>Record Counts</h2></div>
+                        <div style = {{paddingRight:8}}><h2 style = {{marginBottom:3}}>Record Counts</h2></div>
                         <p style = {{display: extent ? 'block' : 'none',fontSize:12,marginBottom:2}}>{extent ? extent[0] + "-" + extent[1] : null}</p>    
                     </div>
                     <div id = "graph-filters" style = {{display:'flex',marginBottom:3,alignItems:'flex-end'}}>
