@@ -330,7 +330,7 @@ function App() {
     // update nodes
     const depthScale = d3.scaleLinear(d3.extent(nodeData.map(d => d.distance)), [5,80])
     nodeData = nodeData
-      .map(d => ({...d,color:colorPoset.features[d.name] ? `hsl(${colorPoset.features[d.name].pTheta},${colorPoset.features[d.name].pAlpha*100}%,${depthScale(d.distance)}%)` : generateColor(d.name),x:poset.features[d.name].x}))
+      .map(d => ({...d,color:colorPoset.features[d.name] ? `hsl(${colorPoset.features[d.name].pTheta},${colorPoset.features[d.name].pAlpha*100}%,${depthScale(d.distance)}%)` : d.color,x:poset.features[d.name].x}))
       .map(node => ({
           ...node,
           mappings: mappingData.filter(d => d.parent_concept_id === node.name).map(e=>({
@@ -346,7 +346,10 @@ function App() {
       }))
     // set color list
     const colors = {}
-    nodeData.forEach(node => colors[node.name] = node.color)
+    nodeData.forEach(node => {
+      colors[node.name] = node.color
+      node.mappings.forEach(map => colors[map.name] = map.color)
+    })
     setColorList(colors)
     // set links
     const nodeNames = nodeData.map(d => d.name)
