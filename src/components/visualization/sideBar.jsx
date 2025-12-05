@@ -59,6 +59,7 @@
         const setRemovedClasses = props.setRemovedClasses
         const graphSectionWidth = props.graphSectionWidth
         const setGraphSectionWidth = props.setGraphSectionWidth
+        const fullClassList = props.fullClassList
         // const setRoot = props.setRoot
         // const [graphSectionWidth, setGraphSectionWidth] = useState()
         const margin = 10
@@ -4323,6 +4324,7 @@
                                 if (level > levelFilter && !classFilter.includes('All')) {
                                     const newAllClasses = sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").filter(d => d.levels === '-1' || parseInt(d.levels.split('-')[0]) <= level).map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined)
                                     const notIncluded = newAllClasses.filter(d => !allClasses.includes(d)).filter(d => !classFilter.includes(d)).filter(d => !removedClasses.includes(d))
+                                    console.log('not included',notIncluded)
                                     setClassFilter(prev => [...prev, ...notIncluded])
                                 }
                                 setLevelFilter(level)
@@ -4333,10 +4335,12 @@
                         })
                         .html(d => d)
                 })
-                d3.select('#classes-dropdown').selectAll('.class').data(allClasses, d => d)
+                d3.select('#classes-dropdown').selectAll('.class').data(fullClassList, d => d)
                 .join(enter => {
                     const container = enter.append('div')
-                        .classed('class',true)   
+                        .classed('class',true)  
+                        .style('opacity', d => allClasses.includes(d) ? 1 : 0.2) 
+                        .style('pointer-events', d => allClasses.includes(d) ? 'all' : 'none')
                     const checkBox = container.append('div') 
                         .classed('check-box',true)
                         .style('cursor','pointer')
@@ -4386,6 +4390,9 @@
                         .style('color', d => classFilter.includes(d) || classFilter.includes('All') ? color.text : color.textlight)
                         .html(d => d)
                 },update =>{
+                    update 
+                        .style('opacity', d => allClasses.includes(d) ? 1 : 0.2) 
+                        .style('pointer-events', d => allClasses.includes(d) ? 'all' : 'none')
                     update.select('.check-box')
                         .style('background-color', d => classFilter.includes(d) || classFilter.includes('All') ? color.text : 'transparent')
                         .style('border', d => classFilter.includes(d) || classFilter.includes('All') ? '1px solid var(--text)' : '1px solid var(--textlightest)')
@@ -4602,9 +4609,9 @@
                                     </div>
                                 </div>   
                                 <div className = "selections-dropdown-content" id = "levels-dropdown" style = {{right:10}}></div>  
-                                <FontAwesomeIcon style = {{display: levelFilter ? 'block' : 'none'}} className = "reset-filter fa-solid fa-2xs" id = "reset-level" icon={faX} 
+                                <FontAwesomeIcon style = {{display: levelFilter < fullTreeMax ? 'block' : 'none'}} className = "reset-filter fa-solid fa-2xs" id = "reset-level" icon={faX} 
                                     onClick = {() => {
-                                        setLevelFilter()
+                                        setLevelFilter(fullTreeMax)
                                         d3.select('#open-levels-btn').style('display', 'block')
                                         d3.select('#close-levels-btn').style('display', 'none') 
                                         d3.select('#levels-dropdown').style('visibility','hidden')
@@ -4613,7 +4620,7 @@
                             </div> 
                             <div className="dropdown-container" id = "class-dropdown">
                                 <div className = "concept-selection-btn" style = {{width:'auto',border:'none',alignItems:'flex-start'}}>
-                                    <p style = {{whiteSpace:'nowrap',fontWeight: classFilter && !classFilter.includes('All') && !allClasses.every(c => classFilter.includes(c)) ? 700: 400, paddingRight:5,marginLeft:levelFilter ? 10 : 0}}>Classes</p>
+                                    <p style = {{whiteSpace:'nowrap',fontWeight: classFilter && !classFilter.includes('All') && !allClasses.every(c => classFilter.includes(c)) ? 700: 400, paddingRight:5,marginLeft:levelFilter < fullTreeMax ? 10 : 0}}>Classes</p>
                                     <div className = "dropdown-header" id = "classes-header" style = {{border:classFilter && !classFilter.includes('All') && !allClasses.every(c => classFilter.includes(c)) ? '0.5px solid var(--text)' : '0.5px solid var(--greylight)', color: classFilter && !classFilter.includes('All') && !allClasses.every(c => classFilter.includes(c)) ? 'white' : 'var(--text)', backgroundColor: classFilter && !classFilter.includes('All') && !allClasses.every(c => classFilter.includes(c)) ? 'var(--text)' : 'var(--greylight)',overflow:'hidden'}}
                                         onMouseOver={() => d3.select('#open-classes-btn').style('opacity', 1)}
                                         onMouseOut={() => d3.select('#open-classes-btn').style('opacity', 0.3)}
@@ -4637,7 +4644,7 @@
                                 <div className = "selections-dropdown-content" id = "classes-dropdown" style = {{right:-15,alignItems:'flex-start'}}></div>  
                                 <FontAwesomeIcon style = {{display: classFilter && (classFilter.includes('All') || allClasses.every(c => classFilter.includes(c))) ? 'none' : 'block'}} className = "reset-filter fa-2xs" id = "reset-class" icon={faX} 
                                     onClick = {() => {
-                                        setClassFilter(allClasses)
+                                        setClassFilter(fullClassList)
                                         d3.select('#open-classes-btn').style('display', 'block')
                                         d3.select('#close-classes-btn').style('display', 'none') 
                                         d3.select('#classes-dropdown').style('visibility','hidden')

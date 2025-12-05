@@ -76,6 +76,7 @@ function Visualization (props) {
     const hovered = props.hovered
     const setHovered = props.setHovered
     const colorList = props.colorList
+    const fullClassList = props.fullClassList
     const [zoomed, setZoomed] = useState(false)
     const [biDirectional, setBiDirectional] = useState()
     const [text,setText] = useState('')
@@ -229,7 +230,7 @@ function Visualization (props) {
             // filter connections 
             let filteredConnections = crossConnections
                 .filter(c => !filteredNodes.map(d => d.name).includes(c.child))
-                .filter(c => classFilter.includes('All') ? c : classFilter.includes(fullTree.nodes.filter(d => d.name === c.child)[0].class))
+                .filter(c => classFilter.includes('All') || classFilter == fullClassList ? c : classFilter.includes(fullTree.nodes.filter(d => d.name === c.child)[0].class))
                 .map(d => ({...d,parents:d.parents.filter(p => filteredNodes.map(d => d.name).includes(p)).filter(p => filteredNodes.filter(d => d.name === p)[0]?.leaf)}))
             filteredConnections = filteredConnections.filter(d => d.parents.length > 1)
             filteredNodes = filteredNodes
@@ -467,6 +468,7 @@ function Visualization (props) {
                 setRemovedClasses = {setRemovedClasses}
                 graphSectionWidth = {graphSectionWidth}
                 setGraphSectionWidth = {setGraphSectionWidth}
+                fullClassList = {fullClassList}
             ></SideBar> 
             <GraphSection
                 color = {color}

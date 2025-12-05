@@ -62,6 +62,7 @@ function App() {
   const [removedClasses,setRemovedClasses] = useState([])
   const [hovered,setHovered] = useState()
   const [colorList,setColorList] = useState([])
+  const [fullClassList,setFullClassList] = useState([])
   const conceptNames = useMemo(() => selectedConcepts.map(d => d.name).filter((e,n,l) => l.indexOf(e) === n),[selectedConcepts])
   const allCounts = useMemo(() => selectedConcepts.map(d => d.data.code_counts).flat(),[selectedConcepts])
   const maxLevel = useMemo(() => d3.max(nodes.filter(d => d.levels !== '-1').map(d => parseInt(d.levels.split('-')[0]))),[nodes])
@@ -383,7 +384,8 @@ function App() {
                     d3.select('#compress').style('display', 'none') 
                     setGraphFilter({gender:-1,age:[-1]})
                     let filterClass = false
-                    let classList = data.concepts.map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined)
+                    let classList = data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined)
+                    setFullClassList(classList)
                     if (classList.includes('Ingredient') || classList.includes('Clinical Drug Comp')) {
                       classList = classList.filter(d => d !== 'Ingredient' && d !== 'Clinical Drug Comp') 
                       filterClass = true
@@ -507,6 +509,7 @@ function App() {
               hovered = {hovered}
               setHovered = {setHovered}
               colorList = {colorList}
+              fullClassList = {fullClassList}
             />      
           } />
         </Routes>
