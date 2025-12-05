@@ -253,6 +253,7 @@ function App() {
       .filter((e,n,l) => l.indexOf(e) === n)
     let connections = []
     allChildren.forEach(child => allNodes.filter(d => d.child_concept_id === child).length > 1 ? connections.push({child:child,parents:allNodes.filter(d => d.child_concept_id === child).map(d => d.parent_concept_id)}) : null)
+    connections = connections.filter(d => d.parents.length > 1)
     setCrossConnections(connections)
     // set poset
     const edges = subsumesData
@@ -267,29 +268,7 @@ function App() {
       .setSubstructure("depth","depth")
       .setLayers()
       .feature("parents",node => nodeData.filter(d => d.name === parseInt(node))[0].parents)
-      // .climber(function(_,h,d) {
-      //   const layer = poset.layers[h]
-      //   // console.log('layer correct',layer)
-      //   const center = width/2
-      //   if (h === 0) {
-      //     let unit = width/layer.length
-      //     let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
-      //     let median = Math.floor(layer.length/2) 
-      //     poset.layers[h].forEach((node,i) => poset.features[node].x = unit >= nodeWidth ? unit*i + unit/2 : i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
-      //   } else {
-      //     let xPositions = []
-      //     let unit = width/layer.length
-      //     let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
-      //     let median = Math.floor(layer.length/2) 
-      //     poset.layers[h].forEach(node => xPositions.push({id:node,x:d3.sum(poset.features[node].parents.map(parent => poset.features[parent].x))/poset.features[node].parents.length}))
-      //     xPositions.sort((a, b) => d3.ascending(a.x, b.x))
-      //     let minDistance = d3.min(d3.pairs(xPositions, (a, b) => b.x - a.x))
-      //     if (minDistance < nodeWidth && layer.length > 1) {
-      //         poset.layers[h].forEach(node => poset.features[node].x = unit >= nodeWidth ? unit*xPositions.findIndex(d => d.id === node) + unit/2 : xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
-      //     } else poset.layers[h].forEach(node => poset.features[node].x = xPositions.find(d => d.id === node)?.x)
-      //   }
-      // })
-      .print('poset')
+      // .print('poset')
     // set x
     const width = window.innerWidth*0.4
     const nodeWidth = mappingData.map(d => d.levels).includes('Maps to') && mappingData.map(d => d.levels).includes('Mapped from') ? 120 : 100
@@ -366,7 +345,7 @@ function App() {
 
   // on page load
   useEffect(()=>{
-    console.log('run app')
+    // console.log('run app')
     const params = new URLSearchParams(window.location.search)
     setLoaded(true)
     fetch(`http://127.0.0.1:8585/getAPIInfo`)

@@ -154,7 +154,7 @@
         // DRAWING
         // tree
         function drawTree() {
-            console.log('nodes',nodes,'links',links)
+            // console.log('nodes',nodes,'links',links)
             // get extent of total counts
             let sums = []
             nodes.forEach(node => {
@@ -1685,7 +1685,7 @@
             }))
             sectionData = [...sectionData,...childrenSections]
             sectionData = sectionData.filter(d => d.nodes.length > 0) 
-            console.log('list',sectionData)
+            // console.log('list',sectionData)
             d3.select('#list-container').selectAll('.list-section').data(sectionData, d => d.section)
             .join(enter => {
                 const section = enter.append('div')  

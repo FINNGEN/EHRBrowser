@@ -227,10 +227,11 @@ function Visualization (props) {
                     children: e.levels === "-1" ? [sidebarRoot.name] : fullTree.links.filter(d => d.source.name === e.name && d.target.name !== e.name).map(d => d.target).map(d => d.name)
                 }))
             // filter connections 
-            const filteredConnections = crossConnections
+            let filteredConnections = crossConnections
                 .filter(c => !filteredNodes.map(d => d.name).includes(c.child))
                 .filter(c => classFilter.includes('All') ? c : classFilter.includes(fullTree.nodes.filter(d => d.name === c.child)[0].class))
                 .map(d => ({...d,parents:d.parents.filter(p => filteredNodes.map(d => d.name).includes(p)).filter(p => filteredNodes.filter(d => d.name === p)[0]?.leaf)}))
+            filteredConnections = filteredConnections.filter(d => d.parents.length > 1)
             filteredNodes = filteredNodes
                 .map(e => ({...e,connections: filteredConnections.filter(c => c.parents.includes(e.name)).map(d => ({...d,source:e.name}))}))
             // filter selected concepts
@@ -289,7 +290,7 @@ function Visualization (props) {
                 //         }
                 //     }
                 // })
-                .print()
+                // .print()
             // set x
             const width = d3.select("#tree").node().getBoundingClientRect().width
             const mappingDirections = filteredNodes.map(d => d.mappings).flat().map(d => d.direction)
