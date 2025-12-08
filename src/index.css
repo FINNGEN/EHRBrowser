@@ -61,7 +61,7 @@ h4 {
   background-color: transparent;
   z-index: 5000;
 }
-#loading {
+.loading {
   position: fixed;
   top: 0;
   left: 0;

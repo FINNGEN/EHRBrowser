@@ -4468,7 +4468,7 @@
                     drawList()
                 }    
             }
-        },[nodes,conceptNames,mapRoot,view,hovered])
+        },[nodes,conceptNames,mapRoot,view,conceptNames.length < 50 ? hovered : null])
 
         // reset zoom when tree updates (remove for opening mappings?)
         useEffect(()=>{

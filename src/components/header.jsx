@@ -16,6 +16,7 @@ function Header (props) {
     const filteredList = props.filteredList
     const setFilteredList = props.setFilteredList
     const apiInfo = props.apiInfo
+    const searchIsLoaded = props.searchIsLoaded
     // const listIndexes = props.listIndexes
     const codes = conceptList.map(d => d.concept_id.toString())
     const names = conceptList.map(d => d.concept_name.toLowerCase())
@@ -173,7 +174,7 @@ function Header (props) {
     return (
         <div id = "header">
             <div id = "header-title"><img src={finngen} alt="Finngen logo"/></div>
-            <div id = "search-container">
+            <div id = "search-container" style = {{opacity: searchIsLoaded || root ? 1 : 0.3, pointerEvents: searchIsLoaded || root ? 'all' : 'none', transition: '0.5s opacity'}}>
                 <div id = "input-container">
                     <textarea
                         ref={inputRef}

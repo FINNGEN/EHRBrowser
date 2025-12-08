@@ -575,7 +575,7 @@ function GraphSection (props) {
                 .attr("height", height)
             if (rootLine) getGraph(stackData, width, height, ticks)  
         }
-    }, [stackData, rootLine, extent, graphSectionWidth, conceptNames.length < 60 ? hovered : null])
+    }, [stackData, rootLine, extent, graphSectionWidth, conceptNames.length < 50 ? hovered : null])
 
     // update labels
     useEffect(()=> {
@@ -763,7 +763,7 @@ function GraphSection (props) {
                 },exit => exit.remove())    
         }
         updateLabels(groups)
-    },[selectedConcepts,hovered])
+    },[selectedConcepts,conceptNames.length < 50 ? hovered : null])
 
     return (
         <div id = "graph-section">

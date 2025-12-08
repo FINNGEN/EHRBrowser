@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Navigate, Routes, Route, useNavigate, useParams, useLocation } from 'react-router-dom';
 import '@fortawesome/fontawesome-free/css/all.min.css';
+import finngen from './img/finngen_logo_dark.svg'
 import CryptoJS from "crypto-js";
 import Header from './components/header'
 import Visualization from './components/visualization'
@@ -63,6 +64,8 @@ function App() {
   const [hovered,setHovered] = useState()
   const [colorList,setColorList] = useState([])
   const [fullClassList,setFullClassList] = useState([])
+  const [searchOnly, setSearchOnly] = useState(true)
+  const [searchIsLoaded, setSearchIsLoaded] = useState()
   const conceptNames = useMemo(() => selectedConcepts.map(d => d.name).filter((e,n,l) => l.indexOf(e) === n),[selectedConcepts])
   const allCounts = useMemo(() => selectedConcepts.map(d => d.data.code_counts).flat(),[selectedConcepts])
   const maxLevel = useMemo(() => d3.max(nodes.filter(d => d.levels !== '-1').map(d => parseInt(d.levels.split('-')[0]))),[nodes])
@@ -72,7 +75,7 @@ function App() {
   // let timer = null
 
   async function sendFeedback(text) {
-    const response = await fetch('http://127.0.0.1:8585/sendFeedback', {
+    const response = await fetch('http://127.0.0.1:8564/sendFeedback', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -349,28 +352,42 @@ function App() {
     // console.log('run app')
     const params = new URLSearchParams(window.location.search)
     setLoaded(true)
-    fetch(`http://127.0.0.1:8585/getAPIInfo`)
+    fetch(`http://127.0.0.1:8564/getAPIInfo`)
       .then(res=> res.json())
       .then(data=>{
         setApiInfo(data)
       })
-    fetch(`http://127.0.0.1:8585/getListOfConcepts`)
+    fetch(`http://127.0.0.1:8564/getListOfConcepts`)
       .then(res=> res.json())
       .then(data=>{
+        console.log("concept list",data)
         setConceptList(data)
         setFilteredList(data)
+        setLoading(true)
+        // setTimeout(() => {
+        //   setSearchIsLoaded(true)
+        //   setLoading(false)
+        // },3000)
       })
   }, [])
+
+  // on concept list load
+  useEffect(()=>{
+    if (conceptList.length > 0) {
+      setSearchIsLoaded(true)
+      setLoading(false)
+    }
+  },[conceptList])
 
   // on root load
   useEffect(()=>{
     if (root) {
-        // setDrawingComplete(true)
-        // d3.select('#overlayBlock').style('pointer-events','all')
+        setLoading(false)
+        setSearchOnly(false)
         const timer = setTimeout(() => {
             setLoading(true)
         }, 300)
-        fetch(`http://127.0.0.1:8585/getCodeCounts?conceptId=${root}`)
+        fetch(`http://127.0.0.1:8564/getCodeCounts?conceptId=${root}`)
             .then(res=> res.json())
             .then(data=>{
                 console.log('root', root)
@@ -433,8 +450,12 @@ function App() {
         setFilteredList = {setFilteredList}
         listIndexes = {listIndexes}
         apiInfo = {apiInfo}
-      /> 
-      {loading && <div id = "loading" style={{ fontSize: '20px' }}>
+        searchIsLoaded = {searchIsLoaded}
+      />
+      {(searchIsLoaded && searchOnly) && <div className = "loading">
+        <img style = {{width:60,opacity: 0.2}} src={finngen} alt="Finngen logo"/>
+      </div>}
+      {loading && <div className = "loading" style={{ fontSize: '20px' }}>
         <div style = {{display: 'none',fontSize:16}} id = "error-message">Concept not found</div>
         <div id = "loading-animation" class="lds-grid" style = {{visibility: 'visible'}}><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
       </div>}
