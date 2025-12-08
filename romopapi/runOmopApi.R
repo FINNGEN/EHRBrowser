@@ -75,8 +75,7 @@ if (database |> stringr::str_starts("Sandbox-DF13")) {
 
     databasesConfig <- .readAndParseYalm(
         pathToYalmFile = file.path("/romopapi/databasesConfig.yml"),
-        sandboxProject = Sys.getenv("SANDBOX_PROJECT"),
-        sessionManager = stringr::str_extract(Sys.getenv("SESSION_MANAGER"), "ivm-[0-9]+") |> stringr::str_remove("ivm-")
+        sandboxProject = Sys.getenv("SANDBOX_PROJECT")
     )
 
     if (database == "Sandbox-DF13") {
