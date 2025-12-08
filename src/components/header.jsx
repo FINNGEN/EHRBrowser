@@ -17,6 +17,7 @@ function Header (props) {
     const setFilteredList = props.setFilteredList
     const apiInfo = props.apiInfo
     const searchIsLoaded = props.searchIsLoaded
+    const version = props.version
     // const listIndexes = props.listIndexes
     const codes = conceptList.map(d => d.concept_id.toString())
     const names = conceptList.map(d => d.concept_name.toLowerCase())
@@ -230,6 +231,7 @@ function Header (props) {
                 >i</div>    
             </div> 
             <div id = "api-popup" style = {{display:'none'}}>
+                <p><span className = "api-popup-title">app version:</span>{version}</p>
                 <p><span className = "api-popup-title">cdm source abbreviation:</span>{apiInfo?.cdm_source_abbreviation}</p>
                 <p><span className = "api-popup-title">cdm source name:</span>{apiInfo?.cdm_source_name}</p>
                 <p><span className = "api-popup-title">romop api version:</span>{apiInfo?.romop_api_version}</p>

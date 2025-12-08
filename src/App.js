@@ -66,6 +66,7 @@ function App() {
   const [fullClassList,setFullClassList] = useState([])
   const [searchOnly, setSearchOnly] = useState(true)
   const [searchIsLoaded, setSearchIsLoaded] = useState()
+  const [version, setVersion] = useState()
   const conceptNames = useMemo(() => selectedConcepts.map(d => d.name).filter((e,n,l) => l.indexOf(e) === n),[selectedConcepts])
   const allCounts = useMemo(() => selectedConcepts.map(d => d.data.code_counts).flat(),[selectedConcepts])
   const maxLevel = useMemo(() => d3.max(nodes.filter(d => d.levels !== '-1').map(d => parseInt(d.levels.split('-')[0]))),[nodes])
@@ -84,6 +85,14 @@ function App() {
     })
     if (!response.ok) throw new Error(`Server error: ${response.status}`);
     return response.json().catch(() => ({}))
+  }
+  const loadNews = async () => {
+    const res = await fetch('/NEWS.md')
+    const text = await res.text()
+    const firstLine = text.split('\n')[0]
+    const index = firstLine.indexOf('v')
+    const version = index !== -1 ? firstLine.slice(index) : ""
+    setVersion(version)
   }
 
   // update root line
@@ -352,6 +361,7 @@ function App() {
     // console.log('run app')
     const params = new URLSearchParams(window.location.search)
     setLoaded(true)
+    loadNews()
     fetch(`http://127.0.0.1:8564/getAPIInfo`)
       .then(res=> res.json())
       .then(data=>{
@@ -451,6 +461,7 @@ function App() {
         listIndexes = {listIndexes}
         apiInfo = {apiInfo}
         searchIsLoaded = {searchIsLoaded}
+        version = {version}
       />
       {(searchIsLoaded && searchOnly) && <div className = "loading">
         <img style = {{width:60,opacity: 0.2}} src={finngen} alt="Finngen logo"/>
