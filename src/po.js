@@ -6,23 +6,27 @@
 import * as d3 from "d3";
 
 const po = {//edges need to be unique
-    domFromEdges : (edges, s = null, t = null) => {
+    domFromEdges : (edges, s = null, t = null) => {      
         const isArray = Array.isArray(edges[0])
         const source = s || isArray ? Object.keys(edges[0])[0] : 0;
         const target = t || isArray ? Object.keys(edges[0])[1] : 1;
     
         edges = edges.map(e => [e[source], e[target]]);
+        
         const nodes = [...new Set(edges.flat())];
+        
         const nodeIndex = Object.fromEntries(nodes.map((node, i) => [node, i]));
+        
         const n = nodes.length;
         const matrix = Array(n).fill(0).map(() => Array(n).fill(0));
-    
+        
         // Step 1: Initialize the adjacency matrix
         for (const [sourceNode, targetNode] of edges) {
             
             const sourceIdx = nodeIndex[sourceNode];
             const targetIdx = nodeIndex[targetNode];
-            matrix[sourceIdx][targetIdx] = 1;
+            //matrix[sourceIdx][targetIdx] = 1;
+            matrix[targetIdx][sourceIdx] = 1;
         }
     
         // Step 2: Compute the transitive closure using Floyd-Warshall algorithm
@@ -43,10 +47,946 @@ const po = {//edges need to be unique
 
         //matrix.sort((a,b)=>a.filter(v=>v!==0).length-b.filter(v=>v!==0).length)
         
-        return matrix;
+        return {matrix,nodes};
+    },
+    scale : (domain,range)=>{
+        const extentDomain = domain[1]-domain[0]
+        const extentRange = range[1]-range[0]
+        const ratio = extentRange/extentDomain
+
+        
+        return (value)=> value * ratio
     },
 
+    // rootsFromLayer : (poset,n,w) => {
+    //     const roots = poset.layers[n]
+    //     w = !w ? w : w === true ? [0,1] : w
+    //     if(!Array.isArray(w)){
 
+    //         const vectors = roots.map(root=>{
+    //             const us = poset.getUpset(root) 
+    //             const ds = poset.getDownset(root)
+                
+    //             const context = us.concat(ds).concat(Array.from({'length':poset.elements.length})).map(e=>poset.elements.indexOf(e)) //! isn't there one less???
+                
+    //             return Array.from({length: poset.dominanceMatrix.length}, (_,i)=>context.includes(i)?1:0)
+    //         }) 
+    //         return {
+    //             vectors: vectors,
+    //             ids: roots  // Mantieni l'associazione corretta
+    //         };
+    //     }else{
+            
+            
+
+    //         const getNext = (direction,count,list) => {
+                
+    //             const weightScale =  po.scale([n,0],[w[1],w[0]])//direction > 0 ? [0,poset.layers.length - (n+1)] : [poset.layers.length -(poset.layers.length - (n+1)),0])
+                
+                
+    //             const layer = poset.layers[n+(direction*count)]
+    //             if(layer){
+                     
+    //                 //const weightedLayer = layer.map(node=>poset.getCovMatrix()[poset.elements.indexOf(node)].map(covRel=>covRel * weightScale(count)))
+    //                 for(node of layer){
+                        
+    //                     list[poset.elements.indexOf(node)] =  weightScale(count)
+    //                 }
+    //                 //list.push(weightedLayer)
+    //                 getNext(direction,count+1,list)
+    //             }
+                
+    //             return list
+    //         }
+    //         const upVals = getNext(-1,0,Array.from({length:poset.elements.length},()=>0))
+    //         const downVals = getNext(1,0,Array.from({length:poset.elements.length},()=>0)) //?? []
+    //         const values = upVals.map((e,n)=>e+downVals[n])
+            
+            
+            
+    //         const vectors = roots.map(root=>{
+    //             const us = poset.getUpset(root) 
+    //             const ds = poset.getDownset(root)
+                
+    //             const context = us.concat(ds).map(e=>poset.elements.indexOf(e)) 
+                
+    //             return Array.from({length: poset.elements.length}, (_,i)=>context.includes(i)?values[i]:0)
+    //         }) 
+    //         //const us = getNext(-1,0,Array.from({length:poset.elements.length},()=>0))// ?? []
+    //         //const ds = getNext(1,0,Array.from({length:poset.elements.length},()=>0)) //?? []
+    //         //console.log(us,ds)
+    //         //const context = ds.map((e,n)=>e+us[n])
+    //             //.concat(Array.from({length: poset.layers[0]}, ()=>0))
+    //             //.concat(ds)//.map(e=>poset.elements.indexOf(e))
+            
+    //             //console.log("ctx",context)
+    //         return vectors//.map(vectorSet=>vectorSet[n])
+    //     }
+
+    // },
+    
+    polarRepulsion : (points,delta=1,alpha=1,f=()=>{}) => {
+            
+
+            const diameter = alpha*2
+            const tolerance = (diameter/points.length)
+            
+            //const repulsionStrength = 1;
+            //const attractionStrength = -1;
+            
+            const l =  tolerance//0.05//0.35
+            // //(2*Math.PI*(diameter/2))/tolerance
+            //*0.0000001
+            //original//const position = (r,theta)=>({x:r*Math.cos(theta*(Math.PI/180)), y:r*Math.sin(theta*(Math.PI/180)), theta:theta})
+            const position = (d,theta)=>(
+                {
+                    id:d.id, 
+                    x:Math.cos(theta*(Math.PI/180))*alpha, 
+                    y:Math.sin(theta*(Math.PI/180))*alpha, 
+                    theta:theta
+            
+                }
+            )
+            
+            const increment = (theta, delta) => (theta + delta) % 360;
+            const decrement = (theta, delta) => (theta - delta + 360) % 360;
+            
+            
+            const arcDirection = (theta1, theta2, isDegrees = true) => {
+                // Convert degrees to radians if necessary
+                if (isDegrees) {
+                    theta1 = theta1 * (Math.PI / 180);
+                    theta2 = theta2 * (Math.PI / 180);
+                }
+                
+                // Compute angular difference
+                let deltaTheta = theta2 - theta1;
+                
+                // Normalize to the range [-π, π]
+                if (deltaTheta > Math.PI) {
+                    deltaTheta -= 2 * Math.PI;
+                } else if (deltaTheta < -Math.PI) {
+                    deltaTheta += 2 * Math.PI;
+                }
+                
+                // Determine direction
+                return deltaTheta > 0 ? "left" : "right";
+            }
+            
+            
+            const distance = (radius, theta1, theta2, isDegrees = true) => {
+                // Convert degrees to radians if necessary
+                if (isDegrees) {
+                    theta1 = theta1 * (Math.PI / 180);
+                    theta2 = theta2 * (Math.PI / 180);
+                }
+                
+                // Compute absolute angular difference
+                let deltaTheta = Math.abs(theta2 - theta1);
+                
+                // Ensure the shortest arc is taken
+                deltaTheta = Math.min(deltaTheta, 2 * Math.PI - deltaTheta);
+                
+                // Compute arc length
+                return radius * deltaTheta;
+            }
+            
+            const click = (f,data) =>{
+                
+                data.forEach((p,n)=>{
+                    const unrelatedNeighbors = [...data].filter((_,nn)=>n!==nn)
+                    let isTooCloseL = false
+                    let isTooCloseR = false
+                    
+                    unrelatedNeighbors
+                    .forEach(un=> {
+                        if(distance(diameter/2, p.theta,un.theta) < l){
+                            
+                            if(arcDirection(p.theta,un.theta) === "left"){
+                                isTooCloseL = true
+                            }else{
+                                isTooCloseR = true
+                            }
+                        }
+                    })
+            
+            
+            
+                    
+                    //if(isTooCloseL || isTooCloseR) console.log("collision")
+                    
+                    if(isTooCloseL)data[n]=position(data[n],decrement(p.theta , delta))
+                    if(isTooCloseR)data[n]=position(data[n],increment(p.theta , delta))
+                    f()
+                })
+                
+            }
+            
+            const sim = (click,data,f=()=>{})=>{
+                
+                let alpha = 100
+                //const relaxation = setInterval (()=> {
+                while (alpha > 0) {
+                    alpha = alpha - 1
+                    click(f,data)
+                }
+                    //if(alpha <= 0)clearInterval(relaxation)
+                //},0)
+                
+            }
+            
+            sim(click,points)
+            
+            return points
+            
+        },
+    // visualizeEmbedding : function (cSOM,){
+
+    //     function toRad(deg) {
+    //         return deg * (Math.PI / 180);
+    //     }
+    //     function toDeg(rad) {
+    //         return rad * (180 / Math.PI);
+    //     }
+    //     function jchToRgb(jch,d3) {
+    //         const { J, C, h } = jch; // Expected: J, C, h are extracted from the input object. Example: { J: 50, C: 30, h: 45 }
+
+    //         // Convert hue from degrees to radians
+    //         let hueRad = (Math.PI / 180) * h; // Expected: Converts hue (e.g., 45°) to radians (e.g., 0.7854)
+
+    //         // Convert JCh to Lab
+    //         let L = J; // Expected: L is the same as J (lightness). Example: L = 50
+    //         let a = C * Math.cos(hueRad); // Expected: a = C * cos(hueRad). Example: a = 30 * cos(0.7854) ≈ 21.213
+    //         let b = C * Math.sin(hueRad); // Expected: b = C * sin(hueRad). Example: b = 30 * sin(0.7854) ≈ 21.213
+
+
+
+    //         // Convert Lab to XYZ (using D65 reference white)
+    //         const refX = 95.047; // Expected: D65 reference white X value
+    //         const refY = 100.000; // Expected: D65 reference white Y value
+    //         const refZ = 108.883; // Expected: D65 reference white Z value
+
+    //         let var_Y = (L + 16) / 116; // Expected: Intermediate Y value. Example: var_Y = (50 + 16) / 116 ≈ 0.569
+    //         let var_X = a / 500 + var_Y; // Expected: Intermediate X value. Example: var_X = 21.213 / 500 + 0.569 ≈ 0.611
+    //         let var_Z = var_Y - b / 200; // Expected: Intermediate Z value. Example: var_Z = 0.569 - 21.213 / 200 ≈ 0.463
+
+    //         let X = refX * (Math.pow(var_X, 3) > 0.008856 ? Math.pow(var_X, 3) : (var_X - 16 / 116) / 7.787); // Expected: X value in XYZ space. Example: X ≈ 95.047 * (0.611^3) ≈ 95.047 * 0.228 ≈ 21.68
+    //         let Y = refY * (Math.pow(var_Y, 3) > 0.008856 ? Math.pow(var_Y, 3) : (var_Y - 16 / 116) / 7.787); // Expected: Y value in XYZ space. Example: Y ≈ 100.000 * (0.569^3) ≈ 100.000 * 0.183 ≈ 18.30
+    //         let Z = refZ * (Math.pow(var_Z, 3) > 0.008856 ? Math.pow(var_Z, 3) : (var_Z - 16 / 116) / 7.787); // Expected: Z value in XYZ space. Example: Z ≈ 108.883 * (0.463^3) ≈ 108.883 * 0.099 ≈ 10.78
+
+
+
+    //         // Normalize XYZ values relative to D65 reference white
+    //         X = X / refX; // Expected: Normalized X value. Example: X ≈ 21.68 / 95.047 ≈ 0.228
+    //         Y = Y / refY; // Expected: Normalized Y value. Example: Y ≈ 18.30 / 100.000 ≈ 0.183
+    //         Z = Z / refZ; // Expected: Normalized Z value. Example: Z ≈ 10.78 / 108.883 ≈ 0.099
+
+
+
+    //         // Convert XYZ to linear RGB
+    //         let R = X *  3.2406 + Y * -1.5372 + Z * -0.4986; // Expected: Linear R value. Example: R ≈ 0.228 * 3.2406 + 0.183 * -1.5372 + 0.099 * -0.4986 ≈ 0.739 - 0.281 - 0.049 ≈ 0.409
+    //         let G = X * -0.9689 + Y *  1.8758 + Z *  0.0415; // Expected: Linear G value. Example: G ≈ 0.228 * -0.9689 + 0.183 * 1.8758 + 0.099 * 0.0415 ≈ -0.221 + 0.343 + 0.004 ≈ 0.126
+    //         let B = X *  0.0557 + Y * -0.2040 + Z *  1.0570; // Expected: Linear B value. Example: B ≈ 0.228 * 0.0557 + 0.183 * -0.2040 + 0.099 * 1.0570 ≈ 0.013 - 0.037 + 0.105 ≈ 0.081
+
+
+
+    //         // Apply gamma correction
+    //         let gammaCorrect = (c) => c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055; // Expected: Gamma correction function
+
+    //         R = gammaCorrect(R); // Expected: Gamma-corrected R value. Example: R ≈ gammaCorrect(0.409) ≈ 0.662
+    //         G = gammaCorrect(G); // Expected: Gamma-corrected G value. Example: G ≈ gammaCorrect(0.126) ≈ 0.414
+    //         B = gammaCorrect(B); // Expected: Gamma-corrected B value. Example: B ≈ gammaCorrect(0.081) ≈ 0.332
+
+
+
+    //         // Clamp values to [0, 1] range (only if necessary)
+    //         R = Math.max(0, Math.min(1, R)); // Expected: Clamps R to [0, 1]. Example: R ≈ 0.662 (unchanged)
+    //         G = Math.max(0, Math.min(1, G)); // Expected: Clamps G to [0, 1]. Example: G ≈ 0.414 (unchanged)
+    //         B = Math.max(0, Math.min(1, B)); // Expected: Clamps B to [0, 1]. Example: B ≈ 0.332 (unchanged)
+
+    //         // Convert to 0-255 range
+    //         const out = `rgb(${Math.round(R * 255)}, ${Math.round(G * 255)}, ${Math.round(B * 255)})`; // Expected: Converts to 8-bit RGB. Example: rgb(169, 106, 85)
+
+    //         return out;
+    //     }
+        
+
+    //     const radius = 20;
+
+    //     const assignments = cSOM.neurons
+    //         .filter(n=>n.bmus.length>0)
+    //         .map(n=>{
+    //             if(n.bmus.length === 1) return {name:n.ref[0],embedding:cSOM.toHue(n.position),data:n}
+                
+    //             return n.bmus.map((_,i) => ({name:n.ref[i],embedding:cSOM.toHue(n.position),data:n}) )
+
+    //         })
+    //         .flat()
+    //     const neurons = cSOM.neurons.filter(n=>n.bmus.length>0).map(n=>(n.theta = cSOM.toHue(n.position),n))
+    //     // console.log(neurons.map(n=>n.theta))
+    //     // console.log(cSOM,po.polarRepulsion(
+    //     //     neurons,
+    //     //     10
+    //     // ).map(n=>n.theta))
+        
+        
+        
+    //     //takes [0–>100] outputs Θ radians
+    //     const angularScale = d3.scaleLinear()
+    //         .domain([0, 100])  // Same domain, for simplicity
+    //         .range([0, 2 * Math.PI]);  // 360 degrees in radians
+            
+    //     const resolution = 150,
+    //           ref = d3.range(0,100,100/resolution);
+        
+    //     const svg = d3.select("body")
+    //         .append("svg")
+    //         .attr("width",800)
+    //         .attr("height",800)
+    //         .attr("viewBox","0 0 100 100")
+            
+    //     const canvas = svg.append("g")
+    //         .attr("transform","translate(50,70) scale(2)")
+        
+        
+            
+    //     const layer = canvas.append("g").classed("layer",true)
+    //         .attr(
+    //             "transform",
+    //             `
+    //             rotate(0 0 20) 
+    //             translate(0 ${-2}) 
+    //             skewX(0) 
+    //             scale(1 0.5)
+    //             `
+    //         )
+    //     layer.selectAll(".ref")
+    //         .data(ref)
+    //         .join("rect")
+    //         .classed("ref",true)
+    //         .attr("x", (d,i) => radius * Math.cos(angularScale(d)) -0.5)
+    //         .attr("y", (d,i) => radius * Math.sin(angularScale(d)) -0.5)
+    //         .attr("width", 1)
+    //         .attr("height", 1)
+    //         .attr("fill",d=>jchToRgb(d3.jch(70, 100, angularScale(d) * 180/Math.PI )))
+    //         //.attr("fill",d=>(jchToRgb(d3.jch(70, 100, angularScale(d) * 180/Math.PI ))))
+        
+            
+    //     //TODO something wrong here – the scale should be fed radians, or am I missing something?
+    //     const assignment = canvas.select(".layer").selectAll(".assignment")
+    //     .data(assignments)
+    //     .join("g")
+    //     .classed("assignment",true)
+    //     .attr("transform",d=>(
+    //     `translate(
+    //         ${radius * Math.cos(toRad(d.embedding))},
+    //         ${radius * Math.sin(toRad(d.embedding))}
+    //     )`)).on("click",(_,d)=>console.log(d))
+    //     assignment.append("circle")
+    //     .attr("r",2)
+    //     .attr("fill",d=>(jchToRgb(d3.jch(70, 100, d.embedding))))
+        
+    //     .attr("opacity","0.7")
+    //     assignment.append("text")
+    //     .classed("label",true)
+    //     .text(d=>d.name)
+
+    //     // assignment.selectAll(".feature")
+    //     //     .data(d=>data[d.name])
+    //     //     .join("rect")
+    //     //     .classed("feature",true)
+    //     //     .attr("width",0.2)
+    //     //     .attr("height",d=>d*2)
+    //     //     .attr("x",(d,i)=>i*0.2-0.5)
+    //     //     .attr("y",(d,i)=>1-d*2-0.5)
+    //     //     .attr("fill","darkgray")
+
+        
+    //     const neuron = layer
+    //         .selectAll(".neuron")
+    //         .data(cSOM.neurons)
+    //         .join("g")
+    //         .attr("transform",d=>`translate(
+    //         ${radius * Math.cos(toRad(cSOM.toHue(d.position))) -0.5},
+    //         ${radius * Math.sin(toRad(cSOM.toHue(d.position))) -0.5})`)
+            
+        
+    //     neuron.selectAll(".weight").data(d=>d.weights)
+    //         .join("rect")
+    //         .classed("weight",true)
+    //         .attr("width",0.2)
+    //         .attr("height",d=>d*2)
+    //         .attr("x",(d,i)=>i*0.2)
+    //         .attr("y",(d,i)=>1-d*2)
+    //         .attr("fill","none")
+    //         .attr("stroke","black")
+    //         .attr("stroke-width",0.05)
+        
+
+        
+        
+        
+        
+        
+        
+
+        
+            
+            
+
+    //    },
+       
+    // circularEmbedding: function (profiles,ids = Array.from({length:profiles.length},(_,n)=>n), cells = 12, iterations = 100, learningRate = 0.1, seed=42) {
+              
+    //             console.log("PIDS",profiles,JSON.parse(JSON.stringify(profiles))) 
+    //             //profiles = JSON.parse(JSON.stringify(profiles))
+    //              //ids = ['n10', 'n12', 'n14', 'n11', 'n15', 'n13', 'n16']
+    //             //  profiles = 
+    //             //  [
+    //             //      [1,1,1,0,1,0,0,0,0,0,0,0,0,0,0,0],
+    //             //      [1,1,0,1,0,1,0,0,0,0,0,0,0,0,0,0],
+    //             //      [1,1,0,1,0,1,0,0,0,0,0,0,0,0,0,0],
+    //             //      [1,1,0,1,0,0,1,0,0,0,0,0,0,0,0,0],
+    //             //      [1,1,0,1,0,0,1,0,0,0,0,0,0,0,0,0],
+    //             //      [1,1,0,1,0,0,0,1,0,0,0,0,0,0,0,0],
+    //             //      [1,1,0,1,0,0,0,0,1,0,0,0,0,0,0,0]
+    //             //  ]
+    //             //! profiles is reallocated
+                
+    //             const dotProd = (a, b) => a.map((x, i) => x * b[i]).reduce((acc, el) => acc + el);
+
+    //             const findAllSubspaces = (profiles) => {
+    //                 const checked = new Set();
+    //                 const subspaces = [];
+
+    //                 // DFS recursive search: collect all connected vectors (by dot > 0)
+    //                 function dfs(idx, currSpace) {
+    //                     checked.add(idx);
+    //                     currSpace.push(profiles[idx]);
+    //                     for (let n = 0; n < profiles.length; ++n) {
+    //                         if (!checked.has(n) && dotProd(profiles[idx], profiles[n]) > 0) {
+    //                             dfs(n, currSpace);
+    //                         }
+    //                     }
+    //                 }
+
+    //                 for (let i = 0; i < profiles.length; ++i) {
+    //                     if (!checked.has(i)) {
+    //                         const subspace = [];
+    //                         dfs(i, subspace);
+    //                         subspaces.push(subspace);
+    //                     }
+    //                 }
+
+    //                 return subspaces;
+    //             };
+    //             const subspaces = findAllSubspaces(profiles)
+                
+                
+                
+                
+
+    //             function createSeededRandom(seed) {
+    //                 // LCG constants (commonly used values from Numerical Recipes)
+    //                 // 'a' (multiplier): Large prime number
+    //                 // 'c' (increment): Another prime number
+    //                 // 'm' (modulus): A large power of 2 (or a large prime)
+    //                 // These values are chosen to maximize the period and statistical quality of the sequence.
+    //                 const a = 1103515245;
+    //                 const c = 12345;
+    //                 const m = Math.pow(2, 31); // Using 2^31 as modulus for a typical 32-bit PRNG
+        
+    //                 // Ensure the initial seed is an integer and within the valid range [0, m-1]
+    //                 // Using bitwise OR 0 to convert to a 32-bit integer and ensure positivity
+    //                 let currentSeed = (Math.abs(Math.floor(seed)) || 1) % m;
+        
+    //                 // Return a function that generates the next number in the sequence
+    //                 return function() {
+    //                     // Apply the LCG formula
+    //                     currentSeed = (a * currentSeed + c) % m;
+    //                     // Normalize the result to be between 0 (inclusive) and 1 (exclusive)
+    //                     return currentSeed / m;
+    //                 };
+    //             }
+    //             const random = createSeededRandom(seed)
+    //             //get extent
+                
+    //             const transposed =  Array.from({length: profiles[0].length}).fill(0).map( (_,tCol) => profiles.map(row=>row[tCol]))
+    //             const extent = (l) => [Math.min(...l),Math.max(...l)] 
+                
+    //             const extentProfiles = transposed.map(l=>extent(l))
+                
+                
+    //             const minSpectrum = 6//180 is rather slow
+    //             const maxSpectrum = 30//180 is rather slow
+    //             console.log("CELLS",cells)
+    //             cells = cells > maxSpectrum ? maxSpectrum : cells < minSpectrum ? minSpectrum : cells
+                
+    //             const epsilon = 1e-3; // Perturbation magnitude
+    //             const threshold = 1e-4; // Euclidean distance threshold for detecting duplicates
+
+    //             // Function to compute the Euclidean distance between two weight vectors
+    //             const euclideanDistance = (a, b) =>
+    //                 Math.sqrt(a.reduce((sum, val, idx) => sum + (val - b[idx]) ** 2, 0));
+
+    //             // Function to apply a small perturbation to the weights
+    //             function perturbVector(weights) {
+    //                 return weights.map(w => w + epsilon * (random() - 0.5));
+    //             }
+
+    //             // Function to remove duplicates
+    //             function removeDuplicates(neurons) {
+    //                 const seen = [];
+
+    //                 neurons.forEach(neuron => {
+    //                     let isDuplicate = false;
+    //                     for (let i = 0; i < seen.length; i++) {
+    //                         if (euclideanDistance(neuron.weights, seen[i].weights) < threshold) {
+    //                             // Perturb weights if too close to another neuron
+    //                             neuron.weights = perturbVector(neuron.weights);
+    //                             isDuplicate = true;
+    //                             break;
+    //                         }
+    //                     }
+    //                     if (!isDuplicate) {
+    //                         seen.push(neuron); // Add to seen list if no duplicate was found
+    //                     }
+    //                 });
+    //             }
+
+    //             // Initialize neurons
+    //             //TODO
+    //             //* add subspace weighted partitioning 
+    //             //* Multiply the weights (e.g. by10) and/or add 1 so that small numbers are less likely to average to 0-like values
+
+    //             const CPRatio = cells / profiles.length 
+    //             const ratioPerSubspace = subspaces.map(ssp=>ssp.length*CPRatio)
+                
+                
+    //             const subspaceExtent = (subspace) => {
+    //                 const transposed =  Array.from({length: subspace[0].length}).fill(0).map( (_,tCol) => subspace.map(row=>row[tCol]))
+    //                 const extent = (l) => [Math.min(...l),Math.max(...l)] 
+                
+    //                 const extentProfiles = transposed.map(l=>extent(l))
+    //                 return extentProfiles
+    //             }
+
+    //             const ExtentSSPs = subspaces.map(ssp=>subspaceExtent(ssp))
+                
+    //             let ssCount=0, 
+    //                 sspThreshold = ratioPerSubspace[0] 
+    //             const neurons = Array.from({ length: cells }, (_, N) => ({
+    //                 position: N,
+    //                 // weights: [...Array(profiles[0].length).fill(0)].map((_, n) => 
+    //                 //     extentProfiles[n][0] + random() * (extentProfiles[n][1] - extentProfiles[n][0])
+    //                 // ),
+    //                 weights: [...Array(profiles[0].length).fill(0)].map((_, n) => {
+    //                     if(N > sspThreshold ){
+    //                         ssCount = ssCount + 1;
+    //                         sspThreshold = sspThreshold + ratioPerSubspace[ssCount]
+    //                     }
+    //                     return ExtentSSPs[ssCount][n][0] + random() * (ExtentSSPs[ssCount][n][1] - ExtentSSPs[ssCount][n][0])
+    //                 }),
+                    
+    //                 bmus: [],
+    //                 bmusID: [],
+    //                 ref: []
+    //             }));
+                
+    //             // Remove duplicates
+    //             removeDuplicates(neurons);
+
+                
+    //             // Helper function to calculate Euclidean distance
+                
+
+    //             // Helper function to update weights
+    //             const updateWeights = (neuron, profile, rate) => {
+    //                 for (let i = 0; i < neuron.weights.length; i++) {
+    //                     neuron.weights[i] += rate * (profile[i] - neuron.weights[i]);
+    //                 }
+    //             };
+
+    //             // Training process
+    //             for (let t = 0; t < iterations; t++) {
+    //                 const rate = learningRate * (1 - t / iterations); // Decaying learning rate
+
+    //                 profiles.forEach(profile => {
+    //                     // Step 1: Find the Best Matching Unit (BMU)
+    //                     let bmuIndex = 0;
+    //                     let minDist = Infinity;
+    //                     neurons.forEach((neuron, index) => {
+    //                         const dist = euclideanDistance(neuron.weights, profile);
+    //                         if (dist < minDist) {
+    //                             minDist = dist;
+    //                             bmuIndex = index;
+    //                         }
+    //                     });
+
+    //                     // Step 2: Update weights of the BMU and its neighbors
+    //                     for (let i = 0; i < cells; i++) {
+    //                         // Calculate neighborhood influence
+    //                         const distance = Math.min(
+    //                             Math.abs(bmuIndex - i),
+    //                             cells - Math.abs(bmuIndex - i) // Wrap around for cylindrical grid
+    //                         );
+    //                         const influence = Math.exp(-distance / (2 * (1 - t / iterations)));
+
+    //                         // Update weights
+    //                         updateWeights(neurons[i], profile, rate * influence);
+    //                     }
+    //                 });
+    //             }
+
+    //             // Assign profiles to neurons as BMUs
+    //             // profiles.forEach((profile,n) => {
+    //             //     let bmuIndex = 0;
+    //             //     let minDist = Infinity;
+
+    //             //     neurons.forEach((neuron, index) => {
+    //             //         const dist = euclideanDistance(neuron.weights, profile);
+    //             //         if (dist < minDist) {
+    //             //             minDist = dist;
+    //             //             bmuIndex = index;
+    //             //         }
+    //             //     });
+
+    //             //     // Ensure no two neurons share the same BMU
+    //             //     neurons[bmuIndex].bmus.push(profile);
+    //             //     neurons[bmuIndex].bmusID.push(n);
+    //             //     neurons[bmuIndex].ref.push(ids[n]);
+                    
+    //             // });
+    //             profiles.forEach((profile, n) => {
+    //                 console.log(ids[n])
+    //                 let bmuIndex = 0;
+    //                 let minDist = Infinity;
+
+    //                 neurons.forEach((neuron, index) => {
+    //                     const dist = euclideanDistance(neuron.weights, profile);
+    //                     if (dist < minDist) {
+    //                         minDist = dist;
+    //                         bmuIndex = index;
+    //                     }
+    //                 });
+                
+    //                 neurons[bmuIndex].bmus.push(profile);
+    //                 neurons[bmuIndex].bmusID.push(ids[n]);  // ← Usa ids[n] invece di n
+    //                 neurons[bmuIndex].ref.push(ids[n]);     // ← Questo è ridondante ora
+    //             });
+
+    //             // Return SOM object
+    //             return { 
+    //                 neurons , 
+    //                 getNeuron : function(id){ return this.neurons.find(neuron=>neuron.bmusID.includes(id)).position} ,
+    //                 toHue : d3.scaleLinear([0,cells],[0,360])
+    //             };
+    //     },
+    circularEmbedding: function (profiles,ids = Array.from({length:profiles.length},(_,n)=>n), cells = 12, iterations = 100, learningRate = 0.1, seed=42) {
+              
+                
+                
+                
+                // console.log(ids.map((id,n)=>`${id} => ${profiles[n]}`))
+                //FIND SUBSPACES
+                const dotProd = (a, b) => a.map((x, i) => x * b[i]).reduce((acc, el) => acc + el);
+                
+
+                const findAllSubspaces = (profiles) => {
+                    const checked = new Set();
+                    const subspaces = [];
+
+                    // DFS recursive search: collect all connected vectors (by dot > 0)
+                    function dfs(idx, currSpace) {
+                        checked.add(idx);
+                        currSpace.push(profiles[idx]);
+                        for (let n = 0; n < profiles.length; ++n) {
+                            if (!checked.has(n) && dotProd(profiles[idx], profiles[n]) > 0) {
+                                dfs(n, currSpace);
+                            }
+                        }
+                    }
+
+                    for (let i = 0; i < profiles.length; ++i) {
+                        if (!checked.has(i)) {
+                            const subspace = [];
+                            dfs(i, subspace);
+                            subspaces.push(subspace);
+                        }
+                    }
+
+                    return subspaces;
+                };
+                const subspaces = findAllSubspaces(profiles)
+                
+                
+                
+                
+
+                function createSeededRandom(seed) {
+                    // LCG constants (commonly used values from Numerical Recipes)
+                    // 'a' (multiplier): Large prime number
+                    // 'c' (increment): Another prime number
+                    // 'm' (modulus): A large power of 2 (or a large prime)
+                    // These values are chosen to maximize the period and statistical quality of the sequence.
+                    const a = 1103515245;
+                    const c = 12345;
+                    const m = Math.pow(2, 31); // Using 2^31 as modulus for a typical 32-bit PRNG
+        
+                    // Ensure the initial seed is an integer and within the valid range [0, m-1]
+                    // Using bitwise OR 0 to convert to a 32-bit integer and ensure positivity
+                    let currentSeed = (Math.abs(Math.floor(seed)) || 1) % m;
+        
+                    // Return a function that generates the next number in the sequence
+                    return function() {
+                        // Apply the LCG formula
+                        currentSeed = (a * currentSeed + c) % m;
+                        // Normalize the result to be between 0 (inclusive) and 1 (exclusive)
+                        return currentSeed / m;
+                    };
+                }
+                const random = createSeededRandom(seed)
+                //get extent
+                
+                const transposed =  Array.from({length: profiles[0].length}).fill(0).map( (_,tCol) => profiles.map(row=>row[tCol]))
+                const extent = (l) => [Math.min(...l),Math.max(...l)] 
+                const extentProfiles = transposed.map(l=>extent(l))
+                
+                
+                const minSpectrum = 6//180 is rather slow
+                const maxSpectrum = 30//180 is rather slow
+                
+                cells = cells > maxSpectrum ? maxSpectrum : cells < minSpectrum ? minSpectrum : cells
+                
+                const epsilon = 1e-3; // Perturbation magnitude
+                const threshold = 1e-4; // Euclidean distance threshold for detecting duplicates
+                
+                
+                // Function to compute the Euclidean distance between two weight vectors
+                const euclideanDistance = (a, b) =>
+                    Math.sqrt(a.reduce((sum, val, idx) => sum + (val - b[idx]) ** 2, 0));
+
+                // Function to apply a small perturbation to the weights
+                function perturbVector(weights) {
+                    return weights.map(w => w + epsilon * (random() - 0.5));
+                }
+
+                // Function to remove duplicates
+                function removeDuplicates(neurons) {
+                    const seen = [];
+
+                    neurons.forEach(neuron => {
+                        let isDuplicate = false;
+                        for (let i = 0; i < seen.length; i++) {
+                            if (euclideanDistance(neuron.weights, seen[i].weights) < threshold) {
+                                // Perturb weights if too close to another neuron
+                                neuron.weights = perturbVector(neuron.weights);
+                                isDuplicate = true;
+                                break;
+                            }
+                        }
+                        if (!isDuplicate) {
+                            seen.push(neuron); // Add to seen list if no duplicate was found
+                        }
+                    });
+                }
+
+                // Initialize neurons
+                const CPRatio = cells / profiles.length 
+                const ratioPerSubspace = subspaces.map(ssp=>ssp.length*CPRatio)
+                
+                
+                const subspaceExtent = (subspace) => {
+                    const transposed =  Array.from({length: subspace[0].length}).fill(0).map( (_,tCol) => subspace.map(row=>row[tCol]))
+                    const extent = (l) => [Math.min(...l),Math.max(...l)] 
+                
+                    const extentProfiles = transposed.map(l=>extent(l))
+                    return extentProfiles
+                }
+
+                const ExtentSSPs = subspaces.map(ssp=>subspaceExtent(ssp))
+                
+                let ssCount=0, 
+                    sspThreshold = ratioPerSubspace[0] 
+                let neurons = Array.from({ length: cells }, (_, N) => ({
+                    position: N,
+                    // weights: [...Array(profiles[0].length).fill(0)].map((_, n) => 
+                    //     extentProfiles[n][0] + random() * (extentProfiles[n][1] - extentProfiles[n][0])
+                    // ),
+                    weights: [...Array(profiles[0].length).fill(0)].map((_, n) => {
+                        if(N > sspThreshold ){
+                            ssCount = ssCount + 1;
+                            sspThreshold = sspThreshold + ratioPerSubspace[ssCount]
+                        }
+                        return (ExtentSSPs[ssCount][n][1] + ExtentSSPs[ssCount][n][0])/2//ExtentSSPs[ssCount][n][0] + random() * (ExtentSSPs[ssCount][n][1] - ExtentSSPs[ssCount][n][0])
+                    }),
+                    
+                    bmus: [],
+                    bmusID: [],
+                    ref: []
+                }));
+                // Remove duplicates
+                removeDuplicates(neurons);
+                
+                
+                
+                
+                
+
+                // Helper function to update weights
+                
+                const updateWeights = (neuron, profile, rate) => {
+                    
+                    for (let i = 0; i < neuron.weights.length; i++) {
+                        //neuron.weights[i] += rate * (profile[i] - neuron.weights[i]);
+                        const w = neuron.weights[i] + rate * (profile[i] - neuron.weights[i]);
+                        if(w > 0) {
+                            neuron.weights[i] = w
+                        }else{
+                            neuron.weights[i] = 0
+                        }
+                    }
+                };
+
+                // Helper function to get adjacent neurons in circular grid
+                const getAdjacetns = (list,i) => {
+                    const next = i === list.length-1 ? 0 : i+1;
+                    const prev = i === 0 ? list.length-1: i-1;
+                    return [{neuron:list[prev],position:prev},{neuron:list[next],position:next}]
+                }
+
+                // Helper function to create a new interpolated neuron
+                const interpolateNeurons = (a,b) => {
+                    // console.log("INTERPOLATING",a,b)
+                 return{
+                    position : (a.position+b.position)/2,
+                    weights: a.weights.map((w,n)=>(w+b.weights[n])/2),
+                    bmus : [],
+                    bmusID : [],
+                    ref : [],
+                    
+                 } 
+                    
+                    
+                    
+                    
+                    
+
+
+                }
+
+                // Training process
+                // for (let t = 0; t < iterations; t++) {
+                //     const rate = learningRate * (1 - t / iterations); // Decaying learning rate
+
+                //     profiles.forEach(profile => {
+                //         // Step 1: Find the Best Matching Unit (BMU)
+                //         let bmuIndex = 0;
+                //         let minDist = Infinity;
+                //         neurons.forEach((neuron, index) => {
+                //             const dist = euclideanDistance(neuron.weights, profile);
+                //             if (dist < minDist) {
+                //                 minDist = dist;
+                //                 bmuIndex = index;
+                //             }
+                //         });
+
+                //         // Step 2: Update weights of the BMU and its neighbors
+                //         for (let i = 0; i < cells; i++) {
+                //             // Calculate neighborhood influence
+                //             const distance = Math.min(
+                //                 Math.abs(bmuIndex - i),
+                //                 cells - Math.abs(bmuIndex - i) // Wrap around for cylindrical grid
+                //             );
+                //             const influence = Math.exp(-distance / (2 * (1 - t / iterations)));
+
+                //             // Update weights
+                //             updateWeights(neurons[i], profile, rate * influence);
+                //         }
+                //     });
+                // }
+                //TODO –> smoother learning spike (more neighbors)
+                //TODO –> EITHER nested subspace sorting – OR add interpolated neurons if neighbor has one
+                //?CONSIDER A GENERATOR FUNCTION THAT YIELDS AND IS TIED INDIRECTLY TO A LIST
+                for (let t = 0; t < iterations; t++) {
+                    const rate = learningRate * (1 - t / iterations); // Decaying learning rate
+
+                    profiles.forEach(profile => {
+                        // Step 1: Find the Best Matching Unit (BMU)
+                        let bmuIndex = 0;
+                        let minDist = Infinity;
+                        
+                        neurons.forEach((neuron, index) => {
+                            const dist = euclideanDistance(neuron.weights, profile);
+                            if (dist < minDist) {
+                                minDist = dist;
+                                bmuIndex = index;
+                            }
+                        });
+                        
+
+                        // Step 2: Update weights of the BMU and its neighbors
+                        
+                        for (let i = 0; i < cells; i++) {
+                            // Calculate neighborhood influence
+                            const distance = Math.min(
+                                Math.abs(bmuIndex - i),
+                                cells - Math.abs(bmuIndex - i) // Wrap around for cylindrical grid
+                            );
+                            const influence = Math.exp(-distance / (2 * (1 - t / iterations)));
+                            
+                            // Update weights
+                            updateWeights(neurons[i], profile, rate * influence);
+                        }
+                    });
+                }
+
+                // console.log(neurons)
+                
+                profiles.forEach((profile, n) => {
+                    
+                    let bmuIndex = 0;
+                    let minDist = Infinity;
+
+                    neurons.forEach((neuron, index) => {
+                        const dist = euclideanDistance(neuron.weights, profile);
+                        if (dist < minDist) {
+                            minDist = dist;
+                            bmuIndex = index;
+                        }
+                    });
+                    
+                    // console.log("ASSIGNED", ids[n])
+                    neurons[bmuIndex].bmus.push(profile);
+                    neurons[bmuIndex].bmusID.push(ids[n]);  // ← Usa ids[n] invece di n
+                    neurons[bmuIndex].ref.push(ids[n]);     // ← Questo è ridondante ora
+                
+                    //break continuous conglomerates
+                    //const [prev,next] = getAdjacetns(neurons,bmuIndex)
+                    // if(next.neuron.bmus.length > 0){
+                    //     const newNeuron = interpolateNeurons(neurons[bmuIndex],next.neuron)
+                    //     neurons = neurons.slice(0,bmuIndex+1)
+                    //     .concat(newNeuron)
+                    //     .concat(neurons.slice(bmuIndex+1))
+                    // }
+                    // if(prev.neuron.bmus.length > 0){
+                    //     const newNeuron = interpolateNeurons(prev.neuron,neurons[bmuIndex])
+                    //     neurons = neurons.slice(0,bmuIndex)
+                    //     .concat(newNeuron)
+                    //     .concat(neurons.slice(bmuIndex))
+                    // }
+                });
+
+                
+                // Return SOM object
+                return { 
+                    neurons , 
+                    getNeuron : function(id){ return this.neurons.find(neuron=>neuron.bmusID.includes(id)).position} ,
+                    toHue : d3.scaleLinear([0,cells],[0,360])
+                };
+                
+
+        },
     createPoset:(input, elementNames = null) => {
         let isDominanceMatrix = Array.isArray(input[0]) && typeof input[0][0] === 'number' && input[0].length === input.length;
         let elements, profiles, dominanceMatrix;
@@ -235,8 +1175,10 @@ const po = {//edges need to be unique
                 }
                 return this
             },
-            print: function(){
-                console.log(JSON.parse(JSON.stringify(this)))
+            print: function(...args){
+                const message = args.length>0 ? args.reduce((acc,el)=>`${acc} ${el}`):""
+                
+                console.log(message, JSON.parse(JSON.stringify(this)))
                 return this
             },
             analyze:  function(name,f,args=[]){
@@ -519,7 +1461,7 @@ const po = {//edges need to be unique
         poset.drawHasse = drawHasse
         
         function circularSOM(profiles,ids = Array.from({length:profiles.length},(_,n)=>n), cells = 12, iterations = 100, learningRate = 0.1, seed=42) {
-                // console.log('profiles',profiles)
+                
                 function createSeededRandom(seed) {
                     // LCG constants (commonly used values from Numerical Recipes)
                     // 'a' (multiplier): Large prime number
@@ -843,12 +1785,33 @@ const po = {//edges need to be unique
         }
         poset.colorInterpolation = colorInterpolation  
 
-        function setLayers(depth,impute){
-            //TODO layers should be imputable by a function
-            //if (typeof impute === 'function') do imputation
+        function setSubstructure(name,depth){
+            if(!this.analytics.substructures)this.analytics.substructures = {}
+            
+            if(typeof depth === "string" ){
+                const substructure = []
+                this.eachFeature(depth,(name,feature)=>substructure[feature] === undefined ? substructure[feature] = [name] : substructure[feature].push(name))
+                this.analytics.substructures[name] = substructure
+                // console.log("ENTERED",substructure)
+            }else if(typeof depth === "function"){
+                const substructure = []
+                this.elements.forEach(name=>substructure[depth(name)]  === undefined ? substructure[depth(name)] = [name] : substructure[depth(name)].push(name))
+                this.analytics.substructures[name] = substructure
+            }
+
+            // this.flipLayers = function(){
+            //     this.layers = this.layers.sort((a,b)=>this.layers.indexOf(b)-this.layers.indexOf(a))
+            //     return this
+            // }
+            return this
+        }
+        poset.setSubstructure = setSubstructure
+        function setLayers(impute){
+            
+            
             if(poset.layers?.length >0)return this
             
-            if(depth === undefined){
+            
                 
                 function lImp(poset, impute=false) {
                     
@@ -921,19 +1884,12 @@ const po = {//edges need to be unique
                     return grouped;
                 }
                 this.layers = lImp(this,impute)
-            }else if(typeof depth === "string" ){
-                const layers = []
-                
-                //this.eachFeature(depth,(name,feature)=>layers[feature] === undefined ? layers[feature] = [name] : layers[feature].push(name))
-                this.eachFeature(depth,(name,feature)=>layers[feature] === undefined ? layers[feature] = [name] : layers[feature].push(name))
-                this.layers = layers
-            }else if(typeof depth === "function"){
-                console.log("F")
-                const layers = []
-                this.elements.forEach(name=>layers[depth(name)]  === undefined ? layers[depth(name)] = [name] : layers[depth(name)].push(name))
-                this.layers = layers
-            }
+            
 
+            // this.flipLayers = function(){
+            //     this.layers = this.layers.sort((a,b)=>this.layers.indexOf(b)-this.layers.indexOf(a))
+            //     return this
+            // }
             return this
         }
         poset.setLayers = setLayers
@@ -948,7 +1904,7 @@ const po = {//edges need to be unique
         }
         poset.setDepth = setDepth
         function polarRepulsion(points,delta=1,alpha=1,f=()=>{}){
-
+            
 
             const diameter = alpha*2
             const tolerance = (diameter/points.length)
@@ -969,7 +1925,7 @@ const po = {//edges need to be unique
                 }
             )
             
-            const increment = (theta, delta) => (theta + delta) % 360;
+            const increment = (theta, delta) => (theta + delta) % 360 ;
             const decrement = (theta, delta) => (theta - delta + 360) % 360;
             
             
@@ -1063,15 +2019,24 @@ const po = {//edges need to be unique
         poset.polarRepulsion = polarRepulsion
 
 
-        function climber(f=()=>null,args=[],iNeg=0){
+        function climber(f=()=>null,args=[],reverse=false,startingPoint=0){
             //poset = poset || this
-            
             poset.enrich().setLayers()
-            const i = poset.layers.length - 1 - iNeg
-            const layer =  poset.layers[i]
-            // console.log('layer',layer)
-            f(layer,iNeg,i,...args)
-            if(poset.layers.length > iNeg+1)climber(f,args,iNeg+1)
+            
+            if(reverse){
+                
+                const layer =  poset.layers[startingPoint]
+                f(layer,startingPoint,startingPoint,...args)
+                
+                if(poset.layers.length > startingPoint+1)climber(f,args,reverse,startingPoint+1)
+            }else{
+
+                const i = poset.layers.length - 1 - startingPoint
+                const layer =  poset.layers[i]
+                
+                f(layer,startingPoint,i,...args)
+                if(poset.layers.length > startingPoint+1)climber(f,args,reverse,startingPoint+1)
+                }
                 
             return this
         }
@@ -1079,47 +2044,187 @@ const po = {//edges need to be unique
 
 
 
+        // function coloringLogic(layer,iNeg,i,delta,seed=12){
+            
+        //     if(iNeg===0){
+                
+        //         const rootIndexes = layer
+        //             .map(node=>poset.elements.indexOf(node))
+                    
+        //         const rootsDimensions = poset
+        //             .getCovMatrix()
+        //             .map(row=>row.filter((v,i)=>rootIndexes.includes(i)))
+        //         const roots = rootIndexes
+        //             .map((ri,n)=>[poset.elements[ri],rootsDimensions
+        //                 .map(line=>(line[n]))]
+        //             )
+
+                
+                    
+        //         //const categories = circularSOM(roots.map(r=>r[1]),roots.map(r=>r[0]),seed=seed)
+        //         const categories = po.circularEmbedding(roots.map(r=>r[1]),roots.map(r=>r[0]),cells = 12, iterations = 100, learningRate = 0.1,seed=seed)
+                
+        //         const rootsCategorized =  categories.neurons.filter(neuron=>neuron.bmus.length>0)
+        //             .map(neuron=>(neuron.ref
+        //                 .map(ref=>{
+                            
+        //                     const angle=categories.toHue(neuron.position);
+        //                     const theta=angle*Math.PI/180;
+        //                     return {
+        //                     "id":ref,
+        //                     "theta":angle,
+        //                     "x":Math.cos(theta),
+        //                     "y":Math.sin(theta)
+        //                     }})
+        //             ))
+        //             .flat()
+        //         console.log("categories",rootsCategorized.map(r=>r.theta))
+                    
+        //         polarRepulsion(rootsCategorized,delta,1).forEach(pNode=>(
+        //             poset.features[pNode.id]["pX"] = pNode.x,
+        //             poset.features[pNode.id]["pY"] = pNode.y,
+        //             poset.features[pNode.id]["pTheta"] = pNode.theta,
+        //             poset.features[pNode.id]["pAlpha"] = Math.sqrt( Math.pow(pNode.x,2)+Math.pow(pNode.y,2)   ) 
+        //         )) 
+                
+        //     }
+        //     else{
+                
+        //         //const parents = poset.layers[i+1]
+                
+
+                
+        //         const parents = poset.layers.slice(i+1).flat()
+        //             .map(node=>(
+        //                 {
+        //                     id:node,
+        //                     x:poset.features[node].pX,
+        //                     y:poset.features[node].pY,
+        //                     theta:poset.features[node].pTheta,
+        //                 }
+        //             ))
+                
+        //         //assign descendants to parents
+        //         parents.forEach((p,n)=>parents[n].descendants=poset.getCovered(p.id))
+        //         //parents.forEach((p,n)=>parents[n].descendants=poset.getCovered(p.id).map(i=>poset.elements[i]))
+                
+        //         const ancestorsPerPoint = {}
+        //         const points = layer.map(node=>{
+        //             //subset ancestor between parents 
+        //             const ancestors = parents.filter(p=>p.descendants.includes(node))
+        //             const id = node
+        //             const x = (ancestors.map(e=>e.x).reduce((a,e)=>a+e)/ancestors.length)
+        //             const y = (ancestors.map(e=>e.y).reduce((a,e)=>a+e)/ancestors.length)
+                    
+                    
+        //             const alpha = ancestors
+        //                 .map(a=>poset.features[a.id].pAlpha)
+        //                 .reduce((a,b)=>a+b)
+        //                 /ancestors.length
+                    
+        //             //TODO try backpropagation 
+        //             ancestorsPerPoint[id] = ancestors.map(a=>a.id)
+        //             console.log("____",ancestorsPerPoint)
+        //             //*----------------*//
+        //             const theta = Math.atan2(y,x) * (180 / Math.PI)
+                    
+        //             return { id,x,y,theta,alpha }
+        //         })
+                
+        //         const inputPoints = JSON.parse(JSON.stringify(points))
+        //         polarRepulsion(inputPoints,delta,inputPoints[0].alpha).forEach((pNode,n)=>{
+                    
+        //             poset.features[pNode.id]["pX"] = pNode.x;
+        //             poset.features[pNode.id]["pY"] = pNode.y;
+        //             poset.features[pNode.id]["pTheta"] = pNode.theta;
+        //             poset.features[pNode.id]["pAlpha"] = Math.sqrt( Math.pow(pNode.x,2)+Math.pow(pNode.y,2)   ); 
+        //             const bp = false
+        //             if(bp){
+        //             function sumAnglesDegrees(angle1, angle2) {
+        //               const sum = (angle1 + angle2) % 360;
+        //               return sum < 0 ? sum + 360 : sum; // Normalize to [0, 360)
+        //             }
+        //             //BACKPROPAGATION
+        //             //!STILL VERY MESSY
+        //             ancestorsPerPoint[pNode.id].forEach(a=>{
+        //                     poset.features[a].pTheta = ( pNode.theta + ((poset.features[a].pTheta-pNode.theta)/100)); 
+                            
+        //                     //poset.features[a].pX = ( pNode.theta + ((poset.features[a].pX-pNode.x)/100)); //((poset.features[a].pNode.x)+ ((pNode.theta+poset.features[a].pNode.x)*0.1)) 
+        //                     //poset.features[a].pY = ( pNode.theta + ((poset.features[a].pY-pNode.y)/100)); //((poset.features[a].pNode.x)+ ((pNode.theta+poset.features[a].pTheta)*0.1)) 
+
+        //             })
+        //                 //poset.features[pNode.id]["pTheta"] = pNode.theta + (ancestorsPerPoint[pNode.id].map(a=>poset.features[a].pTheta).reduce((acc,el)=>acc+el)/ancestorsPerPoint[pNode.id].length);
+        //                 //
+        //                 //poset.features[pNode.id]["pX"] = (pNode.x + (ancestorsPerPoint[pNode.id].map(a=>poset.features[a].pX).reduce((acc,el)=>acc+el)/ancestorsPerPoint[pNode.id].length)/2000);
+        //                 //poset.features[pNode.id]["pY"] = (pNode.y + (ancestorsPerPoint[pNode.id].map(a=>poset.features[a].pY).reduce((acc,el)=>acc+el)/ancestorsPerPoint[pNode.id].length)/2000);
+        //             }
+        //             //TODO
+        //             //? fixes the color but not xy Math.sqrt( Math.pow(points[n].x,2)+Math.pow(points[n].y,2)   ) 
+        //     }) 
+                
+                
+                
+            
+        // }
+        // }
         function coloringLogic(layer,iNeg,i,delta,seed=12){
             if(iNeg===0){
+                //TODO color based on layer position here
+                const rootIndexes = layer.map(node => poset.elements.indexOf(node))
+
+                //const rootsDimensions = poset
+                //    .getCovMatrix()
+                //    .map(row => row.filter((v, i) => rootIndexes.includes(i)))
+                //const rootsDimensions = poset.elements.map()
+                const roots = rootIndexes.map((ri, n) => [
+                    poset.elements[ri],
+                    //rootsDimensions.map(line => line[n])
+                    poset.elements.map(e=>poset.getUpset(e).includes(poset.elements[ri])?1:0)
+                ])
                 
-                const rootIndexes = layer
-                    .map(node=>poset.elements.indexOf(node))
+                // Topological sorting
+                
+                roots
+                    .sort((a,b)=>b[1].reduce((acc,el)=>acc+el)-a[1].reduce((acc,el)=>acc+el))
+                    .sort((a,b)=>(a[1].join("")<b[1].join("")?-1:1))
                     
-                const rootsDimensions = poset
-                    .getCovMatrix()
-                    .map(row=>row.filter((v,i)=>rootIndexes.includes(i)))
-                const roots = rootIndexes
-                    .map((ri,n)=>[poset.elements[ri],rootsDimensions
-                        .map(line=>(line[n]))]
-                    )
-                    
-                const categories = circularSOM(roots.map(r=>r[1]),roots.map(r=>r[0]),seed=seed)
-                const rootsCategorized =  categories.neurons.filter(neuron=>neuron.bmus.length>0)
+                
+                
+                // Estrai separatamente i vettori e gli ID nello stesso ordine
+                const vectors = roots.map(r => r[1])  // I profili
+                const ids = roots.map(r => r[0])      // Gli ID dei nodi
+                // Usa vectors e ids invece di roots.map
+                const categories = po.circularEmbedding(vectors, ids, Math.ceil(ids.length * (ids.length/2)), 1000, 0.1, seed)
+                
+                //po.visualizeEmbedding(categories)
+                const rootsCategorized = categories.neurons.filter(neuron=>neuron.bmus.length>0)
                     .map(neuron=>(neuron.ref
                         .map(ref=>{
+                            // console.log(ref,neuron.weights)
                             const angle=categories.toHue(neuron.position);
                             const theta=angle*Math.PI/180;
                             return {
-                            "id":ref,
-                            "theta":angle,
-                            "x":Math.cos(theta),
-                            "y":Math.sin(theta)
-                            }})
+                                
+                                "id":ref,
+                                "theta":angle,
+                                "x":Math.cos(theta),
+                                "y":Math.sin(theta),
+                            }
+                        })
                     ))
                     .flat()
                 
-                    
+                    // console.log("D",delta)
                 polarRepulsion(rootsCategorized,delta,1).forEach(pNode=>(
                     poset.features[pNode.id]["pX"] = pNode.x,
                     poset.features[pNode.id]["pY"] = pNode.y,
                     poset.features[pNode.id]["pTheta"] = pNode.theta,
-                    poset.features[pNode.id]["pAlpha"] = Math.sqrt( Math.pow(pNode.x,2)+Math.pow(pNode.y,2)   ) 
+                    poset.features[pNode.id]["pAlpha"] = Math.sqrt( Math.pow(pNode.x,2)+Math.pow(pNode.y,2) ) 
                 )) 
                 
             }
             else{
                 
-                //const parents = poset.layers[i+1]
                 const parents = poset.layers.slice(i+1).flat()
                     .map(node=>(
                         {
@@ -1129,43 +2234,51 @@ const po = {//edges need to be unique
                             theta:poset.features[node].pTheta,
                         }
                     ))
+                
                 //assign descendants to parents
                 parents.forEach((p,n)=>parents[n].descendants=poset.getCovered(p.id))
-                //parents.forEach((p,n)=>parents[n].descendants=poset.getCovered(p.id).map(i=>poset.elements[i]))
                 
+                const ancestorsPerPoint = {}
                 const points = layer.map(node=>{
                     //subset ancestor between parents 
                     const ancestors = parents.filter(p=>p.descendants.includes(node))
-                    
                     const id = node
                     const x = (ancestors.map(e=>e.x).reduce((a,e)=>a+e)/ancestors.length)
                     const y = (ancestors.map(e=>e.y).reduce((a,e)=>a+e)/ancestors.length)
+                    
                     
                     const alpha = ancestors
                         .map(a=>poset.features[a.id].pAlpha)
                         .reduce((a,b)=>a+b)
                         /ancestors.length
                     
+                    ancestorsPerPoint[id] = ancestors.map(a=>a.id)
+                    
                     
                     const theta = Math.atan2(y,x) * (180 / Math.PI)
                     
                     return { id,x,y,theta,alpha }
                 })
-                console.log("______")
+                
                 const inputPoints = JSON.parse(JSON.stringify(points))
-                polarRepulsion(inputPoints,delta,inputPoints[0].alpha).forEach((pNode,n)=>(
+                polarRepulsion(inputPoints,delta,inputPoints[0].alpha).forEach((pNode,n)=>{
                     
-                    poset.features[pNode.id]["pX"] = pNode.x,
-                    poset.features[pNode.id]["pY"] = pNode.y,
-                    poset.features[pNode.id]["pTheta"] = pNode.theta,
-                    poset.features[pNode.id]["pAlpha"] = Math.sqrt( Math.pow(pNode.x,2)+Math.pow(pNode.y,2)   ) 
-                    
-                    //TODO
-                    //? fixes the color but not xy Math.sqrt( Math.pow(points[n].x,2)+Math.pow(points[n].y,2)   ) 
-                )) 
-                
-                
-                
+                    poset.features[pNode.id]["pX"] = pNode.x;
+                    poset.features[pNode.id]["pY"] = pNode.y;
+                    poset.features[pNode.id]["pTheta"] = pNode.theta;
+                    poset.features[pNode.id]["pAlpha"] = Math.sqrt( Math.pow(pNode.x,2)+Math.pow(pNode.y,2) ); 
+                    const bp = false
+                    if(bp){
+                        function sumAnglesDegrees(angle1, angle2) {
+                        const sum = (angle1 + angle2) % 360;
+                        return sum < 0 ? sum + 360 : sum;
+                        }
+                        
+                        ancestorsPerPoint[pNode.id].forEach(a=>{
+                            poset.features[a].pTheta = ( pNode.theta + ((poset.features[a].pTheta-pNode.theta)/100)); 
+                        })
+                    }
+                }) 
             }
         }
         poset.coloringLogic = coloringLogic
@@ -1174,12 +2287,21 @@ const po = {//edges need to be unique
             poset.setDepth()
             
             const {coloringLogic} = poset
+            
             poset.climber(coloringLogic,[delta,seed])
 
             poset.feature("fill",(node)=>{
                 const d = poset.features[node]
-                let l = flip ? hThreshold-l :(lThreshold+(d.depth/poset.layers.length)*(hThreshold-lThreshold))
-                    
+                
+                //let l = flip ? hThreshold-(lThreshold+(d.depth/poset.layers.length)*(hThreshold-lThreshold)) :(lThreshold+(d.depth/poset.layers.length)*(hThreshold-lThreshold))
+                const degree = ((hThreshold - lThreshold)/poset.layers.length)
+                const remainder = (d.depth*(degree/(poset.layers.length-1)))
+                let l = flip ? 100 - (lThreshold + (d.depth)*degree + remainder)
+                : lThreshold + (d.depth)*degree + remainder
+                
+                //TODO
+                //*l is used before declaration
+                
                 
                 //TODO
                 //const fill = d3?.s?null:`hsl(${d.pTheta},${d.pAlpha*100}%,${l}%)` 
@@ -1192,5 +2314,6 @@ const po = {//edges need to be unique
 
         return poset;
     }
+    
 }
 export default po;

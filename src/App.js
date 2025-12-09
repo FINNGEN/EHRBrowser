@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Navigate, Routes, Route, useNavigate, useParams, useLocation } from 'react-router-dom';
 import '@fortawesome/fontawesome-free/css/all.min.css';
+import finngen from './img/finngen_logo_dark.svg'
 import CryptoJS from "crypto-js";
 import Header from './components/header'
 import Visualization from './components/visualization'
@@ -61,6 +62,11 @@ function App() {
   const [visible,setVisible] = useState(false)
   const [removedClasses,setRemovedClasses] = useState([])
   const [hovered,setHovered] = useState()
+  const [colorList,setColorList] = useState([])
+  const [fullClassList,setFullClassList] = useState([])
+  const [searchOnly, setSearchOnly] = useState(true)
+  const [searchIsLoaded, setSearchIsLoaded] = useState()
+  const [version, setVersion] = useState()
   const conceptNames = useMemo(() => selectedConcepts.map(d => d.name).filter((e,n,l) => l.indexOf(e) === n),[selectedConcepts])
   const allCounts = useMemo(() => selectedConcepts.map(d => d.data.code_counts).flat(),[selectedConcepts])
   const maxLevel = useMemo(() => d3.max(nodes.filter(d => d.levels !== '-1').map(d => parseInt(d.levels.split('-')[0]))),[nodes])
@@ -79,6 +85,14 @@ function App() {
     })
     if (!response.ok) throw new Error(`Server error: ${response.status}`);
     return response.json().catch(() => ({}))
+  }
+  const loadNews = async () => {
+    const res = await fetch('/NEWS.md')
+    const text = await res.text()
+    const firstLine = text.split('\n')[0]
+    const index = firstLine.indexOf('v')
+    const version = index !== -1 ? firstLine.slice(index) : ""
+    setVersion(version)
   }
 
   // update root line
@@ -197,7 +211,7 @@ function App() {
     setOpenFilters(true)
     setMapRoot([])
   }
-  function createInitialStates(root,data,prune) {
+  function createInitialStates(root,data,prune,filterClass) {
     // set descendant count line
     const rootData = data.stratified_code_counts.filter(e => e.concept_id === parseInt(root))
     const rootExtentData = d3.extent(rootData.map(d => d.calendar_year))
@@ -236,7 +250,8 @@ function App() {
     const selectedNodes = nodeData
       .filter(d => d.levels !== '-1')
       .filter(d => !d.leaf ? d.total_counts !== 0 : d.descendant_counts !== 0)
-      .map(d => ({name: d.name, leaf: d.leaf, data: d.data}))
+      .map(d => ({name: d.name, leaf: d.leaf, distance: d.distance, data: d.data}))
+    selectedNodes.sort((a,b) => d3.ascending(a.distance, b.distance))
     setSelectedConcepts(selectedNodes)
     // set extent
     let extentData = d3.extent(selectedNodes.map(d => d.data.code_counts).flat().map(d => d.calendar_year))
@@ -251,59 +266,63 @@ function App() {
       .filter((e,n,l) => l.indexOf(e) === n)
     let connections = []
     allChildren.forEach(child => allNodes.filter(d => d.child_concept_id === child).length > 1 ? connections.push({child:child,parents:allNodes.filter(d => d.child_concept_id === child).map(d => d.parent_concept_id)}) : null)
+    connections = connections.filter(d => d.parents.length > 1)
     setCrossConnections(connections)
     // set poset
-    const width = window.innerWidth*0.4
-    const nodeWidth = mappingData.map(d => d.levels).includes('Maps to') && mappingData.map(d => d.levels).includes('Mapped from') ? 120 : 100
     const edges = subsumesData
       .filter(d => subsumesData.length === 1 && d.parent_concept_id === d.child_concept_id ? d : d.parent_concept_id !== d.child_concept_id)
       .map(d => d.levels === "-1" ? ({...d,parent_concept_id: d.child_concept_id,child_concept_id: d.parent_concept_id}) : d)
-      .map(d => ([d.parent_concept_id.toString(),d.child_concept_id.toString()]))
-    const matrix = po.domFromEdges(edges,"1","0")
-    const poset = po.createPoset(matrix,[...new Set(edges.flat())])
-    poset.enrich()
+      .map(d => ([d.child_concept_id.toString(),d.parent_concept_id.toString()]))
+    const {matrix,nodes} = po.domFromEdges(edges)
+    const poset = po.createPoset(matrix,nodes)
+    poset
+      .enrich()
       .feature("depth",node => nodeData.filter(d => d.name === parseInt(node))[0].distance)
-      .setLayers('depth')
-      // .analyze('max-depth',function() {return d3.max(poset.feature('depth'))})
-      // .setLayers(node => poset.analytics['max-depth']-poset.features[node].depth)
+      .setSubstructure("depth","depth")
+      .setLayers()
       .feature("parents",node => nodeData.filter(d => d.name === parseInt(node))[0].parents)
-      .climber(function(_,h,d) {
-        const layer = poset.layers[h]
-        // console.log('layer correct',layer)
-        const center = width/2
-        if (h === 0) {
-          let unit = width/layer.length
-          let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
-          let median = Math.floor(layer.length/2) 
-          poset.layers[h].forEach((node,i) => poset.features[node].x = unit >= nodeWidth ? unit*i + unit/2 : i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
-        } else {
-          let xPositions = []
-          let unit = width/layer.length
-          let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
-          let median = Math.floor(layer.length/2) 
-          poset.layers[h].forEach(node => xPositions.push({id:node,x:d3.sum(poset.features[node].parents.map(parent => poset.features[parent].x))/poset.features[node].parents.length}))
-          xPositions.sort((a, b) => d3.ascending(a.x, b.x))
-          let minDistance = d3.min(d3.pairs(xPositions, (a, b) => b.x - a.x))
-          if (minDistance < nodeWidth && layer.length > 1) {
-              poset.layers[h].forEach(node => poset.features[node].x = unit >= nodeWidth ? unit*xPositions.findIndex(d => d.id === node) + unit/2 : xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
-          } else poset.layers[h].forEach(node => poset.features[node].x = xPositions.find(d => d.id === node)?.x)
-        }
-      })
-      // .color()
-      .print()
-    // poset.color(3,10,80)
-    // set x position and mappings
-    // const colorEdges = subsumesData
-    //   .filter(d => subsumesData.length === 1 && d.parent_concept_id === d.child_concept_id ? d : d.parent_concept_id !== d.child_concept_id)
-    //   .map(d => d.levels === "-1" ? ({...d,parent_concept_id: d.child_concept_id,child_concept_id: d.parent_concept_id}) : d)
-    //   .map(d => (['A'+d.parent_concept_id.toString(),'A'+d.child_concept_id.toString()]))
-    // console.log('edges',colorEdges)
-    // const colorMatrix = po.domFromEdges(colorEdges,'1','0')
-    // const colorPoset = po.createPoset(colorMatrix,[...new Set(colorEdges.flat())])
-    // colorPoset.enrich()
-    //   .color(-100)
+      // .print('poset')
+    // set x
+    const width = window.innerWidth*0.4
+    const nodeWidth = mappingData.map(d => d.levels).includes('Maps to') && mappingData.map(d => d.levels).includes('Mapped from') ? 120 : 100
+    const layers = poset.analytics.substructures.depth
+    layers.forEach((layer,i) => {
+      const center = width/2
+      if (i === 0) {
+        let unit = width/layer.length
+        let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
+        let median = Math.floor(layer.length/2) 
+        layer.forEach((node,i) => poset.features[node].x = unit >= nodeWidth ? unit*i + unit/2 : i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
+      } else {
+        let xPositions = []
+        let unit = width/layer.length
+        let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
+        let median = Math.floor(layer.length/2) 
+        layer.forEach(node => xPositions.push({id:node,x:d3.sum(poset.features[node].parents.map(parent => poset.features[parent].x))/poset.features[node].parents.length}))
+        xPositions.sort((a, b) => d3.ascending(a.x, b.x))
+        let minDistance = d3.min(d3.pairs(xPositions, (a, b) => b.x - a.x))
+        if (minDistance < nodeWidth && layer.length > 1) {
+          layer.forEach(node => poset.features[node].x = unit >= nodeWidth ? unit*xPositions.findIndex(d => d.id === node) + unit/2 : xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
+        } else layer.forEach(node => poset.features[node].x = xPositions.find(d => d.id === node)?.x)
+      }
+    })
+    // set color
+    let colorPoset
+    if (filterClass) {
+      const edges = subsumesData
+        .filter(d => d.concept_class_id !== 'Ingredient' && d.concept_class_id !== "Clinical Drug Comp")
+        .filter(d => subsumesData.length === 1 && d.parent_concept_id === d.child_concept_id ? d : d.parent_concept_id !== d.child_concept_id)
+        .map(d => d.levels === "-1" ? ({...d,parent_concept_id: d.child_concept_id,child_concept_id: d.parent_concept_id}) : d)
+        .map(d => ([d.child_concept_id.toString(),d.parent_concept_id.toString()]))
+      const {matrix,nodes} = po.domFromEdges(edges)
+      colorPoset = po.createPoset(matrix,nodes)
+    } else colorPoset = po.createPoset(matrix,nodes)
+    colorPoset.enrich()
+      .color(80,25,90)
+    // update nodes
+    const depthScale = d3.scaleLinear(d3.extent(nodeData.map(d => d.distance)), [5,80])
     nodeData = nodeData
-      .map(d => ({...d,x:poset.features[d.name].x}))
+      .map(d => ({...d,color:colorPoset.features[d.name] ? `hsl(${colorPoset.features[d.name].pTheta},${colorPoset.features[d.name].pAlpha*100}%,${depthScale(d.distance)}%)` : d.color,x:poset.features[d.name].x}))
       .map(node => ({
           ...node,
           mappings: mappingData.filter(d => d.parent_concept_id === node.name).map(e=>({
@@ -317,6 +336,13 @@ function App() {
               'data': {code_counts: data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),concept: data.concepts.filter(d => d.concept_id === e.child_concept_id)[0]}
               })).sort((a, b) => b.total_counts - a.total_counts)
       }))
+    // set color list
+    const colors = {}
+    nodeData.forEach(node => {
+      colors[node.name] = node.color
+      node.mappings.forEach(map => colors[map.name] = map.color)
+    })
+    setColorList(colors)
     // set links
     const nodeNames = nodeData.map(d => d.name)
     const linkData = subsumesData.filter(d => d.parent_concept_id !== d.child_concept_id).map(d=>({source: d.levels === "-1" ? nodeData[nodeNames.indexOf(d.child_concept_id)] : nodeData[nodeNames.indexOf(d.parent_concept_id)], target: d.levels === "-1" ? nodeData[nodeNames.indexOf(d.parent_concept_id)] : nodeData[nodeNames.indexOf(d.child_concept_id)]}))
@@ -332,9 +358,10 @@ function App() {
 
   // on page load
   useEffect(()=>{
-    console.log('run app')
+    // console.log('run app')
     const params = new URLSearchParams(window.location.search)
     setLoaded(true)
+    loadNews()
     fetch(`http://127.0.0.1:8564/getAPIInfo`)
       .then(res=> res.json())
       .then(data=>{
@@ -343,16 +370,30 @@ function App() {
     fetch(`http://127.0.0.1:8564/getListOfConcepts`)
       .then(res=> res.json())
       .then(data=>{
+        console.log("concept list",data)
         setConceptList(data)
         setFilteredList(data)
+        setLoading(true)
+        // setTimeout(() => {
+        //   setSearchIsLoaded(true)
+        //   setLoading(false)
+        // },3000)
       })
   }, [])
+
+  // on concept list load
+  useEffect(()=>{
+    if (conceptList.length > 0) {
+      setSearchIsLoaded(true)
+      setLoading(false)
+    }
+  },[conceptList])
 
   // on root load
   useEffect(()=>{
     if (root) {
-        // setDrawingComplete(true)
-        // d3.select('#overlayBlock').style('pointer-events','all')
+        setLoading(false)
+        setSearchOnly(false)
         const timer = setTimeout(() => {
             setLoading(true)
         }, 300)
@@ -369,7 +410,14 @@ function App() {
                     d3.select('#expand').style('display', 'block') 
                     d3.select('#compress').style('display', 'none') 
                     setGraphFilter({gender:-1,age:[-1]})
-                    setClassFilter(['All'])
+                    let filterClass = false
+                    let classList = data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined)
+                    setFullClassList(classList)
+                    if (classList.includes('Ingredient') || classList.includes('Clinical Drug Comp')) {
+                      classList = classList.filter(d => d !== 'Ingredient' && d !== 'Clinical Drug Comp') 
+                      filterClass = true
+                      setClassFilter(classList) 
+                    } else setClassFilter(['All'])
                     setTreeSelections(['descendants'])
                     setOpenFilters(true)
                     setHovered()
@@ -377,11 +425,14 @@ function App() {
                     setNodes([])
                     setLinks([])
                     setVisible(false)
-                    const prune = data.concepts.length > 1000 ? true : false
-                    if (prune) setLevelFilter(2)
-                    else setLevelFilter()
+                    let filterLevel = false
+                    if (data.concepts.length > 900) {
+                      filterLevel = true
+                      setLevelFilter(2)
+                    } else setLevelFilter()
+                    const prune = filterLevel || filterClass ? true : false
                     setInitialPrune(!prune)
-                    createInitialStates(root,data,prune) 
+                    createInitialStates(root,data,prune,filterClass) 
                     setLoading(false)
                     clearTimeout(timer) 
 
@@ -409,8 +460,13 @@ function App() {
         setFilteredList = {setFilteredList}
         listIndexes = {listIndexes}
         apiInfo = {apiInfo}
-      /> 
-      {loading && <div id = "loading" style={{ fontSize: '20px' }}>
+        searchIsLoaded = {searchIsLoaded}
+        version = {version}
+      />
+      {(searchIsLoaded && searchOnly) && <div className = "loading">
+        <img style = {{width:60,opacity: 0.2}} src={finngen} alt="Finngen logo"/>
+      </div>}
+      {loading && <div className = "loading" style={{ fontSize: '20px' }}>
         <div style = {{display: 'none',fontSize:16}} id = "error-message">Concept not found</div>
         <div id = "loading-animation" class="lds-grid" style = {{visibility: 'visible'}}><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
       </div>}
@@ -484,6 +540,8 @@ function App() {
               setRemovedClasses = {setRemovedClasses}
               hovered = {hovered}
               setHovered = {setHovered}
+              colorList = {colorList}
+              fullClassList = {fullClassList}
             />      
           } />
         </Routes>

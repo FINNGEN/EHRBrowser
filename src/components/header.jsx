@@ -16,6 +16,8 @@ function Header (props) {
     const filteredList = props.filteredList
     const setFilteredList = props.setFilteredList
     const apiInfo = props.apiInfo
+    const searchIsLoaded = props.searchIsLoaded
+    const version = props.version
     // const listIndexes = props.listIndexes
     const codes = conceptList.map(d => d.concept_id.toString())
     const names = conceptList.map(d => d.concept_name.toLowerCase())
@@ -173,7 +175,7 @@ function Header (props) {
     return (
         <div id = "header">
             <div id = "header-title"><img src={finngen} alt="Finngen logo"/></div>
-            <div id = "search-container">
+            <div id = "search-container" style = {{opacity: searchIsLoaded || root ? 1 : 0.3, pointerEvents: searchIsLoaded || root ? 'all' : 'none', transition: '0.5s opacity'}}>
                 <div id = "input-container">
                     <textarea
                         ref={inputRef}
@@ -229,6 +231,7 @@ function Header (props) {
                 >i</div>    
             </div> 
             <div id = "api-popup" style = {{display:'none'}}>
+                <p><span className = "api-popup-title">app version:</span>{version}</p>
                 <p><span className = "api-popup-title">cdm source abbreviation:</span>{apiInfo?.cdm_source_abbreviation}</p>
                 <p><span className = "api-popup-title">cdm source name:</span>{apiInfo?.cdm_source_name}</p>
                 <p><span className = "api-popup-title">romop api version:</span>{apiInfo?.romop_api_version}</p>

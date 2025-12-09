@@ -75,6 +75,8 @@ function Visualization (props) {
     const setRemovedClasses = props.setRemovedClasses
     const hovered = props.hovered
     const setHovered = props.setHovered
+    const colorList = props.colorList
+    const fullClassList = props.fullClassList
     const [zoomed, setZoomed] = useState(false)
     const [biDirectional, setBiDirectional] = useState()
     const [text,setText] = useState('')
@@ -89,7 +91,9 @@ function Visualization (props) {
             showTooltip()
             d3.select("#tooltip")
                 .style('left', function() {
-                    if (event.x + 150 > window.innerWidth) return (event.x - 110 + 'px')   
+                    if (event.x + 270 > window.innerWidth) {
+                        return (event.x - 270 + 'px')
+                    }   
                     else return (event.x + 10 + 'px')    
                 })
                 .style('top', function() {
@@ -107,14 +111,14 @@ function Visualization (props) {
                         setVisible(false) 
                     }
                 })   
-            d3.select('#tooltip-RC').html(d.total_counts + ' RC')
-            d3.select('#tooltip-DRC').html(d.descendant_counts + ' DRC')
+            d3.select('#tooltip-RC').html(concept_info.record_counts + ' RC')
+            d3.select('#tooltip-DRC').html(concept_info.descendant_record_counts + ' DRC')
             d3.select('#counts-btn-circle')
-                .style('display', d.total_counts === 0 || d.levels === "-1" ? 'none' : 'flex')
+                .style('display', concept_info.record_counts === 0 || d.levels === "-1" ? 'none' : 'flex')
                 .on('mouseover', () => {
                     if (!conceptNames.includes(d.name)) {
                         d3.select("#tooltip-plus").style('color', 'white')
-                        d3.select('#counts-btn-circle').style('border', '1px solid '+generateColor(d.name)).style('background-color', () => generateColor(d.name))
+                        d3.select('#counts-btn-circle').style('border', '1px solid '+colorList[d.name]).style('background-color', () => colorList[d.name])
                     }
                     else {
                         d3.select("#tooltip-x").style('display', 'block').style('opacity',1)
@@ -125,7 +129,7 @@ function Visualization (props) {
                     d3.select("#tooltip-x").style('display', 'none').style('opacity',0) 
                     d3.select("#graph-icon-white").style('display', () => conceptNames.includes(d.name) ? 'block' : 'none').style('opacity', () => conceptNames.includes(d.name) ? 1 : 0)
                     d3.select('#tooltip-plus').style('color',color.text).style('display', () => conceptNames.includes(d.name) ? 'none' : 'block').style('opacity', () => conceptNames.includes(d.name) ? 0 : 1)
-                    d3.select('#counts-btn-circle').style('background-color', () => conceptNames.includes(d.name) ? generateColor(d.name) : 'transparent').style('border', () => conceptNames.includes(d.name) ? '1px solid '+generateColor(d.name) : '1px solid var(--textlight)')
+                    d3.select('#counts-btn-circle').style('background-color', () => conceptNames.includes(d.name) ? colorList[d.name] : 'transparent').style('border', () => conceptNames.includes(d.name) ? '1px solid '+colorList[d.name] : '1px solid var(--textlight)')
                 })
                 .on('click', () => {
                     if (d.total_counts !== 0) {
@@ -138,8 +142,8 @@ function Visualization (props) {
                     }
                     setVisible(false)
                 })
-                .style('background-color', () => conceptNames.includes(d.name) ? generateColor(d.name) : 'transparent')
-                .style('border', () => conceptNames.includes(d.name) ? '1px solid '+generateColor(d.name) : '1px solid var(--textlight)')
+                .style('background-color', () => conceptNames.includes(d.name) ? colorList[d.name] : 'transparent')
+                .style('border', () => conceptNames.includes(d.name) ? '1px solid '+colorList[d.name] : '1px solid var(--textlight)')
             d3.select("#graph-icon-white")
                 .style('display', () => conceptNames.includes(d.name) ? 'block' : 'none')
                 .style('opacity', () => conceptNames.includes(d.name) ? 1 : 0)
@@ -183,8 +187,9 @@ function Visualization (props) {
     }
     // add concepts to graph 
     function addConcepts(newConcepts) {
-        newConcepts = newConcepts.filter(d => !d.leaf ? d.total_counts !== 0 : d).map(d => {return {name:d.name,leaf:d.leaf,data:d.data}})
+        newConcepts = newConcepts.filter(d => !d.leaf ? d.total_counts !== 0 : d).map(d => {return {name:d.name,leaf:d.leaf,distance:d.distance,data:d.data}})
         let updatedConcepts = [...selectedConcepts,...newConcepts]
+        updatedConcepts.sort((a,b) => d3.ascending(a.distance, b.distance))
         setSelectedConcepts(updatedConcepts)
     }
     function getConceptInfo(id) {
@@ -218,83 +223,109 @@ function Visualization (props) {
                 .map(e => ({
                     ...e,
                     distance: filteredNodes.map(d => d.levels).includes('-1') ? e.levels === "-1" ? 0 : parseInt(e.levels.split('-')[0]) + 1 : parseInt(e.levels.split('-')[0]),
-                    leaf: !filteredLinks.map(d => d.source).map(d => d.name).includes(e.name) && e.descendant_counts > 0 ? true : false,
+                    leaf: !filteredLinks.map(d => d.source).map(d => d.name).includes(e.name) && e.descendant_counts > 0 && e.levels !== '-1' ? true : false,
                     parents: e.parents.filter(p => filteredNodes.map(d => d.name).includes(p)),
                     children: e.levels === "-1" ? [sidebarRoot.name] : fullTree.links.filter(d => d.source.name === e.name && d.target.name !== e.name).map(d => d.target).map(d => d.name)
                 }))
             // filter connections 
-            const filteredConnections = crossConnections
+            let filteredConnections = crossConnections
                 .filter(c => !filteredNodes.map(d => d.name).includes(c.child))
-                .filter(c => classFilter.includes('All') ? c : classFilter.includes(fullTree.nodes.filter(d => d.name === c.child)[0].class))
+                .filter(c => classFilter.includes('All') || classFilter == fullClassList ? c : classFilter.includes(fullTree.nodes.filter(d => d.name === c.child)[0].class))
                 .map(d => ({...d,parents:d.parents.filter(p => filteredNodes.map(d => d.name).includes(p)).filter(p => filteredNodes.filter(d => d.name === p)[0]?.leaf)}))
+            filteredConnections = filteredConnections.filter(d => d.parents.length > 1)
             filteredNodes = filteredNodes
                 .map(e => ({...e,connections: filteredConnections.filter(c => c.parents.includes(e.name)).map(d => ({...d,source:e.name}))}))
+            // filter selected concepts
             const filteredSelected = !treeSelections.includes('mappings') ? 
                 filteredNodes
                     .filter(d => d.levels !== '-1')
                     .filter(d => !d.leaf ? d.total_counts !== 0 : d.descendant_counts !== 0)
-                    .map(d => ({name: d.name, leaf: d.leaf, data: d.data})) : 
+                    .map(d => ({name: d.name, leaf: d.leaf, distance: d.distance, data: d.data})) : 
                 filteredNodes.filter(d => d.levels !== '-1').map(d => d.mappings).flat()
                     .filter(d => d.total_counts !== 0)
-                    .map(d => ({name: d.name, leaf: false, data: d.data}))
+                    .map(d => ({name: d.name, leaf: false, distance: d.distance, data: d.data}))
+            filteredSelected.sort((a,b) => d3.ascending(a.distance, b.distance))
             setSelectedConcepts(filteredSelected)
             // new poset
+            let edges = filteredLinks
+                .map(d => d.levels === "-1" ? ({...d,source: d.target,target: d.source}) : d)
+                .map(d => ([d.target.name.toString(),d.source.name.toString()]))
+            if (edges.length === 0) edges = filteredNodes.map(d => [d.name.toString(),d.name.toString()])
+            const labels = [...new Set(edges.flat())]
+            if (filteredNodes.length > labels.length && !filteredNodes.map(d => d.name).every(name => labels.includes(name))) edges = [...edges,...filteredNodes.filter(node => !labels.includes(node)).map(d => [d.name.toString(),d.name.toString()])]
+            const {matrix,nodes} = po.domFromEdges(edges)
+            const newPoset = po.createPoset(matrix,nodes)
+            newPoset.enrich()
+                .feature("depth",node => filteredNodes.filter(d => d.name === parseInt(node))[0].distance)
+                .setSubstructure("depth","depth")
+                .setLayers()
+                .feature("parents",node => filteredNodes.filter(d => d.name === parseInt(node))[0].parents)
+                // .climber(function(_,h,d) {
+                //     const layer = newPoset.layers[h]
+                //     if (!layer) return
+                //     else {
+                //         const layerInt = layer.map(d => parseInt(d))
+                //         const mapArrays = filteredNodes.filter(d => mapRoot.includes(d.name)).map(d => d.mappings)
+                //         const multiBiDirectional = mapArrays.map(array => array.map(d => d.direction)).filter(arr => arr.includes(1) && arr.includes(-1)).length >= 2
+                //         const nodeWidth = mapRoot.some(element => layerInt.includes(element)) ? multiBiDirectional ? 320 : 240 : biDirectional ? 120 : 100
+                //         const center = width/2
+                //         if (h === 0) {
+                //             let unit = width/layer.length
+                //             let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
+                //             let median = Math.floor(layer.length/2) 
+                //             newPoset.layers[h].forEach((node,i) => newPoset.features[node].x = unit >= nodeWidth ? unit*i + unit/2 : i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
+                //         } else {
+                //             let missingParent = false
+                //             newPoset.layers[h].forEach(node => newPoset.features[node].parents.length === 0 ? missingParent = true : null)
+                //             let xPositions = []
+                //             let unit = width/layer.length
+                //             let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
+                //             let median = Math.floor(layer.length/2) 
+                //             if (missingParent) xPositions = fullTree.nodes.filter(d => newPoset.layers[h].includes(d.name.toString())).map(d => ({id:d.name.toString(),x:d.x}))
+                //             else newPoset.layers[h].forEach(node => xPositions.push({id:node,x:d3.sum(newPoset.features[node].parents.map(parent => newPoset.features[parent].x))/newPoset.features[node].parents.length}))  
+                //             xPositions.sort((a, b) => d3.ascending(a.x, b.x))
+                //             let minDistance = d3.min(d3.pairs(xPositions, (a, b) => b.x - a.x))
+                //             if ((minDistance < nodeWidth && layer.length > 1) || missingParent) {
+                //                 newPoset.layers[h].forEach(node => newPoset.features[node].x = unit >= nodeWidth ? unit*xPositions.findIndex(d => d.id === node) + unit/2 : xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
+                //             } else newPoset.layers[h].forEach(node => newPoset.features[node].x = xPositions.find(d => d.id === node)?.x)
+                //         }
+                //     }
+                // })
+                // .print()
+            // set x
             const width = d3.select("#tree").node().getBoundingClientRect().width
             const mappingDirections = filteredNodes.map(d => d.mappings).flat().map(d => d.direction)
             const biDirectionalMapping = mappingDirections.includes(1) && mappingDirections.includes(-1)
             setBiDirectional(biDirectionalMapping)
-            let edges = filteredLinks
-                .map(d => d.levels === "-1" ? ({...d,source: d.target,target: d.source}) : d)
-                .map(d => ([d.source.name.toString(),d.target.name.toString()]))
-            if (edges.length === 0) edges = filteredNodes.map(d => [d.name.toString(),d.name.toString()])
-            let labels = [...new Set(edges.flat())]
-            if (filteredNodes.length > labels.length && !filteredNodes.map(d => d.name).every(name => labels.includes(name))) {
-                edges = [...edges,...filteredNodes.filter(node => !labels.includes(node)).map(d => [d.name.toString(),d.name.toString()])]
-                labels = [...new Set(edges.flat())]
-            }
-            const matrix = po.domFromEdges(edges,"1","0")
-            const newPoset = po.createPoset(matrix,[...new Set(edges.flat())])
-            newPoset.enrich()
-                .feature("depth",node => filteredNodes.filter(d => d.name === parseInt(node))[0].distance)
-                .setLayers("depth")
-                .feature("parents",node => filteredNodes.filter(d => d.name === parseInt(node))[0].parents)
-                .climber(function(_,h,d) {
-                    const layer = newPoset.layers[h]
-                    if (!layer) return
-                    else {
-                        const layerInt = layer.map(d => parseInt(d))
-                        const mapArrays = filteredNodes.filter(d => mapRoot.includes(d.name)).map(d => d.mappings)
-                        const multiBiDirectional = mapArrays.map(array => array.map(d => d.direction)).filter(arr => arr.includes(1) && arr.includes(-1)).length >= 2
-                        const nodeWidth = mapRoot.some(element => layerInt.includes(element)) ? multiBiDirectional ? 320 : 240 : biDirectional ? 120 : 100
-                        const center = width/2
-                        if (h === 0) {
-                            let unit = width/layer.length
-                            let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
-                            let median = Math.floor(layer.length/2) 
-                            newPoset.layers[h].forEach((node,i) => newPoset.features[node].x = unit >= nodeWidth ? unit*i + unit/2 : i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
-                        } else {
-                            let missingParent = false
-                            newPoset.layers[h].forEach(node => newPoset.features[node].parents.length === 0 ? missingParent = true : null)
-                            let xPositions = []
-                            let unit = width/layer.length
-                            let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
-                            let median = Math.floor(layer.length/2) 
-                            if (missingParent) xPositions = fullTree.nodes.filter(d => newPoset.layers[h].includes(d.name.toString())).map(d => ({id:d.name.toString(),x:d.x}))
-                            else newPoset.layers[h].forEach(node => xPositions.push({id:node,x:d3.sum(newPoset.features[node].parents.map(parent => newPoset.features[parent].x))/newPoset.features[node].parents.length}))  
-                            xPositions.sort((a, b) => d3.ascending(a.x, b.x))
-                            let minDistance = d3.min(d3.pairs(xPositions, (a, b) => b.x - a.x))
-                            if ((minDistance < nodeWidth && layer.length > 1) || missingParent) {
-                                newPoset.layers[h].forEach(node => newPoset.features[node].x = unit >= nodeWidth ? unit*xPositions.findIndex(d => d.id === node) + unit/2 : xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
-                            } else newPoset.layers[h].forEach(node => newPoset.features[node].x = xPositions.find(d => d.id === node)?.x)
-                        }
-                    }
-                })
-                .print()
-            // const colorMatrix = po.domFromEdges(edges,"0","1")
-            // const colorPoset = po.createPoset(colorMatrix,[...new Set(edges.flat())])
-            // colorPoset.enrich()
-            //     .color(-100)
-            // x position
+            const layers = newPoset.analytics.substructures.depth
+            layers.forEach((layer,i) => {
+                const layerInt = layer.map(d => parseInt(d))
+                const mapArrays = filteredNodes.filter(d => mapRoot.includes(d.name)).map(d => d.mappings)
+                const multiBiDirectional = mapArrays.map(array => array.map(d => d.direction)).filter(arr => arr.includes(1) && arr.includes(-1)).length >= 2
+                const nodeWidth = mapRoot.some(element => layerInt.includes(element)) ? multiBiDirectional ? 320 : 240 : biDirectional ? 120 : 100
+                const center = width/2
+                if (i === 0) {
+                let unit = width/layer.length
+                let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
+                let median = Math.floor(layer.length/2) 
+                layer.forEach((node,i) => newPoset.features[node].x = unit >= nodeWidth ? unit*i + unit/2 : i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
+                } else {
+                    let missingParent = false
+                    layer.forEach(node => newPoset.features[node].parents.length === 0 ? missingParent = true : null)
+                    let xPositions = []
+                    let unit = width/layer.length
+                    let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
+                    let median = Math.floor(layer.length/2) 
+                    if (missingParent) xPositions = fullTree.nodes.filter(d => layer.includes(d.name.toString())).map(d => ({id:d.name.toString(),x:d.x}))
+                    else layer.forEach(node => xPositions.push({id:node,x:d3.sum(newPoset.features[node].parents.map(parent => newPoset.features[parent].x))/newPoset.features[node].parents.length})) 
+                    xPositions.sort((a, b) => d3.ascending(a.x, b.x))
+                    let minDistance = d3.min(d3.pairs(xPositions, (a, b) => b.x - a.x))
+                    if ((minDistance < nodeWidth && layer.length > 1) || missingParent) {
+                        layer.forEach(node => newPoset.features[node].x = unit >= nodeWidth ? unit*xPositions.findIndex(d => d.id === node) + unit/2 : xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
+                    } else layer.forEach(node => newPoset.features[node].x = xPositions.find(d => d.id === node)?.x)
+                }
+            })
+            // update nodes and links
             filteredNodes = filteredNodes
                 .map(d => ({...d,x:newPoset.features[d.name] ? newPoset.features[d.name].x : fullTree.nodes.filter(e => e.name === d.name)[0].x}))
                 .map(e => ({...e,mappings: e.mappings.map(map => ({...map,distance: e.distance,source: e}))}))
@@ -437,6 +468,7 @@ function Visualization (props) {
                 setRemovedClasses = {setRemovedClasses}
                 graphSectionWidth = {graphSectionWidth}
                 setGraphSectionWidth = {setGraphSectionWidth}
+                fullClassList = {fullClassList}
             ></SideBar> 
             <GraphSection
                 color = {color}
@@ -465,6 +497,7 @@ function Visualization (props) {
                 hovered = {hovered}
                 setHovered = {setHovered}
                 graphSectionWidth = {graphSectionWidth}
+                colorList = {colorList}
             />  
         </div> : null
     )

@@ -61,7 +61,7 @@ h4 {
   background-color: transparent;
   z-index: 5000;
 }
-#loading {
+.loading {
   position: fixed;
   top: 0;
   left: 0;
@@ -199,17 +199,6 @@ textarea:focus {
   width: 60vw;
   height: 98%;
   padding: 15px;
-}
-#graph-selections {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  border: none;
-  margin-top: 15px;
-  padding-top: 10px;
-  padding-bottom: 5px;
-  width: 100%;
-  height: auto;
 }
 #graph-group {
   width: 100%; 
@@ -707,7 +696,8 @@ textarea:focus {
   height: 0px;
   display: none;  
   flex-direction: column;
-  border-left: 1px dashed var(--textlight);
+  --after-border: 1px dashed var(--textlight); 
+  border-left: var(--after-border);
   padding-left: 10px;
   position: relative;
 }
@@ -719,7 +709,7 @@ textarea:focus {
   right: 0;
   width: 10px; 
   height: 1px; 
-  border-bottom: 1px dashed var(--textlight);
+  border-bottom: var(--after-border);
 }
 .info-col, .map-info-col {
   display: flex;
@@ -899,8 +889,8 @@ textarea:focus {
   display: none;
   position: absolute;
   text-align: end;
-  right: 56px;
-  top: -10px;
+  right: 20px;
+  top: -20px;
   padding: 3px 6px 3px 6px;
   border: 1px solid var(--textlightest);
   background-color: transparent;
