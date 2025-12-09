@@ -73,7 +73,7 @@ docker run --rm -d -p 8563:8563 -p 8564:8564 \
 #
 echo "Waiting for EHR Browser to be ready, may take few seconds"
 counter=0
-until [ "$(curl -s -o /dev/null -I -w '%{http_code}' "http://localhost:8564")" -eq 200 ]
+until [ "$(curl -s -o /dev/null -I -w '%{http_code}' "http://localhost:8564/__docs__/")" -eq 200 ] && [ "$(curl -s -o /dev/null -I -w '%{http_code}' "http://localhost:8563")" -eq 200 ]
 do
     sleep 1
     ((counter++))
