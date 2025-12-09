@@ -48,6 +48,7 @@ COPY package.json /app/package.json
 COPY package-lock.json /app/package-lock.json
 COPY public /app/public
 COPY src /app/src
+COPY NEWS.md /app/public/NEWS.md
 WORKDIR /app
 
 # Copy nginx configuration
