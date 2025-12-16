@@ -391,11 +391,11 @@ textarea:focus {
   align-items: center;
   justify-content: space-between;
   flex-direction: column;
+  cursor: pointer;
 }
 .view-title {
   padding-bottom: 4px;
-  cursor: pointer;
-  pointer-events: all;
+  pointer-events: none;
 }
 .view-title:hover {
   font-weight: 700 !important;

@@ -4522,12 +4522,12 @@
                 <div id = "drag-bar"></div>
                 <div id = "sidebar-heading">
                     <div id = "view-selections">
-                        <div id = "view-tree" className="view-btn">
-                            <div className = "view-title" style = {{zIndex: 3000,fontWeight: view === 'Tree' ? 700 : 400, color: view === 'Tree' ? color.slate : color.mediumslate}} onClick={() => setView('Tree')}>Tree</div>
+                        <div id = "view-tree" className="view-btn" onClick={() => setView('Tree')}>
+                            <div className = "view-title" style = {{zIndex: 3000,fontWeight: view === 'Tree' ? 700 : 400, color: view === 'Tree' ? color.slate : color.mediumslate}}>Tree</div>
                             <div className = "selection-bar" style = {{opacity: view === 'Tree' ? 1 : 0}}></div>
                         </div>
-                        <div id = "view-list" className="view-btn">
-                            <div className = "view-title" style = {{zIndex: 3000,fontWeight: view === 'List' ? 700 : 400, color: view === 'List' ? color.slate : color.mediumslate}} onClick={() => setView('List')}>List</div>
+                        <div id = "view-list" className="view-btn" onClick={() => setView('List')}>
+                            <div className = "view-title" style = {{zIndex: 3000,fontWeight: view === 'List' ? 700 : 400, color: view === 'List' ? color.slate : color.mediumslate}}>List</div>
                             <div className = "selection-bar" style = {{opacity: view === 'List' ? 1 : 0}}></div>
                         </div>
                     </div> 
