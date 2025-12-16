@@ -397,7 +397,7 @@ textarea:focus {
   padding-bottom: 4px;
   pointer-events: none;
 }
-.view-title:hover {
+.view-btn:hover .view-title {
   font-weight: 700 !important;
   color: var(--text) !important;
 }
