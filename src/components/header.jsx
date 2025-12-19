@@ -3,9 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import finngen from '../img/finngen_logo.svg'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faSearch } from '@fortawesome/free-solid-svg-icons'
+import { faFilter } from '@fortawesome/free-solid-svg-icons'
+import { faX } from '@fortawesome/free-solid-svg-icons'
 import * as d3 from "d3";
 
 function Header (props) {
+    const color = props.color
     const root = props.root 
     const rootData = props.rootData
     const getCounts = props.getCounts
@@ -18,12 +21,16 @@ function Header (props) {
     const apiInfo = props.apiInfo
     const searchIsLoaded = props.searchIsLoaded
     const version = props.version
+    const allVocabularies = props.allVocabularies
+    const searchFilter = props.searchFilter
+    const setSearchFilter = props.setSearchFilter
     // const listIndexes = props.listIndexes
     const codes = conceptList.map(d => d.concept_id.toString())
     const names = conceptList.map(d => d.concept_name.toLowerCase())
     const [suggestions,setSuggestions] = useState([])
     const [refresh,setRefresh] = useState(false)
     const [prevSearch,setPrevSearch] = useState()
+    const [showFilter, setShowFilter] = useState(false)
     const navigate = useNavigate()
    
     const handleClick = () => {
@@ -80,8 +87,8 @@ function Header (props) {
                             }  
                         }
                     })
-                console.log('check',newFiltered)
-                setSuggestions(newFiltered) 
+                let vocabFiltered = newFiltered.filter(d => (searchFilter === undefined || searchFilter.length === 0) || searchFilter.includes(d.vocabulary_id))
+                setSuggestions(vocabFiltered) 
                 setFilteredList(newFiltered)
                 d3.select('#searchConcept').style('box-shadow','0px 0px 6px rgba(0, 0, 0, 0.2)')       
             }
@@ -94,14 +101,17 @@ function Header (props) {
         setPrevSearch(inputRef.current.value)    
     }
 
-    // close suggestions
+    // close suggestions / filter
     document.addEventListener('click', (e) => {
         let input = document.getElementById('searchConcept')
+        let filter = document.getElementById('search-filter-container')
+        let icon = document.getElementById('filter-search')
         if (!input.contains(e.target)) {
             d3.select('#searchConcept').style('height', '18px').style('border-radius', '20px') 
             d3.select('#suggestions-container').style('visibility','hidden')  
             setFilteredList(conceptList)
-        }    
+        } 
+        if (!filter.contains(e.target) && !icon.contains(e.target)) setShowFilter(false)    
     })
 
     useEffect(() => {
@@ -172,6 +182,66 @@ function Header (props) {
         setRefresh(true)
     }, [rootData])
 
+    useEffect(() => {
+        d3.select('#search-filters').selectAll('.vocab').data(allVocabularies, d => d)
+        .join(enter => {
+            const container = enter.append('div')
+                .classed('vocab',true) 
+                .style('display','flex') 
+                .style('align-items','center')
+                .style('margin-right','15px')
+                .style("height",'30px')
+            const checkBox = container.append('div') 
+                .classed('vocab-check-box',true)
+                .style('cursor','pointer')
+                .style('width','12px')
+                .style("height",'12px')
+                .style('margin-right','6px')
+                .style('flex-shrink',0)
+                .style('display','flex')
+                .style('align-items','center')
+                .style('justify-content','center')
+                // .attr('id', d => 'check-box-'+d.replace(/\s+/g, ""))
+                .style('background-color', d => searchFilter.includes(d) ? 'white' : 'transparent')
+                .style('border', d => searchFilter.includes(d) ? '1px solid white' : '1px solid #ffffff80')
+                .on('click', (e,d) => {
+                    if (!searchFilter.includes(d)) setSearchFilter(prev => [...prev, d])
+                    else {
+                        const newFilter = searchFilter.filter(c => c !== d)  
+                        setSearchFilter(newFilter)
+                    } 
+                })
+            checkBox.append('i')
+                .classed('vocab-check-mark fa-solid fa-check fa-xs',true)
+                .style('color',color.darkpurple)
+                .style('display', d => searchFilter.includes(d) ? 'block' : 'none')
+            container.append('p')
+                .classed('vocab-p',true)
+                // .attr('id', d => 'vocab-'+d.replace(/\s+/g, ""))
+                .style('width','100%')
+                .style('font-weight', d => searchFilter.includes(d) ? 700 : 400)
+                .style('color', d => searchFilter.includes(d) ? 'white' : '#ffffff60')
+                .html(d => d)
+        },update =>{
+            update.select('.vocab-check-box')
+                .style('background-color', d => searchFilter.includes(d) ? 'white' : 'transparent')
+                .style('border', d => searchFilter.includes(d) ? '1px solid white' : '1px solid #ffffff80')
+                .on('click', (e,d) => {
+                    if (!searchFilter.includes(d)) setSearchFilter(prev => [...prev, d])
+                    else {
+                        const newFilter = searchFilter.filter(c => c !== d)  
+                        setSearchFilter(newFilter)
+                    } 
+                })
+            update.select('.vocab-check-mark')
+                .style('display', d => searchFilter.includes(d) ? 'block' : 'none')
+            update.select('.vocab-p')
+                .style('font-weight', d => searchFilter.includes(d) ? 700 : 400)
+                .style('color', d => searchFilter.includes(d) ? 'white' : '#ffffff60')
+                .html(d => d)
+        })
+    },[allVocabularies,searchFilter])
+
     return (
         <div id = "header">
             <div id = "header-title"><img src={finngen} alt="Finngen logo"/></div>
@@ -206,8 +276,16 @@ function Header (props) {
                     </div>
                     <FontAwesomeIcon onClick = {()=>handleClick()} className = "fa-lg fal fa-search" id = "searchBtn" icon={faSearch}></FontAwesomeIcon>
                     <div style = {{top:32}} className="dropdown-content" id = "suggestions-container"></div>
+                    <FontAwesomeIcon onClick = {()=>setShowFilter(!showFilter)} onMouseOver={()=>d3.select('#filter-search').style('opacity',1)} onMouseOut={()=>d3.select('#filter-search').style('opacity',()=>searchFilter.length > 0 || showFilter ? 1 : 0.2)} style = {{opacity: searchFilter.length > 0 || showFilter ? 1 : 0.2, display: refresh ? 'none' : 'block'}} className = "fa-solid fa-filter" id = "filter-search" icon={faFilter}></FontAwesomeIcon>
                 </div>    
-            </div>   
+            </div>  
+            <div id = "search-filter-container" style = {{display:showFilter ? 'flex' : 'none', flexDirection:'column',alignItems:'flex-start',justifyContent:'center'}}>
+                <div style = {{display:'flex',alignItems:'center'}}>
+                    <p style = {{color:'white',marginRight:10,fontWeight:400}}>Vocabulary filter</p>
+                    <FontAwesomeIcon onClick = {() => setSearchFilter([])} style = {{cursor:'pointer',color:'white',display: searchFilter.length > 0 ? 'block' : 'none'}} className = "fa-solid fa-xs" icon={faX} />    
+                </div>
+                <div style = {{display:'flex',flexWrap:'wrap',maxWidth:'100%'}} id = "search-filters"></div>
+            </div> 
             <div id = "search-info" style = {{display: rootData.stratified_code_counts?.length > 0 ? 'flex' : 'none'}}>
                 <div className = "search-info-line"></div>
                 <div><span style = {{opacity:0.5,fontWeight:400,marginRight:8}}>Record Counts:</span>{rootData.stratified_code_counts?.length > 0 ? getCounts(rootData.stratified_code_counts.filter(d => d.concept_id === parseInt(root)),"node_record_counts") : null}</div>

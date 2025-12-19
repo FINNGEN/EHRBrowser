@@ -497,20 +497,20 @@
                                     const el = this
                                     el.__hoverTimeout__ = setTimeout(() => {
                                         setHovered(d.name)
-                                        tooltipHover(d, "enter", e, 'sidebar')      
+                                        tooltipHover(d, "enter", e)      
                                     },400)
                                 })
                                 .on('mouseout', function (e,d) {
                                     const el = this
                                     clearTimeout(el.__hoverTimeout__)
                                     setHovered()
-                                    tooltipHover(d, 'leave', e, 'sidebar')
+                                    tooltipHover(d, 'leave', e)
                                     d3.select('#map-label-rect-'+d.name).attr('fill', 'rgba(255, 255, 255, 0.7)')
                                     d3.select('#map-tree-text-'+d.name).attr('fill', d => conceptNames.includes(d.name) ? color.text : color.textlight).style('font-weight',400)
                                 })
                                 .on('click',(e,d) => {
                                     navigate(`/${d.name}`)
-                                    tooltipHover(d, 'leave', e, 'sidebar')
+                                    tooltipHover(d, 'leave', e)
                                 })
                             mapLabel.append('text')
                                 .classed('map-tree-text', true)
@@ -674,20 +674,20 @@
                                     const el = this
                                     el.__hoverTimeout__ = setTimeout(() => {
                                         setHovered(d.name)
-                                        tooltipHover(d, "enter", e, 'sidebar')      
+                                        tooltipHover(d, "enter", e)      
                                     },400)
                                 })
                                 .on('mouseout', function (e,d) {
                                     const el = this
                                     clearTimeout(el.__hoverTimeout__)
                                     setHovered()
-                                    tooltipHover(d, 'leave', e, 'sidebar')
+                                    tooltipHover(d, 'leave', e)
                                     d3.select('#map-label-rect-'+d.name).attr('fill', 'rgba(255, 255, 255, 0.7)')
                                     d3.select('#map-tree-text-'+d.name).attr('fill', d => conceptNames.includes(d.name) ? color.text : color.textlight).style('font-weight',400)
                                 })
                                 .on('click', (e,d) => {
                                     navigate(`/${d.name}`)
-                                    tooltipHover(d, 'leave', e, 'sidebar')
+                                    tooltipHover(d, 'leave', e)
                                 })
                             update.select('.map-tree-text')
                                 .text(d => {
@@ -883,7 +883,7 @@
                                 const el = this
                                 el.__hoverTimeout__ = setTimeout(() => {
                                     if (d.levels !== "-1") setHovered(d.name)
-                                    tooltipHover(d, "enter", e, 'sidebar')  
+                                    tooltipHover(d, "enter", e)  
                                 }, 400)
                             })
                             .on('mouseout', function (e,d) {
@@ -897,10 +897,10 @@
                                 d3.select('#tree-text-'+d.name).attr('fill', d => conceptNames.includes(d.name) || d.name === sidebarRoot.name ? color.text : color.textlight).attr('font-weight', d => d.name === sidebarRoot.name ? 700 : 400)
                                 d3.select('#label-rect-'+d.name).attr('fill-opacity', d => d.name === sidebarRoot.name ? 1 : 0.7).attr('fill', d => d.name === sidebarRoot.name ? color.lightpurple : 'white')
                                 if (d.levels !== "-1") setHovered()
-                                tooltipHover(d, "leave", e, 'sidebar')   
+                                tooltipHover(d, "leave", e)   
                             })
                             .on('click', (e,d) => {
-                                tooltipHover(d, 'leave', e, 'sidebar')
+                                tooltipHover(d, 'leave', e)
                                 navigate(`/${d.name}`) 
                             })
                             .style('cursor', 'pointer')
@@ -1188,20 +1188,20 @@
                                     const el = this
                                     el.__hoverTimeout__ = setTimeout(() => {
                                         setHovered(d.name)
-                                        tooltipHover(d, "enter", e, 'sidebar')      
+                                        tooltipHover(d, "enter", e)      
                                     },400)
                                 })
                                 .on('mouseout', function (e,d) {
                                     const el = this
                                     clearTimeout(el.__hoverTimeout__)
                                     setHovered()
-                                    tooltipHover(d, 'leave', e, 'sidebar')
+                                    tooltipHover(d, 'leave', e)
                                     d3.select('#map-label-rect-'+d.name).attr('fill', 'rgba(255, 255, 255, 0.7)')
                                     d3.select('#map-tree-text-'+d.name).attr('fill', d => conceptNames.includes(d.name) ? color.text : color.textlight).style('font-weight',400)
                                 })
                                 .on('click',(e,d) => {
                                     navigate(`/${d.name}`)
-                                    tooltipHover(d, 'leave', e, 'sidebar')
+                                    tooltipHover(d, 'leave', e)
                                 })
                             mapLabel.append('text')
                                 .classed('map-tree-text', true)
@@ -1365,20 +1365,20 @@
                                     const el = this
                                     el.__hoverTimeout__ = setTimeout(() => {
                                         setHovered(d.name)
-                                        tooltipHover(d, "enter", e, 'sidebar')      
+                                        tooltipHover(d, "enter", e)      
                                     },400)
                                 })
                                 .on('mouseout', function (e,d) {
                                     const el = this
                                     clearTimeout(el.__hoverTimeout__)
                                     setHovered()
-                                    tooltipHover(d, 'leave', e, 'sidebar')
+                                    tooltipHover(d, 'leave', e)
                                     d3.select('#map-label-rect-'+d.name).attr('fill', 'rgba(255, 255, 255, 0.7)')
                                     d3.select('#map-tree-text-'+d.name).attr('fill', d => conceptNames.includes(d.name) ? color.text : color.textlight).style('font-weight',400)
                                 })
                                 .on('click', (e,d) => {
                                     navigate(`/${d.name}`)
-                                    tooltipHover(d, 'leave', e, 'sidebar')
+                                    tooltipHover(d, 'leave', e)
                                 })
                             update.select('.map-tree-text')
                                 .text(d => {
@@ -1527,7 +1527,7 @@
                                 const el = this
                                 el.__hoverTimeout__ = setTimeout(() => {
                                     if (d.levels !== "-1") setHovered(d.name)
-                                    tooltipHover(d, "enter", e, 'sidebar')  
+                                    tooltipHover(d, "enter", e)  
                                 }, 400)
                             })
                             .on('mouseout', function (e,d) {
@@ -1541,10 +1541,10 @@
                                 d3.select('#tree-text-'+d.name).attr('fill', d => conceptNames.includes(d.name) || d.name === sidebarRoot.name ? color.text : color.textlight).attr('font-weight', d => d.name === sidebarRoot.name ? 700 : 400)
                                 d3.select('#label-rect-'+d.name).attr('fill-opacity', d => d.name === sidebarRoot.name ? 1 : 0.7).attr('fill', d => d.name === sidebarRoot.name ? color.lightpurple : 'white')
                                 if (d.levels !== "-1") setHovered()
-                                tooltipHover(d, "leave", e, 'sidebar')   
+                                tooltipHover(d, "leave", e)   
                             })
                             .on('click', (e,d) => {
-                                tooltipHover(d, 'leave', e, 'sidebar')
+                                tooltipHover(d, 'leave', e)
                                 navigate(`/${d.name}`) 
                             })
                         update.select('.tree-text')
@@ -1745,7 +1745,7 @@
                         .style('width', '14px')
                         .style('height', '14px')
                         .style('cursor','pointer')
-                        .style('pointer-events', d => d.total_counts === 0 ? 'none' : 'all')
+                        .style('pointer-events', d => d.total_counts === 0 && !d.leaf ? 'none' : 'all')
                         .style('background', d => {
                             if (!conceptNames.includes(d.name)) return "none"
                             else {
@@ -1760,12 +1760,12 @@
                                 else {return "transparent"}
                             }
                         }) 
-                        .style('border', d => d.total_counts === 0 || d.levels === '-1' ? '1px solid var(--textlightest)' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid var(--textlight)')
+                        .style('border', d => (d.total_counts === 0 && !d.leaf) || d.levels === '-1' ? '1px solid var(--textlightest)' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid var(--textlight)')
                         .style('border-radius', '50%')
                         .style('margin-right', '5px')
                         .on('click', (e,d) => {
                             d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                            if (d.total_counts !== 0) {
+                            if (d.total_counts !== 0 || d.leaf) {
                                 if (conceptNames.includes(d.name)) {
                                     let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
                                     setSelectedConcepts(filteredConcepts)   
@@ -1802,7 +1802,7 @@
                         .style('color', color.text)
                         .style('pointer-events','none')
                         .style('padding-bottom','1px')
-                        .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 && d.levels !== '-1' ? 'block' : 'none')
+                        .style('display', d => !conceptNames.includes(d.name) && (d.total_counts !== 0 || d.leaf) && d.levels !== '-1' ? 'block' : 'none')
                     circle.append('i')
                         .classed('list-x fa-solid fa-x fa-2xs',true)
                         .style('color', 'white')
@@ -2435,11 +2435,11 @@
                                 else {return "transparent"}
                             }
                         }) 
-                        .style('pointer-events', d => d.total_counts === 0 ? 'none' : 'all')
-                        .style('border', d => d.total_counts === 0 || d.levels === '-1' ? '1px solid var(--textlightest)' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid var(--textlight)')
+                        .style('pointer-events', d => d.total_counts === 0 && !d.leaf ? 'none' : 'all')
+                        .style('border', d => (d.total_counts === 0 && !d.leaf) || d.levels === '-1' ? '1px solid var(--textlightest)' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid var(--textlight)')
                         .on('click', (e,d) => {
                             d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                            if (d.total_counts !== 0) {
+                            if (d.total_counts !== 0 || d.leaf) {
                                 if (conceptNames.includes(d.name)) {
                                     let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
                                     setSelectedConcepts(filteredConcepts)   
@@ -2471,7 +2471,7 @@
                             } else d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
                         })
                     update.select('.list-plus')
-                        .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 && d.levels !== '-1' ? 'block' : 'none')
+                        .style('display', d => !conceptNames.includes(d.name) && (d.total_counts !== 0 || d.leaf) && d.levels !== '-1' ? 'block' : 'none')
                     update.select('.title-name')
                         .style("font-weight", d => d.name == sidebarRoot.name || hovered === d.name ? 700 : 400)
                         .style('color', d => conceptNames.includes(d.name) || hovered === d.name ? color.text : color.textlight)
@@ -2983,7 +2983,7 @@
                         .style('width', '14px')
                         .style('height', '14px')
                         .style('cursor','pointer')
-                        .style('pointer-events', d => d.total_counts === 0 ? 'none' : 'all')
+                        .style('pointer-events', d => d.total_counts === 0 && !d.leaf ? 'none' : 'all')
                         .style('background', d => {
                             if (!conceptNames.includes(d.name)) return "none"
                             else {
@@ -2998,12 +2998,12 @@
                                 else {return "transparent"}
                             }
                         }) 
-                        .style('border', d => d.total_counts === 0 || d.levels === '-1' ? '1px solid var(--textlightest)' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid var(--textlight)')
+                        .style('border', d => (d.total_counts === 0 && !d.leaf) || d.levels === '-1' ? '1px solid var(--textlightest)' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid var(--textlight)')
                         .style('border-radius', '50%')
                         .style('margin-right', '5px')
                         .on('click', (e,d) => {
                             d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                            if (d.total_counts !== 0) {
+                            if (d.total_counts !== 0 || d.leaf) {
                                 if (conceptNames.includes(d.name)) {
                                     let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
                                     setSelectedConcepts(filteredConcepts)   
@@ -3040,7 +3040,7 @@
                         .style('color', color.text)
                         .style('pointer-events','none')
                         .style('padding-bottom','1px')
-                        .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 && d.levels !== '-1' ? 'block' : 'none')
+                        .style('display', d => !conceptNames.includes(d.name) && (d.total_counts !== 0 || d.leaf) && d.levels !== '-1' ? 'block' : 'none')
                     circle.append('i')
                         .classed('list-x fa-solid fa-x fa-2xs',true)
                         .style('color', 'white')
@@ -3673,11 +3673,11 @@
                                 else {return "transparent"}
                             }
                         }) 
-                        .style('pointer-events', d => d.total_counts === 0 ? 'none' : 'all')
-                        .style('border', d => d.total_counts === 0 || d.levels === '-1' ? '1px solid var(--textlightest)' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid var(--textlight)')
+                        .style('pointer-events', d => d.total_counts === 0 && !d.leaf ? 'none' : 'all')
+                        .style('border', d => (d.total_counts === 0 && !d.leaf) || d.levels === '-1' ? '1px solid var(--textlightest)' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid var(--textlight)')
                         .on('click', (e,d) => {
                             d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                            if (d.total_counts !== 0) {
+                            if (d.total_counts !== 0 || d.leaf) {
                                 if (conceptNames.includes(d.name)) {
                                     let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
                                     setSelectedConcepts(filteredConcepts)   
@@ -3709,7 +3709,7 @@
                             } else d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
                         })
                     update.select('.list-plus')
-                        .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 && d.levels !== '-1' ? 'block' : 'none')
+                        .style('display', d => !conceptNames.includes(d.name) && (d.total_counts !== 0 || d.leaf) && d.levels !== '-1' ? 'block' : 'none')
                     update.select('.title-name')
                         .style("font-weight", d => d.name == sidebarRoot.name || hovered === d.name ? 700 : 400)
                         .style('color', d => conceptNames.includes(d.name) || hovered === d.name ? color.text : color.textlight)
@@ -4522,12 +4522,12 @@
                 <div id = "drag-bar"></div>
                 <div id = "sidebar-heading">
                     <div id = "view-selections">
-                        <div id = "view-tree" className="view-btn">
-                            <div className = "view-title" style = {{zIndex: 3000,fontWeight: view === 'Tree' ? 700 : 400, color: view === 'Tree' ? color.slate : color.mediumslate}} onClick={() => setView('Tree')}>Tree</div>
+                        <div id = "view-tree" className="view-btn" onClick={() => setView('Tree')} onMouseOver={() => {if (view !== 'Tree') d3.select('#view-title-tree').style("font-weight",700)}} onMouseOut={() => {if (view !== 'Tree') d3.select('#view-title-tree').style("font-weight",400)}}>
+                            <div id = "view-title-tree" className = "view-title" style = {{zIndex: 3000,fontWeight: view === 'Tree' ? 700 : 400, color: view === 'Tree' ? color.slate : color.mediumslate}}>Tree</div>
                             <div className = "selection-bar" style = {{opacity: view === 'Tree' ? 1 : 0}}></div>
                         </div>
-                        <div id = "view-list" className="view-btn">
-                            <div className = "view-title" style = {{zIndex: 3000,fontWeight: view === 'List' ? 700 : 400, color: view === 'List' ? color.slate : color.mediumslate}} onClick={() => setView('List')}>List</div>
+                        <div id = "view-list" className="view-btn" onClick={() => setView('List')} onMouseOver={() => {if (view !== 'List') d3.select('#view-title-list').style("font-weight",700)}} onMouseOut={() => {if (view !== 'List') d3.select('#view-title-list').style("font-weight",400)}}>
+                            <div id = "view-title-list" className = "view-title" style = {{zIndex: 3000,fontWeight: view === 'List' ? 700 : 400, color: view === 'List' ? color.slate : color.mediumslate}}>List</div>
                             <div className = "selection-bar" style = {{opacity: view === 'List' ? 1 : 0}}></div>
                         </div>
                     </div> 
@@ -4586,7 +4586,7 @@
                         </div>    
                         <div id = "filter-container">
                             <div className="dropdown-container" id = "level-dropdown">
-                                <div className = "concept-selection-btn" style = {{width:'auto',border:'none',alignItems:'flex-start'}}>
+                                <div className = "concept-selection-btn" style = {{marginRight: levelFilter < fullTreeMax ? '3px' : '0.2em', width:'auto',border:'none',alignItems:'flex-start'}}>
                                     <p style = {{whiteSpace:'nowrap',fontWeight: levelFilter < fullTreeMax ? 700: 400, paddingRight:5}}>Max level</p>
                                     <div className = "dropdown-header" id = "levels-header" style = {{border:levelFilter < fullTreeMax ? '0.5px solid var(--text)' : '0.5px solid var(--greylight)', color: levelFilter < fullTreeMax ? 'white' : 'var(--text)', backgroundColor: levelFilter < fullTreeMax ? 'var(--text)' : 'var(--greylight)',overflow:'hidden'}}
                                         onMouseOver={() => d3.select('#open-levels-btn').style('opacity', 1)}
@@ -4603,7 +4603,7 @@
                                             }
                                         }}
                                     >
-                                        <p id = "max-level" style = {{marginTop:1,fontWeight:700,padding:'1px 5px 1px 3px'}}>{maxLevel + 1}</p>
+                                        <p id = "max-level" style = {{fontWeight:700,padding:'1px 3px 1px 3px',margin:0}}>{maxLevel + 1}</p>
                                         <FontAwesomeIcon className = "dropBtn fa-lg" id = 'open-levels-btn' icon={faCaretDown} style = {{display:'block',opacity: 0.3,padding:'1px 3px 1px 5px',color: levelFilter < fullTreeMax ? 'white' : 'var(--text)'}}/>
                                         <FontAwesomeIcon className = "dropBtn fa-lg" id = 'close-levels-btn' icon={faCaretUp} style = {{display:'none',opacity: 1,padding:'2px 3px 1px 5px',color: levelFilter < fullTreeMax ? 'white' : 'var(--text)'}}/>     
                                     </div>
@@ -4619,7 +4619,7 @@
                                 />
                             </div> 
                             <div className="dropdown-container" id = "class-dropdown">
-                                <div className = "concept-selection-btn" style = {{width:'auto',border:'none',alignItems:'flex-start'}}>
+                                <div className = "concept-selection-btn" style = {{marginRight: classFilter && (classFilter.includes('All') || allClasses.every(c => classFilter.includes(c))) ? '0.2em' : '1px', width:'auto',border:'none',alignItems:'flex-start'}}>
                                     <p style = {{whiteSpace:'nowrap',fontWeight: classFilter && !classFilter.includes('All') && !allClasses.every(c => classFilter.includes(c)) ? 700: 400, paddingRight:5,marginLeft:levelFilter < fullTreeMax ? 10 : 0}}>Classes</p>
                                     <div className = "dropdown-header" id = "classes-header" style = {{border:classFilter && !classFilter.includes('All') && !allClasses.every(c => classFilter.includes(c)) ? '0.5px solid var(--text)' : '0.5px solid var(--greylight)', color: classFilter && !classFilter.includes('All') && !allClasses.every(c => classFilter.includes(c)) ? 'white' : 'var(--text)', backgroundColor: classFilter && !classFilter.includes('All') && !allClasses.every(c => classFilter.includes(c)) ? 'var(--text)' : 'var(--greylight)',overflow:'hidden'}}
                                         onMouseOver={() => d3.select('#open-classes-btn').style('opacity', 1)}

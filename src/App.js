@@ -17,11 +17,13 @@ function App() {
     lightpurple: '#e3def1',
     background: '#EBECED',
     lightbackground: '#EBECED90',
-    darkbackground: '#c9d0d670',
+    // darkbackground: '#f2f2f2',
+    darkbackground: '#c9d0d690',
     text: '#21295C',
     textmedium: '#717185',
     textlight: '#191a1c85',
     textlightest: '#c0c0c9',
+    // grey: '#d4dadf',
     grey: '#c2cad1',
     greylight: '#ccd3d8',
     blue: '#4A0EE0'
@@ -67,6 +69,8 @@ function App() {
   const [searchOnly, setSearchOnly] = useState(true)
   const [searchIsLoaded, setSearchIsLoaded] = useState()
   const [version, setVersion] = useState()
+  const [allVocabularies, setAllVocabularies] = useState([])
+  const [searchFilter, setSearchFilter] = useState([])
   const conceptNames = useMemo(() => selectedConcepts.map(d => d.name).filter((e,n,l) => l.indexOf(e) === n),[selectedConcepts])
   const allCounts = useMemo(() => selectedConcepts.map(d => d.data.code_counts).flat(),[selectedConcepts])
   const maxLevel = useMemo(() => d3.max(nodes.filter(d => d.levels !== '-1').map(d => parseInt(d.levels.split('-')[0]))),[nodes])
@@ -370,9 +374,11 @@ function App() {
     fetch(`http://127.0.0.1:8564/getListOfConcepts`)
       .then(res=> res.json())
       .then(data=>{
-        console.log("concept list",data)
+        // console.log("concept list",data)
+        const vocabList = data.map(d => d.vocabulary_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined)
         setConceptList(data)
         setFilteredList(data)
+        setAllVocabularies(vocabList)
         setLoading(true)
         // setTimeout(() => {
         //   setSearchIsLoaded(true)
@@ -412,8 +418,10 @@ function App() {
                     setGraphFilter({gender:-1,age:[-1]})
                     let filterClass = false
                     let classList = data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined)
+                    const thisClass = data.concepts.find(d => d.concept_id == root).concept_class_id
+                    console.log(thisClass)
                     setFullClassList(classList)
-                    if (classList.includes('Ingredient') || classList.includes('Clinical Drug Comp')) {
+                    if ((thisClass !== 'Ingredient' && thisClass !== 'Clinical Drug Comp') && (classList.includes('Ingredient') || classList.includes('Clinical Drug Comp'))) {
                       classList = classList.filter(d => d !== 'Ingredient' && d !== 'Clinical Drug Comp') 
                       filterClass = true
                       setClassFilter(classList) 
@@ -450,6 +458,7 @@ function App() {
     <div className = "App">
       {/* <div id = "overlayBlock"></div> */}
       <Header
+        color = {color}
         root = {root}
         rootData = {rootData}
         getCounts = {getCounts}
@@ -462,6 +471,9 @@ function App() {
         apiInfo = {apiInfo}
         searchIsLoaded = {searchIsLoaded}
         version = {version}
+        allVocabularies = {allVocabularies}
+        searchFilter = {searchFilter}
+        setSearchFilter = {setSearchFilter}
       />
       {(searchIsLoaded && searchOnly) && <div className = "loading">
         <img style = {{width:60,opacity: 0.2}} src={finngen} alt="Finngen logo"/>

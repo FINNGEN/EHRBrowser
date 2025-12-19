@@ -85,7 +85,7 @@ function Visualization (props) {
     const hideTimeout = useRef(null)
 
     // tooltip
-    function tooltipHover(d, mode, event, component) {
+    function tooltipHover(d, mode, event) {
         let concept_info = d.data.concept
         if (mode === "enter") {
             showTooltip()
@@ -112,9 +112,11 @@ function Visualization (props) {
                     }
                 })   
             d3.select('#tooltip-RC').html(concept_info.record_counts + ' RC')
+            // .style('font-weight', () => !d.leaf || d.name === sidebarRoot.name ? 700 : 400)
             d3.select('#tooltip-DRC').html(concept_info.descendant_record_counts + ' DRC')
+            // .style('font-weight', () => d.leaf || d.name === sidebarRoot.name ? 700 : 400)
             d3.select('#counts-btn-circle')
-                .style('display', concept_info.record_counts === 0 || d.levels === "-1" ? 'none' : 'flex')
+                .style('display', (concept_info.record_counts === 0 && !d.leaf) || d.levels === "-1" ? 'none' : 'flex')
                 .on('mouseover', () => {
                     if (!conceptNames.includes(d.name)) {
                         d3.select("#tooltip-plus").style('color', 'white')
@@ -132,7 +134,7 @@ function Visualization (props) {
                     d3.select('#counts-btn-circle').style('background-color', () => conceptNames.includes(d.name) ? colorList[d.name] : 'transparent').style('border', () => conceptNames.includes(d.name) ? '1px solid '+colorList[d.name] : '1px solid var(--textlight)')
                 })
                 .on('click', () => {
-                    if (d.total_counts !== 0) {
+                    if (d.total_counts !== 0 || d.leaf) {
                         if (conceptNames.includes(d.name)) {
                             let filteredConcepts = selectedConcepts.filter(e => e.name !== d.name)
                             setSelectedConcepts(filteredConcepts)   

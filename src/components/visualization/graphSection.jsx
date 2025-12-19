@@ -115,7 +115,7 @@ function GraphSection (props) {
                         const el = this
                         el.__hoverTimeout__ = setTimeout(() => {
                             setHovered(d.key)
-                            tooltipHover(element, "enter", e, 'graph') 
+                            tooltipHover(element, "enter", e) 
                         },400) 
                     })
                     .on("mouseout", function (e,d) {
@@ -123,7 +123,7 @@ function GraphSection (props) {
                         clearTimeout(el.__hoverTimeout__)
                         let element = selectedConcepts.filter(c => c.name === d.key)[0]
                         setHovered()
-                        tooltipHover(element, "leave", e, 'graph')    
+                        tooltipHover(element, "leave", e)    
                     })
                     .style("fill", "transparent")
                     .style("transition", "0.5s all")
@@ -155,7 +155,7 @@ function GraphSection (props) {
                         const el = this
                         el.__hoverTimeout__ = setTimeout(() => {
                             setHovered(d.key)
-                            tooltipHover(element, "enter", e, 'graph') 
+                            tooltipHover(element, "enter", e) 
                         },400) 
                     })
                     .on("mouseout", function (e,d) {
@@ -163,7 +163,7 @@ function GraphSection (props) {
                         clearTimeout(el.__hoverTimeout__)
                         let element = selectedConcepts.filter(c => c.name === d.key)[0]
                         setHovered()
-                        tooltipHover(element, "leave", e, 'graph')    
+                        tooltipHover(element, "leave", e)    
                     })
                     .transition()
                     .attr("d", d3.area()
@@ -553,7 +553,7 @@ function GraphSection (props) {
         if (graphContainerRef.current && extent) {
             d3.select('#graph').append("defs")
             const containerWidth = document.getElementById('graph-container').clientWidth*0.9
-            if (containerWidth < window.innerWidth*0.5 || graphSectionWidth === '40vw') d3.select('#graph-filters').style('display','none')
+            if (containerWidth < window.innerWidth*0.4 || graphSectionWidth === '40vw') d3.select('#graph-filters').style('display','none')
             else d3.select('#graph-filters').style('display','flex')
             const containerHeight = document.getElementById('graph-group').clientHeight*0.8
             const width = containerWidth + (margin * 2)
@@ -626,7 +626,7 @@ function GraphSection (props) {
                         }) 
                         .on('mouseover', function(e,d) {
                             if (selectedConcepts.length > 1) {
-                                tooltipHover(d[1][0], "leave", e, 'graph') 
+                                tooltipHover(d[1][0], "leave", e) 
                                 hoverLabelCircle = true
                                 d3.select('#label-circle-' + d[0]).transition().style('background-color', 'none').style('background','none') 
                                 d3.select('#x-'+d[0]).transition().style('opacity',1)
@@ -655,7 +655,7 @@ function GraphSection (props) {
                                 let filteredConcepts = selectedConcepts.filter(e => e.name !== d.key)
                                 setSelectedConcepts(filteredConcepts) 
                                 setHovered()  
-                                tooltipHover(d[1][0], "leave", e, 'graph') 
+                                tooltipHover(d[1][0], "leave", e) 
                             }   
                         })
                         .append('i')
@@ -723,7 +723,7 @@ function GraphSection (props) {
                         }) 
                         .on('mouseover', function(e,d) {
                             if (selectedConcepts.length > 1) {
-                                tooltipHover(d[1][0], "leave", e, 'graph') 
+                                tooltipHover(d[1][0], "leave", e) 
                                 hoverLabelCircle = true
                                 d3.select('#label-circle-' + d[0]).transition().style('background-color', 'none').style('background','none')
                                 d3.select('#x-'+d[0]).transition().style('opacity',1)
@@ -752,7 +752,7 @@ function GraphSection (props) {
                                 let filteredConcepts = selectedConcepts.filter(e => e.name !== d.key)
                                 setSelectedConcepts(filteredConcepts)   
                                 setHovered()
-                                tooltipHover(d[1][0], "leave", e, 'graph') 
+                                tooltipHover(d[1][0], "leave", e) 
                             }   
                         })
                     labels.select('.label-text')
@@ -776,12 +776,12 @@ function GraphSection (props) {
             </div>
             <div style = {{width:'100%',height:'100%',display:'flex',flexDirection:'column'}}>
                 <div id = "graph-selections">
-                    <div style = {{display:'flex',alignItems:'center'}}>
-                        <div style = {{paddingRight:8}}><h2 style = {{marginBottom:3}}>Record Counts</h2></div>
-                        <p style = {{display: extent ? 'block' : 'none',fontSize:12,marginBottom:2}}>{extent ? extent[0] + "-" + extent[1] : null}</p>    
+                    <div style = {{display:'flex',alignItems:'center',flexWrap:'wrap',marginRight:'1em',marginBottom:5}}>
+                        <div style = {{paddingRight:8,margin:0}}><h2 style = {{margin:0}}>Record Counts</h2></div>
+                        <p style = {{display: extent ? 'block' : 'none',fontSize:12,margin:0,marginTop:2}}>{extent ? extent[0] + "-" + extent[1] : null}</p>    
                     </div>
                     <div id = "graph-filters" style = {{display:'flex',marginBottom:3,alignItems:'flex-end'}}>
-                        <div className = "graph-selection" id = "gender-container" style = {{marginRight:15}}>
+                        <div className = "graph-selection" id = "gender-container" style = {{marginRight:'1em'}}>
                             <p style = {{fontWeight: graphFilter.gender !== -1 ? 700 : 400,margin:0,paddingBottom:3,paddingRight:openFilters ? 0 : 5}}>Sex</p>
                             <div className = "filter-container">
                                 <div className = "filter-viz" style = {{marginBottom:5}} id = "gender-viz">
@@ -792,13 +792,13 @@ function GraphSection (props) {
                                     <div className = "toggle" id = "btn-8532" onMouseOver = {() => filterHover(8532,'enter')} onMouseOut = {() => filterHover(8532,'leave')} onClick = {() => filterSelect(8532,'gender')} style = {{fontSize:10,padding: 3, fontWeight: graphFilter.gender === 8532 ? 700 : 400, border: '1px solid var(--background)', borderLeft: 'none', color: graphFilter.gender === 8532 ? 'white' : color.text, backgroundColor: graphFilter.gender === 8532 ? color.text : color.greylight, borderTopRightRadius:20,borderBottomRightRadius:20}}>Female</div>
                                 </div>
                             </div>
-                            <FontAwesomeIcon style = {{display: graphFilter.gender !== -1 ? 'block' : 'none', paddingLeft: openFilters ? 0 : 5}} className = "reset-dropdown fa-2xs" id = "reset-gender" icon={faX} 
+                            <FontAwesomeIcon style = {{display: graphFilter.gender !== -1 ? 'block' : 'none', paddingLeft: openFilters ? 0 : 5, paddingBottom:1}} className = "reset-dropdown fa-2xs" id = "reset-gender" icon={faX} 
                                 onClick = {() => {
                                     setGraphFilter({gender:-1,age:graphFilter.age})
                                 }}
                             />
                         </div>
-                        <div className = "graph-selection" id = "age-container" style = {{marginRight:10}}>
+                        <div className = "graph-selection" id = "age-container" style = {{marginRight:'1em'}}>
                             <p style = {{fontWeight: graphFilter.age.length > 1 ? 700 : 400, margin:0,paddingBottom:3,paddingRight:5}}>Age</p>
                             <div className = "filter-container" id = "age-filter" onMouseDown = {(e) => ageBrush(e,'down')} onMouseUp = {(e) => ageBrush(e,'up')} onMouseMove = {(e) => ageBrush(e,'move')} style = {{cursor:'pointer'}}>
                                 <div className = "filter-viz" style = {{marginBottom:5}} id = "age-viz"></div>
@@ -815,7 +815,7 @@ function GraphSection (props) {
                                     <div onMouseOver = {() => filterHover(9,'enter')} onMouseLeave = {() => filterHover(9,'leave')} onClick = {() => filterSelect(9,'age')} className = "toggle" id = "btn-9" style = {{fontWeight: graphFilter.age.includes(9) ? 700 : 400,color:graphFilter.age.includes(9) ? 'white' : color.text,borderLeft:graphFilter.age.includes(9) && !graphFilter.age.includes(8) ? '1px solid var(--background)' : 'none',backgroundColor:graphFilter.age.includes(9) ? color.text : color.greylight,borderTop:'1px solid var(--background)',borderBottom:'1px solid var(--background)',borderRight:'1px solid var(--background)',borderTopRightRadius:20,borderBottomRightRadius:20}}>90-99</div>
                                 </div>
                             </div>
-                            <FontAwesomeIcon style = {{left:6,display: graphFilter.age.length > 1 ? 'block' : 'none'}} className = "reset-dropdown fa-2xs" id = "reset-age" icon={faX} 
+                            <FontAwesomeIcon style = {{left:5,display: graphFilter.age.length > 1 ? 'block' : 'none',paddingBottom:1}} className = "reset-dropdown fa-2xs" id = "reset-age" icon={faX} 
                                 onClick = {() => {
                                     setGraphFilter({gender:graphFilter.gender,age:[-1]})
                                 }}
