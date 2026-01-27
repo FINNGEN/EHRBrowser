@@ -118,7 +118,7 @@
                         d3.select('#tree-circle-' + d.name).attr('stroke',color.textlightest).attr('fill','white')
                         d3.select('#tree-text-'+d.name).attr('fill',color.textlight)
                         d3.select('#node-vocabulary-'+d.name).attr('fill',color.textlightest)
-                        d3.select('#alt-text-'+d.name).attr('fill',()=>d.name === sidebarRoot.name ? color.text : color.textlight)
+                        d3.select('#alt-text-'+d.name).attr('fill',()=>sidebarRoot.name.includes(d.name) ? color.text : color.textlight)
                         d3.select("#button-symbol-"+d.name).attr('stroke', () => (d.leaf && d.children.length > 0 && d.descendant_counts !== d.total_counts) ? color.text : 'white')
                     }
                 }
@@ -155,7 +155,7 @@
         // DRAWING
         // tree
         function drawTree() {
-            // console.log('nodes',nodes,'links',links)
+            console.log('nodes',nodes,'links',links,'selected',selectedConcepts)
             // get extent of total counts
             let sums = []
             nodes.forEach(node => {
@@ -848,18 +848,18 @@
                             .classed('alt-text',true)
                             .attr('id', d => 'alt-text-'+d.name)
                             .attr('text-anchor', 'middle')
-                            .attr('fill', d => d.name === sidebarRoot.name ? d.leaf && d.children.length > 0 ? 'white' : color.text : d.leaf && conceptNames.includes(d.name) && d.total_counts !== d.descendant_counts ? 'white' : conceptNames.includes(d.name) ? color.text : color.textlight)
+                            .attr('fill', d => sidebarRoot.name.includes(d.name) ? d.leaf && d.children.length > 0 ? 'white' : color.text : d.leaf && conceptNames.includes(d.name) && d.total_counts !== d.descendant_counts ? 'white' : conceptNames.includes(d.name) ? color.text : color.textlight)
                             .attr('x', d => d.x)
                             .attr('y', d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 13)
                             .style('font-size', '8px')
-                            .style('font-weight', d => d.name === sidebarRoot.name ? 700 : d.leaf && d.total_counts !== d.descendant_counts ? 700 : 400)
+                            .style('font-weight', d => sidebarRoot.name.includes(d.name) ? 700 : d.leaf && d.total_counts !== d.descendant_counts ? 700 : 400)
                             .text(d => d.descendant_counts + ' DRC')
                             .raise()
                         altCounts.append('rect')
                             .classed('alt-rect',true)
                             .attr('id', d => 'alt-rect-'+d.name)
                             .attr('fill', d => d.leaf && conceptNames.includes(d.name) && d.total_counts !== d.descendant_counts  ? d.color : 'none')
-                            .attr('stroke', d => d.name === sidebarRoot.name ? 'black' : 'none')
+                            .attr('stroke', d => sidebarRoot.name.includes(d.name) ? 'black' : 'none')
                             .attr('stroke-width',1.25)
                             // .attr('stroke-dasharray', d => !d.data.concept.standard_concept ? '3 3' : 'none')
                             .attr("height",12)
@@ -894,8 +894,8 @@
                                     d3.select('#tree-text-'+d.name).style('opacity',0.5)
                                     d3.select('#alt-group-'+d.name).style('opacity',0.5)
                                 }
-                                d3.select('#tree-text-'+d.name).attr('fill', d => conceptNames.includes(d.name) || d.name === sidebarRoot.name ? color.text : color.textlight).attr('font-weight', d => d.name === sidebarRoot.name ? 700 : 400)
-                                d3.select('#label-rect-'+d.name).attr('fill-opacity', d => d.name === sidebarRoot.name ? 1 : 0.7).attr('fill', d => d.name === sidebarRoot.name ? color.lightpurple : 'white')
+                                d3.select('#tree-text-'+d.name).attr('fill', d => conceptNames.includes(d.name) || sidebarRoot.name.includes(d.name) ? color.text : color.textlight).attr('font-weight', d => sidebarRoot.name.includes(d.name) ? 700 : 400)
+                                d3.select('#label-rect-'+d.name).attr('fill-opacity', d => sidebarRoot.name.includes(d.name) ? 1 : 0.7).attr('fill', d => sidebarRoot.name.includes(d.name) ? color.lightpurple : 'white')
                                 if (d.levels !== "-1") setHovered()
                                 tooltipHover(d, "leave", e)   
                             })
@@ -923,8 +923,8 @@
                                 }  
                                 return text.substring(0, maxWidth) + (text.length > maxWidth ? '...' : '')
                             })
-                            .attr('fill', d => conceptNames.includes(d.name) || d.name === sidebarRoot.name || hovered === d.name ? color.text : color.textlight)
-                            .attr('font-weight', d => d.name === sidebarRoot.name || hovered === d.name ? 700 : 400)
+                            .attr('fill', d => conceptNames.includes(d.name) || sidebarRoot.name.includes(d.name) || hovered === d.name ? color.text : color.textlight)
+                            .attr('font-weight', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? 700 : 400)
                             .attr('font-size','10px')
                             .attr('x', d => getLabel(d).x)
                             .attr('y', d => getLabel(d).y - 20)
@@ -936,10 +936,10 @@
                             .attr('height', 16)
                             .attr('x', d => getLabel(d).x - (d3.select("#tree-text-" + d.name).node().getBBox().width + 14)/2)
                             .attr('y', d => getLabel(d).y - 31)
-                            .attr('fill', d => d.name === sidebarRoot.name || hovered === d.name ? color.lightpurple : 'white')
+                            .attr('fill', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? color.lightpurple : 'white')
                             .attr("rx", 8)
                             .attr("ry", 8)
-                            .attr('fill-opacity', d => d.name === sidebarRoot.name || hovered === d.name ? 1 : 0.7)
+                            .attr('fill-opacity', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? 1 : 0.7)
                             .lower()
                         node.append('text')
                             .classed('node-code', true)
@@ -1503,14 +1503,14 @@
                             .transition()
                             .style('opacity', d => hovered && hovered !== d.name ? 0.2 : d.levels === '-1' ? 0.5 : 1)
                         update.select('.alt-text')
-                            .attr('fill', d => d.name === sidebarRoot.name ? d.leaf && d.children.length > 0 ? 'white' : color.text : d.leaf && conceptNames.includes(d.name) && d.total_counts !== d.descendant_counts ? 'white' : conceptNames.includes(d.name) ? color.text : color.textlight)
+                            .attr('fill', d => sidebarRoot.name.includes(d.name) ? d.leaf && d.children.length > 0 ? 'white' : color.text : d.leaf && conceptNames.includes(d.name) && d.total_counts !== d.descendant_counts ? 'white' : conceptNames.includes(d.name) ? color.text : color.textlight)
                             .attr('x', d => d.x)
                             .attr('y', d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 13)
-                            .style('font-weight', d => d.name === sidebarRoot.name ? 700 : d.leaf && d.total_counts !== d.descendant_counts ? 700 : 400)
+                            .style('font-weight', d => sidebarRoot.name.includes(d.name) ? 700 : d.leaf && d.total_counts !== d.descendant_counts ? 700 : 400)
                             .text(d => d.descendant_counts + ' DRC')
                         update.select('.alt-rect')
                             .attr('fill', d => d.leaf && conceptNames.includes(d.name) && d.total_counts !== d.descendant_counts  ? d.color : 'none')
-                            .attr('stroke', d => d.name === sidebarRoot.name ? 'black' : 'none')
+                            .attr('stroke', d => sidebarRoot.name.includes(d.name) ? 'black' : 'none')
                             // .attr('stroke-dasharray', d => !d.data.concept.standard_concept ? '3 3' : 'none')
                             .attr('width',d => d3.select('#alt-text-'+d.name).node().getBBox().width + 6)
                             .attr('x', d => d.x - (d3.select('#alt-text-'+d.name).node().getBBox().width + 6)/2)
@@ -1538,8 +1538,8 @@
                                     d3.select('#tree-text-'+d.name).style('opacity',0.5)
                                     d3.select('#alt-group-'+d.name).style('opacity',0.5)
                                 }
-                                d3.select('#tree-text-'+d.name).attr('fill', d => conceptNames.includes(d.name) || d.name === sidebarRoot.name ? color.text : color.textlight).attr('font-weight', d => d.name === sidebarRoot.name ? 700 : 400)
-                                d3.select('#label-rect-'+d.name).attr('fill-opacity', d => d.name === sidebarRoot.name ? 1 : 0.7).attr('fill', d => d.name === sidebarRoot.name ? color.lightpurple : 'white')
+                                d3.select('#tree-text-'+d.name).attr('fill', d => conceptNames.includes(d.name) || sidebarRoot.name.includes(d.name) ? color.text : color.textlight).attr('font-weight', d => sidebarRoot.name.includes(d.name) ? 700 : 400)
+                                d3.select('#label-rect-'+d.name).attr('fill-opacity', d => sidebarRoot.name.includes(d.name) ? 1 : 0.7).attr('fill', d => sidebarRoot.name.includes(d.name) ? color.lightpurple : 'white')
                                 if (d.levels !== "-1") setHovered()
                                 tooltipHover(d, "leave", e)   
                             })
@@ -1563,8 +1563,8 @@
                                 }  
                                 return text.substring(0, maxWidth) + (text.length > maxWidth ? '...' : '')
                             })
-                            .attr('font-weight', d => d.name === sidebarRoot.name || hovered === d.name ? 700 : 400)
-                            .attr('fill', d => conceptNames.includes(d.name) || d.name === sidebarRoot.name || hovered === d.name ? color.text : color.textlight)
+                            .attr('font-weight', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? 700 : 400)
+                            .attr('fill', d => conceptNames.includes(d.name) || sidebarRoot.name.includes(d.name) || hovered === d.name ? color.text : color.textlight)
                             .attr('x', d => getLabel(d).x)
                             .attr('y', d => getLabel(d).y - 20)
                             .transition()
@@ -1573,8 +1573,8 @@
                             .attr('width', d => d3.select('#tree-text-'+d.name).node().getBBox().width + 14)
                             .attr('x', d => getLabel(d).x - (d3.select("#tree-text-" + d.name).node().getBBox().width + 14)/2)
                             .attr('y', d => getLabel(d).y - 31)
-                            .attr('fill', d => d.name === sidebarRoot.name || hovered === d.name ? color.lightpurple : 'white')
-                            .attr('fill-opacity', d => d.name === sidebarRoot.name || hovered === d.name ? 1 : 0.7)
+                            .attr('fill', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? color.lightpurple : 'white')
+                            .attr('fill-opacity', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? 1 : 0.7)
                         update.select('.node-code')
                             .attr('fill', d => conceptNames.includes(d.name) ? color.text : color.textlight)
                             .text(d => d.data.concept.concept_code)
@@ -1719,7 +1719,7 @@
                     .style('display', d => d.section === 'PARENTS' || d.section === 'ROOT' || d.section === '1' ? 'block' : 'none')
                     .style('font-size','10px')
                     .style('font-weight', 700)
-                    .html(d => d.section === '1' ? 'CHILDREN' : d.section)
+                    .html(d => d.section === '1' ? 'CHILDREN' : d.section === 'ROOT' ? sidebarRoot.name.length > 1 ? 'ROOTS' : 'ROOT' : d.section)
                 // CONCEPT LIST
                 section.selectAll(".list-item-container").data(d => d.nodes, d => d.name)
                 .join(enter => {
@@ -1729,9 +1729,9 @@
                         .classed('list-item',true)
                         .attr('id', d => 'list-item-'+d.name)
                         .style('margin-bottom', '4px')
-                        .style('background-color', d => d.name === sidebarRoot.name || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                        .style('border', d => conceptNames.includes(d.name) ? d.name === sidebarRoot.name ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                        .style('border-radius', d => d.name !== sidebarRoot.name ? '20px' : '0px 0px 16px 16px')
+                        .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
+                        .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
+                        .style('border-radius', d => sidebarRoot.name[0] !== d.name ? '20px' : '0px 0px 16px 16px')
                         .style('opacity', d => hovered && hovered !== d.name ? 0.2 : d.levels === "-1" ? 0.7 : 1)
                     const titleSection = item.append('div')
                         .classed('title-section',true)
@@ -1815,7 +1815,7 @@
                     titleP.append('span')
                         .classed('title-name',true)
                         .attr('id', d => 'title-name-'+d.name)
-                        .style("font-weight", d => d.name == sidebarRoot.name || hovered === d.name ? 700 : 400)
+                        .style("font-weight", d => sidebarRoot.name.includes(d.name) || hovered === d.name ? 700 : 400)
                         .style('color', d => conceptNames.includes(d.name) || hovered === d.name ? color.text : color.textlight)
                         .html(d => d.data.concept.concept_name)
                         .style('padding-right', '4px')
@@ -1839,7 +1839,7 @@
                         .on('mouseout', function (e,d) {
                             const el = this
                             clearTimeout(el.__hoverTimeout__)
-                            if (d.name !== sidebarRoot.name) {
+                            if (!sidebarRoot.name.includes(d.name)) {
                                 if (d.levels === '-1') d3.select('#list-item-'+d.name).style('opacity',0.7)
                                 d3.select('#list-item-'+d.name).style('background-color', d => conceptNames.includes(d.name) ? color.lightbackground : 'transparent').style('border', d => conceptNames.includes(d.name) ? '1px solid var(--lightbackground)' : '1px solid var(--background)')
                                 d3.select('#title-name-'+d.name).style('font-weight',400)
@@ -2041,9 +2041,9 @@
                             .classed('map-list-item',true)
                             .attr('id', d => 'list-item-'+d.name)
                             .style('margin-bottom', '4px')
-                            .style('background-color', d => d.name === sidebarRoot.name || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                            .style('border', d => conceptNames.includes(d.name) ? d.name === sidebarRoot.name ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                            .style('border-radius', d => d.name !== sidebarRoot.name ? '20px' : '0px 0px 16px 16px')
+                            .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
+                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
+                            .style('border-radius', d => !sidebarRoot.name.includes(d.name) ? '20px' : '0px 0px 16px 16px')
                             .style('opacity', d => hovered && hovered !== d.name ? 0.2 : 1)
                         const mapTitleSection = mapItem.append('div')
                             .classed('map-title-section',true)
@@ -2127,7 +2127,7 @@
                         mapTitleP.append('span')
                             .classed('map-title-name',true)
                             .attr('id', d => 'title-name-'+d.name)
-                            .style("font-weight", d => d.name == sidebarRoot.name || hovered === d.name ? 700 : 400)
+                            .style("font-weight", d => sidebarRoot.name.includes(d.name) || hovered === d.name ? 700 : 400)
                             .style('color', d => conceptNames.includes(d.name) || hovered === d.name ? color.text : color.textlight)
                             .html(d => d.data.concept.concept_name || d.data.concept.concept_id)
                             .style('padding-right', '4px')
@@ -2150,7 +2150,7 @@
                             .on('mouseout', function (e,d) {
                                 const el = this
                                 clearTimeout(el.__hoverTimeout__)
-                                if (d.name !== sidebarRoot.name) {
+                                if (!sidebarRoot.name.includes(d.name)) {
                                     d3.select('#list-item-'+d.name).style('background-color', d => conceptNames.includes(d.name) ? color.lightbackground : 'transparent').style('border', d => conceptNames.includes(d.name) ? '1px solid var(--lightbackground)' : '1px solid var(--background)')
                                     d3.select('#title-name-'+d.name).style('font-weight',400)
                                     if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
@@ -2287,9 +2287,9 @@
                         //     .style('font-weight', 400)    
                     }, update => {
                         update.select('.map-list-item')
-                            .style('background-color', d => d.name === sidebarRoot.name || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                            .style('border', d => conceptNames.includes(d.name) ? d.name === sidebarRoot.name ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                            .style('border-radius', d => d.name !== sidebarRoot.name ? '20px' : '0px 0px 16px 16px')
+                            .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
+                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
+                            .style('border-radius', d => !sidebarRoot.name.includes(d.name) ? '20px' : '0px 0px 16px 16px')
                             .transition()
                             .style('opacity', d => hovered && hovered !== d.name ? 0.2 : 1)
                         update.select('.map-title-circle')
@@ -2345,7 +2345,7 @@
                         update.select('.map-list-plus')
                             .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 ? 'block' : 'none')
                         update.select('.map-title-name')
-                            .style("font-weight", d => d.name == sidebarRoot.name || hovered === d.name ? 700 : 400)
+                            .style("font-weight", d => sidebarRoot.name.includes(d.name) || hovered === d.name ? 700 : 400)
                             .style('color', d => conceptNames.includes(d.name) || hovered === d.name ? color.text : color.textlight)
                             .html(d => d.data.concept.concept_name)
                             .on('click', (e,d) => {
@@ -2366,7 +2366,7 @@
                             .on('mouseout', function (e,d) {
                                 const el = this
                                 clearTimeout(el.__hoverTimeout__)
-                                if (d.name !== sidebarRoot.name) {
+                                if (!sidebarRoot.name.includes(d.name)) {
                                     d3.select('#list-item-'+d.name).style('background-color', d => conceptNames.includes(d.name) ? color.lightbackground : 'transparent').style('border', d => conceptNames.includes(d.name) ? '1px solid var(--lightbackground)' : '1px solid var(--background)')
                                     d3.select('#title-name-'+d.name).style('font-weight',400)
                                     if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
@@ -2415,9 +2415,9 @@
                     })
                 }, update => {
                     update.select('.list-item')
-                        .style('background-color', d => d.name === sidebarRoot.name || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                        .style('border', d => conceptNames.includes(d.name) ? d.name === sidebarRoot.name ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                        .style('border-radius', d => d.name !== sidebarRoot.name ? '20px' : '0px 0px 16px 16px')
+                        .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
+                        .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
+                        .style('border-radius', d => sidebarRoot.name[0] !== d.name ? '20px' : '0px 0px 16px 16px')
                         .transition()
                         .style('opacity', d => hovered && hovered !== d.name ? 0.2 : d.levels === "-1" ? 0.7 : 1)
                     update.select('.title-circle')
@@ -2473,7 +2473,7 @@
                     update.select('.list-plus')
                         .style('display', d => !conceptNames.includes(d.name) && (d.total_counts !== 0 || d.leaf) && d.levels !== '-1' ? 'block' : 'none')
                     update.select('.title-name')
-                        .style("font-weight", d => d.name == sidebarRoot.name || hovered === d.name ? 700 : 400)
+                        .style("font-weight", d => sidebarRoot.name.includes(d.name) || hovered === d.name ? 700 : 400)
                         .style('color', d => conceptNames.includes(d.name) || hovered === d.name ? color.text : color.textlight)
                         .html(d => d.data.concept.concept_name || d.data.concept.concept_id)
                         .on('click', (e,d) => {
@@ -2495,7 +2495,7 @@
                         .on('mouseout', function (e,d) {
                             const el = this
                             clearTimeout(el.__hoverTimeout__)
-                            if (d.name !== sidebarRoot.name) {
+                            if (!sidebarRoot.name.includes(d.name)) {
                                 if (d.levels === '-1') d3.select('#list-item-'+d.name).style('opacity',0.7)
                                 d3.select('#list-item-'+d.name).style('background-color', d => conceptNames.includes(d.name) ? color.lightbackground : 'transparent').style('border', d => conceptNames.includes(d.name) ? '1px solid var(--lightbackground)' : '1px solid var(--background)')
                                 d3.select('#title-name-'+d.name).style('font-weight',400)
@@ -2584,9 +2584,9 @@
                             .classed('map-list-item',true)
                             .attr('id', d => 'list-item-'+d.name)
                             .style('margin-bottom', '4px')
-                            .style('background-color', d => d.name === sidebarRoot.name || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                            .style('border', d => conceptNames.includes(d.name) ? d.name === sidebarRoot.name ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                            .style('border-radius', d => d.name !== sidebarRoot.name ? '20px' : '0px 0px 16px 16px')
+                            .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
+                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
+                            .style('border-radius', d => !sidebarRoot.name.includes(d.name) ? '20px' : '0px 0px 16px 16px')
                             .style('opacity', d => hovered && hovered !== d.name ? 0.2 : 1)
                         const mapTitleSection = mapItem.append('div')
                             .classed('map-title-section',true)
@@ -2670,7 +2670,7 @@
                         mapTitleP.append('span')
                             .classed('map-title-name',true)
                             .attr('id', d => 'title-name-'+d.name)
-                            .style("font-weight", d => d.name == sidebarRoot.name || hovered === d.name ? 700 : 400)
+                            .style("font-weight", d => sidebarRoot.name.includes(d.name) || hovered === d.name ? 700 : 400)
                             .style('color', d => conceptNames.includes(d.name) || hovered === d.name ? color.text : color.textlight)
                             .html(d => d.data.concept.concept_name || d.data.concept.concept_id)
                             .style('padding-right', '4px')
@@ -2693,7 +2693,7 @@
                             .on('mouseout', function (e,d) {
                                 const el = this
                                 clearTimeout(el.__hoverTimeout__)
-                                if (d.name !== sidebarRoot.name) {
+                                if (!sidebarRoot.name.includes(d.name)) {
                                     d3.select('#list-item-'+d.name).style('background-color', d => conceptNames.includes(d.name) ? color.lightbackground : 'transparent').style('border', d => conceptNames.includes(d.name) ? '1px solid var(--lightbackground)' : '1px solid var(--background)')
                                     d3.select('#title-name-'+d.name).style('font-weight',400)
                                     if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
@@ -2830,9 +2830,9 @@
                         //     .style('font-weight', 400)    
                     }, update => {
                         update.select('.map-list-item')
-                            .style('background-color', d => d.name === sidebarRoot.name || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                            .style('border', d => conceptNames.includes(d.name) ? d.name === sidebarRoot.name ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                            .style('border-radius', d => d.name !== sidebarRoot.name ? '20px' : '0px 0px 16px 16px')
+                            .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
+                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
+                            .style('border-radius', d => !sidebarRoot.name.includes(d.name) ? '20px' : '0px 0px 16px 16px')
                             .transition()
                             .style('opacity', d => hovered && hovered !== d.name ? 0.2 : 1)
                         update.select('.map-title-circle')
@@ -2888,7 +2888,7 @@
                         update.select('.map-list-plus')
                             .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 ? 'block' : 'none')
                         update.select('.map-title-name')
-                            .style("font-weight", d => d.name == sidebarRoot.name || hovered === d.name ? 700 : 400)
+                            .style("font-weight", d => sidebarRoot.name.includes(d.name) || hovered === d.name ? 700 : 400)
                             .style('color', d => conceptNames.includes(d.name) || hovered === d.name ? color.text : color.textlight)
                             .html(d => d.data.concept.concept_name)
                             .on('click', (e,d) => {
@@ -2909,7 +2909,7 @@
                             .on('mouseout', function (e,d) {
                                 const el = this
                                 clearTimeout(el.__hoverTimeout__)
-                                if (d.name !== sidebarRoot.name) {
+                                if (!sidebarRoot.name.includes(d.name)) {
                                     d3.select('#list-item-'+d.name).style('background-color', d => conceptNames.includes(d.name) ? color.lightbackground : 'transparent').style('border', d => conceptNames.includes(d.name) ? '1px solid var(--lightbackground)' : '1px solid var(--background)')
                                     d3.select('#title-name-'+d.name).style('font-weight',400)
                                     if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
@@ -2967,9 +2967,9 @@
                         .classed('list-item',true)
                         .attr('id', d => 'list-item-'+d.name)
                         .style('margin-bottom', '4px')
-                        .style('background-color', d => d.name === sidebarRoot.name || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                        .style('border', d => conceptNames.includes(d.name) ? d.name === sidebarRoot.name ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                        .style('border-radius', d => d.name !== sidebarRoot.name ? '20px' : '0px 0px 16px 16px')
+                        .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
+                        .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
+                        .style('border-radius', d => sidebarRoot.name[0] !== d.name ? '20px' : '0px 0px 16px 16px')
                         .style('opacity', d => hovered && hovered !== d.name ? 0.2 : d.levels === "-1" ? 0.7 : 1)
                     const titleSection = item.append('div')
                         .classed('title-section',true)
@@ -3053,7 +3053,7 @@
                     titleP.append('span')
                         .classed('title-name',true)
                         .attr('id', d => 'title-name-'+d.name)
-                        .style("font-weight", d => d.name == sidebarRoot.name || hovered === d.name ? 700 : 400)
+                        .style("font-weight", d => sidebarRoot.name.includes(d.name) || hovered === d.name ? 700 : 400)
                         .style('color', d => conceptNames.includes(d.name) || hovered === d.name ? color.text : color.textlight)
                         .html(d => d.data.concept.concept_name)
                         .style('padding-right', '4px')
@@ -3077,7 +3077,7 @@
                         .on('mouseout', function (e,d) {
                             const el = this
                             clearTimeout(el.__hoverTimeout__)
-                            if (d.name !== sidebarRoot.name) {
+                            if (!sidebarRoot.name.includes(d.name)) {
                                 if (d.levels === '-1') d3.select('#list-item-'+d.name).style('opacity',0.7)
                                 d3.select('#list-item-'+d.name).style('background-color', d => conceptNames.includes(d.name) ? color.lightbackground : 'transparent').style('border', d => conceptNames.includes(d.name) ? '1px solid var(--lightbackground)' : '1px solid var(--background)')
                                 d3.select('#title-name-'+d.name).style('font-weight',400)
@@ -3279,9 +3279,9 @@
                             .classed('map-list-item',true)
                             .attr('id', d => 'list-item-'+d.name)
                             .style('margin-bottom', '4px')
-                            .style('background-color', d => d.name === sidebarRoot.name || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                            .style('border', d => conceptNames.includes(d.name) ? d.name === sidebarRoot.name ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                            .style('border-radius', d => d.name !== sidebarRoot.name ? '20px' : '0px 0px 16px 16px')
+                            .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
+                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
+                            .style('border-radius', d => !sidebarRoot.name.includes(d.name) ? '20px' : '0px 0px 16px 16px')
                             .style('opacity', d => hovered && hovered !== d.name ? 0.2 : 1)
                         const mapTitleSection = mapItem.append('div')
                             .classed('map-title-section',true)
@@ -3365,7 +3365,7 @@
                         mapTitleP.append('span')
                             .classed('map-title-name',true)
                             .attr('id', d => 'title-name-'+d.name)
-                            .style("font-weight", d => d.name == sidebarRoot.name || hovered === d.name ? 700 : 400)
+                            .style("font-weight", d => sidebarRoot.name.includes(d.name) || hovered === d.name ? 700 : 400)
                             .style('color', d => conceptNames.includes(d.name) || hovered === d.name ? color.text : color.textlight)
                             .html(d => d.data.concept.concept_name || d.data.concept.concept_id)
                             .style('padding-right', '4px')
@@ -3388,7 +3388,7 @@
                             .on('mouseout', function (e,d) {
                                 const el = this
                                 clearTimeout(el.__hoverTimeout__)
-                                if (d.name !== sidebarRoot.name) {
+                                if (!sidebarRoot.name.includes(d.name)) {
                                     d3.select('#list-item-'+d.name).style('background-color', d => conceptNames.includes(d.name) ? color.lightbackground : 'transparent').style('border', d => conceptNames.includes(d.name) ? '1px solid var(--lightbackground)' : '1px solid var(--background)')
                                     d3.select('#title-name-'+d.name).style('font-weight',400)
                                     if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
@@ -3525,9 +3525,9 @@
                         //     .style('font-weight', 400)    
                     }, update => {
                         update.select('.map-list-item')
-                            .style('background-color', d => d.name === sidebarRoot.name || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                            .style('border', d => conceptNames.includes(d.name) ? d.name === sidebarRoot.name ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                            .style('border-radius', d => d.name !== sidebarRoot.name ? '20px' : '0px 0px 16px 16px')
+                            .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
+                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
+                            .style('border-radius', d => !sidebarRoot.name.includes(d.name) ? '20px' : '0px 0px 16px 16px')
                             .transition()
                             .style('opacity', d => hovered && hovered !== d.name ? 0.2 : 1)
                         update.select('.map-title-circle')
@@ -3583,7 +3583,7 @@
                         update.select('.map-list-plus')
                             .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 ? 'block' : 'none')
                         update.select('.map-title-name')
-                            .style("font-weight", d => d.name == sidebarRoot.name || hovered === d.name ? 700 : 400)
+                            .style("font-weight", d => sidebarRoot.name.includes(d.name) || hovered === d.name ? 700 : 400)
                             .style('color', d => conceptNames.includes(d.name) || hovered === d.name ? color.text : color.textlight)
                             .html(d => d.data.concept.concept_name)
                             .on('click', (e,d) => {
@@ -3604,7 +3604,7 @@
                             .on('mouseout', function (e,d) {
                                 const el = this
                                 clearTimeout(el.__hoverTimeout__)
-                                if (d.name !== sidebarRoot.name) {
+                                if (!sidebarRoot.name.includes(d.name)) {
                                     d3.select('#list-item-'+d.name).style('background-color', d => conceptNames.includes(d.name) ? color.lightbackground : 'transparent').style('border', d => conceptNames.includes(d.name) ? '1px solid var(--lightbackground)' : '1px solid var(--background)')
                                     d3.select('#title-name-'+d.name).style('font-weight',400)
                                     if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
@@ -3653,9 +3653,9 @@
                     })
                 }, update => {
                     update.select('.list-item')
-                        .style('background-color', d => d.name === sidebarRoot.name || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                        .style('border', d => conceptNames.includes(d.name) ? d.name === sidebarRoot.name ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                        .style('border-radius', d => d.name !== sidebarRoot.name ? '20px' : '0px 0px 16px 16px')
+                        .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
+                        .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
+                        .style('border-radius', d => sidebarRoot.name[0] !== d.name ? '20px' : '0px 0px 16px 16px')
                         .transition()
                         .style('opacity', d => hovered && hovered !== d.name ? 0.2 : d.levels === "-1" ? 0.7 : 1)
                     update.select('.title-circle')
@@ -3711,7 +3711,7 @@
                     update.select('.list-plus')
                         .style('display', d => !conceptNames.includes(d.name) && (d.total_counts !== 0 || d.leaf) && d.levels !== '-1' ? 'block' : 'none')
                     update.select('.title-name')
-                        .style("font-weight", d => d.name == sidebarRoot.name || hovered === d.name ? 700 : 400)
+                        .style("font-weight", d => sidebarRoot.name.includes(d.name) || hovered === d.name ? 700 : 400)
                         .style('color', d => conceptNames.includes(d.name) || hovered === d.name ? color.text : color.textlight)
                         .html(d => d.data.concept.concept_name || d.data.concept.concept_id)
                         .on('click', (e,d) => {
@@ -3733,7 +3733,7 @@
                         .on('mouseout', function (e,d) {
                             const el = this
                             clearTimeout(el.__hoverTimeout__)
-                            if (d.name !== sidebarRoot.name) {
+                            if (!sidebarRoot.name.includes(d.name)) {
                                 if (d.levels === '-1') d3.select('#list-item-'+d.name).style('opacity',0.7)
                                 d3.select('#list-item-'+d.name).style('background-color', d => conceptNames.includes(d.name) ? color.lightbackground : 'transparent').style('border', d => conceptNames.includes(d.name) ? '1px solid var(--lightbackground)' : '1px solid var(--background)')
                                 d3.select('#title-name-'+d.name).style('font-weight',400)
@@ -3822,9 +3822,9 @@
                             .classed('map-list-item',true)
                             .attr('id', d => 'list-item-'+d.name)
                             .style('margin-bottom', '4px')
-                            .style('background-color', d => d.name === sidebarRoot.name || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                            .style('border', d => conceptNames.includes(d.name) ? d.name === sidebarRoot.name ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                            .style('border-radius', d => d.name !== sidebarRoot.name ? '20px' : '0px 0px 16px 16px')
+                            .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
+                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
+                            .style('border-radius', d => !sidebarRoot.name.includes(d.name) ? '20px' : '0px 0px 16px 16px')
                             .style('opacity', d => hovered && hovered !== d.name ? 0.2 : 1)
                         const mapTitleSection = mapItem.append('div')
                             .classed('map-title-section',true)
@@ -3908,7 +3908,7 @@
                         mapTitleP.append('span')
                             .classed('map-title-name',true)
                             .attr('id', d => 'title-name-'+d.name)
-                            .style("font-weight", d => d.name == sidebarRoot.name || hovered === d.name ? 700 : 400)
+                            .style("font-weight", d => sidebarRoot.name.includes(d.name) || hovered === d.name ? 700 : 400)
                             .style('color', d => conceptNames.includes(d.name) || hovered === d.name ? color.text : color.textlight)
                             .html(d => d.data.concept.concept_name || d.data.concept.concept_id)
                             .style('padding-right', '4px')
@@ -3931,7 +3931,7 @@
                             .on('mouseout', function (e,d) {
                                 const el = this
                                 clearTimeout(el.__hoverTimeout__)
-                                if (d.name !== sidebarRoot.name) {
+                                if (!sidebarRoot.name.includes(d.name)) {
                                     d3.select('#list-item-'+d.name).style('background-color', d => conceptNames.includes(d.name) ? color.lightbackground : 'transparent').style('border', d => conceptNames.includes(d.name) ? '1px solid var(--lightbackground)' : '1px solid var(--background)')
                                     d3.select('#title-name-'+d.name).style('font-weight',400)
                                     if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
@@ -4068,9 +4068,9 @@
                         //     .style('font-weight', 400)    
                     }, update => {
                         update.select('.map-list-item')
-                            .style('background-color', d => d.name === sidebarRoot.name || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                            .style('border', d => conceptNames.includes(d.name) ? d.name === sidebarRoot.name ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                            .style('border-radius', d => d.name !== sidebarRoot.name ? '20px' : '0px 0px 16px 16px')
+                            .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
+                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
+                            .style('border-radius', d => !sidebarRoot.name.includes(d.name) ? '20px' : '0px 0px 16px 16px')
                             .transition()
                             .style('opacity', d => hovered && hovered !== d.name ? 0.2 : 1)
                         update.select('.map-title-circle')
@@ -4126,7 +4126,7 @@
                         update.select('.map-list-plus')
                             .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 ? 'block' : 'none')
                         update.select('.map-title-name')
-                            .style("font-weight", d => d.name == sidebarRoot.name || hovered === d.name ? 700 : 400)
+                            .style("font-weight", d => sidebarRoot.name.includes(d.name) || hovered === d.name ? 700 : 400)
                             .style('color', d => conceptNames.includes(d.name) || hovered === d.name ? color.text : color.textlight)
                             .html(d => d.data.concept.concept_name)
                             .on('click', (e,d) => {
@@ -4147,7 +4147,7 @@
                             .on('mouseout', function (e,d) {
                                 const el = this
                                 clearTimeout(el.__hoverTimeout__)
-                                if (d.name !== sidebarRoot.name) {
+                                if (!sidebarRoot.name.includes(d.name)) {
                                     d3.select('#list-item-'+d.name).style('background-color', d => conceptNames.includes(d.name) ? color.lightbackground : 'transparent').style('border', d => conceptNames.includes(d.name) ? '1px solid var(--lightbackground)' : '1px solid var(--background)')
                                     d3.select('#title-name-'+d.name).style('font-weight',400)
                                     if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
@@ -4212,7 +4212,7 @@
                     .style('padding-left', d => d.section === 'ROOT' ? '13px' : '5px')
                     .style('color', d => d.section === 'ROOT' ? 'white' : color.text)
                     .style('display', d => d.section === 'PARENTS' || d.section === 'ROOT' || d.section === '1' ? 'block' : 'none')
-                    .html(d => d.section === '1' ? 'CHILDREN' : d.section)
+                    .html(d => d.section === '1' ? 'CHILDREN' : d.section === 'ROOT' ? sidebarRoot.name.length > 1 ? 'ROOTS' : 'ROOT' : d.section)
             })
         }
         // expand and collapse tree
@@ -4302,6 +4302,7 @@
                                 if (level > levelFilter && !classFilter.includes('All')) {
                                     const newAllClasses = sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").filter(d => d.levels === '-1' || parseInt(d.levels.split('-')[0]) <= level).map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined)
                                     const notIncluded = newAllClasses.filter(d => !allClasses.includes(d)).filter(d => !classFilter.includes(d)).filter(d => !removedClasses.includes(d))
+                                    console.log('not included',notIncluded,'removed',removedClasses)
                                     setClassFilter(prev => [...prev, ...notIncluded])
                                 }
                                 setLevelFilter(level)
@@ -4324,7 +4325,7 @@
                                 if (level > levelFilter && !classFilter.includes('All')) {
                                     const newAllClasses = sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").filter(d => d.levels === '-1' || parseInt(d.levels.split('-')[0]) <= level).map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined)
                                     const notIncluded = newAllClasses.filter(d => !allClasses.includes(d)).filter(d => !classFilter.includes(d)).filter(d => !removedClasses.includes(d))
-                                    console.log('not included',notIncluded)
+                                    console.log('not included',notIncluded,'removed',removedClasses)
                                     setClassFilter(prev => [...prev, ...notIncluded])
                                 }
                                 setLevelFilter(level)
@@ -4478,38 +4479,43 @@
         useEffect(() => {
             if (poset) {
                 const width = d3.select("#tree").node().getBoundingClientRect().width
+                let positions = {}
                 // update x
-                const layers = poset.analytics.substructures.depth
-                layers.forEach((layer,i) => {
-                    const layerInt = layer.map(d => parseInt(d))
-                    const mapArrays = nodes.filter(d => mapRoot.includes(d.name)).map(d => d.mappings)
-                    const multiBiDirectional = mapArrays.map(array => array.map(d => d.direction)).filter(arr => arr.includes(1) && arr.includes(-1)).length >= 2
-                    const nodeWidth = mapRoot.some(element => layerInt.includes(element)) ? multiBiDirectional ? 320 : 240 : biDirectional ? 120 : 100
-                    const center = width/2
-                    if (i === 0) {
-                        let unit = width/layer.length
-                        let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
-                        let median = Math.floor(layer.length/2) 
-                        layer.forEach((node,i) => poset.features[node].x = unit >= nodeWidth ? unit*i + unit/2 : i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
-                    } else {
-                        let missingParent = false
-                        layer.forEach(node => poset.features[node].parents.length === 0 ? missingParent = true : null)
-                        let xPositions = []
-                        let unit = width/layer.length
-                        let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
-                        let median = Math.floor(layer.length/2) 
-                        if (missingParent) xPositions = fullTree.nodes.filter(d => layer.includes(d.name.toString())).map(d => ({id:d.name.toString(),x:d.x}))
-                        else layer.forEach(node => xPositions.push({id:node,x:d3.sum(poset.features[node].parents.map(parent => poset.features[parent].x))/poset.features[node].parents.length})) 
-                        xPositions.sort((a, b) => d3.ascending(a.x, b.x))
-                        let minDistance = d3.min(d3.pairs(xPositions, (a, b) => b.x - a.x))
-                        if ((minDistance < nodeWidth && layer.length > 1) || missingParent) {
-                            layer.forEach(node => poset.features[node].x = unit >= nodeWidth ? unit*xPositions.findIndex(d => d.id === node) + unit/2 : xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
-                        } else layer.forEach(node => poset.features[node].x = xPositions.find(d => d.id === node)?.x)
-                    }
+                poset.forEach((newPoset,index) => {
+                    const layers = newPoset.analytics.substructures.depth
+                    let buffer = index > 0 && mapRoot.length > 0 ? 300 : 0
+                    layers.forEach((layer,i) => {
+                        const layerInt = layer.map(d => parseInt(d))
+                        const mapArrays = nodes.filter(d => mapRoot.includes(d.name)).map(d => d.mappings)
+                        const multiBiDirectional = mapArrays.map(array => array.map(d => d.direction)).filter(arr => arr.includes(1) && arr.includes(-1)).length >= 2
+                        const nodeWidth = mapRoot.some(element => layerInt.includes(element)) ? multiBiDirectional ? 320 : 240 : biDirectional ? 120 : 100
+                        const center = (width/poset.length)/2 + (width)*index + buffer
+                        if (i === 0) {
+                            let unit = (width/poset.length)/layer.length
+                            let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
+                            let median = Math.floor(layer.length/2) 
+                            layer.forEach((node,i) => newPoset.features[node].x = unit >= nodeWidth ? unit*i + unit/2 + (width)*index + buffer : i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
+                        } else {
+                            let missingParent = false
+                            layer.forEach(node => newPoset.features[node].parents.length === 0 ? missingParent = true : null)
+                            let xPositions = []
+                            let unit = (width/poset.length)/layer.length
+                            let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
+                            let median = Math.floor(layer.length/2) 
+                            if (missingParent) xPositions = fullTree.nodes.filter(d => layer.includes(d.name.toString())).map(d => ({id:d.name.toString(),x:d.x}))
+                            else layer.forEach(node => xPositions.push({id:node,x:d3.sum(newPoset.features[node].parents.map(parent => newPoset.features[parent].x))/newPoset.features[node].parents.length})) 
+                            xPositions.sort((a, b) => d3.ascending(a.x, b.x))
+                            let minDistance = d3.min(d3.pairs(xPositions, (a, b) => b.x - a.x))
+                            if ((minDistance < nodeWidth && layer.length > 1) || missingParent) {
+                                layer.forEach(node => newPoset.features[node].x = unit >= nodeWidth ? unit*xPositions.findIndex(d => d.id === node) + unit/2 + (width)*index + buffer : xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
+                            } else layer.forEach(node => newPoset.features[node].x = xPositions.find(d => d.id === node)?.x)
+                        }
+                    })    
+                    newPoset.elements.forEach(name => {positions[name] = newPoset.features[name].x})
                 })
                 const nodeList = nodes.map(d => d.name)
                 const nodesArray = nodes
-                    .map(d => ({...d,x:poset.features[d.name].x}))
+                    .map(d => ({...d,x:positions[d.name]}))
                     .map(e => ({...e,mappings: e.mappings.map(map => ({...map,source: e}))}))
                 const linksArray = links.map(d=>({source: nodesArray[nodeList.indexOf(d.source.name)], target: nodesArray[nodeList.indexOf(d.target.name)]}))
                 setNodes(nodesArray)
@@ -4609,7 +4615,7 @@
                                     </div>
                                 </div>   
                                 <div className = "selections-dropdown-content" id = "levels-dropdown" style = {{right:10}}></div>  
-                                <FontAwesomeIcon style = {{display: levelFilter < fullTreeMax ? 'block' : 'none'}} className = "reset-filter fa-solid fa-2xs" id = "reset-level" icon={faX} 
+                                <FontAwesomeIcon style = {{display: levelFilter < fullTreeMax ? 'block' : 'none',marginTop:1}} className = "reset-filter fa-solid fa-2xs" id = "reset-level" icon={faX} 
                                     onClick = {() => {
                                         setLevelFilter(fullTreeMax)
                                         d3.select('#open-levels-btn').style('display', 'block')

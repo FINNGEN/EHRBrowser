@@ -23,8 +23,9 @@ body {
     --background: #EBECED;
     --lightbackground: #EBECED90;
     --darkbackground: #ccd3d890;
-    --text: #21295C;
-    --textlight: #213c5c85;
+    --text: #170540;
+    /* --text: #21295C; */
+    --textlight: #191a1c85;
     --textlightest: #c0c0c9;
     --grey: #c2cad1;
     --greylight: #ccd3d8;
@@ -114,10 +115,10 @@ h4 {
 }
 #filter-search {
   color: white;
+  cursor: pointer; 
   position: absolute;
-  left: 522px;
-  top: 13px;
-  cursor: pointer;
+  left: 508px;
+  top: 12px;
 }
 #search-filter-container {
   position: absolute;
@@ -403,7 +404,7 @@ textarea:focus {
   margin: 0px;
   padding: 0px;
   /* border-bottom: 1px solid var(--darkbackground); */
-  background-color: var(--darkbackground);
+  background-color: #ccd3d895;
 }
 .view-btn {
   flex-grow: 1;
@@ -425,7 +426,7 @@ textarea:focus {
 .selection-bar {
   width: 95%;
   border-radius: 20px;
-  height: 5px;
+  height: 6px;
   background-color: var(--text);
   /* margin-left: 10px;  */
   transition: 0.2s opacity; 
@@ -998,6 +999,19 @@ textarea:focus {
   50% {
     opacity: 0.5;
   }
+}
+.search-filter-btn {
+  border: 1px solid #ffffff60;
+  padding: 4px 8px 4px 8px;
+  border-radius: 12px;
+  cursor: pointer;
+  color: white;
+  font-weight: 400;
+}
+.search-filter-btn:hover {
+  background-color: white;
+  color: var(--darkpurple);
+  font-weight: 700;  
 }
 #header-btns {
   display: flex;

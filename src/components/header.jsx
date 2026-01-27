@@ -220,7 +220,7 @@ function Header (props) {
                 // .attr('id', d => 'vocab-'+d.replace(/\s+/g, ""))
                 .style('width','100%')
                 .style('font-weight', d => searchFilter.includes(d) ? 700 : 400)
-                .style('color', d => searchFilter.includes(d) ? 'white' : '#ffffff60')
+                .style('color', d => searchFilter.includes(d) ? 'white' : '#ffffff80')
                 .html(d => d)
         },update =>{
             update.select('.vocab-check-box')
@@ -237,7 +237,7 @@ function Header (props) {
                 .style('display', d => searchFilter.includes(d) ? 'block' : 'none')
             update.select('.vocab-p')
                 .style('font-weight', d => searchFilter.includes(d) ? 700 : 400)
-                .style('color', d => searchFilter.includes(d) ? 'white' : '#ffffff60')
+                .style('color', d => searchFilter.includes(d) ? 'white' : '#ffffff80')
                 .html(d => d)
         })
     },[allVocabularies,searchFilter])
@@ -276,15 +276,16 @@ function Header (props) {
                     </div>
                     <FontAwesomeIcon onClick = {()=>handleClick()} className = "fa-lg fal fa-search" id = "searchBtn" icon={faSearch}></FontAwesomeIcon>
                     <div style = {{top:32}} className="dropdown-content" id = "suggestions-container"></div>
-                    <FontAwesomeIcon onClick = {()=>setShowFilter(!showFilter)} onMouseOver={()=>d3.select('#filter-search').style('opacity',1)} onMouseOut={()=>d3.select('#filter-search').style('opacity',()=>searchFilter.length > 0 || showFilter ? 1 : 0.2)} style = {{opacity: searchFilter.length > 0 || showFilter ? 1 : 0.2, display: refresh ? 'none' : 'block'}} className = "fa-solid fa-filter" id = "filter-search" icon={faFilter}></FontAwesomeIcon>
+                    <div onClick = {()=>setShowFilter(!showFilter)} onMouseOver={()=>d3.select('#filter-search').style('opacity',1)} onMouseOut={()=>d3.select('#filter-search').style('opacity',()=>searchFilter.length > 0 || showFilter ? 1 : 0.5)} style = {{opacity: searchFilter.length > 0 || showFilter ? 1 : 0.5, display: refresh ? 'none' : 'block'}} id = "filter-search">Filter</div>
                 </div>    
             </div>  
             <div id = "search-filter-container" style = {{display:showFilter ? 'flex' : 'none', flexDirection:'column',alignItems:'flex-start',justifyContent:'center'}}>
-                <div style = {{display:'flex',alignItems:'center'}}>
+                <div style = {{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                     <p style = {{color:'white',marginRight:10,fontWeight:400}}>Vocabulary filter</p>
-                    <FontAwesomeIcon onClick = {() => setSearchFilter([])} style = {{cursor:'pointer',color:'white',display: searchFilter.length > 0 ? 'block' : 'none'}} className = "fa-solid fa-xs" icon={faX} />    
+                    <div className = "search-filter-btn" onClick = {() => setSearchFilter([])} style = {{display: searchFilter.length > 0 ? 'block' : 'none'}}>Clear</div> 
                 </div>
                 <div style = {{display:'flex',flexWrap:'wrap',maxWidth:'100%'}} id = "search-filters"></div>
+                <div className = "search-filter-btn" onClick = {() => setShowFilter(false)} style = {{alignSelf:'flex-end'}}>Confirm</div>
             </div> 
             <div id = "search-info" style = {{display: rootData.stratified_code_counts?.length > 0 ? 'flex' : 'none'}}>
                 <div className = "search-info-line"></div>
