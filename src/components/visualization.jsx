@@ -76,6 +76,10 @@ function Visualization (props) {
     const setHovered = props.setHovered
     const colorList = props.colorList
     const fullClassList = props.fullClassList
+    const descendantsFilter = props.descendantsFilter
+    const setDescendantsFilter = props.setDescendantsFilter
+    const excludeList = props.excludeList
+    const setExcludeList = props.setExcludeList
     const [zoomed, setZoomed] = useState(false)
     const [biDirectional, setBiDirectional] = useState()
     const [text,setText] = useState('')
@@ -188,7 +192,7 @@ function Visualization (props) {
     }
     // add concepts to graph 
     function addConcepts(newConcepts) {
-        newConcepts = newConcepts.filter(d => !d.leaf ? d.total_counts !== 0 : d).map(d => {return {name:d.name,leaf:d.leaf,distance:d.distance,data:d.data}})
+        newConcepts = newConcepts.filter(d => !d.leaf ? d.total_counts !== 0 : d).map(d => {return {name:d.name,leaf:d.leaf,descendants:d.descendants,distance:d.distance,data: {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.includes(c.concept_id))}}})
         let updatedConcepts = [...selectedConcepts,...newConcepts]
         updatedConcepts.sort((a,b) => d3.ascending(a.distance, b.distance))
         setSelectedConcepts(updatedConcepts)
@@ -226,8 +230,8 @@ function Visualization (props) {
                     distance: filteredNodes.map(d => d.levels).includes('-1') ? e.levels === "-1" ? 0 : parseInt(e.levels.split('-')[0]) + 1 : parseInt(e.levels.split('-')[0]),
                     leaf: (e.distance === levelFilter+1 || !filteredLinks.map(d => d.source).map(d => d.name).includes(e.name)) && e.levels !== '-1' ? true : false,
                     parents: e.parents.filter(p => filteredNodes.map(d => d.name).includes(p)),
-                    filteredDescendants: classFilter.includes('All') ? e.descendants : e.descendants.filter(d => classFilter.includes(fullTree.nodes.find(n => n.name === d).class)),
-                    children: e.levels === "-1" ? fullTree.links.filter(d => d.target.name === e.name).map(d => d.source.name) : fullTree.links.filter(d => d.source.name === e.name && d.target.name !== e.name).map(d => d.target.name),
+                    descendants: classFilter.includes('All') ? fullTree.nodes.find(d => d.name === e.name).descendants : fullTree.nodes.find(d => d.name === e.name).descendants.filter(d => classFilter.includes(fullTree.nodes.find(n => n.name === d).class)),
+                    children: e.levels === "-1" ? fullTree.links.filter(d => d.target.name === e.name).map(d => d.source.name) : fullTree.links.filter(d => d.source.name === e.name && d.target.name !== e.name).map(d => d.target.name)
                 }))
             // filter connections 
             let filteredConnections = crossConnections
@@ -242,7 +246,8 @@ function Visualization (props) {
                 filteredNodes
                     .filter(d => d.levels !== '-1')
                     .filter(d => !d.leaf ? d.total_counts !== 0 : d.descendant_counts !== 0)
-                    .map(d => ({name: d.name, leaf: d.leaf, descendants: d.filteredDescendants, distance: d.distance, data: {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.filteredDescendants.includes(c.concept_id))}})) : 
+                    .filter(d => !d.parents.some(parent => descendantsFilter.includes(parent)))
+                    .map(d => ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.includes(c.concept_id))}})) : 
                 filteredNodes.filter(d => d.levels !== '-1').map(d => d.mappings).flat()
                     .filter(d => d.total_counts !== 0)
                     .map(d => ({name: d.name, leaf: false, distance: d.distance, data: d.data}))
@@ -250,6 +255,7 @@ function Visualization (props) {
             setSelectedConcepts(filteredSelected)
             // updated poset
             let positions = {}
+            let distances = {}
             let newPosetArray = []
             const nodeNames = filteredNodes.map(d => d.name)
             const trees = fullTree.trees
@@ -263,7 +269,7 @@ function Visualization (props) {
                     .filter(d => d.levels !== 'Mapped from' && d.levels !== 'Maps to')
                     .filter(d => nodeNames.includes(d.parent_concept_id) && nodeNames.includes(d.child_concept_id))
                     .map(d => d.levels === "-1" ? ({...d,parent_concept_id: d.child_concept_id,child_concept_id: d.parent_concept_id}) : d)
-                    .map(d => ([d.child_concept_id.toString(),d.parent_concept_id.toString()]))
+                    .map(d => ([d.parent_concept_id.toString(),d.child_concept_id.toString()]))
                 if (edges.length === 0) edges = filteredNodes.map(d => [d.name.toString(),d.name.toString()])
                 // const labels = [...new Set(edges.flat())]
                 // if (filteredNodes.length > labels.length && !filteredNodes.map(d => d.name).every(name => labels.includes(name))) edges = [...edges,...filteredNodes.filter(node => !labels.includes(node)).map(d => [d.name.toString(),d.name.toString()])]
@@ -275,13 +281,14 @@ function Visualization (props) {
                     .setLayers()
                     .feature("parents",node => filteredNodes.filter(d => d.name === parseInt(node))[0].parents)
                 // set x
-                const layers = newPoset.analytics.substructures.depth
+                // const layers = newPoset.analytics.substructures.depth
+                const layers = newPoset.layers.reverse()
                 let buffer = index > 0 && mapRoot.length > 0 ? 300 : 0
                 layers.forEach((layer,i) => {
                     const layerInt = layer.map(d => parseInt(d))
                     const mapArrays = filteredNodes.filter(d => mapRoot.includes(d.name)).map(d => d.mappings)
                     const multiBiDirectional = mapArrays.map(array => array.map(d => d.direction)).filter(arr => arr.includes(1) && arr.includes(-1)).length >= 2
-                    const nodeWidth = mapRoot.some(element => layerInt.includes(element)) ? multiBiDirectional ? 320 : 240 : biDirectional ? 120 : 100
+                    const nodeWidth = mapRoot.some(element => layerInt.includes(element)) ? multiBiDirectional ? 320 : 240 : biDirectional ? 160 : 140
                     const center = (width/poset.length)/2 + (width)*index + buffer
                     if (i === 0) {
                         let unit = (width/poset.length)/layer.length
@@ -305,13 +312,16 @@ function Visualization (props) {
                     }
                 })
                 // set positions list
-                newPoset.elements.forEach(name => {positions[name] = newPoset.features[name].x})
+                newPoset.elements.forEach(name => {
+                    positions[name] = newPoset.features[name].x
+                    distances[name] = layers.findIndex(i => i.includes(name))
+                })
                 newPosetArray.push(newPoset)
             })
             setPoset(newPosetArray)
             // update nodes and links
             filteredNodes = filteredNodes
-                .map(d => ({...d,x:positions[d.name]}))
+                .map(d => ({...d,distance:distances[d.name],x:positions[d.name]}))
                 .map(e => ({...e,mappings: e.mappings.map(map => ({...map,distance: e.distance,source: e}))}))
             filteredLinks = filteredLinks.map(d => ({...d,source:filteredNodes[nodeNames.indexOf(d.source.name)],target:filteredNodes[nodeNames.indexOf(d.target.name)]}))
             // pruned
@@ -451,6 +461,10 @@ function Visualization (props) {
                 graphSectionWidth = {graphSectionWidth}
                 setGraphSectionWidth = {setGraphSectionWidth}
                 fullClassList = {fullClassList}
+                descendantsFilter = {descendantsFilter}
+                setDescendantsFilter = {setDescendantsFilter}
+                excludeList = {excludeList}
+                setExcludeList = {setExcludeList}
             ></SideBar> 
             <GraphSection
                 color = {color}

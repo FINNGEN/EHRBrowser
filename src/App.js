@@ -40,7 +40,7 @@ function App() {
   const [nodes, setNodes] = useState([])
   const [links, setLinks] = useState([])
   const [list, setList] = useState([])
-  const [view, setView] = useState('Tree')
+  const [view, setView] = useState('')
   const [filteredList, setFilteredList] = useState()
   const [rootLine, setRootLine] = useState()
   const [listIndexes, setListIndexes] = useState()
@@ -48,6 +48,8 @@ function App() {
   const [openFilters,setOpenFilters] = useState(true)
   const [levelFilter, setLevelFilter] = useState()
   const [classFilter, setClassFilter] = useState(['All'])
+  const [descendantsFilter, setDescendantsFilter] = useState([])
+  const [excludeList, setExcludeList] = useState([])
   const [pruned, setPruned] = useState(false)
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
@@ -71,6 +73,9 @@ function App() {
   const [searchFilter, setSearchFilter] = useState([])
   const [rootArray,setRootArray] = useState()
   const [dataArray, setDataArray] = useState([])
+  const [isConceptSet,setIsConceptSet] = useState(false)
+  const [rootLabels, setRootLabels] = useState([])
+  const [refresh,setRefresh] = useState(false)
   const conceptNames = useMemo(() => selectedConcepts.map(d => d.name).filter((e,n,l) => l.indexOf(e) === n),[selectedConcepts])
   const allCounts = useMemo(() => 
     {
@@ -230,7 +235,8 @@ function App() {
     setGraphFilter({gender:-1,age:[-1]})
     setClassFilter(rootData.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined))
     setSidebarRoot({name:rootArray,data:rootData}) 
-    setView('Tree')
+    if (rootArray.length > 1) setView('Set')
+    else setView('Tree')
     setTreeSelections(['descendants'])
     setLevelFilter()
     setOpenFilters(true)
@@ -289,7 +295,7 @@ function App() {
         .reduce((map, e) => {
           const key = `${e.parent_concept_id}|${e.child_concept_id}`
           const existing = map.get(key)
-          if (!existing || parseInt(e.levels.split('-')[0]) < parseInt(existing.levels.split('-')[0])) {
+          if (!existing || parseInt(e.levels.split('-')[0]) > parseInt(existing.levels.split('-')[0])) {
             map.set(key, e)
           }
           return map
@@ -301,10 +307,10 @@ function App() {
     const mappingData = relationships.filter(d => d.levels === "Mapped from" || d.levels === "Maps to")
     let nodeData = Array.from(
       subsumesData
-      .map(({ parent_concept_id, ...rest }) => rest)
+      // .map(({ parent_concept_id, ...rest }) => rest)
       .reduce((map, obj) => {
         const existing = map.get(obj.child_concept_id)
-        if (!existing || ((obj.levels === '-1' || existing.levels === '-1' && rootArray.includes(obj.child_concept_id)) ? parseInt(obj.levels) > parseInt(existing.levels) : parseInt(obj.levels.split('-')[0]) < parseInt(existing.levels.split('-')[0]))) {
+        if (!existing || ((obj.levels === '-1' || existing.levels === '-1' && rootArray.includes(obj.child_concept_id)) ? parseInt(obj.levels) > parseInt(existing.levels) : parseInt(obj.levels.split('-')[0]) > parseInt(existing.levels.split('-')[0]))) {
           map.set(obj.child_concept_id, obj)
         }
         return map
@@ -353,17 +359,19 @@ function App() {
     // posets
     const posetArray = []
     const width = window.innerWidth*0.4
-    const nodeWidth = mappingData.map(d => d.levels).includes('Maps to') && mappingData.map(d => d.levels).includes('Mapped from') ? 120 : 100
+    const nodeWidth = mappingData.map(d => d.levels).includes('Maps to') && mappingData.map(d => d.levels).includes('Mapped from') ? 160 : 140
     const depthScale = d3.scaleLinear(d3.extent(nodeData.map(d => d.distance)), [5,80])
     let colors = {}
     let positions = {}
+    let distances = {}
     // iterate through trees
     trees.forEach((tree,index) => {
       const edges = tree
         .filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to")
         .filter(d => subsumesData.length === 1 && d.parent_concept_id === d.child_concept_id ? d : d.parent_concept_id !== d.child_concept_id)
+        // .filter(d => d.levels !== "-1")
         .map(d => d.levels === "-1" ? ({...d,parent_concept_id: d.child_concept_id,child_concept_id: d.parent_concept_id}) : d)
-        .map(d => ([d.child_concept_id.toString(),d.parent_concept_id.toString()]))
+        .map(d => ([d.parent_concept_id.toString(),d.child_concept_id.toString()]))
       const {matrix,nodes} = po.domFromEdges(edges)
       const poset = po.createPoset(matrix,nodes)
       poset
@@ -374,7 +382,9 @@ function App() {
         .feature("parents",node => nodeData.filter(d => d.name === parseInt(node))[0].parents)
         .print()
       // set x
-      const layers = poset.analytics.substructures.depth
+      // const layers = poset.analytics.substructures.depth
+      const layers = poset.layers.reverse()
+      // layers = layers.reverse()
       layers.forEach((layer,i) => {
         const center = (width/trees.length)/2 + (width)*index
         if (i === 0) {
@@ -388,7 +398,7 @@ function App() {
           let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
           let median = Math.floor(layer.length/2) 
           layer.forEach(node => {
-            xPositions.push({id:node,x:d3.sum(poset.features[node].parents.map(parent => poset.features[parent].x))/poset.features[node].parents.length})})
+            xPositions.push({id:node,x: d3.sum(poset.features[node].parents.map(parent => poset.features[parent].x))/poset.features[node].parents.length})})
           xPositions.sort((a, b) => d3.ascending(a.x, b.x))
           let minDistance = d3.min(d3.pairs(xPositions, (a, b) => b.x - a.x))
           if (minDistance < nodeWidth && layer.length > 1) {
@@ -404,7 +414,7 @@ function App() {
           .filter(d => d.concept_class_id !== 'Ingredient' && d.concept_class_id !== "Clinical Drug Comp")
           .filter(d => subsumesData.length === 1 && d.parent_concept_id === d.child_concept_id ? d : d.parent_concept_id !== d.child_concept_id)
           .map(d => d.levels === "-1" ? ({...d,parent_concept_id: d.child_concept_id,child_concept_id: d.parent_concept_id}) : d)
-          .map(d => ([d.child_concept_id.toString(),d.parent_concept_id.toString()]))
+          .map(d => ([d.parent_concept_id.toString(),d.child_concept_id.toString()]))
         const {matrix,nodes} = po.domFromEdges(edges)
         colorPoset = po.createPoset(matrix,nodes)
       } else colorPoset = po.createPoset(matrix,nodes)
@@ -414,11 +424,13 @@ function App() {
       poset.elements.forEach(name => {
         colors[name] = `hsl(${colorPoset.features[name].pTheta},${colorPoset.features[name].pAlpha*100}%,${depthScale(poset.features[name].depth)}%)` 
         positions[name] = poset.features[name].x
+        distances[name] = layers.findIndex(i => i.includes(name))
       })
       posetArray.push(poset)
     })
     nodeData = nodeData
-      .map(d => ({...d,color: colors[d.name] ? colors[d.name] : d.color,x:positions[d.name]}))
+      .map(d => ({...d,distance: distances[d.name], color: colors[d.name] ? colors[d.name] : d.color,x:positions[d.name]}))
+      // .map(d => ({...d,color: colors[d.name] ? colors[d.name] : d.color,x:positions[d.name]}))
       .map(node => ({
           ...node,
           mappings: mappingData.filter(d => d.parent_concept_id === node.name).map(e=>({
@@ -462,6 +474,7 @@ function App() {
     )
   }
 
+  // *** improve this ***
   function getTrees(arrays) {
     const result = []
     const isValidLevel = level => level !== 'Mapped from' && level !== 'Maps to'
@@ -528,13 +541,8 @@ function App() {
         const timer = setTimeout(() => {
             setLoading(true)
         }, 300)
-        //'4021773'
-        //'42536525'
-        //'4024567' (issue with 317009)
-        //'4191479'
-        // const array = [root,'4191479','42536525']
-        // const array = [root]
         const array = root.split(',').map(Number)
+        if (array.length > 1 && !isConceptSet) setIsConceptSet(true)
         setRootArray(array)
         Promise.all(
           array.map(r =>
@@ -559,71 +567,6 @@ function App() {
           d3.select('#loading-animation').style('visibility','hidden')
           clearTimeout(timer)
         })
-        // fetch(`http://127.0.0.1:8564/getCodeCounts?conceptId=${root}`)
-        //     .then(res=> res.json())
-        //     .then(data=>{
-        //         fetch(`http://127.0.0.1:8564/getCodeCounts?conceptId=${42536525}`)
-        //         .then(res=> res.json())
-        //         .then(data2=>{
-        //           console.log('root', root)
-        //           console.log('data', data)
-        //           console.log('data2',data2)
-        //           // multiple roots 
-                  
-        //           // let shared = data2.concept_relationships.map(d => d.child_concept_id).some(concept => data.concept_relationships.map(d => d.child_concept_id).includes(concept))
-        //           let multipleTrees = true
-        //           data.concept_relationships = [...data.concept_relationships,...data2.concept_relationships].filter((e,n,l) => l.indexOf(e) === n)
-        //           data.concepts = [...data.concepts,...data2.concepts].filter((e,n,l) => l.indexOf(e) === n)
-        //           data.stratified_code_counts = [...data.stratified_code_counts,...data2.stratified_code_counts].filter((e,n,l) => l.indexOf(e) === n)
-        //           if (multipleTrees) {
-
-        //             data.combined = [data.concept_relationships,data2.concept_relationships]
-        //           }
-        //           else data.combined = data.concept_relationships
-        //           if (!data.error) {
-        //               setRootData(data)
-        //               setSidebarRoot({name:parseInt(root),data:data}) 
-        //               setView('Tree') 
-        //               d3.select("#graph-section").style('width', "60vw")
-        //               d3.select('#expand').style('display', 'block') 
-        //               d3.select('#compress').style('display', 'none') 
-        //               setGraphFilter({gender:-1,age:[-1]})
-        //               let filterClass = false
-        //               let classList = data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined)
-        //               const thisClass = data.concepts.find(d => d.concept_id == root).concept_class_id
-        //               console.log(thisClass)
-        //               setFullClassList(classList)
-        //               if ((thisClass !== 'Ingredient' && thisClass !== 'Clinical Drug Comp') && (classList.includes('Ingredient') || classList.includes('Clinical Drug Comp'))) {
-        //                 classList = classList.filter(d => d !== 'Ingredient' && d !== 'Clinical Drug Comp') 
-        //                 filterClass = true
-        //                 setClassFilter(classList) 
-        //               } else setClassFilter(['All'])
-        //               setTreeSelections(['descendants'])
-        //               setOpenFilters(true)
-        //               setHovered()
-        //               setMapRoot([])
-        //               setNodes([])
-        //               setLinks([])
-        //               setVisible(false)
-        //               let filterLevel = false
-        //               if (data.concepts.length > 900) {
-        //                 filterLevel = true
-        //                 setLevelFilter(2)
-        //               } else setLevelFilter()
-        //               const prune = filterLevel || filterClass ? true : false
-        //               setInitialPrune(!prune)
-        //               createInitialStates(root,data,prune,filterClass) 
-        //               setLoading(false)
-        //               clearTimeout(timer) 
-
-        //           } else {
-        //               setLoading(true)
-        //               d3.select('#error-message').style('display','block')
-        //               d3.select('#loading-animation').style('visibility','hidden')
-        //               clearTimeout(timer) 
-        //           }
-        //         })
-        //     })
       }
   },[root])
 
@@ -632,7 +575,6 @@ function App() {
     if (dataArray.length > 0) {
       let trees = [dataArray[0].concept_relationships]
       let combinedData = dataArray[0]
-      // *** improve this ***
       if (dataArray.length > 1) {
           const arrays = dataArray.map(d => d.concept_relationships)
           trees = getTrees(arrays)
@@ -643,7 +585,10 @@ function App() {
       } 
       setRootData(combinedData)
       setSidebarRoot({name:rootArray,data:combinedData}) 
-      setView('Tree') 
+      setRootLabels(rootArray.map(root => ({name:combinedData.concepts.find(e=>e.concept_id === root).concept_name,code:combinedData.concepts.find(e=>e.concept_id === root).concept_code,vocabulary:combinedData.concepts.find(e=>e.concept_id === root).vocabulary_id})))
+      if (d3.select('#suggestions-container').style('visibility') === 'hidden') setRefresh(true)
+      if (rootArray.length > 1) setView('Set')
+      else setView('Tree')
       d3.select("#graph-section").style('width', "60vw")
       d3.select('#expand').style('display', 'block') 
       d3.select('#compress').style('display', 'none') 
@@ -661,7 +606,7 @@ function App() {
       setTreeSelections(['descendants'])
       setOpenFilters(true)
       setHovered()
-      setMapRoot([])
+      // setMapRoot([])
       setNodes([])
       setLinks([])
       setVisible(false)
@@ -675,6 +620,31 @@ function App() {
       createInitialStates(combinedData,trees,prune,filterClass)  
     }
   },[dataArray])
+
+  useEffect(() => {
+    d3.select('#search-root-container').selectAll('.search-root').data(rootLabels, d => d.name)
+      .join(enter => {
+          const div = enter.append('div')
+              .classed('search-root',true)
+          const p = div.append('p')
+              .classed('search-root-name',true)
+              .html(d => d.name.length > 20 ? d.name.substring(0, 20) + '...' : d.name)
+          p.append('span')
+            .classed('search-root-code',true)
+              .html(d => d.code)
+              .style('margin-left','4px')
+              .style('font-size','10px')
+              .style('font-weight',700)
+              .style('color','white')
+          p.append('span')
+            .classed('search-root-vocab',true)
+              .html(d => d.vocabulary)
+              .style('margin-left','4px')
+              .style('font-size','10px')
+              .style('font-weight',400)
+              .style('color','ffffff80')
+      })
+  }, [rootLabels])
 
   return ( loaded ?
     <div className = "App">
@@ -696,6 +666,10 @@ function App() {
         allVocabularies = {allVocabularies}
         searchFilter = {searchFilter}
         setSearchFilter = {setSearchFilter}
+        isConceptSet = {isConceptSet}
+        setIsConceptSet = {setIsConceptSet}
+        refresh = {refresh}
+        setRefresh = {setRefresh}
       />
       {(searchIsLoaded && searchOnly) && <div className = "loading">
         <img style = {{width:60,opacity: 0.2}} src={finngen} alt="Finngen logo"/>
@@ -775,6 +749,10 @@ function App() {
               setHovered = {setHovered}
               colorList = {colorList}
               fullClassList = {fullClassList}
+              descendantsFilter = {descendantsFilter}
+              setDescendantsFilter = {setDescendantsFilter}
+              excludeList = {excludeList}
+              setExcludeList = {setExcludeList}
             />      
           } />
         </Routes>

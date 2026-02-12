@@ -60,6 +60,10 @@
         const graphSectionWidth = props.graphSectionWidth
         const setGraphSectionWidth = props.setGraphSectionWidth
         const fullClassList = props.fullClassList
+        const descendantsFilter = props.descendantsFilter
+        const setDescendantsFilter = props.setDescendantsFilter
+        const excludeList = props.excludeList
+        const setExcludeList = props.setExcludeList
         // const setRoot = props.setRoot
         // const [graphSectionWidth, setGraphSectionWidth] = useState()
         const margin = 10
@@ -152,7 +156,145 @@
             const translateY = (svgHeight - height * scale) / 2 - y * scale + padding 
             d3.select('#tree-graphics').transition().attr("transform", `translate(${translateX},${translateY}) scale(${scale})`)
         }
+        function setDescendants(id,descendants) {
+            if (!descendantsFilter.includes(id)) {
+                let filteredConcepts = selectedConcepts.filter(e => !descendants.includes(e.name))
+                setSelectedConcepts(filteredConcepts) 
+                setDescendantsFilter([...descendantsFilter,id])
+            } else {
+                const descendantNodes = nodes.filter(e => descendants.includes(e.name))
+                    .filter(n => !n.parents.some(parent => descendantsFilter.includes(parent) && parent !== id))
+                addConcepts(descendantNodes)
+                let filtered = descendantsFilter.filter(e => e !== id)
+                setDescendantsFilter(filtered)
+            }  
+        }
+        function setExclude(id) {
+            if (!excludeList.includes(id)) {
+                let filteredConcepts = selectedConcepts.filter(e => e.name !== id)
+                setSelectedConcepts(filteredConcepts)
+                setExcludeList([...excludeList,id])
+            } else {
+                const thisNode = nodes.filter(e => e.name === id)
+                addConcepts(thisNode)
+                let filtered = excludeList.filter(e => e !== id)
+                setExcludeList(filtered)
+            }
+        }
+                        
         // DRAWING
+        // concept set
+        function drawSet() {
+            let conceptSetData = sidebarRoot.name.map(root => ({id:root,concept:sidebarRoot.data.concepts.find(d => d.concept_id === root),descendants:descendantsFilter.includes(root) ? false : true,exclude:excludeList.includes(root) ? true : false}))
+            d3.select('#set-container').selectAll('.set-item').data(conceptSetData, d => d.id)
+            .join(enter => {
+                const container = enter.append('div')
+                    .classed('set-item',true)
+                    .attr('id', d => 'set-item-'+d.id)
+                const title = container.append('div')
+                    .style('display','flex')
+                    .style('align-items','center')
+                    .style('justify-content','flex-start')
+                    .style('max-width','calc(100% - 180px)')
+                    .style('margin-right','5px')
+                const p = title.append('p')
+                    .html(d => d.concept.concept_name)
+                    .style('font-weight',700)
+                    .style('color', color.text)
+                    .style('padding-right', '4px')
+                p.append('span')
+                    .html(d => d.concept.concept_code)
+                    .style('color',color.text)
+                    .style('font-weight',700)
+                    .style('font-size','10px')
+                    .style('margin-left', '5px')
+                    .style('margin-right', '5px')
+                p.append('span')
+                    .html(d => d.concept.vocabulary_id)
+                    .style('color',color.textlight)
+                    .style('font-weight',400)
+                    .style('font-size','10px')
+                    .style('margin-right', '5px')    
+                const selections = container.append('div')
+                    .style('width','170px')
+                    .style('display','flex')
+                    .style('align-items','center')
+                    .style('justify-content','space-between')
+                const descendants = selections.append('div')
+                    .style('display','flex')
+                    .style('align-items','center')
+                    .style('justify-content','flex-start')
+                descendants.append('p')
+                    .classed('descendants-p',true)
+                    .html('Descendants')
+                    .style('margin-right','5px')
+                    .style('color', d => d.descendants ? color.text : color.textlight)
+                const descendantsBox = descendants.append('div')
+                    .classed('descendants-box',true)
+                    .style('display','flex')
+                    .style('align-items','center')
+                    .style('justify-content','center')
+                    .style("width",'15px')  
+                    .style('height','15px')  
+                    .style('cursor','pointer')
+                    .style('background-color', d => d.descendants ? color.text : 'transparent')
+                    .style('border', d => d.descendants ? '1px solid var(--text)' : '1px solid var(--textlightest)')
+                    .on('click', (e,d) => {
+                        const descendants = nodes.find(n => n.name === d.id).descendants.filter(e => e !== d.id)
+                        setDescendants(d.id,descendants)
+                    })
+                descendantsBox.append('i')
+                    .classed('descendants-check fa-solid fa-check fa-xs',true)
+                    .style('color','white')
+                    .style('padding-bottom','1px')
+                    .style('display', d => d.descendants ? 'block' : 'none')
+                const exclude = selections.append('div')
+                    .style('display','flex')
+                    .style('align-items','center')
+                    .style('justify-content','flex-start')
+                exclude.append('p')
+                    .classed('exclude-p',true)
+                    .html('Exclude')
+                    .style('margin-right','5px')
+                    .style('color', d => d.exclude ? color.text : color.textlight)
+                const excludeBox = exclude.append('div')
+                    .classed('exclude-box',true)
+                    .style('display','flex')
+                    .style('align-items','center')
+                    .style('justify-content','center')
+                    .style("width",'15px')  
+                    .style('height','15px')  
+                    .style("cursor","pointer")
+                    .style('background-color', d => d.exclude ? color.text : 'transparent')
+                    .style('border', d => d.exclude ? '1px solid var(--text)' : '1px solid var(--textlightest)')
+                    .on('click', (e,d) => setExclude(d.id))
+                excludeBox.append('i')
+                    .classed('exclude-check fa-solid fa-check fa-xs',true)
+                    .style('color','white')
+                    .style('padding-bottom','1px')
+                    .style('display', d => d.exclude ? 'block' : 'none')
+            },update => {
+                update.select('.descendants-p')
+                    .style('color', d => d.descendants ? color.text : color.textlight)
+                update.select('.descendants-box')
+                    .style('background-color', d => d.descendants ? color.text : 'transparent')
+                    .style('border', d => d.descendants ? '1px solid var(--text)' : '1px solid var(--textlightest)')
+                    .on('click', (e,d) => {
+                        const descendants = nodes.find(n => n.name === d.id).descendants.filter(e => e !== d.id)
+                        setDescendants(d.id,descendants)
+                    })
+                update.select('.descendants-check')
+                    .style('display', d => d.descendants ? 'block' : 'none')
+                update.select('.exclude-p')
+                    .style('color', d => d.exclude ? color.text : color.textlight)
+                update.select('.exclude-box')
+                    .style('background-color', d => d.exclude ? color.text : 'transparent')
+                    .style('border', d => d.exclude ? '1px solid var(--text)' : '1px solid var(--textlightest)')
+                    .on('click', (e,d) => setExclude(d.id))
+                update.select('.exclude-check')
+                    .style('display', d => d.exclude ? 'block' : 'none')
+            })
+        }
         // tree
         function drawTree() {
             console.log('nodes',nodes,'links',links,'selected',selectedConcepts)
@@ -350,10 +492,10 @@
                                 .classed('map-node', true)
                                 .style('cursor','pointer')
                                 .attr('id', d => 'map-node-'+d.name)
-                                .style('opacity', d => hovered && hovered !== d.name ? 0.2 : 1)
+                                .style('opacity', d => hovered && hovered !== d.name ? 0.2 : d.source.parents.some(parent => descendantsFilter.includes(parent)) || excludeList.includes(d.source.name) ? 0.5 : 1)
                             const mapLine = mapNode.append('g')
                                 .classed('map-link',true)
-                                .style('opacity', d => hovered && hovered !== d.name ? 0.2 : 1)
+                                .style('opacity', d => hovered && hovered !== d.name ? 0.2 : d.source.parents.some(parent => descendantsFilter.includes(parent)) || excludeList.includes(d.source.name) ? 0.5 : 1)
                             mapLine.append('path')
                                 .classed('map-line', true)
                                 .attr('fill','none')
@@ -562,9 +704,9 @@
                             mapLabel.raise()
                         }, update => {
                             update
-                                .style('opacity', d => hovered && hovered !== d.name ? 0.2 : 1)
+                                .style('opacity', d => hovered && hovered !== d.name ? 0.2 : d.source.parents.some(parent => descendantsFilter.includes(parent)) || excludeList.includes(d.source.name) ? 0.5 : 1)
                             update.select('.map-link')
-                                .style('opacity', d => hovered && hovered !== d.name ? 0.2 : 1)
+                                .style('opacity', d => hovered && hovered !== d.name ? 0.2 : d.source.parents.some(parent => descendantsFilter.includes(parent)) || excludeList.includes(d.source.name) ? 0.5 : 1)
                             update.select('.map-line')
                                 .attr('stroke-width', d => conceptNames.includes(d.name) && mapRoot.includes(d.source.name) ? 2 : 1.5)
                                 .attr('stroke-dasharray', d => mapRoot.includes(d.source.name) ? '4 2' : 'none')
@@ -721,7 +863,7 @@
                         const node = nodeContainer.append('g')  
                             .classed('subsumes-node', true)
                             .attr('id', d => 'subsumes-node-'+d.name)
-                            .style('opacity', d => hovered && hovered !== d.name ? 0.2 : d.levels === '-1' ? 0.5 : 1)
+                            .style('opacity', d => hovered && hovered !== d.name ? 0.2 : d.levels === '-1' || (!sidebarRoot.name.includes(d.name) && d.parents.some(parent => descendantsFilter.includes(parent))) || (sidebarRoot.name.includes(d.name) && excludeList.includes(d.name)) ? 0.5 : 1)
                         node.append('circle')
                             .classed('tree-circle-background', true)
                             .style('opacity', 1)
@@ -782,6 +924,77 @@
                             .attr('text-anchor', 'middle')
                             .attr('x', d => d.x)
                             .attr('y', d => cy + (genHeight[d.distance]) + 3)
+                        const descendantsBtn = geometry.append('g')
+                            .classed('root-btn-group',true)
+                            .style('display', d => sidebarRoot.name.includes(d.name) && sidebarRoot.name.length > 1 ? 'block' : 'none')
+                            .attr('transform', d => {
+                                if (d.data.concept.standard_concept) return `translate(${d.x + scaleRadius(Math.sqrt(d.total_counts)) + 10}, 0)`
+                                else return `translate(${d.x - scaleRadius(Math.sqrt(d.total_counts)) - 10}, 0)`
+                                }   
+                            )
+                        const includeDescendants = descendantsBtn.append('g')
+                            .classed("root-btn-descendants",true)
+                            .style('pointer-events', 'all')
+                            .style('cursor','pointer')
+                            .attr('text-anchor', d => d.data.concept.standard_concept ? 'start' : 'end')
+                            .on('click', (e,d) => {
+                                const descendants = d.descendants.filter(e => e !== d.name)
+                                setDescendants(d.name,descendants)
+                            })
+                        includeDescendants.append('text')
+                            .classed("root-btn-text-descendants",true)
+                            .text('Descendants')
+                            // .text(d => descendantsFilter.includes(d.name) ? 'Excluded' : 'Included')
+                            .style('font-weight', d => descendantsFilter.includes(d.name) ? '400' : '700')
+                            .attr('x', d => d.data.concept.standard_concept ? 16 : -16)
+                            .attr('y', d => cy + (genHeight[d.distance]) + 11)
+                        includeDescendants.append('rect')
+                            .classed('root-btn-box-descendants',true)
+                            .attr('width',13)
+                            .attr('height',13)
+                            .attr('stroke', d => descendantsFilter.includes(d.name) ? color.textlight : color.text)
+                            .attr('x', d => d.data.concept.standard_concept ? -2 : -11)
+                            .attr('y', d => cy + (genHeight[d.distance]))
+                            .attr('fill', d => descendantsFilter.includes(d.name) ? 'none' : color.text)
+                        includeDescendants.append('text')
+                            .classed('root-btn-check-descendants',true)
+                            .text('\uf00c')
+                            .attr('font-family', '"Font Awesome 6 Free"')
+                            .attr('font-weight', '900') 
+                            .attr('font-size', 10)
+                            .attr('fill', d => descendantsFilter.includes(d.name) ? 'none' : 'white')
+                            .attr('x', d => d.data.concept.standard_concept ? 0 : 0)
+                            .attr('y', d => cy + (genHeight[d.distance]) + 10)
+                        const excludeDescendants = descendantsBtn.append('g')
+                            .classed("root-btn-exclude",true)
+                            .style('pointer-events', 'all')
+                            .style('cursor','pointer')
+                            .attr('text-anchor', d => d.data.concept.standard_concept ? 'start' : 'end')
+                            .on('click', (e,d) => setExclude(d.name))
+                        excludeDescendants.append('text')
+                            .classed("root-btn-text-exclude",true)
+                            .text('Exclude')
+                            // .text(d => descendantsFilter.includes(d.name) ? 'Excluded' : 'Included')
+                            .style('font-weight', d => excludeList.includes(d.name) ? '700' : '400')
+                            .attr('x', d => d.data.concept.standard_concept ? 16 : -16)
+                            .attr('y', d => cy + (genHeight[d.distance]) - 7)
+                        excludeDescendants.append('rect')
+                            .classed('root-btn-box-exclude',true)
+                            .attr('width',13)
+                            .attr('height',13)
+                            .attr('stroke', d => excludeList.includes(d.name) ? color.text : color.textlight)
+                            .attr('x', d => d.data.concept.standard_concept ? -2 : -11)
+                            .attr('y', d => cy + (genHeight[d.distance]) - 18)
+                            .attr('fill', d => excludeList.includes(d.name) ? color.text : 'none')
+                        excludeDescendants.append('text')
+                            .classed('root-btn-check-exclude',true)
+                            .text('\uf00c')
+                            .attr('font-family', '"Font Awesome 6 Free"')
+                            .attr('font-weight', '900') 
+                            .attr('font-size', 10)
+                            .attr('fill', d => excludeList.includes(d.name) ? 'white' : 'none')
+                            .attr('x', d => d.data.concept.standard_concept ? 0 : 0)
+                            .attr('y', d => cy + (genHeight[d.distance]) - 8)
                         const closeMappings = node.append('g')
                             .classed('close-mappings', true)
                             .attr('id', d => 'close-mappings-' + d.name)
@@ -964,24 +1177,24 @@
                             .classed('prune-group', true)
                             .attr('id', d => 'prune-group-' + d.name)
                             .style('display', d => pruned && d.leaf && d.children.length > 0 && !d.children?.every(child => d.connections.map(d => d.child).includes(child)) ? 'block' : 'none')
-                            pruneLine.append('line')
-                                .classed('prune-line',true)
-                                .attr('fill', 'none')
-                                .attr("stroke", "url(#myGradient)")
-                                .attr('stroke-width', 1)
-                                .attr('x1',d => d.x)
-                                .attr('y1',d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 18)
-                                .attr('x2',d => d.x + 0.1)
-                                .attr('y2',d => cy + (genHeight[d.distance]) + 100)
-                            pruneLine.append('path')
-                                .classed('prune-arrow', true)
-                                .attr('fill', color.background)
-                                .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
-                                .attr("transform", d => {
-                                    let x = d.x
-                                    let y = cy + (genHeight[d.distance]) + 100
-                                    return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
-                                }) 
+                        pruneLine.append('line')
+                            .classed('prune-line',true)
+                            .attr('fill', 'none')
+                            .attr("stroke", "url(#myGradient)")
+                            .attr('stroke-width', 1)
+                            .attr('x1',d => d.x)
+                            .attr('y1',d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 18)
+                            .attr('x2',d => d.x + 0.1)
+                            .attr('y2',d => cy + (genHeight[d.distance]) + 100)
+                        pruneLine.append('path')
+                            .classed('prune-arrow', true)
+                            .attr('fill', color.background)
+                            .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
+                            .attr("transform", d => {
+                                let x = d.x
+                                let y = cy + (genHeight[d.distance]) + 100
+                                return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
+                            }) 
                         node.selectAll(".prune-curve").data(d => d.connections, d => d.child)
                         .join(enter => {
                             const curve = enter.append('g')
@@ -1041,10 +1254,10 @@
                                 .classed('map-node', true)
                                 .style('cursor','pointer')
                                 .attr('id', d => 'map-node-'+d.name)
-                                .style('opacity', d => hovered && hovered !== d.name ? 0.2 : 1)
+                                .style('opacity', d => hovered && hovered !== d.name ? 0.2 : d.source.parents.some(parent => descendantsFilter.includes(parent)) || excludeList.includes(d.source.name) ? 0.5 : 1)
                             const mapLine = mapNode.append('g')
                                 .classed('map-link',true)
-                                .style('opacity', d => hovered && hovered !== d.name ? 0.2 : 1)
+                                .style('opacity', d => hovered && hovered !== d.name ? 0.2 : d.source.parents.some(parent => descendantsFilter.includes(parent)) || excludeList.includes(d.source.name) ? 0.5 : 1)
                             mapLine.append('path')
                                 .classed('map-line', true)
                                 .attr('fill','none')
@@ -1253,9 +1466,9 @@
                             mapLabel.raise()
                         }, update => {
                             update
-                                .style('opacity', d => hovered && hovered !== d.name ? 0.2 : 1)
+                                .style('opacity', d => hovered && hovered !== d.name ? 0.2 : d.source.parents.some(parent => descendantsFilter.includes(parent)) || excludeList.includes(d.source.name) ? 0.5 : 1)
                             update.select('.map-link')
-                                .style('opacity', d => hovered && hovered !== d.name ? 0.2 : 1)
+                                .style('opacity', d => hovered && hovered !== d.name ? 0.2 : d.source.parents.some(parent => descendantsFilter.includes(parent)) || excludeList.includes(d.source.name) ? 0.5 : 1)
                             update.select('.map-line')
                                 .attr('stroke-width', d => conceptNames.includes(d.name) && mapRoot.includes(d.source.name) ? 2 : 1.5)
                                 .attr('stroke-dasharray', d => mapRoot.includes(d.source.name) ? '4 2' : 'none')
@@ -1410,7 +1623,7 @@
                         //Subsumes node
                         update.select('.subsumes-node')
                             .transition()
-                            .style('opacity', d => hovered && hovered !== d.name ? 0.2 : d.levels === '-1' ? 0.5 : 1)
+                            .style('opacity', d => hovered && hovered !== d.name ? 0.2 : d.levels === '-1' || (!sidebarRoot.name.includes(d.name) && d.parents.some(parent => descendantsFilter.includes(parent))) || (sidebarRoot.name.includes(d.name) && excludeList.includes(d.name)) ? 0.5 : 1)
                         update.select('.tree-circle-background') 
                             .transition()
                             .attr('r', d => scaleRadius(Math.sqrt(d.total_counts)) + 2)
@@ -1585,6 +1798,51 @@
                             .text(d => d.data.concept.vocabulary_id)
                             .attr('x', d => getLabel(d).x)
                             .attr('y', d => getLabel(d).y + 2)
+                        update.select('.root-btn-group')
+                            .style('display', d => sidebarRoot.name.includes(d.name) && sidebarRoot.name.length > 1 ? 'block' : 'none')
+                            // .attr('text-anchor', d => d.data.concept.standard_concept ? 'start' : 'end')
+                            .attr('transform', d => {
+                                if (d.data.concept.standard_concept) return `translate(${d.x + scaleRadius(Math.sqrt(d.total_counts)) + 10}, 0)`
+                                else return `translate(${d.x - scaleRadius(Math.sqrt(d.total_counts)) - 10}, 0)`
+                                }   
+                            )
+                        update.select('.root-btn-descendants')
+                            .attr('text-anchor', d => d.data.concept.standard_concept ? 'start' : 'end')
+                            .on('click', (e,d) => {
+                                const descendants = d.descendants.filter(e => e !== d.name)
+                                setDescendants(d.name,descendants)
+                            })
+                        update.select('.root-btn-exclude')
+                            .attr('text-anchor', d => d.data.concept.standard_concept ? 'start' : 'end')
+                            .on('click', (e,d) => setExclude(d.name))
+                        update.select('.root-btn-text-descendants')
+                            // .text(d => descendantsFilter.includes(d.name) ? 'Excluded' : 'Included')
+                            .style('font-weight', d => descendantsFilter.includes(d.name) ? '400' : '700')
+                            .attr('x', d => d.data.concept.standard_concept ? 16 : -16)
+                            .attr('y', d => cy + (genHeight[d.distance]) + 11)
+                        update.select('.root-btn-box-descendants')
+                            .attr('stroke', d => descendantsFilter.includes(d.name) ? color.textlight : color.text)
+                            .attr('x', d => d.data.concept.standard_concept ? -2 : -11)
+                            .attr('y', d => cy + (genHeight[d.distance]))
+                            .attr('fill', d => descendantsFilter.includes(d.name) ? 'none' : color.text)
+                        update.select('.root-btn-check-descendants')
+                            .attr('fill', d => descendantsFilter.includes(d.name) ? 'none' : 'white')
+                            .attr('x', d => d.data.concept.standard_concept ? 0 : 0)
+                            .attr('y', d => cy + (genHeight[d.distance]) + 10)
+                        update.select('.root-btn-text-exclude')
+                            // .text(d => descendantsFilter.includes(d.name) ? 'Excluded' : 'Included')
+                            .style('font-weight', d => excludeList.includes(d.name) ? '700' : '400')
+                            .attr('x', d => d.data.concept.standard_concept ? 16 : -16)
+                            .attr('y', d => cy + (genHeight[d.distance]) - 7)
+                        update.select('.root-btn-box-exclude')
+                            .attr('stroke', d => excludeList.includes(d.name) ? color.text : color.textlight)
+                            .attr('x', d => d.data.concept.standard_concept ? -2 : -11)
+                            .attr('y', d => cy + (genHeight[d.distance]) - 18)
+                            .attr('fill', d => excludeList.includes(d.name) ? color.text : 'none')
+                        update.select('.root-btn-check-exclude')
+                            .attr('fill', d => excludeList.includes(d.name) ? 'white' : 'none')
+                            .attr('x', d => d.data.concept.standard_concept ? 0 : 0)
+                            .attr('y', d => cy + (genHeight[d.distance]) - 8)
                         update.select('.prune-group')
                             .style('display', d => pruned && d.leaf && d.children.length > 0 && !d.children?.every(child => d.connections.map(d => d.child).includes(child)) ? 'block' : 'none')
                         update.select('.prune-line')
@@ -1719,7 +1977,7 @@
                     .style('display', d => d.section === 'PARENTS' || d.section === 'ROOT' || d.section === '1' ? 'block' : 'none')
                     .style('font-size','10px')
                     .style('font-weight', 700)
-                    .html(d => d.section === '1' ? 'CHILDREN' : d.section === 'ROOT' ? sidebarRoot.name.length > 1 ? 'ROOTS' : 'ROOT' : d.section)
+                    .html(d => d.section === '1' ? 'CHILDREN' : d.section === 'ROOT' ? 'LEVEL 0' : d.section)
                 // CONCEPT LIST
                 section.selectAll(".list-item-container").data(d => d.nodes, d => d.name)
                 .join(enter => {
@@ -4212,7 +4470,7 @@
                     .style('padding-left', d => d.section === 'ROOT' ? '13px' : '5px')
                     .style('color', d => d.section === 'ROOT' ? 'white' : color.text)
                     .style('display', d => d.section === 'PARENTS' || d.section === 'ROOT' || d.section === '1' ? 'block' : 'none')
-                    .html(d => d.section === '1' ? 'CHILDREN' : d.section === 'ROOT' ? sidebarRoot.name.length > 1 ? 'ROOTS' : 'ROOT' : d.section)
+                    .html(d => d.section === '1' ? 'CHILDREN' : d.section === 'ROOT' ? 'LEVEL 0' : d.section)
             })
         }
         // expand and collapse tree
@@ -4459,14 +4717,22 @@
                         .attr('viewBox', `${margin} ${margin} ${width} ${height}`)
                         .call(d3.zoom().on("start",()=>d3.select("#tree-graphics").style("pointer-events", "none")).on("zoom", zoomed)).on("end",()=>d3.select("#tree-graphics").style("pointer-events", "all"))
                     d3.select('#tree-container').style('display','block')
+                    d3.select('#set-container').style('display','none')
                     d3.select('#list-container').style('display','none')
                     drawTree()
-                    // setTimeout(() => zoomToFit(),400)
+                    zoomToFit()
                 }
-                else {
+                if (view === 'List') {
                     d3.select('#list-container').style('display','block')
+                    d3.select('#set-container').style('display','none')
                     d3.select('#tree-container').style('display','none')
-                    drawList()
+                    drawList()    
+                }
+                if (view === 'Set') {
+                    d3.select('#set-container').style('display','block')
+                    d3.select('#tree-container').style('display','none')
+                    d3.select('#list-container').style('display','none')
+                    drawSet()     
                 }    
             }
         },[nodes,conceptNames,mapRoot,view,conceptNames.length < 50 ? hovered : null])
@@ -4476,19 +4742,21 @@
             setTimeout(() => zoomToFit(),400)
         },[nodes,treeSelections])
 
+        // *** still issues with this ***
         useEffect(() => {
-            if (poset) {
+            if (poset && nodes.length > 1) {
                 const width = d3.select("#tree").node().getBoundingClientRect().width
                 let positions = {}
                 // update x
                 poset.forEach((newPoset,index) => {
-                    const layers = newPoset.analytics.substructures.depth
+                    const layers = newPoset.layers.reverse()
+                    // const layers = newPoset.analytics.substructures.depth
                     let buffer = index > 0 && mapRoot.length > 0 ? 300 : 0
                     layers.forEach((layer,i) => {
                         const layerInt = layer.map(d => parseInt(d))
                         const mapArrays = nodes.filter(d => mapRoot.includes(d.name)).map(d => d.mappings)
                         const multiBiDirectional = mapArrays.map(array => array.map(d => d.direction)).filter(arr => arr.includes(1) && arr.includes(-1)).length >= 2
-                        const nodeWidth = mapRoot.some(element => layerInt.includes(element)) ? multiBiDirectional ? 320 : 240 : biDirectional ? 120 : 100
+                        const nodeWidth = mapRoot.some(element => layerInt.includes(element)) ? multiBiDirectional ? 320 : 240 : biDirectional ? 160 : 140
                         const center = (width/poset.length)/2 + (width)*index + buffer
                         if (i === 0) {
                             let unit = (width/poset.length)/layer.length
@@ -4528,6 +4796,10 @@
                 <div id = "drag-bar"></div>
                 <div id = "sidebar-heading">
                     <div id = "view-selections">
+                        <div id = "view-set" className="view-btn" style = {{display: sidebarRoot.name.length > 1 ? 'flex' : 'none'}} onClick={() => setView('Set')} onMouseOver={() => {if (view !== 'Set') d3.select('#view-title-set').style("font-weight",700)}} onMouseOut={() => {if (view !== 'Set') d3.select('#view-title-set').style("font-weight",400)}}>
+                            <div id = "view-title-set" className = "view-title" style = {{zIndex: 3000,fontWeight: view === 'Set' ? 700 : 400, color: view === 'Set' ? color.slate : color.mediumslate}}>Concept set</div>
+                            <div className = "selection-bar" style = {{opacity: view === 'Set' ? 1 : 0}}></div>
+                        </div>
                         <div id = "view-tree" className="view-btn" onClick={() => setView('Tree')} onMouseOver={() => {if (view !== 'Tree') d3.select('#view-title-tree').style("font-weight",700)}} onMouseOut={() => {if (view !== 'Tree') d3.select('#view-title-tree').style("font-weight",400)}}>
                             <div id = "view-title-tree" className = "view-title" style = {{zIndex: 3000,fontWeight: view === 'Tree' ? 700 : 400, color: view === 'Tree' ? color.slate : color.mediumslate}}>Tree</div>
                             <div className = "selection-bar" style = {{opacity: view === 'Tree' ? 1 : 0}}></div>
@@ -4547,7 +4819,8 @@
                                     if (!treeSelections.includes('descendants')) {
                                         d3.select('#add-descendants').style('background-color', color.text).style('color','white').style('font-weight',700)
                                         let newConcepts = nodes.filter(d => d.levels !== '-1')
-                                        newConcepts = newConcepts.filter(d => !d.leaf ? d.total_counts !== 0 : d).map(d => {return {name:d.name,leaf:d.leaf,data:d.data}})
+                                        newConcepts = newConcepts.filter(d => !d.leaf ? d.total_counts !== 0 : d).map(d => {return {name:d.name,leaf:d.leaf,descendants:d.descendants,distance:d.distance,data: {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.includes(c.concept_id))}}})
+                                        // newConcepts = newConcepts.filter(d => !d.leaf ? d.total_counts !== 0 : d).map(d => {return {name:d.name,leaf:d.leaf,data:d.data}})
                                         setSelectedConcepts(newConcepts)
                                         setTreeSelections(['descendants'])
                                         setMapRoot([])
@@ -4663,6 +4936,12 @@
                 <div className = "box-shadow" id = "sidebar-content">
                     <FontAwesomeIcon style = {{display:'block'}} icon={faExpand} id = "expand" className = "fa-thin fa-lg expand-compress" onClick={handleExpand} />
                     <FontAwesomeIcon style = {{display:'none'}} icon={faCompress} id = "compress" className = "fa-thin fa-lg expand-compress" onClick={handleExpand} /> 
+                    <div id = "set-container" style = {{display: view === 'Set' ? 'block' : 'none'}}>
+                        <div id = "set-header">
+                            <p style = {{marginLeft:13}}>CONCEPT</p>
+                            <p style = {{marginRight:118}}>SELECTIONS</p>
+                        </div>
+                    </div>
                     <div id = "tree-container" style = {{display: view === 'Tree' ? 'block' : 'none'}}>  
                         <svg id = "tree">
                             <g id = "tree-graphics">
