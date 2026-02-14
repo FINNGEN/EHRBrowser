@@ -107,7 +107,9 @@ function Header (props) {
     document.addEventListener('click', (e) => {
         let input = document.getElementById('input-container')
         let inputs = document.querySelectorAll('.name-container')
+        // let labelXs = document.querySelectorAll('.search-x')
         const clickedInsideInputs = Array.from(inputs).some(el => el.contains(e.target))
+        // const clickedLabelX = Array.from(labelXs).some(el => el.contains(e.target))
         let filter = document.getElementById('search-filter-container')
         // let icon = document.getElementById('filter-search')
         if (clickedInsideInputs) {
@@ -370,7 +372,7 @@ function Header (props) {
                         onChange = {handleChange}
                         onKeyDown = {(e) => {if (e.key === 'Enter') e.preventDefault()}}
                     />
-                    <div id = "search-root-container" style = {{pointerEvents: 'none', display: refresh ? 'flex' : 'none'}}></div>
+                    <div id = "search-root-container" style = {{pointerEvents:'none',display: refresh ? 'flex' : 'none'}}></div>
                     <FontAwesomeIcon onClick = {()=>handleClick()} className = "fa-xl fal fa-search" id = "searchBtn" icon={faSearch}></FontAwesomeIcon>
                     <div style = {{top:32}} className="dropdown-content" id = "suggestions-container"></div>
                     <div onClick = {()=>setShowFilter(!showFilter)} onMouseOver={()=>d3.select('#filter-search').style('opacity',1)} onMouseOut={()=>d3.select('#filter-search').style('opacity',()=>searchFilter.length > 0 || showFilter ? 1 : 0.5)} style = {{opacity: searchFilter.length > 0 || showFilter ? 1 : 0.5, display: refresh ? 'none' : 'block'}} id = "filter-search">Filter</div>

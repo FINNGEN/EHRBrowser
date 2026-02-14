@@ -154,25 +154,20 @@ h4 {
 }
 #search-root-container {
   position: absolute;
-  margin-top: 5px;
+  height: 38px;
   left: 36px;  
-  overflow-x: auto;
-  width: auto;
+  overflow-x: scroll;
+  max-width: 500px;
   width: 500px;
-  /* white-space: nowrap;  */
+  align-items:center;
+  justify-content: flex-start;
 }
 .search-root {
-  background-color: var(--mediumpurple);
-  height: 28px;
-  border-radius: 20px;
   white-space: nowrap;  
   font-weight: 700;
   color: white;
-  align-items: center;
-  padding-left: 14px;
-  padding-right: 14px;
   margin-right: 5px;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center; 
 }

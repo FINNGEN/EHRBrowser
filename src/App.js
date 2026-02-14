@@ -5,6 +5,7 @@ import finngen from './img/finngen_logo_dark.svg'
 import CryptoJS from "crypto-js";
 import Header from './components/header'
 import Visualization from './components/visualization'
+import { faX } from '@fortawesome/free-solid-svg-icons'
 import * as d3 from "d3";
 import po from './po.js';
 import { UMAP } from 'umap-js';
@@ -301,7 +302,7 @@ function App() {
           return map
         }, new Map())
         .values()
-    )
+    ).filter(e => !(e.levels === '-1' && rootArray.includes(e.child_concept_id)))
     const subsumesData = relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to")
       // .filter(d => !prune || (d.levels === '-1' || parseInt(d.levels.split('-')[0]) <= 2))
     const mappingData = relationships.filter(d => d.levels === "Mapped from" || d.levels === "Maps to")
@@ -310,7 +311,7 @@ function App() {
       // .map(({ parent_concept_id, ...rest }) => rest)
       .reduce((map, obj) => {
         const existing = map.get(obj.child_concept_id)
-        if (!existing || ((obj.levels === '-1' || existing.levels === '-1' && rootArray.includes(obj.child_concept_id)) ? parseInt(obj.levels) > parseInt(existing.levels) : parseInt(obj.levels.split('-')[0]) > parseInt(existing.levels.split('-')[0]))) {
+        if (!existing || (parseInt(obj.levels.split('-')[0]) > parseInt(existing.levels.split('-')[0]))) {
           map.set(obj.child_concept_id, obj)
         }
         return map
@@ -326,7 +327,7 @@ function App() {
           'class': e.concept_class_id,
           'color': generateColor(e.child_concept_id),
           'leaf': !subsumesData.map(d => d.parent_concept_id).includes(e.child_concept_id) ? true : false,
-          'parents': rootArray.includes(e.child_concept_id) ? subsumesData.filter(d => d.parent_concept_id === e.child_concept_id).filter(d => d.levels === '-1' && !rootArray.includes(d.child_concept_id)).map(d => d.child_concept_id) : e.levels === "-1" ? [] : subsumesData.filter(d => d.child_concept_id === e.child_concept_id).map(d => d.parent_concept_id).filter(p => parseInt(e.levels.split('-')[0]) > parseInt(nodeData.filter(n => n.child_concept_id === p)[0].levels.split('-')[0])),
+          'parents': rootArray.includes(e.child_concept_id) ? subsumesData.filter(d => d.parent_concept_id === e.child_concept_id).filter(d => d.levels === '-1').map(d => d.child_concept_id).concat(subsumesData.filter(d => d.child_concept_id === e.child_concept_id).map(d => d.parent_concept_id).filter(p => parseInt(e.levels.split('-')[0]) > parseInt(nodeData.filter(n => n.child_concept_id === p)[0].levels.split('-')[0])).flat()) : e.levels === "-1" ? [] : subsumesData.filter(d => d.child_concept_id === e.child_concept_id).map(d => d.parent_concept_id).filter(p => parseInt(e.levels.split('-')[0]) > parseInt(nodeData.filter(n => n.child_concept_id === p)[0].levels.split('-')[0])),
           'children': e.levels === "-1" ? subsumesData.filter(d => d.child_concept_id === e.child_concept_id).map(d => d.parent_concept_id) : subsumesData.filter(d => d.parent_concept_id === e.child_concept_id && d.child_concept_id !== e.child_concept_id).map(d => d.child_concept_id),
           'connections': [],
           'total_counts': data.concepts.filter(d => d.concept_id === e.child_concept_id)[0].record_counts || 0,
@@ -384,14 +385,15 @@ function App() {
       // set x
       // const layers = poset.analytics.substructures.depth
       const layers = poset.layers.reverse()
+      let buffer = index > 0 ? 160 : 0
       // layers = layers.reverse()
       layers.forEach((layer,i) => {
-        const center = (width/trees.length)/2 + (width)*index
+        const center = (width/trees.length)/2 + (width)*index + buffer
         if (i === 0) {
           let unit = (width/trees.length)/layer.length
           let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
           let median = Math.floor(layer.length/2) 
-          layer.forEach((node,i) => poset.features[node].x = unit >= nodeWidth ? unit*i + unit/2 + (width)*index : i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
+          layer.forEach((node,i) => poset.features[node].x = unit >= nodeWidth ? unit*i + unit/2 + (width)*index + buffer : i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
         } else {
           let xPositions = []
           let unit = (width/trees.length)/layer.length
@@ -402,7 +404,7 @@ function App() {
           xPositions.sort((a, b) => d3.ascending(a.x, b.x))
           let minDistance = d3.min(d3.pairs(xPositions, (a, b) => b.x - a.x))
           if (minDistance < nodeWidth && layer.length > 1) {
-            layer.forEach(node => poset.features[node].x = unit >= nodeWidth ? unit*xPositions.findIndex(d => d.id === node) + unit/2 + (width)*index : xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
+            layer.forEach(node => poset.features[node].x = unit >= nodeWidth ? unit*xPositions.findIndex(d => d.id === node) + unit/2 + (width)*index + buffer : xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
           } else layer.forEach(node => poset.features[node].x = xPositions.find(d => d.id === node)?.x)
         }
       })
@@ -428,6 +430,25 @@ function App() {
       })
       posetArray.push(poset)
     })
+    // set color
+    // let colorPoset
+    // if (filterClass) {
+      // let combinedEdges = trees.flat()
+      // console.log(combinedEdges)
+    //   const edges = tree
+    //     .filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to")
+    //     .filter(d => d.concept_class_id !== 'Ingredient' && d.concept_class_id !== "Clinical Drug Comp")
+    //     .filter(d => subsumesData.length === 1 && d.parent_concept_id === d.child_concept_id ? d : d.parent_concept_id !== d.child_concept_id)
+    //     .map(d => d.levels === "-1" ? ({...d,parent_concept_id: d.child_concept_id,child_concept_id: d.parent_concept_id}) : d)
+    //     .map(d => ([d.parent_concept_id.toString(),d.child_concept_id.toString()]))
+    //   const {matrix,nodes} = po.domFromEdges(edges)
+    //   colorPoset = po.createPoset(matrix,nodes)
+    // } else colorPoset = po.createPoset(matrix,nodes)
+    // colorPoset.enrich()
+    //   .color(80,25,90)
+    // colorPoset.elements.forEach(name => {
+    //     colors[name] = `hsl(${colorPoset.features[name].pTheta},${colorPoset.features[name].pAlpha*100}%,${depthScale(distances[name])}%)`})
+    // update color, position, and distance
     nodeData = nodeData
       .map(d => ({...d,distance: distances[d.name], color: colors[d.name] ? colors[d.name] : d.color,x:positions[d.name]}))
       // .map(d => ({...d,color: colors[d.name] ? colors[d.name] : d.color,x:positions[d.name]}))
@@ -438,7 +459,7 @@ function App() {
               'direction': e.levels === "Mapped from" ? -1 : 1,
               'distance': node.distance,
               'source': node,
-              'color': generateColor(e.child_concept_id),
+              'color': colors[e.child_concept_id] ? colors[e.child_concept_id] : generateColor(e.child_concept_id),
               'total_counts': data.concepts.filter(d => d.concept_id === e.child_concept_id)[0].record_counts || 0,
               'descendant_counts': data.concepts.filter(d => d.concept_id === e.child_concept_id)[0].descendant_record_counts || 0,
               'data': {code_counts: data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),concept: data.concepts.filter(d => d.concept_id === e.child_concept_id)[0]}
@@ -542,7 +563,8 @@ function App() {
             setLoading(true)
         }, 300)
         const array = root.split(',').map(Number)
-        if (array.length > 1 && !isConceptSet) setIsConceptSet(true)
+        if (array.length > 1) setIsConceptSet(true)
+        else setIsConceptSet(false)
         setRootArray(array)
         Promise.all(
           array.map(r =>
@@ -585,7 +607,7 @@ function App() {
       } 
       setRootData(combinedData)
       setSidebarRoot({name:rootArray,data:combinedData}) 
-      setRootLabels(rootArray.map(root => ({name:combinedData.concepts.find(e=>e.concept_id === root).concept_name,code:combinedData.concepts.find(e=>e.concept_id === root).concept_code,vocabulary:combinedData.concepts.find(e=>e.concept_id === root).vocabulary_id})))
+      setRootLabels(rootArray.map(root => ({id:root,name:combinedData.concepts.find(e=>e.concept_id === root).concept_name,code:combinedData.concepts.find(e=>e.concept_id === root).concept_code,vocabulary:combinedData.concepts.find(e=>e.concept_id === root).vocabulary_id})))
       if (d3.select('#suggestions-container').style('visibility') === 'hidden') setRefresh(true)
       if (rootArray.length > 1) setView('Set')
       else setView('Tree')
@@ -621,28 +643,55 @@ function App() {
     }
   },[dataArray])
 
+  // search bar labels
   useEffect(() => {
     d3.select('#search-root-container').selectAll('.search-root').data(rootLabels, d => d.name)
       .join(enter => {
           const div = enter.append('div')
-              .classed('search-root',true)
+            .classed('search-root',true)
           const p = div.append('p')
-              .classed('search-root-name',true)
-              .html(d => d.name.length > 20 ? d.name.substring(0, 20) + '...' : d.name)
+            .classed('search-root-name',true)
+            .style('background-color',color.mediumpurple)
+            .style('height','28px')
+            .style('border-radius','20px')
+            .style('padding-right','14px')
+            .style('padding-left','14px')
+            .style('display','flex')
+            .style('align-items','center')
+            .style('justify-content','center')
+            .html(d => d.name.length > 20 ? d.name.substring(0, 20) + '...' : d.name)
           p.append('span')
             .classed('search-root-code',true)
-              .html(d => d.code)
-              .style('margin-left','4px')
-              .style('font-size','10px')
-              .style('font-weight',700)
-              .style('color','white')
+            .html(d => d.code)
+            .style('margin-top','1px')
+            .style('margin-left','4px')
+            .style('font-size','10px')
+            .style('font-weight',700)
+            .style('color','white')
           p.append('span')
             .classed('search-root-vocab',true)
-              .html(d => d.vocabulary)
-              .style('margin-left','4px')
-              .style('font-size','10px')
-              .style('font-weight',400)
-              .style('color','ffffff80')
+            .html(d => d.vocabulary)
+            .style('margin-top','1px')
+            .style('margin-left','4px')
+            .style('font-size','10px')
+            .style('font-weight',400)
+            .style('color','ffffff80')
+          div.append('i')
+            .classed('search-x fa-solid fa-x fa-2xs',true)
+            .style('pointer-events','all')
+            .style("display", rootLabels.length > 1 ? 'block' : 'none')
+            .style('color','white')
+            .style('padding-left','5px')
+            .style('margin-right','2px')
+            .style('cursor','pointer')
+            .on('click',(e,d) => {
+              const array = root.split(',').map(Number)
+              const arrayToString = array.filter(root => root !== d.id).join(",")
+              navigate(`/${arrayToString}`)
+            })
+      },update => {
+        update.select('.search-x')
+          .style("display", rootLabels.length > 1 ? 'block' : 'none')
       })
   }, [rootLabels])
 

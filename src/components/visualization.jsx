@@ -283,7 +283,7 @@ function Visualization (props) {
                 // set x
                 // const layers = newPoset.analytics.substructures.depth
                 const layers = newPoset.layers.reverse()
-                let buffer = index > 0 && mapRoot.length > 0 ? 300 : 0
+                let buffer = index > 0 ? mapRoot.length > 0 ? 360 : 160 : 0
                 layers.forEach((layer,i) => {
                     const layerInt = layer.map(d => parseInt(d))
                     const mapArrays = filteredNodes.filter(d => mapRoot.includes(d.name)).map(d => d.mappings)
@@ -296,6 +296,7 @@ function Visualization (props) {
                         let median = Math.floor(layer.length/2) 
                         layer.forEach((node,i) => newPoset.features[node].x = unit >= nodeWidth ? unit*i + unit/2 + (width)*index + buffer : i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
                     } else {
+                        // console.log('layer',layer)
                         let missingParent = false
                         layer.forEach(node => newPoset.features[node].parents.length === 0 ? missingParent = true : null)
                         let xPositions = []
