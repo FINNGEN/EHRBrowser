@@ -162,21 +162,39 @@
                 setSelectedConcepts(filteredConcepts) 
                 setDescendantsFilter([...descendantsFilter,id])
             } else {
-                const descendantNodes = nodes.filter(e => descendants.includes(e.name))
-                    .filter(n => !n.parents.some(parent => descendantsFilter.includes(parent) && parent !== id))
-                addConcepts(descendantNodes)
+                if (treeSelections.includes('mappings')) {
+                    let mappingNodes = nodes.map(n => n.mappings).flat().filter(e => descendants.includes(e.name))
+                        .filter(n => !excludeList.includes(n.name))
+                    mappingNodes = mappingNodes.filter(d => !d.leaf ? d.total_counts !== 0 : d).map(d => {return {name:d.name,leaf:d.leaf,data:d.data}})
+                    setSelectedConcepts([...selectedConcepts,...mappingNodes])
+                } else {
+                    const descendantNodes = nodes.filter(e => descendants.includes(e.name))
+                        .filter(n => !n.parents.some(parent => descendantsFilter.includes(parent) && parent !== id))
+                        .filter(n => !excludeList.includes(n.name))
+                    addConcepts(descendantNodes)
+                }
                 let filtered = descendantsFilter.filter(e => e !== id)
                 setDescendantsFilter(filtered)
             }  
         }
         function setExclude(id) {
             if (!excludeList.includes(id)) {
-                let filteredConcepts = selectedConcepts.filter(e => e.name !== id)
+                let filteredConcepts = []
+                if (treeSelections.includes('mappings')) {
+                    const mappings = nodes.find(n => n.name === id).mappings.map(m => m.name)
+                    filteredConcepts = selectedConcepts.filter(e => !mappings.includes(e.name))
+                } else filteredConcepts = selectedConcepts.filter(e => e.name !== id)
                 setSelectedConcepts(filteredConcepts)
                 setExcludeList([...excludeList,id])
             } else {
-                const thisNode = nodes.filter(e => e.name === id)
-                addConcepts(thisNode)
+                if (treeSelections.includes('mappings')) {
+                    let mapNodes = nodes.find(e => e.name === id).mappings
+                    mapNodes = mapNodes.filter(d => !d.leaf ? d.total_counts !== 0 : d).map(d => {return {name:d.name,leaf:d.leaf,data:d.data}})
+                    setSelectedConcepts([...selectedConcepts,...mapNodes])
+                } else {
+                    const thisNode = nodes.filter(e => e.name === id)
+                    addConcepts(thisNode)    
+                }
                 let filtered = excludeList.filter(e => e !== id)
                 setExcludeList(filtered)
             }
@@ -185,18 +203,43 @@
         // DRAWING
         // concept set
         function drawSet() {
-            let conceptSetData = sidebarRoot.name.map(root => ({id:root,concept:sidebarRoot.data.concepts.find(d => d.concept_id === root),descendants:descendantsFilter.includes(root) ? false : true,exclude:excludeList.includes(root) ? true : false}))
+            const conceptSetData = sidebarRoot.name.map(root => ({id:root,concept:sidebarRoot.data.concepts.find(d => d.concept_id === root),descendants:descendantsFilter.includes(root) ? false : true,exclude:excludeList.includes(root) ? true : false}))
             d3.select('#set-container').selectAll('.set-item').data(conceptSetData, d => d.id)
             .join(enter => {
                 const container = enter.append('div')
                     .classed('set-item',true)
                     .attr('id', d => 'set-item-'+d.id)
                 const title = container.append('div')
+                    .classed('set-title',true)
                     .style('display','flex')
                     .style('align-items','center')
                     .style('justify-content','flex-start')
-                    .style('max-width','calc(100% - 180px)')
+                    .style('flex-grow',1)
+                    // .style('max-width','calc(100% - 300px)')
+                    // .style('width','calc(100% - 300px)')
                     .style('margin-right','5px')
+                    .style('cursor','pointer')
+                    .on('mouseover',(e,d)=>d3.select('#set-x-'+d.id).style("display",'block').transition(100).style('opacity',1).style('margin-right','4px'))
+                    .on('mouseout',(e,d)=>d3.select('#set-x-'+d.id).style("display",'none').transition(100).style('opacity',1).style('margin-right','0px'))
+                    .on('click',(e,d) => {
+                        const array = sidebarRoot.name.filter(root => root !== d.id)
+                        if (array.length === 0) navigate(`/`) 
+                        else {
+                            const arrayToString = sidebarRoot.name.filter(root => root !== d.id).join(",")
+                            navigate(`/${arrayToString}`)    
+                        }
+                    })
+                title.append('i')
+                    .classed('set-x fa-solid fa-x fa-xs',true)
+                    .attr('id', d => 'set-x-'+d.id)
+                    .style('margin-right','0px')
+                    .style('margin-bottom','1px')
+                    .style('display','none')
+                    .style('opacity',1)
+                    // .on('click',(e,d) => {
+                    //     const arrayToString = sidebarRoot.name.filter(root => root !== d.id).join(",")
+                    //     navigate(`/${arrayToString}`)
+                    // })
                 const p = title.append('p')
                     .html(d => d.concept.concept_name)
                     .style('font-weight',700)
@@ -217,6 +260,7 @@
                     .style('margin-right', '5px')    
                 const selections = container.append('div')
                     .style('width','170px')
+                    .style('margin-right','10px')
                     .style('display','flex')
                     .style('align-items','center')
                     .style('justify-content','space-between')
@@ -241,7 +285,10 @@
                     .style('border', d => d.descendants ? '1px solid var(--text)' : '1px solid var(--textlightest)')
                     .on('click', (e,d) => {
                         const descendants = nodes.find(n => n.name === d.id).descendants.filter(e => e !== d.id)
-                        setDescendants(d.id,descendants)
+                        if (treeSelections.includes('mappings')) {
+                            const descendantMappings = descendants.map(descendant => nodes.find(n => n.name === descendant).mappings.map(m => m.name)).flat()
+                            setDescendants(d.id,descendantMappings)
+                        } else setDescendants(d.id,descendants)
                     })
                 descendantsBox.append('i')
                     .classed('descendants-check fa-solid fa-check fa-xs',true)
@@ -273,7 +320,32 @@
                     .style('color','white')
                     .style('padding-bottom','1px')
                     .style('display', d => d.exclude ? 'block' : 'none')
+                container.append('div')
+                    .classed('set-counts',true)
+                    .style('width','50px')
+                    .style('margin-left','20px')
+                    .style('font-size','10px')
+                    .style('text-align','right')
+                    .html(d => {
+                        if (d.descendants) {
+                            if (!d.exclude) return d.concept.descendant_record_counts 
+                            else return d.concept.descendant_record_counts - d.concept.record_counts
+                        }
+                        else {
+                            if (!d.exclude) return d.concept.record_counts
+                            else return 0  
+                        }    
+                    })
             },update => {
+                update.select('.set-title')
+                    .on('click',(e,d) => {
+                        const array = sidebarRoot.name.filter(root => root !== d.id)
+                        if (array.length === 0) navigate(`/`) 
+                        else {
+                            const arrayToString = sidebarRoot.name.filter(root => root !== d.id).join(",")
+                            navigate(`/${arrayToString}`)    
+                        }
+                    })
                 update.select('.descendants-p')
                     .style('color', d => d.descendants ? color.text : color.textlight)
                 update.select('.descendants-box')
@@ -281,7 +353,10 @@
                     .style('border', d => d.descendants ? '1px solid var(--text)' : '1px solid var(--textlightest)')
                     .on('click', (e,d) => {
                         const descendants = nodes.find(n => n.name === d.id).descendants.filter(e => e !== d.id)
-                        setDescendants(d.id,descendants)
+                        if (treeSelections.includes('mappings')) {
+                            const descendantMappings = descendants.map(descendant => nodes.find(n => n.name === descendant).mappings.map(m => m.name)).flat()
+                            setDescendants(d.id,descendantMappings)
+                        } else setDescendants(d.id,descendants)
                     })
                 update.select('.descendants-check')
                     .style('display', d => d.descendants ? 'block' : 'none')
@@ -293,6 +368,17 @@
                     .on('click', (e,d) => setExclude(d.id))
                 update.select('.exclude-check')
                     .style('display', d => d.exclude ? 'block' : 'none')
+                update.select('.set-counts')
+                    .html(d => {
+                        if (d.descendants) {
+                            if (!d.exclude) return d.concept.descendant_record_counts 
+                            else return d.concept.descendant_record_counts - d.concept.record_counts
+                        }
+                        else {
+                            if (!d.exclude) return d.concept.record_counts
+                            else return 0  
+                        }    
+                    })
             })
         }
         // tree
@@ -928,8 +1014,9 @@
                             .classed('root-btn-group',true)
                             .style('display', d => sidebarRoot.name.includes(d.name) && sidebarRoot.name.length > 1 ? 'block' : 'none')
                             .attr('transform', d => {
-                                if (d.data.concept.standard_concept) return `translate(${d.x + scaleRadius(Math.sqrt(d.total_counts)) + 10}, 0)`
-                                else return `translate(${d.x - scaleRadius(Math.sqrt(d.total_counts)) - 10}, 0)`
+                                const xVar = d.total_counts === 0 ? 20 : 10
+                                if (d.data.concept.standard_concept) return `translate(${d.x + scaleRadius(Math.sqrt(d.total_counts)) + xVar}, 0)`
+                                else return `translate(${d.x - scaleRadius(Math.sqrt(d.total_counts)) - xVar}, 0)`
                                 }   
                             )
                         const includeDescendants = descendantsBtn.append('g')
@@ -939,7 +1026,10 @@
                             .attr('text-anchor', d => d.data.concept.standard_concept ? 'start' : 'end')
                             .on('click', (e,d) => {
                                 const descendants = d.descendants.filter(e => e !== d.name)
-                                setDescendants(d.name,descendants)
+                                if (treeSelections.includes('mappings')) {
+                                    const descendantMappings = descendants.map(descendant => nodes.find(n => n.name === descendant).mappings.map(m => m.name)).flat()
+                                    setDescendants(d.name,descendantMappings)
+                                } else setDescendants(d.name,descendants)
                             })
                         includeDescendants.append('text')
                             .classed("root-btn-text-descendants",true)
@@ -1132,7 +1222,8 @@
                                 }
                                 else {
                                     if (genLength === 1) maxWidth = Math.round(width/6)
-                                    else maxWidth = Math.round((width/genLength)/6) < 12 ? 12 : Math.round((width/genLength)/6)
+                                    else maxWidth = 23
+                                    // else maxWidth = Math.round((width/genLength)/11) < 12 ? 12 : Math.round((width/genLength)/11)
                                 }  
                                 return text.substring(0, maxWidth) + (text.length > maxWidth ? '...' : '')
                             })
@@ -1772,7 +1863,8 @@
                                 }
                                 else {
                                     if (genLength === 1) maxWidth = Math.round(width/6)
-                                    else maxWidth = Math.round((width/genLength)/6) < 12 ? 12 : Math.round((width/genLength)/6)
+                                    else maxWidth = 23
+                                    // else maxWidth = Math.round((width/genLength)/12) < 12 ? 12 : Math.round((width/genLength)/12)
                                 }  
                                 return text.substring(0, maxWidth) + (text.length > maxWidth ? '...' : '')
                             })
@@ -1802,15 +1894,19 @@
                             .style('display', d => sidebarRoot.name.includes(d.name) && sidebarRoot.name.length > 1 ? 'block' : 'none')
                             // .attr('text-anchor', d => d.data.concept.standard_concept ? 'start' : 'end')
                             .attr('transform', d => {
-                                if (d.data.concept.standard_concept) return `translate(${d.x + scaleRadius(Math.sqrt(d.total_counts)) + 10}, 0)`
-                                else return `translate(${d.x - scaleRadius(Math.sqrt(d.total_counts)) - 10}, 0)`
+                                const xVar = d.total_counts === 0 ? 20 : 10
+                                if (d.data.concept.standard_concept) return `translate(${d.x + scaleRadius(Math.sqrt(d.total_counts)) + xVar}, 0)`
+                                else return `translate(${d.x - scaleRadius(Math.sqrt(d.total_counts)) - xVar}, 0)`
                                 }   
                             )
                         update.select('.root-btn-descendants')
                             .attr('text-anchor', d => d.data.concept.standard_concept ? 'start' : 'end')
                             .on('click', (e,d) => {
                                 const descendants = d.descendants.filter(e => e !== d.name)
-                                setDescendants(d.name,descendants)
+                                if (treeSelections.includes('mappings')) {
+                                    const descendantMappings = descendants.map(descendant => nodes.find(n => n.name === descendant).mappings.map(m => m.name)).flat()
+                                    setDescendants(d.name,descendantMappings)
+                                } else setDescendants(d.name,descendants)
                             })
                         update.select('.root-btn-exclude')
                             .attr('text-anchor', d => d.data.concept.standard_concept ? 'start' : 'end')
@@ -4787,12 +4883,28 @@
             } 
         },[mapRoot,graphSectionWidth])
 
+        useEffect(() => {
+            let sum = 0
+            sidebarRoot.name.forEach(root => {
+                const concept = sidebarRoot.data.concepts.find(d => d.concept_id === root)
+                if (!descendantsFilter.includes(root)) {
+                    if (!excludeList.includes(root)) sum += concept.descendant_record_counts 
+                    else sum += concept.descendant_record_counts - concept.record_counts
+                }
+                else {
+                    if (!excludeList.includes(root)) sum += concept.record_counts
+                    else sum += 0  
+                }
+            })
+            d3.select('#set-total-counts').html(sum)    
+        },[descendantsFilter,excludeList])
+
         return (
             <div id = "sidebar">
                 <div id = "drag-bar"></div>
                 <div id = "sidebar-heading">
                     <div id = "view-selections">
-                        <div id = "view-set" className="view-btn" style = {{display: sidebarRoot.name.length > 1 ? 'flex' : 'none'}} onClick={() => setView('Set')} onMouseOver={() => {if (view !== 'Set') d3.select('#view-title-set').style("font-weight",700)}} onMouseOut={() => {if (view !== 'Set') d3.select('#view-title-set').style("font-weight",400)}}>
+                        <div id = "view-set" className="view-btn" style = {{display: 'flex'}} onClick={() => setView('Set')} onMouseOver={() => {if (view !== 'Set') d3.select('#view-title-set').style("font-weight",700)}} onMouseOut={() => {if (view !== 'Set') d3.select('#view-title-set').style("font-weight",400)}}>
                             <div id = "view-title-set" className = "view-title" style = {{zIndex: 3000,fontWeight: view === 'Set' ? 700 : 400, color: view === 'Set' ? color.slate : color.mediumslate}}>Concept set</div>
                             <div className = "selection-bar" style = {{opacity: view === 'Set' ? 1 : 0}}></div>
                         </div>
@@ -4815,7 +4927,7 @@
                                     if (!treeSelections.includes('descendants')) {
                                         d3.select('#add-descendants').style('background-color', color.text).style('color','white').style('font-weight',700)
                                         let newConcepts = nodes.filter(d => d.levels !== '-1')
-                                        newConcepts = newConcepts.filter(d => !d.leaf ? d.total_counts !== 0 : d).map(d => {return {name:d.name,leaf:d.leaf,descendants:d.descendants,distance:d.distance,data: {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.includes(c.concept_id))}}})
+                                        newConcepts = newConcepts.filter(d => !d.parents.some(parent => descendantsFilter.includes(parent) && parent !== d.name)).filter(d => !excludeList.includes(d.name)).filter(d => !d.leaf ? d.total_counts !== 0 : d).map(d => {return {name:d.name,leaf:d.leaf,descendants:d.descendants,distance:d.distance,data: {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.includes(c.concept_id))}}})
                                         // newConcepts = newConcepts.filter(d => !d.leaf ? d.total_counts !== 0 : d).map(d => {return {name:d.name,leaf:d.leaf,data:d.data}})
                                         setSelectedConcepts(newConcepts)
                                         setTreeSelections(['descendants'])
@@ -4841,7 +4953,7 @@
                                     if (!treeSelections.includes('mappings')) {
                                         d3.select('#add-mappings').style('background-color', color.text).style('color','white').style('font-weight',700)
                                         let newConcepts = mappings
-                                        newConcepts = newConcepts.filter(d => !d.leaf ? d.total_counts !== 0 : d).map(d => {return {name:d.name,leaf:d.leaf,data:d.data}})
+                                        newConcepts = newConcepts.filter(d => !d.source.parents.some(parent => descendantsFilter.includes(parent) && parent !== d.source.name)).filter(d => !excludeList.includes(d.source.name)).filter(d => !d.leaf ? d.total_counts !== 0 : d).map(d => {return {name:d.name,leaf:d.leaf,data:d.data}})
                                         let mapRootNames = mappings.map(d => d.source.name).filter((e,n,l) => l.indexOf(e) === n)
                                         setMapRoot(mapRootNames)
                                         setSelectedConcepts(newConcepts)
@@ -4935,8 +5047,14 @@
                     <div id = "set-container" style = {{display: view === 'Set' ? 'block' : 'none'}}>
                         <div id = "set-header">
                             <p style = {{marginLeft:13}}>CONCEPT</p>
-                            <p style = {{marginRight:118}}>SELECTIONS</p>
+                            <p style = {{marginRight:-58}}>SELECTIONS</p>
+                            <p style = {{marginRight:10}}>COUNTS</p>
                         </div>
+                        {/* <div id = "set-total"></div> */}
+                    </div>
+                    <div id = "set-total" style = {{display: view === 'Set' ? 'flex' : 'none'}}>
+                        <p style = {{fontWeight:700,marginLeft:20}}>Total counts</p>
+                        <p id = "set-total-counts" style = {{marginRight:20}}></p>
                     </div>
                     <div id = "tree-container" style = {{display: view === 'Tree' ? 'block' : 'none'}}>  
                         <svg id = "tree">

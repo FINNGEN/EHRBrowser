@@ -74,9 +74,10 @@ function App() {
   const [searchFilter, setSearchFilter] = useState([])
   const [rootArray,setRootArray] = useState()
   const [dataArray, setDataArray] = useState([])
-  const [isConceptSet,setIsConceptSet] = useState(false)
+  const [isConceptSet,setIsConceptSet] = useState(true)
   const [rootLabels, setRootLabels] = useState([])
   const [refresh,setRefresh] = useState(false)
+  const [annotations,setAnnotations] = useState([{key:'PURCH',year:1995},{key:'REIMB',year:1964},{key:'PRIM_OUT',year:2011},{key:'INPAT',year:1969},{key:'OUTPAT',year:1998},{key:'CANC',year:1953},{key:'DEATH',year:1969},{key:'OPER_IN',year:1969},{key:'OPER_OUT',year:1969},{key:'BIRTH',year:1953}])
   const conceptNames = useMemo(() => selectedConcepts.map(d => d.name).filter((e,n,l) => l.indexOf(e) === n),[selectedConcepts])
   const allCounts = useMemo(() => 
     {
@@ -112,7 +113,7 @@ function App() {
     setVersion(version)
   }
 
-  // update root line *** fix this ***
+  // update root line *** fix this ? ***
   // useEffect(()=>{
   //   if (sidebarRoot) {
   //     let rootData = []
@@ -236,8 +237,9 @@ function App() {
     setGraphFilter({gender:-1,age:[-1]})
     setClassFilter(rootData.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined))
     setSidebarRoot({name:rootArray,data:rootData}) 
-    if (rootArray.length > 1) setView('Set')
-    else setView('Tree')
+    setView('Set')
+    // if (rootArray.length > 1) setView('Set')
+    // else setView('Tree')
     setTreeSelections(['descendants'])
     setLevelFilter()
     setOpenFilters(true)
@@ -408,46 +410,28 @@ function App() {
           } else layer.forEach(node => poset.features[node].x = xPositions.find(d => d.id === node)?.x)
         }
       })
-      // set color
-      let colorPoset
-      if (filterClass) {
-        const edges = tree
-          .filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to")
-          .filter(d => d.concept_class_id !== 'Ingredient' && d.concept_class_id !== "Clinical Drug Comp")
-          .filter(d => subsumesData.length === 1 && d.parent_concept_id === d.child_concept_id ? d : d.parent_concept_id !== d.child_concept_id)
-          .map(d => d.levels === "-1" ? ({...d,parent_concept_id: d.child_concept_id,child_concept_id: d.parent_concept_id}) : d)
-          .map(d => ([d.parent_concept_id.toString(),d.child_concept_id.toString()]))
-        const {matrix,nodes} = po.domFromEdges(edges)
-        colorPoset = po.createPoset(matrix,nodes)
-      } else colorPoset = po.createPoset(matrix,nodes)
-      colorPoset.enrich()
-        .color(80,25,90)
-      // set color and positions list
+      // set distance and positions list
       poset.elements.forEach(name => {
-        colors[name] = `hsl(${colorPoset.features[name].pTheta},${colorPoset.features[name].pAlpha*100}%,${depthScale(poset.features[name].depth)}%)` 
+        // colors[name] = `hsl(${colorPoset.features[name].pTheta},${colorPoset.features[name].pAlpha*100}%,${depthScale(poset.features[name].depth)}%)` 
         positions[name] = poset.features[name].x
         distances[name] = layers.findIndex(i => i.includes(name))
       })
       posetArray.push(poset)
     })
     // set color
-    // let colorPoset
-    // if (filterClass) {
-      // let combinedEdges = trees.flat()
-      // console.log(combinedEdges)
-    //   const edges = tree
-    //     .filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to")
-    //     .filter(d => d.concept_class_id !== 'Ingredient' && d.concept_class_id !== "Clinical Drug Comp")
-    //     .filter(d => subsumesData.length === 1 && d.parent_concept_id === d.child_concept_id ? d : d.parent_concept_id !== d.child_concept_id)
-    //     .map(d => d.levels === "-1" ? ({...d,parent_concept_id: d.child_concept_id,child_concept_id: d.parent_concept_id}) : d)
-    //     .map(d => ([d.parent_concept_id.toString(),d.child_concept_id.toString()]))
-    //   const {matrix,nodes} = po.domFromEdges(edges)
-    //   colorPoset = po.createPoset(matrix,nodes)
-    // } else colorPoset = po.createPoset(matrix,nodes)
-    // colorPoset.enrich()
-    //   .color(80,25,90)
-    // colorPoset.elements.forEach(name => {
-    //     colors[name] = `hsl(${colorPoset.features[name].pTheta},${colorPoset.features[name].pAlpha*100}%,${depthScale(distances[name])}%)`})
+    const combinedEdges = trees.flat()
+    let colorEdges = combinedEdges 
+      .filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to")
+      .filter(d => subsumesData.length === 1 && d.parent_concept_id === d.child_concept_id ? d : d.parent_concept_id !== d.child_concept_id)
+      .filter(d => d.levels !== "-1")
+      .map(d => ([d.parent_concept_id.toString(),d.child_concept_id.toString()]))
+    if (filterClass) colorEdges = colorEdges.filter(d => d.concept_class_id !== 'Ingredient' && d.concept_class_id !== "Clinical Drug Comp")
+    const {matrix,nodes} = po.domFromEdges(colorEdges)
+    const colorPoset = po.createPoset(matrix,nodes)
+    colorPoset.enrich()
+      .color(80,25,90)
+    colorPoset.elements.forEach(name => {
+        colors[name] = `hsl(${colorPoset.features[name].pTheta},${colorPoset.features[name].pAlpha*100}%,${depthScale(distances[name])}%)`})
     // update color, position, and distance
     nodeData = nodeData
       .map(d => ({...d,distance: distances[d.name], color: colors[d.name] ? colors[d.name] : d.color,x:positions[d.name]}))
@@ -563,8 +547,8 @@ function App() {
             setLoading(true)
         }, 300)
         const array = root.split(',').map(Number)
-        if (array.length > 1) setIsConceptSet(true)
-        else setIsConceptSet(false)
+        // if (array.length > 1) setIsConceptSet(true)
+        // else setIsConceptSet(false)
         setRootArray(array)
         Promise.all(
           array.map(r =>
@@ -589,6 +573,11 @@ function App() {
           d3.select('#loading-animation').style('visibility','hidden')
           clearTimeout(timer)
         })
+      } else {
+        setRootData([])
+        setRootLabels([])
+        setIsConceptSet(false)
+        setSearchOnly(true)
       }
   },[root])
 
@@ -609,8 +598,9 @@ function App() {
       setSidebarRoot({name:rootArray,data:combinedData}) 
       setRootLabels(rootArray.map(root => ({id:root,name:combinedData.concepts.find(e=>e.concept_id === root).concept_name,code:combinedData.concepts.find(e=>e.concept_id === root).concept_code,vocabulary:combinedData.concepts.find(e=>e.concept_id === root).vocabulary_id})))
       if (d3.select('#suggestions-container').style('visibility') === 'hidden') setRefresh(true)
-      if (rootArray.length > 1) setView('Set')
-      else setView('Tree')
+      setView('Set')
+      // if (rootArray.length > 1) setView('Set')
+      // else setView('Tree')
       d3.select("#graph-section").style('width', "60vw")
       d3.select('#expand').style('display', 'block') 
       d3.select('#compress').style('display', 'none') 
@@ -649,8 +639,13 @@ function App() {
       .join(enter => {
           const div = enter.append('div')
             .classed('search-root',true)
-          const p = div.append('p')
-            .classed('search-root-name',true)
+            .style('margin-left', (d,i) => (rootLabels.length <= 2 || i == 0) ? '0px' : '-116px')
+            .style('z-index', (d, i) => i == 0 ? 10 : 10 - i)
+          const pContainer = div.append('div')
+            .classed('search-p-container',true)
+            .style("filter", "drop-shadow(0px 3px 5px rgba(0,0,0,0.4))")
+            .style('width', (d,i) => (rootLabels.length <= 2 || i == 0) ? 'auto' : '100px')
+            // .style('border', (d,i) => rootLabels.length > 2 ? '1px solid #342458' : 'none')
             .style('background-color',color.mediumpurple)
             .style('height','28px')
             .style('border-radius','20px')
@@ -659,29 +654,37 @@ function App() {
             .style('display','flex')
             .style('align-items','center')
             .style('justify-content','center')
-            .html(d => d.name.length > 20 ? d.name.substring(0, 20) + '...' : d.name)
-          p.append('span')
+            .style("cursor","text")
+            .on('click',(e,d) => {
+              setRefresh(false)
+              document.getElementById('searchConcept').focus()
+            })
+          pContainer.append('p')
+            .classed('search-root-name',true)
+            .style('padding-bottom','2px')
+            .html((d,i) => (rootLabels.length <= 2 || i == 0) ? d.name.length > 20 ? d.name.substring(0, 20) + '...' : d.name : '')
+          pContainer.append('p')
             .classed('search-root-code',true)
-            .html(d => d.code)
-            .style('margin-top','1px')
+            .html((d,i) => (rootLabels.length <= 2 || i == 0) ? d.code : '')
+            // .style('margin-top','1px')
             .style('margin-left','4px')
             .style('font-size','10px')
             .style('font-weight',700)
             .style('color','white')
-          p.append('span')
+          pContainer.append('p')
             .classed('search-root-vocab',true)
-            .html(d => d.vocabulary)
-            .style('margin-top','1px')
+            .html((d,i) => (rootLabels.length <= 2 || i == 0) ? d.vocabulary : '')
+            // .style('margin-top','1px')
             .style('margin-left','4px')
             .style('font-size','10px')
             .style('font-weight',400)
             .style('color','ffffff80')
           div.append('i')
-            .classed('search-x fa-solid fa-x fa-2xs',true)
+            .classed('search-x fa-solid fa-x fa-xs',true)
             .style('pointer-events','all')
-            .style("display", rootLabels.length > 1 ? 'block' : 'none')
+            .style("display", rootLabels.length <= 2 ? 'block' : 'none')
             .style('color','white')
-            .style('padding-left','5px')
+            .style('padding-left','4px')
             .style('margin-right','2px')
             .style('cursor','pointer')
             .on('click',(e,d) => {
@@ -690,9 +693,21 @@ function App() {
               navigate(`/${arrayToString}`)
             })
       },update => {
+        update
+          .style('margin-left', (d,i) => (rootLabels.length <= 2 || i == 0) ? '0px' : '-116px')
+          .style('z-index', (d, i) => i == 0 ? 10 : 10 - i)
+        update.select('.search-p-container')
+          .style('width', (d,i) => (rootLabels.length <= 2 || i == 0) ? 'auto' : '100px')
+          // .style('border', (d,i) => rootLabels.length > 2 ? '1px solid #342458' : 'none')
+        update.select('.search-root-name')
+          .html((d,i) => (rootLabels.length <= 2 || i == 0) ? d.name.length > 20 ? d.name.substring(0, 20) + '...' : d.name : '')
+        update.select('.search-root-code')
+          .html((d,i) => (rootLabels.length <= 2 || i == 0) ? d.code : '')
+        update.select('.search-root-vocab')
+          .html((d,i) => (rootLabels.length <= 2 || i == 0) ? d.vocabulary : '')
         update.select('.search-x')
-          .style("display", rootLabels.length > 1 ? 'block' : 'none')
-      })
+          .style("display", rootLabels.length <= 2 ? 'block' : 'none')
+      })  
   }, [rootLabels])
 
   return ( loaded ?
@@ -802,6 +817,7 @@ function App() {
               setDescendantsFilter = {setDescendantsFilter}
               excludeList = {excludeList}
               setExcludeList = {setExcludeList}
+              annotations = {annotations}
             />      
           } />
         </Routes>

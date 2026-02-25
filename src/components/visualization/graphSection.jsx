@@ -38,6 +38,7 @@ function GraphSection (props) {
     const setHovered = props.setHovered
     const graphSectionWidth = props.graphSectionWidth
     const colorList = props.colorList
+    const annotations = props.annotations
     const graphContainerRef = useRef()
     const margin = 20
     let hoverLabelCircle = false
@@ -220,6 +221,74 @@ function GraphSection (props) {
         updateRootLine()
         d3.select("#graph-viz").raise()
     }
+    // draw annotations
+    function drawAnnotations(scaleX,height) {
+        const tooltip = d3.select("body")
+            .append("div")
+            .style("position", "absolute")
+            .style("background", "white")
+            .style("padding", "6px 10px")
+            .style("border", "1px solid #ccc")
+            .style("border-radius", "4px")
+            .style("font-size", "12px")
+            .style("display", "none")
+        const filteredAnnotations = annotations.filter(a => a.year >= extent[0] && a.year <= extent[1])
+        const grouped = d3.group(filteredAnnotations, d => d.year)
+        const spreadAnnotations = []
+        grouped.forEach((values, year) => {
+            const count = values.length;
+            const spacing = 5
+            values.forEach((d, i) => {
+                const offsetIndex = i - (count - 1) / 2
+                spreadAnnotations.push({
+                ...d,
+                offsetX: offsetIndex * spacing
+                })
+            })
+        })
+        const triangle = d3.symbol()
+            .type(d3.symbolTriangle)
+            .size(80)
+        const annotation = d3.select('#graph')
+            .selectAll(".annotation")
+            .data(spreadAnnotations, d => d.year)
+        const annotationEnter = annotation.enter()
+            .append("g")
+            .attr("class", "annotation")
+        annotationEnter.append("line")
+        annotationEnter.append("circle")
+        const annotationMerge = annotationEnter.merge(annotation)
+        annotationMerge.select("line")
+            .attr('x1', d => scaleX(d.year))
+            .attr('x2', d => scaleX(d.year))
+            .attr('y1', 0)
+            .attr('y2', height - 5)
+            .attr('stroke',color.textmedium)
+            .attr('stroke-width',1)
+            .style("stroke-dasharray", ("5, 5"))
+        annotationMerge.select("circle")
+            .attr("cx", d => scaleX(d.year) + d.offsetX)
+            .attr("cy", height)
+            .attr("r", 5)
+            .attr("fill", color.textmedium)
+            .style("filter", "drop-shadow(0px 3px 5px rgba(0,0,0,0.2))")
+            .style('cursor','pointer')
+            .on("mouseover", function(event, d) {
+                const eventsThatYear = grouped.get(d.year)
+                const html = `
+                <strong>${d.year}</strong><br/>Start of 
+                ${eventsThatYear.map(e => e.key).join("<br/>")}
+                `
+                tooltip.style("display", "block").html(html)
+            })
+            .on("mousemove", function(event) {
+                tooltip.style("left", (event.pageX + 10) + "px").style("top", (event.pageY - 20) + "px")
+            })
+            .on("mouseout", function() {
+                tooltip.style("display", "none")
+            })
+        annotation.exit().remove()
+    }
     // FUNCTIONS
     const resetZoom = (e) => {
         if (e) {
@@ -256,7 +325,7 @@ function GraphSection (props) {
         // axis lines
         d3.select("#graph").select(".x")
             .attr("transform", "translate(0," + height + ")")
-            .call(d3.axisBottom(scaleX).tickSize(-height).ticks(ticks.two).tickFormat(d3.format("d")).tickSizeOuter(0))
+            .call(d3.axisBottom(scaleX).tickSize(-height).ticks(ticks.two).tickFormat(d3.format("d")).tickSizeOuter(0).tickPadding(8))
             // .lower()
         d3.select("#graph").select(".y")
             .call(d3.axisLeft(scaleY).ticks(5).tickSizeOuter(0))
@@ -317,6 +386,7 @@ function GraphSection (props) {
             })
             .on("mousemove", handleMouseMove)
             .on("dblclick", resetZoom)
+        drawAnnotations(scaleX,height)
         drawGraph(rollup, scaleX, scaleY)
     }
     // hover filter

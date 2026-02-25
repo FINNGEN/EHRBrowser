@@ -157,8 +157,9 @@ h4 {
   height: 38px;
   left: 36px;  
   overflow-x: scroll;
+  overflow-y: hidden;
   max-width: 500px;
-  width: 500px;
+  width: auto;
   align-items:center;
   justify-content: flex-start;
 }
@@ -193,6 +194,13 @@ h4 {
   font-size: 14px;
   color: white;
   font-weight: 700;
+}
+#clear-concept-set {
+  position: absolute;
+  left: 430px;
+  top: 7px;
+  padding: 4px 8px 4px 8px;
+  /* border-radius: 20px; */
 }
 .search-info-line {
   width: 1px;
@@ -409,7 +417,7 @@ textarea:focus {
   margin: 0px;
   padding: 0px;
   /* border-bottom: 1px solid var(--darkbackground); */
-  background-color: #ccd3d895;
+  background-color: #c0c0c960;
 }
 .view-btn {
   flex-grow: 1;
@@ -651,10 +659,23 @@ textarea:focus {
   z-index: 0;
 }
 #set-container {
-  height: 100%;
+  height: calc(100% - 70px);
   max-height: 100%;
   overflow-y: scroll;  
-  margin-top: 25px;
+  margin-top: 44px;
+}
+#set-total {
+  height: 40px;
+  width: 100%;
+  background-color: var(--textlightest);
+  border-radius: 0px 0px 16px 16px;
+  position: absolute;
+  bottom: 0;
+  right: 0px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
 }
 #set-header {
   width: 100%;
@@ -662,7 +683,8 @@ textarea:focus {
   top: 0px;
   left: 0px;
   width: calc(100% - 20px);
-  padding-top: 5px;
+  padding-top: 24px;
+  padding-bottom: 0px;
   border-radius: 16px 16px 0px 0px;
   background-color: var(--purple);
   display: flex;
@@ -1040,8 +1062,8 @@ textarea:focus {
 }
 .search-filter-btn {
   border: 1px solid #ffffff60;
-  padding: 4px 8px 4px 8px;
-  border-radius: 12px;
+  padding: 6px 12px 6px 12px;
+  border-radius: 14px;
   cursor: pointer;
   color: white;
   font-weight: 400;

@@ -146,10 +146,14 @@ function Header (props) {
                     .classed('name-container',true)
                     .style('width','80%')
                     .on('click', (e,d) => {
-                        if (isConceptSet) setIsConceptSet(false)
+                        // if (isConceptSet) setIsConceptSet(false)
                         setRefresh(true)
-                        if (d.concept_id.toString() === root) reset()
+                        setIsConceptSet(true)
+                        // if (!isConceptSet && root !== d.concept_id.toString()) setIsConceptSet(true)
+                        if (root && root !== d.concept_id.toString() && !root.split(',').map(Number).includes(d.concept_id)) navigate(`/${root+','+d.concept_id}`)
                         else navigate(`/${d.concept_id}`)
+                        // if (d.concept_id.toString() === root) reset()
+                        // else navigate(`/${d.concept_id}`)
                     })
                 const name = nameContaner.append('p')
                     .style('cursor','pointer')
@@ -203,7 +207,8 @@ function Header (props) {
                     })
                     .on('click',(e,d)=>{
                         setRefresh(false)
-                        if (!isConceptSet && root !== d.concept_id.toString()) setIsConceptSet(true)
+                        setIsConceptSet(true)
+                        // if (!isConceptSet && root !== d.concept_id.toString()) setIsConceptSet(true)
                         if (root && root !== d.concept_id.toString() && !root.split(',').map(Number).includes(d.concept_id)) navigate(`/${root+','+d.concept_id}`)
                         else navigate(`/${d.concept_id}`)
                     })
@@ -214,9 +219,9 @@ function Header (props) {
                 btnContainer.append('p')    
                     .classed('cs-btn-label',true)
                     .attr('id',d => 'cs-btn-label-'+d.concept_id)
-                    .html(d => isConceptSet && root.split(',').map(Number).includes(d.concept_id) ? 'Added' : 'Concept set')
+                    .html(d => root.split(',').map(Number).includes(d.concept_id) ? 'Added' : 'Concept set')
                     .style('margin-top','2px')
-                    .style('font-style', d => isConceptSet && root.split(',').map(Number).includes(d.concept_id) ? 'italic' : 'normal')
+                    .style('font-style', d => root.split(',').map(Number).includes(d.concept_id) ? 'italic' : 'normal')
                     .style("margin-left",'8px')
                     .style('color','white')
                     .style('padding','0')
@@ -232,10 +237,14 @@ function Header (props) {
                     .html(d => d.concept_id)   
                 update.selectAll('.name-container') 
                     .on('click', (e,d) => {
-                        if (isConceptSet) setIsConceptSet(false)
+                        // if (isConceptSet) setIsConceptSet(false)
                         setRefresh(true)
-                        if (d.concept_id.toString() === root) reset()
+                        setIsConceptSet(true)
+                        // if (!isConceptSet && root !== d.concept_id.toString()) setIsConceptSet(true)
+                        if (root && root !== d.concept_id.toString() && !root.split(',').map(Number).includes(d.concept_id)) navigate(`/${root+','+d.concept_id}`)
                         else navigate(`/${d.concept_id}`)
+                        // if (d.concept_id.toString() === root) reset()
+                        // else navigate(`/${d.concept_id}`)
                     })
                 update.selectAll('.cs-btn-container')
                     .style('display', d => isConceptSet && root.split(',').map(Number).includes(d.concept_id) ? 'none' : 'flex')
@@ -256,8 +265,8 @@ function Header (props) {
                         else navigate(`/${d.concept_id}`)
                     })
                 update.selectAll('.cs-btn-label')
-                    .html(d => isConceptSet && root.split(',').map(Number).includes(d.concept_id) ? 'Added' : 'Concept set')
-                    .style('font-style', d => isConceptSet && root.split(',').map(Number).includes(d.concept_id) ? 'italic' : 'normal')
+                    .html(d => root.split(',').map(Number).includes(d.concept_id) ? 'Added' : 'Concept set')
+                    .style('font-style', d => root.split(',').map(Number).includes(d.concept_id) ? 'italic' : 'normal')
             },exit => exit.remove())  
     }, [suggestions,root])
 
@@ -367,14 +376,15 @@ function Header (props) {
                         }}
                         type="text"
                         id="searchConcept"
-                        placeholder="Search concept"
+                        placeholder= {!refresh || !root ? "Search concept" : ''}
                         onClick = {() => setRefresh(false)}
                         onChange = {handleChange}
                         onKeyDown = {(e) => {if (e.key === 'Enter') e.preventDefault()}}
                     />
-                    <div id = "search-root-container" style = {{pointerEvents:'none',display: refresh ? 'flex' : 'none'}}></div>
+                    <div id = "search-root-container" style = {{display: refresh ? 'flex' : 'none'}}></div>
                     <FontAwesomeIcon onClick = {()=>handleClick()} className = "fa-xl fal fa-search" id = "searchBtn" icon={faSearch}></FontAwesomeIcon>
                     <div style = {{top:32}} className="dropdown-content" id = "suggestions-container"></div>
+                    <div className='search-filter-btn' onClick = {()=>{navigate(``)}} id = "clear-concept-set" style = {{display:isConceptSet && !refresh ? 'block' : 'none'}}>Clear set</div>
                     <div onClick = {()=>setShowFilter(!showFilter)} onMouseOver={()=>d3.select('#filter-search').style('opacity',1)} onMouseOut={()=>d3.select('#filter-search').style('opacity',()=>searchFilter.length > 0 || showFilter ? 1 : 0.5)} style = {{opacity: searchFilter.length > 0 || showFilter ? 1 : 0.5, display: refresh ? 'none' : 'block'}} id = "filter-search">Filter</div>
                 </div>    
             </div>  
@@ -384,7 +394,7 @@ function Header (props) {
                     <div className = "search-filter-btn" onClick = {() => setSearchFilter([])} style = {{display: searchFilter.length > 0 ? 'block' : 'none'}}>Clear</div> 
                 </div>
                 <div style = {{display:'flex',flexWrap:'wrap',maxWidth:'100%'}} id = "search-filters"></div>
-                <div className = "search-filter-btn" onClick = {() => setShowFilter(false)} style = {{alignSelf:'flex-end'}}>Confirm</div>
+                <div className = "search-filter-btn" onClick = {() => setShowFilter(false)} style = {{fontWeight: searchFilter.length > 0 ? 700 : 400,backgroundColor:searchFilter.length > 0 ? 'white' : 'transparent',color:searchFilter.length > 0 ? color.darkpurple : 'white',alignSelf:'flex-end'}}>Confirm</div>
             </div> 
             <div id = "search-info" style = {{display: root.split(',').map(Number).length === 1 ? rootData.stratified_code_counts?.length > 0 ? 'flex' : 'none' : 'none'}}>
                 <div className = "search-info-line"></div>

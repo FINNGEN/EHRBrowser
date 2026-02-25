@@ -80,6 +80,7 @@ function Visualization (props) {
     const setDescendantsFilter = props.setDescendantsFilter
     const excludeList = props.excludeList
     const setExcludeList = props.setExcludeList
+    const annotations = props.annotations
     const [zoomed, setZoomed] = useState(false)
     const [biDirectional, setBiDirectional] = useState()
     const [text,setText] = useState('')
@@ -192,6 +193,7 @@ function Visualization (props) {
     }
     // add concepts to graph 
     function addConcepts(newConcepts) {
+        console.log('check',newConcepts)
         newConcepts = newConcepts.filter(d => !d.leaf ? d.total_counts !== 0 : d).map(d => {return {name:d.name,leaf:d.leaf,descendants:d.descendants,distance:d.distance,data: {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.includes(c.concept_id))}}})
         let updatedConcepts = [...selectedConcepts,...newConcepts]
         updatedConcepts.sort((a,b) => d3.ascending(a.distance, b.distance))
@@ -495,6 +497,7 @@ function Visualization (props) {
                 setHovered = {setHovered}
                 graphSectionWidth = {graphSectionWidth}
                 colorList = {colorList}
+                annotations = {annotations}
             />  
         </div> : null
     )
