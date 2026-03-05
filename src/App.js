@@ -77,6 +77,7 @@ function App() {
   const [isConceptSet,setIsConceptSet] = useState(true)
   const [rootLabels, setRootLabels] = useState([])
   const [refresh,setRefresh] = useState(false)
+  const [buffers, setBuffers] = useState()
   const [annotations,setAnnotations] = useState([{key:'PURCH',year:1995},{key:'REIMB',year:1964},{key:'PRIM_OUT',year:2011},{key:'INPAT',year:1969},{key:'OUTPAT',year:1998},{key:'CANC',year:1953},{key:'DEATH',year:1969},{key:'OPER_IN',year:1969},{key:'OPER_OUT',year:1969},{key:'BIRTH',year:1953}])
   const conceptNames = useMemo(() => selectedConcepts.map(d => d.name).filter((e,n,l) => l.indexOf(e) === n),[selectedConcepts])
   const allCounts = useMemo(() => 
@@ -363,10 +364,11 @@ function App() {
     const posetArray = []
     const width = window.innerWidth*0.4
     const nodeWidth = mappingData.map(d => d.levels).includes('Maps to') && mappingData.map(d => d.levels).includes('Mapped from') ? 160 : 140
-    const depthScale = d3.scaleLinear(d3.extent(nodeData.map(d => d.distance)), [5,80])
+    const depthScale = d3.scaleLinear(d3.extent(nodeData.map(d => d.distance)), [20,80])
     let colors = {}
     let positions = {}
     let distances = {}
+    let bufferArray = [0]
     // iterate through trees
     trees.forEach((tree,index) => {
       const edges = tree
@@ -387,7 +389,10 @@ function App() {
       // set x
       // const layers = poset.analytics.substructures.depth
       const layers = poset.layers.reverse()
-      let buffer = index > 0 ? 160 : 0
+      // *** set based on width of biggest layer
+      const thisWidth = (d3.max(layers, d => d.length)/2)*nodeWidth
+      bufferArray.push(thisWidth)
+      let buffer = index === 0 ? bufferArray[index] : bufferArray[index] + thisWidth
       // layers = layers.reverse()
       layers.forEach((layer,i) => {
         const center = (width/trees.length)/2 + (width)*index + buffer
@@ -460,10 +465,12 @@ function App() {
     setPoset(posetArray)
     setPruned(false)
     setFullTree({trees:trees,nodes:nodeData,links:linkData,selected:selectedNodes,mappings:mappingData.map(d => d.child_concept_id)})
+    setBuffers(bufferArray)
     if (!prune) {
       setNodes(nodeData)
       setLinks(linkData)
     } 
+    setTimeout(() => setInitialPrune(false),200)
   }
 
   function deepEqual(a, b) {
@@ -614,7 +621,8 @@ function App() {
         setRemovedClasses(classList.filter(d => d === "Ingredient" || d === 'Clinical Drug Comp'))
         filterClass = true
         setClassFilter(filteredClassList) 
-      } else setClassFilter(['All'])
+      } 
+      // else setClassFilter(['All'])
       setTreeSelections(['descendants'])
       setOpenFilters(true)
       setHovered()
@@ -626,9 +634,11 @@ function App() {
       if (combinedData.concepts.length > 900) {
         filterLevel = true
         setLevelFilter(2)
-      } else setLevelFilter()
-      const prune = filterLevel || filterClass ? true : false
-      setInitialPrune(!prune)
+      } 
+      // else setLevelFilter()
+      const prune = false
+      const initialPrune = filterLevel || filterClass ? true : false
+      setInitialPrune(initialPrune)
       createInitialStates(combinedData,trees,prune,filterClass)  
     }
   },[dataArray])
@@ -818,6 +828,8 @@ function App() {
               excludeList = {excludeList}
               setExcludeList = {setExcludeList}
               annotations = {annotations}
+              buffers = {buffers}
+              setBuffers = {setBuffers}
             />      
           } />
         </Routes>

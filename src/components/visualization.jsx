@@ -81,6 +81,8 @@ function Visualization (props) {
     const excludeList = props.excludeList
     const setExcludeList = props.setExcludeList
     const annotations = props.annotations
+    const buffers = props.buffers
+    const setBuffers = props.setBuffers
     const [zoomed, setZoomed] = useState(false)
     const [biDirectional, setBiDirectional] = useState()
     const [text,setText] = useState('')
@@ -193,8 +195,8 @@ function Visualization (props) {
     }
     // add concepts to graph 
     function addConcepts(newConcepts) {
-        console.log('check',newConcepts)
         newConcepts = newConcepts.filter(d => !d.leaf ? d.total_counts !== 0 : d).map(d => {return {name:d.name,leaf:d.leaf,descendants:d.descendants,distance:d.distance,data: {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.includes(c.concept_id))}}})
+            .filter(n => !conceptNames.includes(n.name))
         let updatedConcepts = [...selectedConcepts,...newConcepts]
         updatedConcepts.sort((a,b) => d3.ascending(a.distance, b.distance))
         setSelectedConcepts(updatedConcepts)
@@ -265,27 +267,43 @@ function Visualization (props) {
             const mappingDirections = filteredNodes.map(d => d.mappings).flat().map(d => d.direction)
             const biDirectionalMapping = mappingDirections.includes(1) && mappingDirections.includes(-1)
             setBiDirectional(biDirectionalMapping)
+            let bufferArray = [0]
             // iterate through trees
             trees.forEach((tree,index) => {
-                let edges = tree
+                const firstFilter = tree
                     .filter(d => d.levels !== 'Mapped from' && d.levels !== 'Maps to')
-                    .filter(d => nodeNames.includes(d.parent_concept_id) && nodeNames.includes(d.child_concept_id))
                     .map(d => d.levels === "-1" ? ({...d,parent_concept_id: d.child_concept_id,child_concept_id: d.parent_concept_id}) : d)
                     .map(d => ([d.parent_concept_id.toString(),d.child_concept_id.toString()]))
+                let edges = firstFilter
+                    .filter(d => nodeNames.includes(parseInt(d[0])) && nodeNames.includes(parseInt(d[1])))
                 if (edges.length === 0) edges = filteredNodes.map(d => [d.name.toString(),d.name.toString()])
+                const labels = [...new Set(edges.flat())]
+                const parentIncluded = firstFilter.filter(d => (nodeNames.includes(parseInt(d[0])) && !nodeNames.includes(parseInt(d[1]))) && !labels.includes(d[0])).map(d => ([d[0],d[0]]))
+                const childIncluded = firstFilter.filter(d => (!nodeNames.includes(parseInt(d[0])) && nodeNames.includes(parseInt(d[1]))) && !labels.includes(d[1])).map(d => ([d[1],d[1]]))
+                console.log('check',parentIncluded,childIncluded)
+                edges = [...edges,...parentIncluded,...childIncluded]
                 // const labels = [...new Set(edges.flat())]
                 // if (filteredNodes.length > labels.length && !filteredNodes.map(d => d.name).every(name => labels.includes(name))) edges = [...edges,...filteredNodes.filter(node => !labels.includes(node)).map(d => [d.name.toString(),d.name.toString()])]
+                // *** get rid of this poset ***
                 const {matrix,nodes} = po.domFromEdges(edges)
                 const newPoset = po.createPoset(matrix,nodes)
                 newPoset.enrich()
-                    .feature("depth",node => filteredNodes.filter(d => d.name === parseInt(node))[0].distance)
-                    .setSubstructure("depth","depth")
-                    .setLayers()
+                    // .feature("depth",node => filteredNodes.filter(d => d.name === parseInt(node))[0].distance)
+                    // .setSubstructure("depth","depth")
+                    // .setLayers()
                     .feature("parents",node => filteredNodes.filter(d => d.name === parseInt(node))[0].parents)
+                    .print()
                 // set x
                 // const layers = newPoset.analytics.substructures.depth
-                const layers = newPoset.layers.reverse()
-                let buffer = index > 0 ? mapRoot.length > 0 ? 360 : 160 : 0
+                // const layers = newPoset.layers.reverse()
+                const elements = newPoset.elements
+                let layers = poset[index].layers
+                layers = layers.map(layer => layer.filter(e => elements.includes(e)))
+                // *** set based on width of biggest layer
+                const nodeWidth = biDirectional ? 160 : 140
+                const thisWidth = (d3.max(layers, d => d.length)/2)*nodeWidth
+                bufferArray.push(thisWidth)
+                let buffer = index === 0 ? mapRoot.length > 0 ? bufferArray[index] + 200 : bufferArray[index] :  mapRoot.length > 0 ? bufferArray[index] + thisWidth + 200 : bufferArray[index] + thisWidth
                 layers.forEach((layer,i) => {
                     const layerInt = layer.map(d => parseInt(d))
                     const mapArrays = filteredNodes.filter(d => mapRoot.includes(d.name)).map(d => d.mappings)
@@ -317,14 +335,15 @@ function Visualization (props) {
                 // set positions list
                 newPoset.elements.forEach(name => {
                     positions[name] = newPoset.features[name].x
-                    distances[name] = layers.findIndex(i => i.includes(name))
+                    // distances[name] = layers.findIndex(i => i.includes(name))
                 })
-                newPosetArray.push(newPoset)
+                // newPosetArray.push(newPoset)
             })
-            setPoset(newPosetArray)
+            setBuffers(bufferArray)
+            // setPoset(newPosetArray)
             // update nodes and links
             filteredNodes = filteredNodes
-                .map(d => ({...d,distance:distances[d.name],x:positions[d.name]}))
+                .map(d => ({...d,distance:d.distance,x:positions[d.name] ? positions[d.name] : d.x}))
                 .map(e => ({...e,mappings: e.mappings.map(map => ({...map,distance: e.distance,source: e}))}))
             filteredLinks = filteredLinks.map(d => ({...d,source:filteredNodes[nodeNames.indexOf(d.source.name)],target:filteredNodes[nodeNames.indexOf(d.target.name)]}))
             // pruned
@@ -468,6 +487,7 @@ function Visualization (props) {
                 setDescendantsFilter = {setDescendantsFilter}
                 excludeList = {excludeList}
                 setExcludeList = {setExcludeList}
+                buffers = {buffers}
             ></SideBar> 
             <GraphSection
                 color = {color}

@@ -156,8 +156,7 @@ h4 {
   position: absolute;
   height: 38px;
   left: 36px;  
-  overflow-x: scroll;
-  overflow-y: hidden;
+  overflow: hidden;
   max-width: 500px;
   width: auto;
   align-items:center;
