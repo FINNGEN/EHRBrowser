@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Navigate, Routes, Route, useNavigate, useParams, useLocation } from 'react-router-dom';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 import finngen from './img/finngen_logo_dark.svg'
@@ -78,6 +78,8 @@ function App() {
   const [rootLabels, setRootLabels] = useState([])
   const [refresh,setRefresh] = useState(false)
   const [buffers, setBuffers] = useState()
+  const [inclusions, setInclusions] = useState([])
+  const fetchedRef = useRef(false)
   const [annotations,setAnnotations] = useState([{key:'PURCH',year:1995},{key:'REIMB',year:1964},{key:'PRIM_OUT',year:2011},{key:'INPAT',year:1969},{key:'OUTPAT',year:1998},{key:'CANC',year:1953},{key:'DEATH',year:1969},{key:'OPER_IN',year:1969},{key:'OPER_OUT',year:1969},{key:'BIRTH',year:1953}])
   const conceptNames = useMemo(() => selectedConcepts.map(d => d.name).filter((e,n,l) => l.indexOf(e) === n),[selectedConcepts])
   const allCounts = useMemo(() => 
@@ -271,10 +273,12 @@ function App() {
       }
     }
     dfs(rootParentId)
+    if (!result.has(rootParentId)) result.add(rootParentId)
     return Array.from(result)
   }
 
   function createInitialStates(data,trees,prune,filterClass) {
+    console.log('run',data)
     // set descendant count line
     // const rootData = data.stratified_code_counts.filter(e => e.concept_id === parseInt(root))
     let rootDescendants = []
@@ -333,17 +337,18 @@ function App() {
           'parents': rootArray.includes(e.child_concept_id) ? subsumesData.filter(d => d.parent_concept_id === e.child_concept_id).filter(d => d.levels === '-1').map(d => d.child_concept_id).concat(subsumesData.filter(d => d.child_concept_id === e.child_concept_id).map(d => d.parent_concept_id).filter(p => parseInt(e.levels.split('-')[0]) > parseInt(nodeData.filter(n => n.child_concept_id === p)[0].levels.split('-')[0])).flat()) : e.levels === "-1" ? [] : subsumesData.filter(d => d.child_concept_id === e.child_concept_id).map(d => d.parent_concept_id).filter(p => parseInt(e.levels.split('-')[0]) > parseInt(nodeData.filter(n => n.child_concept_id === p)[0].levels.split('-')[0])),
           'children': e.levels === "-1" ? subsumesData.filter(d => d.child_concept_id === e.child_concept_id).map(d => d.parent_concept_id) : subsumesData.filter(d => d.parent_concept_id === e.child_concept_id && d.child_concept_id !== e.child_concept_id).map(d => d.child_concept_id),
           'connections': [],
-          'total_counts': data.concepts.filter(d => d.concept_id === e.child_concept_id)[0].record_counts || 0,
+          'total_counts': getCounts(data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),'node_record_counts'),
           'descendants': getAllDescendants(data.concept_relationships,e.child_concept_id).length > 0 ? getAllDescendants(data.concept_relationships,e.child_concept_id) : [e.child_concept_id],
-          'descendant_counts': data.concepts.filter(d => d.concept_id === e.child_concept_id)[0].descendant_record_counts || 0,
           'data': {code_counts: data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id), concept: data.concepts.filter(d => d.concept_id === e.child_concept_id)[0]}
       })) 
     // set selected
+    const inclusionList = nodeData.filter(n => n.levels !== '-1').filter(n => n.total_counts !== 0).map(n => n.name)
+    nodeData = nodeData.map(e=>({...e,descendant_counts:getCounts(data.stratified_code_counts.filter(d => e.descendants.includes(d.concept_id)),'node_record_counts'),leaf:e.descendants.filter(d => d !== e.name).length > 0 && e.leaf ? true : false}))
     const selectedNodes = nodeData
-      .filter(d => d.levels !== '-1')
-      .filter(d => !d.leaf ? d.total_counts !== 0 : d.descendant_counts !== 0)
+      .filter(d => !d.leaf ? inclusionList.includes(d.name) : d)
       .map(d => ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: {...d.data,descendant_code_counts:data.stratified_code_counts.filter(c => d.descendants.includes(c.concept_id))}}))
     selectedNodes.sort((a,b) => d3.ascending(a.distance, b.distance))
+    setInclusions(inclusionList)
     setSelectedConcepts(selectedNodes)
     // set extent
     let extentData = d3.extent(selectedNodes.map(d => d.data.code_counts).flat().map(d => d.calendar_year))
@@ -385,7 +390,6 @@ function App() {
         .setSubstructure("depth","depth")
         .setLayers()
         .feature("parents",node => nodeData.filter(d => d.name === parseInt(node))[0].parents)
-        .print()
       // set x
       // const layers = poset.analytics.substructures.depth
       const layers = poset.layers.reverse()
@@ -427,10 +431,10 @@ function App() {
     const combinedEdges = trees.flat()
     let colorEdges = combinedEdges 
       .filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to")
-      .filter(d => subsumesData.length === 1 && d.parent_concept_id === d.child_concept_id ? d : d.parent_concept_id !== d.child_concept_id)
       .filter(d => d.levels !== "-1")
       .map(d => ([d.parent_concept_id.toString(),d.child_concept_id.toString()]))
     if (filterClass) colorEdges = colorEdges.filter(d => d.concept_class_id !== 'Ingredient' && d.concept_class_id !== "Clinical Drug Comp")
+    if (colorEdges.length > 1) colorEdges = colorEdges.filter(d => d[0] !== d[1])
     const {matrix,nodes} = po.domFromEdges(colorEdges)
     const colorPoset = po.createPoset(matrix,nodes)
     colorPoset.enrich()
@@ -439,7 +443,7 @@ function App() {
         colors[name] = `hsl(${colorPoset.features[name].pTheta},${colorPoset.features[name].pAlpha*100}%,${depthScale(distances[name])}%)`})
     // update color, position, and distance
     nodeData = nodeData
-      .map(d => ({...d,distance: distances[d.name], color: colors[d.name] ? colors[d.name] : d.color,x:positions[d.name]}))
+      .map(d => ({...d,distance: distances[d.name], color: colors[d.name] ? colors[d.name] : d.color,x:positions[d.name],descendant_counts:getCounts(data.stratified_code_counts.filter(e => d.descendants.includes(e.concept_id)),'node_record_counts')}))
       // .map(d => ({...d,color: colors[d.name] ? colors[d.name] : d.color,x:positions[d.name]}))
       .map(node => ({
           ...node,
@@ -449,8 +453,8 @@ function App() {
               'distance': node.distance,
               'source': node,
               'color': colors[e.child_concept_id] ? colors[e.child_concept_id] : generateColor(e.child_concept_id),
-              'total_counts': data.concepts.filter(d => d.concept_id === e.child_concept_id)[0].record_counts || 0,
-              'descendant_counts': data.concepts.filter(d => d.concept_id === e.child_concept_id)[0].descendant_record_counts || 0,
+              'total_counts': getCounts(data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),'node_record_counts'),
+              'descendant_counts': data.concepts.find(c => c.concept_id === e.child_concept_id).descendant_record_counts,
               'data': {code_counts: data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),concept: data.concepts.filter(d => d.concept_id === e.child_concept_id)[0]}
               })).sort((a, b) => b.total_counts - a.total_counts)
       }))
@@ -547,50 +551,51 @@ function App() {
 
   // on root load
   useEffect(()=>{
-    if (root) {
-        setLoading(false)
-        setSearchOnly(false)
-        const timer = setTimeout(() => {
-            setLoading(true)
-        }, 300)
-        const array = root.split(',').map(Number)
-        // if (array.length > 1) setIsConceptSet(true)
-        // else setIsConceptSet(false)
-        setRootArray(array)
-        Promise.all(
-          array.map(r =>
-            fetch(`http://127.0.0.1:8564/getCodeCounts?conceptId=${r}`)
-              .then(res => {
-                if (!res.ok) {
-                  throw new Error(`HTTP ${res.status} for conceptId ${r}`)
-                }
-                return res.json()
-              })
-          )
-        )
-        .then(data => {
-          setDataArray(data)
-          setLoading(false)
-          clearTimeout(timer)
-        })
-        .catch(err => {
-          console.error("Fetch failed:", err.message)
+    if (!root) {
+      setRootData([])
+      setRootLabels([])
+      setIsConceptSet(false)
+      setSearchOnly(true)
+    } else {
+      fetchedRef.current = true
+      setLoading(false)
+      setSearchOnly(false)
+      const timer = setTimeout(() => {
           setLoading(true)
-          d3.select('#error-message').style('display','block')
-          d3.select('#loading-animation').style('visibility','hidden')
-          clearTimeout(timer)
-        })
-      } else {
-        setRootData([])
-        setRootLabels([])
-        setIsConceptSet(false)
-        setSearchOnly(true)
-      }
+      }, 300)
+      const array = root.split(',').map(Number)
+      // if (array.length > 1) setIsConceptSet(true)
+      // else setIsConceptSet(false)
+      setRootArray(array)
+      Promise.all(
+        array.map(r =>
+          fetch(`http://127.0.0.1:8564/getCodeCounts?conceptId=${r}`)
+            .then(res => {
+              if (!res.ok) {
+                throw new Error(`HTTP ${res.status} for conceptId ${r}`)
+              }
+              return res.json()
+            })
+        )
+      )
+      .then(data => {
+        setDataArray(data)
+        setLoading(false)
+        clearTimeout(timer)
+      })
+      .catch(err => {
+        console.error("Fetch failed:", err.message)
+        setLoading(true)
+        d3.select('#error-message').style('display','block')
+        d3.select('#loading-animation').style('visibility','hidden')
+        clearTimeout(timer)
+      })  
+    }
   },[root])
 
   // on data load
   useEffect(()=>{
-    if (dataArray.length > 0) {
+    if (dataArray && dataArray.length > 0) {
       let trees = [dataArray[0].concept_relationships]
       let combinedData = dataArray[0]
       if (dataArray.length > 1) {
@@ -748,7 +753,7 @@ function App() {
       {(searchIsLoaded && searchOnly) && <div className = "loading">
         <img style = {{width:60,opacity: 0.2}} src={finngen} alt="Finngen logo"/>
       </div>}
-      {loading && <div className = "loading" style={{ fontSize: '20px' }}>
+      {initialPrune && <div className = "loading" style={{ fontSize: '20px' }}>
         <div style = {{display: 'none',fontSize:16}} id = "error-message">Concept not found</div>
         <div id = "loading-animation" class="lds-grid" style = {{visibility: 'visible'}}><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
       </div>}
@@ -760,7 +765,7 @@ function App() {
               color = {color}
               // setRoot = {setRoot}
               generateColor = {generateColor}
-              getTrees = {getTrees}
+              getCounts = {getCounts}
               // getValidity = {getValidity}
               selectedConcepts = {selectedConcepts}
               setSelectedConcepts = {setSelectedConcepts}
@@ -830,6 +835,8 @@ function App() {
               annotations = {annotations}
               buffers = {buffers}
               setBuffers = {setBuffers}
+              inclusions = {inclusions}
+              setInclusions = {setInclusions}
             />      
           } />
         </Routes>
