@@ -207,9 +207,9 @@ function Visualization (props) {
         newNodes = newNodes.map(e => ({...e,connections: newConnections.filter(c => c.parents.includes(e.name)).map(d => ({...d,source:e.name}))}))
         const updatedSelections = newNodes
             .filter(d => !d.leaf ? inclusionList.includes(d.name) : d)
-            .map(d => ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: !d.leaf ? d.data : d.mappings.map(m => m.name).some(item => inclusionList.includes(item)) ? {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.filter(d => inclusionList.includes(d)).includes(c.concept_id) || d.descendants.filter(e => e !== d.name).map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => inclusionList.includes(d)).includes(c.concept_id))} : {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.filter(d => inclusionList.includes(d)).includes(c.concept_id) || d.descendants.map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => inclusionList.includes(d)).includes(c.concept_id))}})) 
+            .map(d => ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: !d.leaf ? d.data : {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.filter(d => inclusionList.includes(d)).includes(c.concept_id) || d.descendants.map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => inclusionList.includes(d)).includes(c.concept_id))}})) 
         const mapSelections = newNodes.map(d => d.mappings).flat()
-            .filter(d => inclusionList.includes(d.name))
+            .filter(d => inclusionList.includes(d.name) && !newNodes.find(n => n.name === d.source.name).leaf)
             .map(d => ({name: d.name, leaf: false, distance: d.distance, data: d.data}))
         let newSelections = [...updatedSelections,...mapSelections]
         if (toAdd.length > 0) {
@@ -314,9 +314,9 @@ function Visualization (props) {
             //         .map(d => ({name: d.name, leaf: false, distance: d.distance, data: d.data}))
             const updatedSelections = filteredNodes
                 .filter(d => !d.leaf ? newInclusions.includes(d.name) : d)
-                .map(d => ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: !d.leaf ? d.data : d.mappings.map(m => m.name).some(item => newInclusions.includes(item)) ? {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.filter(d => newInclusions.includes(d)).includes(c.concept_id) || d.descendants.filter(e => e !== d.name).map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => newInclusions.includes(d)).includes(c.concept_id))} : {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.filter(d => newInclusions.includes(d)).includes(c.concept_id) || d.descendants.map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => newInclusions.includes(d)).includes(c.concept_id))}})) 
+                .map(d => ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: !d.leaf ? d.data : {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.filter(d => newInclusions.includes(d)).includes(c.concept_id) || d.descendants.map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => newInclusions.includes(d)).includes(c.concept_id))}})) 
             const mapSelections = filteredNodes.map(d => d.mappings).flat()
-                .filter(d => newInclusions.includes(d.name))
+                .filter(d => newInclusions.includes(d.name) && !filteredNodes.find(n => n.name === d.source.name).leaf)
                 .map(d => ({name: d.name, leaf: false, distance: d.distance, data: d.data}))
             const filteredSelected = [...updatedSelections,...mapSelections]
             filteredSelected.sort((a,b) => d3.ascending(a.distance, b.distance))
@@ -557,6 +557,7 @@ function Visualization (props) {
                 graphSectionWidth = {graphSectionWidth}
                 colorList = {colorList}
                 annotations = {annotations}
+                treeSelections = {treeSelections}
             />  
         </div> : null
     )

@@ -39,6 +39,7 @@ function GraphSection (props) {
     const graphSectionWidth = props.graphSectionWidth
     const colorList = props.colorList
     const annotations = props.annotations
+    const treeSelections = props.treeSelections
     const graphContainerRef = useRef()
     const margin = 20
     let hoverLabelCircle = false
@@ -98,7 +99,7 @@ function GraphSection (props) {
                     .attr("stroke-width", 1)
                     .attr('stroke','white')
                     .attr('fill', d => {
-                        if (!getConceptInfo(d.key).standard_concept) {
+                        if (!getConceptInfo(d.key).standard_concept || (treeSelections.includes('mappings') && selectedConcepts.find(c => c.name === d.key).leaf)) {
                             const url = createLinePattern(d.key, colorList[d.key])
                             return url 
                         } else return colorList[d.key]
@@ -149,7 +150,7 @@ function GraphSection (props) {
                         .y1(d => scaleY(d[1]))
                     )
                     .attr('fill', d => {
-                        if (!getConceptInfo(d.key).standard_concept) {
+                        if (!getConceptInfo(d.key).standard_concept || (treeSelections.includes('mappings') && selectedConcepts.find(c => c.name === d.key).leaf)) {
                             const url = createLinePattern(d.key, colorList[d.key])
                             return url 
                         } else return colorList[d.key]

@@ -188,7 +188,7 @@
                     setExcludeList(eList)
                 }
             }
-            const newInclusions = sidebarRoot.name.map(r => nodes.map(n => n.name).includes(r) ? getInclusions(r,eList,dFilter,nodes.find(n => n.name === r).descendants,nodes) : getInclusions(r,excludeList,descendantsFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)),nodes)).flat().filter((e,n,l) => l.indexOf(e) === n)
+            const newInclusions = sidebarRoot.name.map(r => nodes.map(n => n.name).includes(r) ? getInclusions(r,eList,dFilter,nodes.find(n => n.name === r).descendants,nodes) : getInclusions(r,eList,dFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)),nodes)).flat().filter((e,n,l) => l.indexOf(e) === n)
                 .map(i => treeSelections.includes('mappings') ? fullTree.nodes.find(n => n.name === i).mappings.map(m => m.name) : i).flat()   
                 .filter(i => sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts !== 0)
             updateConcepts(newInclusions,nodes,[],[])
@@ -197,7 +197,7 @@
         // DRAWING
         // concept set
         function drawSet() {
-            const conceptSetData = sidebarRoot.name.map(root => ({id:root,descendant_counts:nodes.find(n => n.name === root) ? nodes.find(n => n.name === root).descendant_counts : getCounts(sidebarRoot.data.stratified_code_counts.filter(c => fullTree.nodes.find(n => n.name === root).descendants.filter(d => inclusions.includes(d)).includes(c.concept_id)),'node_record_counts'),concept:sidebarRoot.data.concepts.find(d => d.concept_id === root),descendants:descendantsFilter.includes(root) ? false : true,exclude:excludeList.includes(root) ? true : false}))
+            const conceptSetData = sidebarRoot.name.map(root => ({id:root,descendant_counts:nodes.find(n => n.name === root) ? nodes.find(n => n.name === root).descendant_counts : getCounts(sidebarRoot.data.stratified_code_counts.filter(c => fullTree.nodes.find(n => n.name === root).descendants.filter(d => inclusions.includes(d)).includes(c.concept_id)  || fullTree.nodes.find(n => n.name === root).descendants.map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => inclusions.includes(d)).includes(c.concept_id)),'node_record_counts'),concept:sidebarRoot.data.concepts.find(d => d.concept_id === root),descendants:descendantsFilter.includes(root) ? false : true,exclude:excludeList.includes(root) ? true : false}))
             d3.select('#set-container').selectAll('.set-item').data(conceptSetData, d => d.id)
             .join(enter => {
                 const container = enter.append('div')
@@ -605,13 +605,13 @@
                                         }
                                     } else return 'white'
                                 })
-                                .attr('stroke', d => conceptNames.includes(d.name) ? d.color : mapRoot.includes(d.source.name) ? d.total_counts === 0 ? 'none' : color.textlightest : color.textlightest)
+                                .attr('stroke', d => conceptNames.includes(d.name) || inclusions.includes(d.name) ? d.color : mapRoot.includes(d.source.name) ? d.total_counts === 0 ? 'none' : color.textlightest : color.textlightest)
                                 .attr('stroke-width', d => mapRoot.includes(d.source.name) ? 1.5 : 1.25)
                                 .style('cursor', "pointer")
                                 .attr('cx', d => getMap(d).x)
                                 .attr('cy', d => mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : getYPosition(d.source, 'z', cy + (genHeight[d.distance]), d))
                                 // .style('pointer-events', 'all')
-                                .style('pointer-events', d => d.source.leaf && treeSelections.includes('mappings') ? 'none' : 'all')
+                                .style('pointer-events', d => d.source.leaf && mapRoot.includes(d.source.name) ? 'none' : 'all')
                                 .on('mouseover', (e,d) => {
                                     if (mapRoot.includes(d.source.name)) hoverNode(d, 'enter')
                                 })
@@ -636,7 +636,7 @@
                                 .classed('map-total-counts', true)
                                 .attr('id', d => 'map-total-counts-' + d.name)
                                 .text(d => d.total_counts)
-                                .attr('fill', d => d.total_counts === 0 ? color.text : conceptNames.includes(d.name) ? 'white' : color.text)
+                                .attr('fill', d => conceptNames.includes(d.name) ? 'white' : inclusions.includes(d.name) ? color.text : color.textlight)
                                 .style('opacity', d => mapRoot.includes(d.source.name) ? 1 : 0)
                                 .style('font-size', '8px')
                                 .style('font-weight', '700')
@@ -830,8 +830,8 @@
                                         }
                                     } else return 'white'
                                 })
-                                .style('pointer-events', d => d.source.leaf && treeSelections.includes('mappings') ? 'none' : 'all')
-                                .attr('stroke', d => conceptNames.includes(d.name) ? d.color : mapRoot.includes(d.source.name) ? d.total_counts === 0 ? 'none' : color.textlightest : color.textlightest)
+                                .style('pointer-events', d => d.source.leaf && mapRoot.includes(d.source.name) ? 'none' : 'all')
+                                .attr('stroke', d => conceptNames.includes(d.name) || inclusions.includes(d.name) ? d.color : mapRoot.includes(d.source.name) ? d.total_counts === 0 ? 'none' : color.textlightest : color.textlightest)
                                 .attr('stroke-width', d => mapRoot.includes(d.source.name) ? 1.5 : 1.25)
                                 .transition(2000)
                                 .attr('cx', d => getMap(d).x)
@@ -840,7 +840,7 @@
                             update.select('.map-total-counts')
                                 .text(d => d.total_counts)
                                 .style('opacity', d => mapRoot.includes(d.source.name) ? 1 : 0)
-                                .attr('fill', d => d.total_counts === 0 ? color.text : conceptNames.includes(d.name) ? 'white' : color.text)
+                                .attr('fill', d => conceptNames.includes(d.name) ? 'white' : inclusions.includes(d.name) ? color.text : color.textlight)
                                 .attr('x', d => getMap(d).x)
                                 .attr('y', d => mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + 3 : getYPosition(d.source, 'z', cy + (genHeight[d.distance]), d) + 3)
                             update.select('.map-button-line-1')
@@ -956,7 +956,7 @@
                             .attr('id', d => 'tree-circle-' + d.name)
                             .attr('r', d => scaleRadius(Math.sqrt(d.total_counts)) + 2)
                             .attr('stroke-width',1.5)
-                            .attr('stroke', d => d.total_counts === 0 ? 'none' : !conceptNames.includes(d.name) || (d.leaf && d.descendant_counts !== d.total_counts) ? color.textlightest : d.color)
+                            .attr('stroke', d => d.total_counts === 0 ? 'none' : conceptNames.includes(d.name) && inclusions.includes(d.name) ? d.color : color.textlightest)
                             .attr('fill', d => {
                                 if (d.total_counts === 0 || (d.leaf && d.descendant_counts !== d.total_counts)) return 'white'
                                 else {
@@ -981,7 +981,7 @@
                             .classed('total-counts', true)
                             .attr('id', d => 'total-counts-' + d.name)
                             .text(d => d.total_counts)
-                            .attr('fill', d => d.leaf ? !excludeList.includes(d.name) ? color.text : color.textlight : d.total_counts === 0 || !conceptNames.includes(d.name) ? color.textlight : 'white')
+                            .attr('fill', d => d.leaf ? !excludeList.includes(d.name) && inclusions.includes(d.name) ? color.text : color.textlight : d.total_counts === 0 || !conceptNames.includes(d.name) ? color.textlight : 'white')
                             .attr('visibility', "visible")
                             .style('font-size', d => d.total_counts === 0 ? '10px' : '8px')
                             .style('font-weight', '700')
@@ -1377,13 +1377,13 @@
                                         }
                                     } else return 'white'
                                 })
-                                .attr('stroke', d => conceptNames.includes(d.name) ? d.color : mapRoot.includes(d.source.name) ? d.total_counts === 0 ? 'none' : color.textlightest : color.textlightest)
+                                .attr('stroke', d => conceptNames.includes(d.name) || inclusions.includes(d.name) ? d.color : mapRoot.includes(d.source.name) ? d.total_counts === 0 ? 'none' : color.textlightest : color.textlightest)
                                 .attr('stroke-width', d => mapRoot.includes(d.source.name) ? 1.5 : 1.25)
                                 .style('cursor', "pointer")
                                 .attr('cx', d => getMap(d).x)
                                 .attr('cy', d => mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : getYPosition(d.source, 'z', cy + (genHeight[d.distance]), d))
                                 // .style('pointer-events', 'all')
-                                .style('pointer-events', d => d.source.leaf && treeSelections.includes('mappings') ? 'none' : 'all')
+                                .style('pointer-events', d => d.source.leaf && mapRoot.includes(d.source.name) ? 'none' : 'all')
                                 .on('mouseover', (e,d) => {
                                     if (mapRoot.includes(d.source.name)) hoverNode(d, 'enter')
                                 })
@@ -1408,7 +1408,7 @@
                                 .classed('map-total-counts', true)
                                 .attr('id', d => 'map-total-counts-' + d.name)
                                 .text(d => d.total_counts)
-                                .attr('fill', d => d.total_counts === 0 ? color.text : conceptNames.includes(d.name) ? 'white' : color.text)
+                                .attr('fill', d => conceptNames.includes(d.name) ? 'white' : inclusions.includes(d.name) ? color.text : color.textlight)
                                 .style('opacity', d => mapRoot.includes(d.source.name) ? 1 : 0)
                                 .style('font-size', '8px')
                                 .style('font-weight', '700')
@@ -1602,8 +1602,8 @@
                                         }
                                     } else return 'white'
                                 })
-                                .style('pointer-events', d => d.source.leaf && treeSelections.includes('mappings') ? 'none' : 'all')
-                                .attr('stroke', d => conceptNames.includes(d.name) ? d.color : mapRoot.includes(d.source.name) ? d.total_counts === 0 ? 'none' : color.textlightest : color.textlightest)
+                                .style('pointer-events', d => d.source.leaf && mapRoot.includes(d.source.name) ? 'none' : 'all')
+                                .attr('stroke', d => conceptNames.includes(d.name) || inclusions.includes(d.name) ? d.color : mapRoot.includes(d.source.name) ? d.total_counts === 0 ? 'none' : color.textlightest : color.textlightest)
                                 .attr('stroke-width', d => mapRoot.includes(d.source.name) ? 1.5 : 1.25)
                                 .transition(2000)
                                 .attr('cx', d => getMap(d).x)
@@ -1612,7 +1612,7 @@
                             update.select('.map-total-counts')
                                 .text(d => d.total_counts)
                                 .style('opacity', d => mapRoot.includes(d.source.name) ? 1 : 0)
-                                .attr('fill', d => d.total_counts === 0 ? color.text : conceptNames.includes(d.name) ? 'white' : color.text)
+                                .attr('fill', d => conceptNames.includes(d.name) ? 'white' : inclusions.includes(d.name) ? color.text : color.textlight)
                                 .attr('x', d => getMap(d).x)
                                 .attr('y', d => mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + 3 : getYPosition(d.source, 'z', cy + (genHeight[d.distance]), d) + 3)
                             update.select('.map-button-line-1')
@@ -1719,7 +1719,7 @@
                                 }
                             })
                             .attr('r', d => scaleRadius(Math.sqrt(d.total_counts)) + 2)
-                            .attr('stroke', d => d.total_counts === 0 ? 'none' : !conceptNames.includes(d.name) || (d.leaf && d.descendant_counts !== d.total_counts) ? color.textlightest : d.color)
+                            .attr('stroke', d => d.total_counts === 0 ? 'none' : conceptNames.includes(d.name) && inclusions.includes(d.name) ? d.color : color.textlightest)
                             .attr('fill', d => {
                                 if (d.total_counts === 0 || (d.leaf && d.descendant_counts !== d.total_counts)) return 'white'
                                 else {
@@ -1744,7 +1744,7 @@
                         update.select('.total-counts')
                             .text(d => d.total_counts)
                             .style('font-size', d => d.total_counts === 0 ? '10px' : '8px')
-                            .attr('fill', d => d.leaf ? !excludeList.includes(d.name) ? color.text : color.textlight : d.total_counts === 0 || !conceptNames.includes(d.name) ? color.textlight : 'white')
+                            .attr('fill', d => d.leaf ? !excludeList.includes(d.name) && inclusions.includes(d.name) ? color.text : color.textlight : d.total_counts === 0 || !conceptNames.includes(d.name) ? color.textlight : 'white')
                             .attr('x', d => d.x)
                             .attr('y', d => cy + (genHeight[d.distance]) + 3)
                         update.select('.close-mappings')
