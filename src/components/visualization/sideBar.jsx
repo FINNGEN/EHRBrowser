@@ -188,8 +188,9 @@
                     setExcludeList(eList)
                 }
             }
-            const newInclusions = sidebarRoot.name.map(r => nodes.map(n => n.name).includes(r) ? getInclusions(r,eList,dFilter,nodes.find(n => n.name === r).descendants,nodes) : getInclusions(r,eList,dFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => inclusions.includes(d)),nodes)).flat().filter((e,n,l) => l.indexOf(e) === n)
-                .filter(d => fullTree.nodes.find(n => n.name === d).total_counts !== 0)
+            const newInclusions = sidebarRoot.name.map(r => nodes.map(n => n.name).includes(r) ? getInclusions(r,eList,dFilter,nodes.find(n => n.name === r).descendants,nodes) : getInclusions(r,excludeList,descendantsFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)),nodes)).flat().filter((e,n,l) => l.indexOf(e) === n)
+                .map(i => treeSelections.includes('mappings') ? fullTree.nodes.find(n => n.name === i).mappings.map(m => m.name) : i).flat()   
+                .filter(i => sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts !== 0)
             updateConcepts(newInclusions,nodes,[],[])
         }
                         
@@ -609,7 +610,8 @@
                                 .style('cursor', "pointer")
                                 .attr('cx', d => getMap(d).x)
                                 .attr('cy', d => mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : getYPosition(d.source, 'z', cy + (genHeight[d.distance]), d))
-                                .style('pointer-events', 'all')
+                                // .style('pointer-events', 'all')
+                                .style('pointer-events', d => d.source.leaf && treeSelections.includes('mappings') ? 'none' : 'all')
                                 .on('mouseover', (e,d) => {
                                     if (mapRoot.includes(d.source.name)) hoverNode(d, 'enter')
                                 })
@@ -828,6 +830,7 @@
                                         }
                                     } else return 'white'
                                 })
+                                .style('pointer-events', d => d.source.leaf && treeSelections.includes('mappings') ? 'none' : 'all')
                                 .attr('stroke', d => conceptNames.includes(d.name) ? d.color : mapRoot.includes(d.source.name) ? d.total_counts === 0 ? 'none' : color.textlightest : color.textlightest)
                                 .attr('stroke-width', d => mapRoot.includes(d.source.name) ? 1.5 : 1.25)
                                 .transition(2000)
@@ -988,7 +991,7 @@
                             .attr('y', d => cy + (genHeight[d.distance]) + 3)
                         const descendantsBtn = geometry.append('g')
                             .classed('root-btn-group',true)
-                            .style('display', d => sidebarRoot.name.includes(d.name) && sidebarRoot.name.length > 1 ? 'block' : 'none')
+                            .style('display', d => sidebarRoot.name.includes(d.name) ? 'block' : 'none')
                             .attr('transform', d => {
                                 const xVar = d.total_counts === 0 ? 20 : 10
                                 if (d.data.concept.standard_concept) return `translate(${d.x + scaleRadius(Math.sqrt(d.total_counts)) + xVar}, 0)`
@@ -1379,7 +1382,8 @@
                                 .style('cursor', "pointer")
                                 .attr('cx', d => getMap(d).x)
                                 .attr('cy', d => mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : getYPosition(d.source, 'z', cy + (genHeight[d.distance]), d))
-                                .style('pointer-events', 'all')
+                                // .style('pointer-events', 'all')
+                                .style('pointer-events', d => d.source.leaf && treeSelections.includes('mappings') ? 'none' : 'all')
                                 .on('mouseover', (e,d) => {
                                     if (mapRoot.includes(d.source.name)) hoverNode(d, 'enter')
                                 })
@@ -1598,6 +1602,7 @@
                                         }
                                     } else return 'white'
                                 })
+                                .style('pointer-events', d => d.source.leaf && treeSelections.includes('mappings') ? 'none' : 'all')
                                 .attr('stroke', d => conceptNames.includes(d.name) ? d.color : mapRoot.includes(d.source.name) ? d.total_counts === 0 ? 'none' : color.textlightest : color.textlightest)
                                 .attr('stroke-width', d => mapRoot.includes(d.source.name) ? 1.5 : 1.25)
                                 .transition(2000)
@@ -1870,7 +1875,7 @@
                             .attr('x', d => getLabel(d).x)
                             .attr('y', d => getLabel(d).y + 2)
                         update.select('.root-btn-group')
-                            .style('display', d => sidebarRoot.name.includes(d.name) && sidebarRoot.name.length > 1 ? 'block' : 'none')
+                            .style('display', d => sidebarRoot.name.includes(d.name) ? 'block' : 'none')
                             // .attr('text-anchor', d => d.data.concept.standard_concept ? 'start' : 'end')
                             .attr('transform', d => {
                                 const xVar = d.total_counts === 0 ? 20 : 10
@@ -4914,10 +4919,13 @@
                                 onClick = {() => {
                                     if (!treeSelections.includes('descendants')) {
                                         d3.select('#add-descendants').style('background-color', color.text).style('color','white').style('font-weight',700)
-                                        const newConcepts = nodes
-                                            .filter(d => !d.leaf ? inclusions.includes(d.name) : d)
-                                            .map(d => ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.filter(d => inclusions.includes(d)).includes(c.concept_id))}})) 
-                                        setSelectedConcepts(newConcepts)
+                                        const newInclusions = sidebarRoot.name.map(r => nodes.map(n => n.name).includes(r) ? getInclusions(r,excludeList,descendantsFilter,nodes.find(n => n.name === r).descendants,nodes) : getInclusions(r,excludeList,descendantsFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)),nodes)).flat().filter((e,n,l) => l.indexOf(e) === n)
+                                            .filter(i => sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts !== 0)
+                                        updateConcepts(newInclusions,nodes,[],[])
+                                        // const newConcepts = nodes
+                                        //     .filter(d => !d.leaf ? inclusions.includes(d.name) : d)
+                                        //     .map(d => ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.filter(d => inclusions.includes(d)).includes(c.concept_id))}})) 
+                                        // setSelectedConcepts(newConcepts)
                                         setTreeSelections(['descendants'])
                                         setMapRoot([])
                                     } else {
@@ -4938,13 +4946,17 @@
                                 onMouseOut={() => d3.select('#add-mappings').style('font-weight', () => !treeSelections.includes('mappings') ? 400 : 700)}
                                 onClick = {() => {
                                     if (!treeSelections.includes('mappings')) {
-                                        const mappings = nodes.filter(d => inclusions.includes(d.name)).map(d => d.mappings).flat()
-                                        const newConcepts = mappings
-                                            .filter(d => d.total_counts !== 0)
-                                            .map(d => ({name: d.name, leaf: false, distance: d.distance, data: d.data}))
-                                        const mapRootNames = mappings.map(d => d.source.name).filter((e,n,l) => l.indexOf(e) === n)
-                                        setMapRoot(mapRootNames)
-                                        setSelectedConcepts(newConcepts)
+                                        const newInclusions = sidebarRoot.name.map(r => nodes.map(n => n.name).includes(r) ? getInclusions(r,excludeList,descendantsFilter,nodes.find(n => n.name === r).descendants,nodes) : getInclusions(r,excludeList,descendantsFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)),nodes)).flat().filter((e,n,l) => l.indexOf(e) === n)
+                                            .map(i => fullTree.nodes.find(n => n.name === i).mappings.map(m => m.name)).flat()   
+                                            .filter(i => sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts !== 0)
+                                        updateConcepts(newInclusions,nodes,[],[])
+                                        // const mappings = nodes.filter(d => inclusions.includes(d.name)).map(d => d.mappings).flat()
+                                        // const newConcepts = mappings
+                                        //     .filter(d => d.total_counts !== 0)
+                                        //     .map(d => ({name: d.name, leaf: false, distance: d.distance, data: d.data}))
+                                        // const mapRootNames = mappings.map(d => d.source.name).filter((e,n,l) => l.indexOf(e) === n)
+                                        setMapRoot(nodes.filter(n => n.mappings.length > 0).map(n => n.name))
+                                        // setSelectedConcepts(newConcepts)
                                         setTreeSelections(['mappings'])
                                     } else {
                                         d3.select('#add-mappings').style('background-color', 'transparent').style('color',color.text).style('font-weight',400)

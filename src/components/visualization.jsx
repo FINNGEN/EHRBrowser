@@ -198,21 +198,26 @@ function Visualization (props) {
     }
     // add concepts to graph 
     function updateConcepts(inclusionList,nodeList,toAdd,toRemove) {
-        const newNodes = nodeList.map(e => ({...e,descendant_counts:getCounts(sidebarRoot.data.stratified_code_counts.filter(c => e.descendants.filter(d => inclusionList.includes(d)).includes(c.concept_id)),'node_record_counts'),leaf:e.descendants.filter(d => d !== e.name).some(item => inclusionList.includes(item)) && ((e.distance === levelFilter+1 || !links.map(d => d.source).map(d => d.name).includes(e.name)) && e.levels !== '-1')? true : false}))
-        const updatedSelections = !treeSelections.includes('mappings') ? 
-            newNodes
-                .filter(d => !d.leaf ? inclusionList.includes(d.name) : d)
-                .map(d => ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.filter(d => inclusionList.includes(d)).includes(c.concept_id))}})) : 
-            newNodes.filter(d => inclusionList.includes(d.name)).map(d => d.mappings).flat()
-                .filter(d => d.total_counts !== 0)
-                .map(d => ({name: d.name, leaf: false, distance: d.distance, data: d.data}))
-        let newSelections = updatedSelections
+        // *** is this part necessary for add / remove? ***
+        let newNodes = nodeList.map(e => ({...e,descendant_counts:getCounts(sidebarRoot.data.stratified_code_counts.filter(c => e.descendants.filter(d => inclusionList.includes(d)).includes(c.concept_id) || e.descendants.map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => inclusionList.includes(d)).includes(c.concept_id)),'node_record_counts'),leaf: (e.descendants.filter(d => d !== e.name).some(item => inclusionList.includes(item)) || e.descendants.filter(d => d !== e.name).map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => inclusionList.includes(d)).some(item => inclusionList.includes(item))) && ((e.distance === levelFilter+1 || !links.map(d => d.source).map(d => d.name).includes(e.name)) && e.levels !== '-1')? true : false}))
+        let newConnections = crossConnections
+            .filter(c => inclusionList.includes(c.child) || fullTree.nodes.find(n => n.name === c.child).mappings.map(m => m.name).some(item => inclusionList.includes(item)))
+            .map(d => ({...d,parents:d.parents.filter(p => newNodes.map(d => d.name).includes(p)).filter(p => newNodes.filter(d => d.name === p)[0]?.leaf)}))
+        newConnections = newConnections.filter(d => d.parents.length > 1)
+        newNodes = newNodes.map(e => ({...e,connections: newConnections.filter(c => c.parents.includes(e.name)).map(d => ({...d,source:e.name}))}))
+        const updatedSelections = newNodes
+            .filter(d => !d.leaf ? inclusionList.includes(d.name) : d)
+            .map(d => ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: !d.leaf ? d.data : d.mappings.map(m => m.name).some(item => inclusionList.includes(item)) ? {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.filter(d => inclusionList.includes(d)).includes(c.concept_id) || d.descendants.filter(e => e !== d.name).map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => inclusionList.includes(d)).includes(c.concept_id))} : {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.filter(d => inclusionList.includes(d)).includes(c.concept_id) || d.descendants.map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => inclusionList.includes(d)).includes(c.concept_id))}})) 
+        const mapSelections = newNodes.map(d => d.mappings).flat()
+            .filter(d => inclusionList.includes(d.name))
+            .map(d => ({name: d.name, leaf: false, distance: d.distance, data: d.data}))
+        let newSelections = [...updatedSelections,...mapSelections]
         if (toAdd.length > 0) {
             toAdd = toAdd.map(d => d.source ? ({name: d.name, leaf: false, distance: d.distance, data: d.data}) : ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.filter(d => inclusionList.includes(d)).includes(c.concept_id))}}))
-            newSelections = [...updatedSelections.filter(d => !toAdd.map(e => e.name).includes(d.name)),...toAdd]
+            newSelections = [...newSelections.filter(d => !toAdd.map(e => e.name).includes(d.name)),...toAdd]
         }
-        else if (toRemove.length > 0) {
-            newSelections = updatedSelections.filter(d => !toRemove.map(e => e.name).includes(d.name))
+        if (toRemove.length > 0) {
+            newSelections = newSelections.filter(d => !toRemove.map(e => e.name).includes(d.name))
         } 
         newSelections.sort((a,b) => d3.ascending(a.distance, b.distance))
         let isPruned = false
@@ -249,7 +254,7 @@ function Visualization (props) {
         else {
             // descendants unselected
             if (dFilter.includes(id)) {
-                let stillIncluded = sidebarRoot.name.filter(r => r !== id && nodeList.map(n => n.name).includes(r) && (fullTree.nodes.find(n => n.name === r).distance < fullTree.nodes.find(n => n.name === id).distance) && (!eList.includes(r) && !dFilter.includes(r))).map(r => fullTree.nodes.find(n => n.name === r).descendants).flat().filter(d => descendants.includes(d))
+                let stillIncluded = sidebarRoot.name.filter(r => r !== id && (fullTree.nodes.find(n => n.name === r).distance < fullTree.nodes.find(n => n.name === id).distance) && (!eList.includes(r) && !dFilter.includes(r))).map(r => fullTree.nodes.find(n => n.name === r).descendants.filter(d => d !== r).filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class))).flat().filter(d => descendants.includes(d))
                 const rootStillIncluded = descendants.filter(d => sidebarRoot.name.includes(d) && !eList.includes(d))
                 stillIncluded = [...stillIncluded,...rootStillIncluded]
                 // exclude unselected
@@ -260,7 +265,7 @@ function Visualization (props) {
                 }
             // descendants selected
             } else {
-                let stillExcluded = sidebarRoot.name.filter(r => r !== id && nodeList.map(n => n.name).includes(r) && (fullTree.nodes.find(n => n.name === r).distance < fullTree.nodes.find(n => n.name === id).distance) && ((eList.includes(r) && !dFilter.includes(r)) || dFilter.includes(r))).map(r => fullTree.nodes.find(n => n.name === r).descendants).flat().filter(d => descendants.includes(d) && d !== id)
+                let stillExcluded = sidebarRoot.name.filter(r => r !== id && (fullTree.nodes.find(n => n.name === r).distance < fullTree.nodes.find(n => n.name === id).distance) && (eList.includes(r) && !dFilter.includes(r))).map(r => fullTree.nodes.find(n => n.name === r).descendants.filter(d => d !== r).filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class))).flat().filter(d => descendants.includes(d) && d !== id)
                 const rootExclusions = descendants.filter(d => sidebarRoot.name.includes(d) && eList.includes(d))
                 const rootDescendantExclusions = rootExclusions.filter(r => !dFilter.includes(r)).map(r => fullTree.nodes.find(n => n.name === r).descendants.filter(d => d !== r).filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class))).flat()
                 stillExcluded = [...stillExcluded,...rootExclusions,...rootDescendantExclusions]
@@ -287,28 +292,37 @@ function Visualization (props) {
                     children: e.levels === "-1" ? fullTree.links.filter(d => d.target.name === e.name).map(d => d.source.name) : fullTree.links.filter(d => d.source.name === e.name && d.target.name !== e.name).map(d => d.target.name)
                 }))
             // let newInclusions = sidebarRoot.name.map(r => filteredNodes.map(n => n.name).includes(r) ? getInclusions(r,excludeList,descendantsFilter,filteredNodes.find(n => n.name === r).descendants,filteredNodes) : getInclusions(r,excludeList,descendantsFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)),filteredNodes)).flat().filter((e,n,l) => l.indexOf(e) === n)
-            //     .filter(d => fullTree.nodes.find(n => n.name === d).total_counts !== 0)
-            let newInclusions = inclusions.filter(d => classFilter.includes('All') ? d : fullTree.nodes.find(n => n.name === d).class ? classFilter.includes(fullTree.nodes.find(n => n.name === d).class) : d)
-            // if (treeSelections.includes('mappings')) newInclusions = newInclusions.map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat()
+            //     .map(i => treeSelections.includes('mappings') ? fullTree.nodes.find(n => n.name === i).mappings.map(m => m.name) : i).flat()   
+            //     .filter(i => sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts !== 0)
+            // **** if it is a map node filter based on source node class
+            let newInclusions = inclusions.filter(d => classFilter.includes('All') ? d : fullTree.nodes.map(n => n.name).includes(d) ? fullTree.nodes.find(n => n.name === d).class ? classFilter.includes(fullTree.nodes.find(n => n.name === d).class) : d : fullTree.nodes.map(n => n.mappings).flat().find(m => m.name === d).source.class ? classFilter.includes(fullTree.nodes.map(n => n.mappings).flat().find(m => m.name === d).source.class) : d)
+            filteredNodes = filteredNodes
+                .map(e => ({...e,descendant_counts:getCounts(sidebarRoot.data.stratified_code_counts.filter(c => e.descendants.filter(d => newInclusions.includes(d)).includes(c.concept_id) || e.descendants.map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => newInclusions.includes(d)).includes(c.concept_id)),'node_record_counts'),leaf: (e.descendants.filter(d => d !== e.name).some(item => newInclusions.includes(item)) || e.descendants.filter(d => d !== e.name).map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => newInclusions.includes(d)).some(item => newInclusions.includes(item))) && e.leaf ? true : false}))
             // filter connections 
             let filteredConnections = crossConnections
-                .filter(c => !filteredNodes.map(d => d.name).includes(c.child) && newInclusions.includes(c.child))
-                .filter(c => fullTree.nodes.find(n => n.name === c.child).total_counts !== 0)
-                .filter(c => classFilter.includes('All') || classFilter == fullClassList ? c : classFilter.includes(fullTree.nodes.filter(d => d.name === c.child)[0].class))
+                .filter(c => !filteredNodes.map(d => d.name).includes(c.child))
+                .filter(c => newInclusions.includes(c.child) || fullTree.nodes.find(n => n.name === c.child).mappings.map(m => m.name).some(item => newInclusions.includes(item)))
                 .map(d => ({...d,parents:d.parents.filter(p => filteredNodes.map(d => d.name).includes(p)).filter(p => filteredNodes.filter(d => d.name === p)[0]?.leaf)}))
             filteredConnections = filteredConnections.filter(d => d.parents.length > 1)
-            filteredNodes = filteredNodes
-                .map(e => ({...e,descendant_counts:getCounts(sidebarRoot.data.stratified_code_counts.filter(c => e.descendants.filter(d => newInclusions.includes(d)).includes(c.concept_id)),'node_record_counts'),leaf:e.descendants.filter(d => d !== e.name).some(item => newInclusions.includes(item)) && e.leaf ? true : false,connections: filteredConnections.filter(c => c.parents.includes(e.name)).map(d => ({...d,source:e.name}))}))
-            const filteredSelected = !treeSelections.includes('mappings') ? 
-                filteredNodes
-                    .filter(d => !d.leaf ? newInclusions.includes(d.name) : d)
-                    .map(d => ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.filter(d => newInclusions.includes(d)).includes(c.concept_id))}})) : 
-                filteredNodes.filter(d => newInclusions.includes(d.name)).map(d => d.mappings).flat()
-                    .filter(d => d.total_counts !== 0)
-                    .map(d => ({name: d.name, leaf: false, distance: d.distance, data: d.data}))
+            filteredNodes = filteredNodes.map(e => ({...e,connections: filteredConnections.filter(c => c.parents.includes(e.name)).map(d => ({...d,source:e.name}))}))
+            // const filteredSelected = !treeSelections.includes('mappings') ? 
+            //     filteredNodes
+            //         .filter(d => !d.leaf ? newInclusions.includes(d.name) : d)
+            //         .map(d => ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.filter(d => newInclusions.includes(d)).includes(c.concept_id))}})) : 
+            //     filteredNodes.filter(d => newInclusions.includes(d.name)).map(d => d.mappings).flat()
+            //         .filter(d => d.total_counts !== 0)
+            //         .map(d => ({name: d.name, leaf: false, distance: d.distance, data: d.data}))
+            const updatedSelections = filteredNodes
+                .filter(d => !d.leaf ? newInclusions.includes(d.name) : d)
+                .map(d => ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: !d.leaf ? d.data : d.mappings.map(m => m.name).some(item => newInclusions.includes(item)) ? {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.filter(d => newInclusions.includes(d)).includes(c.concept_id) || d.descendants.filter(e => e !== d.name).map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => newInclusions.includes(d)).includes(c.concept_id))} : {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.filter(d => newInclusions.includes(d)).includes(c.concept_id) || d.descendants.map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => newInclusions.includes(d)).includes(c.concept_id))}})) 
+            const mapSelections = filteredNodes.map(d => d.mappings).flat()
+                .filter(d => newInclusions.includes(d.name))
+                .map(d => ({name: d.name, leaf: false, distance: d.distance, data: d.data}))
+            const filteredSelected = [...updatedSelections,...mapSelections]
             filteredSelected.sort((a,b) => d3.ascending(a.distance, b.distance))
             setSelectedConcepts(filteredSelected)
             setInclusions(newInclusions)
+            if (treeSelections.includes('mappings')) setMapRoot(filteredNodes.filter(n => n.mappings.length > 0).map(n => n.name))
             // updated poset
             let positions = {}
             const nodeNames = filteredNodes.map(d => d.name)

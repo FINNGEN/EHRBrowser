@@ -722,6 +722,11 @@ function App() {
           .html((d,i) => (rootLabels.length <= 2 || i == 0) ? d.vocabulary : '')
         update.select('.search-x')
           .style("display", rootLabels.length <= 2 ? 'block' : 'none')
+          .on('click',(e,d) => {
+            const array = root.split(',').map(Number)
+            const arrayToString = array.filter(root => root !== d.id).join(",")
+            navigate(`/${arrayToString}`)
+          })
       })  
   }, [rootLabels])
 
