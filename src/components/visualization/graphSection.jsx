@@ -38,6 +38,8 @@ function GraphSection (props) {
     const setHovered = props.setHovered
     const graphSectionWidth = props.graphSectionWidth
     const colorList = props.colorList
+    const annotations = props.annotations
+    const treeSelections = props.treeSelections
     const graphContainerRef = useRef()
     const margin = 20
     let hoverLabelCircle = false
@@ -77,6 +79,11 @@ function GraphSection (props) {
     }
     // draw line chart
     function drawGraph(rollup, scaleX, scaleY) {
+        function highestPoint(d) {
+            return d[1].reduce((best, p) => {
+                return scaleY(+p[2]) < scaleY(+best[2]) ? p : best
+            })
+        }
         // draw stacked area
         function updateStack(stackedData) {
             d3.select("#graph-stack").selectAll('.areas').data(stackedData, d => d.key)
@@ -92,7 +99,7 @@ function GraphSection (props) {
                     .attr("stroke-width", 1)
                     .attr('stroke','white')
                     .attr('fill', d => {
-                        if (!getConceptInfo(d.key).standard_concept) {
+                        if (!getConceptInfo(d.key).standard_concept || (treeSelections.includes('mappings') && selectedConcepts.find(c => c.name === d.key).leaf)) {
                             const url = createLinePattern(d.key, colorList[d.key])
                             return url 
                         } else return colorList[d.key]
@@ -143,7 +150,7 @@ function GraphSection (props) {
                         .y1(d => scaleY(d[1]))
                     )
                     .attr('fill', d => {
-                        if (!getConceptInfo(d.key).standard_concept) {
+                        if (!getConceptInfo(d.key).standard_concept || (treeSelections.includes('mappings') && selectedConcepts.find(c => c.name === d.key).leaf)) {
                             const url = createLinePattern(d.key, colorList[d.key])
                             return url 
                         } else return colorList[d.key]
@@ -173,74 +180,115 @@ function GraphSection (props) {
                     )
             },exit => exit.remove())
         }
-        // draw root descendant count line
+        // draw root descendant count line *** add label ***
         function updateRootLine() {
-            d3.select("#graph-line").selectAll('.lines').data(rootLine, d => d[0])
-                .join(enter => {
-                    const geometry = enter.append('g')  
-                        .classed('lines', true) 
-                        .attr("clip-path", "url(#clip)")
-                        .raise()
-                    geometry.append("path")
-                        .classed("line-path", true)
-                        .attr("cursor", "pointer")
-                        .attr("id", d => "line-" + sidebarRoot.name)
-                        .attr("stroke-width", 3)
-                        .style("stroke", 'black')
-                        .style("fill", "none")
-                        .style("transition", "0.5s all")
-                        // .style("stroke-dasharray", d => {
-                        //     if (sidebarRoot.data.concepts.filter(c => c.concept_id === sidebarRoot.name)[0].standard_concept) {return 'none'} 
-                        //     else {return '5px 3px'}
-                        // })
-                        .transition()
-                        .attr("d", function(d) {
-                            return d3.line()
-                                .x(d => scaleX(d[1]))
-                                .y(d => scaleY(+d[2]))
-                                (d[1])
-                            })
-                    geometry.append("path")
-                        .classed("line-path-background", true)
-                        .attr("cursor", "pointer")
-                        .attr("id", d => "line-background-" + sidebarRoot.name)
-                        .attr("stroke-width", 8)
-                        .style("stroke", "transparent")
-                        .style("fill", "none")
-                        .style("transition", "0.5s all")
-                        .transition()
-                        .attr("d", function(d) {
-                            return d3.line()
-                                .x(d => scaleX(d[1]))
-                                .y(d => scaleY(+d[2]))
-                                (d[1])
-                            })
-                }, update => {
-                    update.select('.line-path')
-                        .transition()
-                        .attr("d", function(d) {
-                            return d3.line()
-                                .x(d => scaleX(d[1]))
-                                .y(d => scaleY(+d[2]))
-                                (d[1])
-                        })
-                    update.select('.line-path-background')
-                        .transition()
-                        .attr("d", function(d) {
-                            return d3.line()
-                                .x(d => scaleX(d[1]))
-                                .y(d => scaleY(+d[2]))
-                                (d[1])
-                        })
-                },exit => exit.remove())    
+            const line = d3.line()
+                .x(d => scaleX(d[0]))
+                .y(d => scaleY(d[1]))
+            const container = d3.select("#graph-line")
+                .selectAll(".lines")
+                .data([rootLine])
+            const containerEnter = container.enter()
+                .append("g")
+                .classed("lines", true)
+                .attr("clip-path", "url(#clip)")
+                .raise()
+            containerEnter.append("path")
+                .classed("line-path", true)
+                .attr("cursor", "pointer")
+                .attr("stroke-width", 3)
+                .style("stroke", "black")
+                .style("fill", "none")
+            containerEnter.append("path")
+                .classed("line-path-background", true)
+                .attr("cursor", "pointer")
+                .attr("stroke-width", 8)
+                .style("stroke", "transparent")
+                .style("fill", "none")
+            container.merge(containerEnter)
+                .select(".line-path")
+                .transition()
+                .attr("d", line)
+            container.merge(containerEnter)
+                .select(".line-path-background")
+                .transition()
+                .attr("d", line)
+            container.exit().remove()
         }
         const stackedData = d3.stack()
             .keys(conceptNames)
             (rollup)  
-        updateStack(stackedData) 
-        // updateLabels(groups)    
+        updateStack(stackedData)  
         updateRootLine()
         d3.select("#graph-viz").raise()
+    }
+    // draw annotations
+    function drawAnnotations(scaleX,height) {
+        const tooltip = d3.select("body")
+            .append("div")
+            .style("position", "absolute")
+            .style("background", "white")
+            .style("padding", "6px 10px")
+            .style("filter", "drop-shadow(0px 3px 5px rgba(0,0,0,0.2))")
+            .style("border-radius", "10px")
+            .style("font-size", "12px")
+            .style("display", "none")
+        const filteredAnnotations = annotations.filter(a => a.year >= extent[0] && a.year <= extent[1])
+        const grouped = d3.group(filteredAnnotations, d => d.year)
+        const spreadAnnotations = []
+        grouped.forEach((values, year) => {
+            const count = values.length;
+            const spacing = 5
+            values.forEach((d, i) => {
+                const offsetIndex = i - (count - 1) / 2
+                spreadAnnotations.push({
+                ...d,
+                offsetX: offsetIndex * spacing
+                })
+            })
+        })
+        const triangle = d3.symbol()
+            .type(d3.symbolTriangle)
+            .size(80)
+        const annotation = d3.select('#graph')
+            .selectAll(".annotation")
+            .data(spreadAnnotations, d => d.year)
+        const annotationEnter = annotation.enter()
+            .append("g")
+            .attr("class", "annotation")
+        annotationEnter.append("line")
+        annotationEnter.append("circle")
+        const annotationMerge = annotationEnter.merge(annotation)
+        annotationMerge.select("line")
+            .attr('x1', d => scaleX(d.year))
+            .attr('x2', d => scaleX(d.year))
+            .attr('y1', 0)
+            .attr('y2', height - 5)
+            .attr('stroke',color.textmedium)
+            .attr('stroke-width',1)
+            .style("stroke-dasharray", ("5, 5"))
+        annotationMerge.select("circle")
+            .attr("cx", d => scaleX(d.year) + d.offsetX)
+            .attr("cy", height)
+            .attr("r", 5)
+            .attr("fill", color.textmedium)
+            .style("filter", "drop-shadow(0px 3px 5px rgba(0,0,0,0.2))")
+            .style('cursor','pointer')
+            .on("mouseover", function(event, d) {
+                const eventsThatYear = grouped.get(d.year)
+                const html = `
+                <strong>${d.year}</strong><br/>Start of 
+                ${eventsThatYear.map(e => e.key).join("<br/>")}
+                `
+                tooltip.style("display", "block").html(html)
+            })
+            .on("mousemove", function(event) {
+                tooltip.style("left", (event.pageX + 10) + "px").style("top", (event.pageY - 20) + "px")
+            })
+            .on("mouseout", function() {
+                tooltip.style("display", "none")
+            })
+        annotation.exit().remove()
     }
     // FUNCTIONS
     const resetZoom = (e) => {
@@ -250,7 +298,7 @@ function GraphSection (props) {
         }
         if (d3.select("#zoomUI").nodes().length === 0) {
             let extent = d3.extent(selectedConcepts.map(d => d.data.code_counts).flat().map(d => d.calendar_year))
-            if (!extent[0] || !extent[1]) extent = d3.extent(rootLine.get(sidebarRoot.name).map(arr => arr[1]))
+            if (!extent[0] || !extent[1]) extent = d3.extent(rootLine, d => d[0])
             setExtent(extent)
             d3.select("#zoomUI").remove()
             zooming = false
@@ -261,7 +309,7 @@ function GraphSection (props) {
     function getGraph(rollup, width, height, ticks) {
         // x and y scales
         let maxRollup = d3.max(rollup, obj => Object.entries(obj).reduce((sum, [key, val]) => key !== 'year' ? sum + val : sum, 0))
-        let maxRootLine = rootLine.get(sidebarRoot.name) ? Math.max(...rootLine.get(sidebarRoot.name).map(arr => arr[2])) : 0
+        let maxRootLine = d3.max(rootLine, d => d[1])
         let maxY = rollup.length > 0 ? maxRollup > maxRootLine ? maxRollup : maxRootLine : maxRootLine
         let scaleX = d3.scaleLinear().domain(extent).range([0, width])
         let scaleY = d3.scaleLinear().domain([0, maxY*1.05]).range([height, 0])
@@ -278,7 +326,7 @@ function GraphSection (props) {
         // axis lines
         d3.select("#graph").select(".x")
             .attr("transform", "translate(0," + height + ")")
-            .call(d3.axisBottom(scaleX).tickSize(-height).ticks(ticks.two).tickFormat(d3.format("d")).tickSizeOuter(0))
+            .call(d3.axisBottom(scaleX).tickSize(-height).ticks(ticks.two).tickFormat(d3.format("d")).tickSizeOuter(0).tickPadding(8))
             // .lower()
         d3.select("#graph").select(".y")
             .call(d3.axisLeft(scaleY).ticks(5).tickSizeOuter(0))
@@ -339,6 +387,7 @@ function GraphSection (props) {
             })
             .on("mousemove", handleMouseMove)
             .on("dblclick", resetZoom)
+        drawAnnotations(scaleX,height)
         drawGraph(rollup, scaleX, scaleY)
     }
     // hover filter
@@ -587,7 +636,7 @@ function GraphSection (props) {
                         .classed('labels', true) 
                         .attr('id', d => 'label-' + d[0])
                         .style("cursor", "pointer")
-                        .style('background-color', d => d[0] === sidebarRoot.name || hovered === d[0] ? color.lightpurple : 'none')
+                        .style('background-color', d => sidebarRoot.name.includes(d[0]) || hovered === d[0] ? color.lightpurple : 'none')
                         .style('border-radius', '20px')
                         .style('margin-right', '2px')
                         .on('click', (e,d) => {
@@ -604,8 +653,8 @@ function GraphSection (props) {
                         .on("mouseout", function (e,d) {
                             const el = this
                             clearTimeout(el.__hoverTimeout__)
-                            d3.select("#label-text-" + d[0]).style("font-weight", d => d[0] === sidebarRoot.name ? 700 : 400)
-                            d3.select('#label-' + d[0]).style('background-color', d => d[0] === sidebarRoot.name ? color.lightpurple : 'none')
+                            d3.select("#label-text-" + d[0]).style("font-weight", d => sidebarRoot.name.includes(d[0]) ? 700 : 400)
+                            d3.select('#label-' + d[0]).style('background-color', d => sidebarRoot.name.includes(d[0]) ? color.lightpurple : 'none')
                             setHovered()
                         })
                         .style('transition','0.5s opacity')
@@ -669,7 +718,7 @@ function GraphSection (props) {
                     text.append('tspan')
                         .classed('label-text', true)
                         .attr("id", d => "label-text-" + d[0])
-                        .style("font-weight", d => d[0] === sidebarRoot.name || hovered === d[0] ? 700 : 400)
+                        .style("font-weight", d => sidebarRoot.name.includes(d[0]) || hovered === d[0] ? 700 : 400)
                         .html(d => d[1][0].data.concept.concept_name)
                         .style('pointer-events','none')
                     text.append('tspan')
@@ -689,7 +738,7 @@ function GraphSection (props) {
                         .style('pointer-events','none')
                 }, update => {
                     const labels = update
-                        .style('background-color', d => d[0] === sidebarRoot.name || hovered === d[0] ? color.lightpurple : 'white')
+                        .style('background-color', d => sidebarRoot.name.includes(d[0]) || hovered === d[0] ? color.lightpurple : 'white')
                         .on('click', (e,d) => {
                             if (!hoverLabelCircle) navigate(`/${d[0]}`)
                         })
@@ -704,8 +753,8 @@ function GraphSection (props) {
                         .on("mouseout", function (e,d) {
                             const el = this
                             clearTimeout(el.__hoverTimeout__)
-                            d3.select("#label-text-" + d[0]).style("font-weight", d => d[0] === sidebarRoot.name ? 700 : 400)
-                            d3.select('#label-' + d[0]).style('background-color', d => d[0] === sidebarRoot.name ? color.lightpurple : 'none')
+                            d3.select("#label-text-" + d[0]).style("font-weight", d => sidebarRoot.name.includes(d[0]) ? 700 : 400)
+                            d3.select('#label-' + d[0]).style('background-color', d => sidebarRoot.name.includes(d[0]) ? color.lightpurple : 'none')
                             setHovered()
                         })
                         .style('opacity', d => hovered && hovered !== d[0] ? 0.2 : 1)
@@ -757,7 +806,7 @@ function GraphSection (props) {
                         })
                     labels.select('.label-text')
                         .html(d => d[1][0].data.concept.concept_name)
-                        .style("font-weight", d => d[0] === sidebarRoot.name || hovered === d[0] ? 700 : 400)
+                        .style("font-weight", d => sidebarRoot.name.includes(d[0]) || hovered === d[0] ? 700 : 400)
                     labels.select('.label-vocab')
                         .html(d => d[1][0].data.concept.vocabulary_id)
                 },exit => exit.remove())    

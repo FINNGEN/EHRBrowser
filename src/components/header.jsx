@@ -24,11 +24,14 @@ function Header (props) {
     const allVocabularies = props.allVocabularies
     const searchFilter = props.searchFilter
     const setSearchFilter = props.setSearchFilter
+    const isConceptSet = props.isConceptSet
+    const setIsConceptSet = props.setIsConceptSet
+    const refresh = props.refresh
+    const setRefresh = props.setRefresh
     // const listIndexes = props.listIndexes
     const codes = conceptList.map(d => d.concept_id.toString())
     const names = conceptList.map(d => d.concept_name.toLowerCase())
     const [suggestions,setSuggestions] = useState([])
-    const [refresh,setRefresh] = useState(false)
     const [prevSearch,setPrevSearch] = useState()
     const [showFilter, setShowFilter] = useState(false)
     const navigate = useNavigate()
@@ -101,28 +104,37 @@ function Header (props) {
         setPrevSearch(inputRef.current.value)    
     }
 
-    // close suggestions / filter
     document.addEventListener('click', (e) => {
-        let input = document.getElementById('searchConcept')
+        let input = document.getElementById('input-container')
+        let inputs = document.querySelectorAll('.name-container')
+        // let labelXs = document.querySelectorAll('.search-x')
+        const clickedInsideInputs = Array.from(inputs).some(el => el.contains(e.target))
+        // const clickedLabelX = Array.from(labelXs).some(el => el.contains(e.target))
         let filter = document.getElementById('search-filter-container')
-        let icon = document.getElementById('filter-search')
-        if (!input.contains(e.target)) {
+        // let icon = document.getElementById('filter-search')
+        if (clickedInsideInputs) {
             d3.select('#searchConcept').style('height', '18px').style('border-radius', '20px') 
             d3.select('#suggestions-container').style('visibility','hidden')  
             setFilteredList(conceptList)
+        }
+        if (!input.contains(e.target) && !filter.contains(e.target)) {
+            d3.select('#searchConcept').style('height', '18px').style('border-radius', '20px') 
+            d3.select('#suggestions-container').style('visibility','hidden')  
+            setRefresh(true)
+            setShowFilter(false)
+            setFilteredList(conceptList)
         } 
-        if (!filter.contains(e.target) && !icon.contains(e.target)) setShowFilter(false)    
+        // if (!filter.contains(e.target) && !icon.contains(e.target)) setShowFilter(false)    
     })
 
     useEffect(() => {
         if (suggestions.length > 0) {
-            let count = suggestions.length  
-            d3.select('#searchConcept').style('height', (count*50+28)+'px').style('border-radius', '18px') 
-            d3.select('#suggestions-container').style('visibility','visible').style('height', (count*50)+'px')
-        } else {
-            d3.select('#searchConcept').style('height', '18px').style('border-radius', '20px') 
-            d3.select('#suggestions-container').style('visibility','hidden')     
+            let vocabFiltered = filteredList.filter(d => (searchFilter === undefined || searchFilter.length === 0) || searchFilter.includes(d.vocabulary_id))
+            setSuggestions(vocabFiltered)
         }
+    },[searchFilter])
+
+    useEffect(() => {
         d3.select('#suggestions-container').selectAll('.suggestion').data(suggestions, d => d.concept_id)
             .join(enter => {
                 const div = enter.append('div')
@@ -130,34 +142,90 @@ function Header (props) {
                     .attr('id', d => 'suggestion-'+d.concept_id)
                     .on('mouseover', (e,d) => d3.select('#suggestion-'+d.concept_id).style('font-weight', 700).style('background-color','#ffffff20').style('border-top','1px solid #ffffff20'))
                     .on('mouseout', (e,d) => d3.select('#suggestion-'+d.concept_id).style('font-weight', 400).style('background-color','transparent').style('border-top','none'))
+                const nameContaner = div.append('div')
+                    .classed('name-container',true)
+                    .style('width','80%')
                     .on('click', (e,d) => {
+                        // if (isConceptSet) setIsConceptSet(false)
                         setRefresh(true)
-                        if (d.concept_id === root) reset()
+                        setIsConceptSet(true)
+                        // if (!isConceptSet && root !== d.concept_id.toString()) setIsConceptSet(true)
+                        if (root && root !== d.concept_id.toString() && !root.split(',').map(Number).includes(d.concept_id)) navigate(`/${root+','+d.concept_id}`)
                         else navigate(`/${d.concept_id}`)
+                        // if (d.concept_id.toString() === root) reset()
+                        // else navigate(`/${d.concept_id}`)
                     })
-                const name = div.append('p')
+                const name = nameContaner.append('p')
                     .style('cursor','pointer')
                     .style('padding-top','10px')
                 name.append('span')
-                        .classed('suggestion-name',true)
-                        .style('font-size','14px')
-                        .html(d => d.concept_name)
+                    .classed('suggestion-name',true)
+                    .style('font-size','14px')
+                    .html(d => d.concept_name)
                 name.append('span')
-                        .classed('suggestion-vocab',true)
-                        .style('margin-left','5px')
-                        .style('font-size','12px')
-                        .style('color', '#ffffff50')
-                        .html(d => d.vocabulary_id)   
-                const codes = div.append('p')
+                    .classed('suggestion-vocab',true)
+                    .style('margin-left','5px')
+                    .style('font-size','12px')
+                    .style('color', '#ffffff50')
+                    .html(d => d.vocabulary_id)   
+                const codes = nameContaner.append('p')
                     .style('padding-top','2px')
                     .style('padding-bottom','10px')
                 codes.append('span')
-                        .classed('suggestion-code',true)
-                        .html(d => d.concept_code + ' | ')  
+                    .classed('suggestion-code',true)
+                    .html(d => d.concept_code + ' | ')  
                 codes.append('span')
-                        .classed('suggestion-id',true)
-                        // .style('margin-left','5px')
-                        .html(d => d.concept_id)  
+                    .classed('suggestion-id',true)
+                    // .style('margin-left','5px')
+                    .html(d => d.concept_id)  
+                const btnContainer = div.append('div')
+                    .style('display','flex')
+                    .style('justify-content','flex-end')
+                    .style('width','100px')
+                    .style('margin-right','15px')
+                const btn = btnContainer.append('div')
+                    .classed('cs-btn-container',true)
+                    .attr('id',d => 'cs-btn-container-'+d.concept_id)
+                    .style('width', '18px')
+                    .style('height', '18px')
+                    .style('cursor','pointer')   
+                    .style('border-radius','50%') 
+                    .style('border','1px solid #ffffff50')
+                    .style('background-color','transparent')
+                    .style('display', d => isConceptSet && root.split(',').map(Number).includes(d.concept_id) ? 'none' : 'flex')
+                    .style('align-items','center')
+                    .style('justify-content','center')
+                    .on('mouseover',(e,d)=>{
+                        d3.select('#cs-btn-container-'+d.concept_id).style('background-color','white')
+                        d3.select('#cs-btn-i-'+d.concept_id).style('color',color.text)
+                        d3.select('#cs-btn-label-'+d.concept_id).style('font-weight',700)
+                    })
+                    .on('mouseout',(e,d)=>{
+                        d3.select('#cs-btn-container-'+d.concept_id).style('background-color','transparent')
+                        d3.select('#cs-btn-i-'+d.concept_id).style('color','white')
+                        d3.select('#cs-btn-label-'+d.concept_id).style('font-weight',400)
+                    })
+                    .on('click',(e,d)=>{
+                        setRefresh(false)
+                        setIsConceptSet(true)
+                        // if (!isConceptSet && root !== d.concept_id.toString()) setIsConceptSet(true)
+                        if (root && root !== d.concept_id.toString() && !root.split(',').map(Number).includes(d.concept_id)) navigate(`/${root+','+d.concept_id}`)
+                        else navigate(`/${d.concept_id}`)
+                    })
+                btn.append('i')
+                    .classed('fa-solid fa-plus fa-xs',true)
+                    .attr('id',d => 'cs-btn-i-'+d.concept_id)
+                    .style('color','white')
+                btnContainer.append('p')    
+                    .classed('cs-btn-label',true)
+                    .attr('id',d => 'cs-btn-label-'+d.concept_id)
+                    .html(d => root.split(',').map(Number).includes(d.concept_id) ? 'Added' : 'Concept set')
+                    .style('margin-top','2px')
+                    .style('font-style', d => root.split(',').map(Number).includes(d.concept_id) ? 'italic' : 'normal')
+                    .style("margin-left",'8px')
+                    .style('color','white')
+                    .style('padding','0')
+                    .style('font-weight',400)
             },update => {
                 update.selectAll('.suggestion-name')
                     .html(d => d.concept_name)  
@@ -167,7 +235,51 @@ function Header (props) {
                     .html(d => d.concept_code + ' | ')  
                 update.selectAll('.suggestion-id')
                     .html(d => d.concept_id)   
+                update.selectAll('.name-container') 
+                    .on('click', (e,d) => {
+                        // if (isConceptSet) setIsConceptSet(false)
+                        setRefresh(true)
+                        setIsConceptSet(true)
+                        // if (!isConceptSet && root !== d.concept_id.toString()) setIsConceptSet(true)
+                        if (root && root !== d.concept_id.toString() && !root.split(',').map(Number).includes(d.concept_id)) navigate(`/${root+','+d.concept_id}`)
+                        else navigate(`/${d.concept_id}`)
+                        // if (d.concept_id.toString() === root) reset()
+                        // else navigate(`/${d.concept_id}`)
+                    })
+                update.selectAll('.cs-btn-container')
+                    .style('display', d => isConceptSet && root.split(',').map(Number).includes(d.concept_id) ? 'none' : 'flex')
+                    .on('mouseover',(e,d)=>{
+                        d3.select('#cs-btn-container-'+d.concept_id).style('background-color','white')
+                        d3.select('#cs-btn-i-'+d.concept_id).style('color',color.text)
+                        d3.select('#cs-btn-label-'+d.concept_id).style('font-weight',700)
+                    })
+                    .on('mouseout',(e,d)=>{
+                        d3.select('#cs-btn-container-'+d.concept_id).style('background-color','transparent')
+                        d3.select('#cs-btn-i-'+d.concept_id).style('color','white')
+                        d3.select('#cs-btn-label-'+d.concept_id).style('font-weight',400)
+                    })
+                    .on('click',(e,d)=>{
+                        setRefresh(false)
+                        if (!isConceptSet && root !== d.concept_id.toString()) setIsConceptSet(true)
+                        if (root && root !== d.concept_id.toString() && !root.split(',').map(Number).includes(d.concept_id)) navigate(`/${root+','+d.concept_id}`)
+                        else navigate(`/${d.concept_id}`)
+                    })
+                update.selectAll('.cs-btn-label')
+                    .html(d => root.split(',').map(Number).includes(d.concept_id) ? 'Added' : 'Concept set')
+                    .style('font-style', d => root.split(',').map(Number).includes(d.concept_id) ? 'italic' : 'normal')
             },exit => exit.remove())  
+    }, [suggestions,root])
+
+    useEffect(()=>{
+        if (suggestions.length > 0) {
+            let count = suggestions.length  
+            d3.select('#searchConcept').style('height', (count*50+28)+'px').style('border-radius', '18px') 
+            d3.select('#suggestions-container').style('visibility','visible').style('height', (count*50)+'px')
+        } 
+        else {
+            d3.select('#searchConcept').style('height', '18px').style('border-radius', '20px') 
+            d3.select('#suggestions-container').style('visibility','hidden')     
+        }
     }, [suggestions])
     
     useEffect(() => {
@@ -179,8 +291,8 @@ function Header (props) {
 
     useEffect(() => {
         inputRef.current.value = ''
-        setRefresh(true)
-    }, [rootData])
+        // setRefresh(true)
+    }, [refresh])
 
     useEffect(() => {
         d3.select('#search-filters').selectAll('.vocab').data(allVocabularies, d => d)
@@ -220,7 +332,7 @@ function Header (props) {
                 // .attr('id', d => 'vocab-'+d.replace(/\s+/g, ""))
                 .style('width','100%')
                 .style('font-weight', d => searchFilter.includes(d) ? 700 : 400)
-                .style('color', d => searchFilter.includes(d) ? 'white' : '#ffffff60')
+                .style('color', d => searchFilter.includes(d) ? 'white' : '#ffffff80')
                 .html(d => d)
         },update =>{
             update.select('.vocab-check-box')
@@ -237,7 +349,7 @@ function Header (props) {
                 .style('display', d => searchFilter.includes(d) ? 'block' : 'none')
             update.select('.vocab-p')
                 .style('font-weight', d => searchFilter.includes(d) ? 700 : 400)
-                .style('color', d => searchFilter.includes(d) ? 'white' : '#ffffff60')
+                .style('color', d => searchFilter.includes(d) ? 'white' : '#ffffff80')
                 .html(d => d)
         })
     },[allVocabularies,searchFilter])
@@ -264,29 +376,27 @@ function Header (props) {
                         }}
                         type="text"
                         id="searchConcept"
-                        placeholder="Search concept"
+                        placeholder= {!refresh || !root ? "Search concept" : ''}
                         onClick = {() => setRefresh(false)}
                         onChange = {handleChange}
                         onKeyDown = {(e) => {if (e.key === 'Enter') e.preventDefault()}}
                     />
-                    <div id = "search-root" style = {{pointerEvents: 'none',display: rootData.concepts?.length > 0 && refresh && rootData.concepts.filter(d => d.concept_id === parseInt(root))[0] ? 'flex' : 'none'}}>
-                        <p>{rootData.concepts?.length > 0 ? rootData.concepts.filter(d => d.concept_id === parseInt(root))[0] ? rootData.concepts.filter(d => d.concept_id === parseInt(root))[0].concept_name.substring(0, 60) + (rootData.concepts.filter(d => d.concept_id === parseInt(root))[0].concept_name.length > 60 ? '...' : '') : null : null}
-                            <span style = {{marginLeft:4,fontSize:'10px',fontWeight:700,color:'#ffffff'}}>{rootData.concepts?.length > 0 ? rootData.concepts.filter(d => d.concept_id === parseInt(root))[0] ? rootData.concepts.filter(d => d.concept_id === parseInt(root))[0].concept_code : null : null}</span>
-                            <span style = {{marginLeft:4,fontSize:'10px',fontWeight:400,color:'#ffffff80'}}>{rootData.concepts?.length > 0 ? rootData.concepts.filter(d => d.concept_id === parseInt(root))[0] ? rootData.concepts.filter(d => d.concept_id === parseInt(root))[0].vocabulary_id : null : null}</span></p>
-                    </div>
-                    <FontAwesomeIcon onClick = {()=>handleClick()} className = "fa-lg fal fa-search" id = "searchBtn" icon={faSearch}></FontAwesomeIcon>
+                    <div id = "search-root-container" style = {{display: refresh ? 'flex' : 'none'}}></div>
+                    <FontAwesomeIcon onClick = {()=>handleClick()} className = "fa-xl fal fa-search" id = "searchBtn" icon={faSearch}></FontAwesomeIcon>
                     <div style = {{top:32}} className="dropdown-content" id = "suggestions-container"></div>
-                    <FontAwesomeIcon onClick = {()=>setShowFilter(!showFilter)} onMouseOver={()=>d3.select('#filter-search').style('opacity',1)} onMouseOut={()=>d3.select('#filter-search').style('opacity',()=>searchFilter.length > 0 || showFilter ? 1 : 0.2)} style = {{opacity: searchFilter.length > 0 || showFilter ? 1 : 0.2, display: refresh ? 'none' : 'block'}} className = "fa-solid fa-filter" id = "filter-search" icon={faFilter}></FontAwesomeIcon>
+                    <div className='search-filter-btn' onClick = {()=>{navigate(``)}} id = "clear-concept-set" style = {{display:isConceptSet && !refresh ? 'block' : 'none'}}>Clear set</div>
+                    <div onClick = {()=>setShowFilter(!showFilter)} onMouseOver={()=>d3.select('#filter-search').style('opacity',1)} onMouseOut={()=>d3.select('#filter-search').style('opacity',()=>searchFilter.length > 0 || showFilter ? 1 : 0.5)} style = {{opacity: searchFilter.length > 0 || showFilter ? 1 : 0.5, display: refresh ? 'none' : 'block'}} id = "filter-search">Filter</div>
                 </div>    
             </div>  
-            <div id = "search-filter-container" style = {{display:showFilter ? 'flex' : 'none', flexDirection:'column',alignItems:'flex-start',justifyContent:'center'}}>
-                <div style = {{display:'flex',alignItems:'center'}}>
+            <div id = "search-filter-container" style = {{display:showFilter ? 'flex' : 'none', flexDirection:'column',alignItems:'flex-start',justifyContent:'center',zIndex:3000}}>
+                <div style = {{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                     <p style = {{color:'white',marginRight:10,fontWeight:400}}>Vocabulary filter</p>
-                    <FontAwesomeIcon onClick = {() => setSearchFilter([])} style = {{cursor:'pointer',color:'white',display: searchFilter.length > 0 ? 'block' : 'none'}} className = "fa-solid fa-xs" icon={faX} />    
+                    <div className = "search-filter-btn" onClick = {() => setSearchFilter([])} style = {{display: searchFilter.length > 0 ? 'block' : 'none'}}>Clear</div> 
                 </div>
                 <div style = {{display:'flex',flexWrap:'wrap',maxWidth:'100%'}} id = "search-filters"></div>
+                <div className = "search-filter-btn" onClick = {() => setShowFilter(false)} style = {{fontWeight: searchFilter.length > 0 ? 700 : 400,backgroundColor:searchFilter.length > 0 ? 'white' : 'transparent',color:searchFilter.length > 0 ? color.darkpurple : 'white',alignSelf:'flex-end'}}>Confirm</div>
             </div> 
-            <div id = "search-info" style = {{display: rootData.stratified_code_counts?.length > 0 ? 'flex' : 'none'}}>
+            <div id = "search-info" style = {{display: root.split(',').map(Number).length === 1 ? rootData.stratified_code_counts?.length > 0 ? 'flex' : 'none' : 'none'}}>
                 <div className = "search-info-line"></div>
                 <div><span style = {{opacity:0.5,fontWeight:400,marginRight:8}}>Record Counts:</span>{rootData.stratified_code_counts?.length > 0 ? getCounts(rootData.stratified_code_counts.filter(d => d.concept_id === parseInt(root)),"node_record_counts") : null}</div>
                 <div className = "search-info-line"></div>
