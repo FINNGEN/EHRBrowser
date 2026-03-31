@@ -71,17 +71,33 @@ The easies way to create this in on run time durint the first run, see Run below
 
 # Build
 
-Build the Docker image.
+Build the Docker image :
 ```
-docker build -t ehr_browser .
+docker build \
+ --secret id=build_github_pat,src=GITHUBPAT.txt \
+ --build-arg COMMIT_SHA=$(git rev-parse --short HEAD) \
+ --build-arg CACHE_BUST=$(date +%s) \
+ -t ehr_browser .
 ```
 
 # Run
+
+## Run in demo enviroment 
+
+Demo environment runs with demo database with few codes available and counts already computed.
+This table already has the necessary data pre calculated.
+
+```
+docker run --rm -p 8563:8563 -p 8564:8564  ehr_browser  
+```
+
+## Run in build environmet
+
 Run the Docker container.
 
 If it is the first time running, set the flag to TRUE to rebuild the counts table.
 ```
-docker run --rm -p 8563:8563 -p 8564:8564 -e REBUILD_COUNTS_TABLE=TRUE ehr_browser
+docker run --rm -p 8563:8563 -p 8564:8564 -e ROMOPAPI_DATABASE=AtlasDevelopment -e REBUILD_COUNTS_TABLE=TRUE ehr_browser
 ```
 
 The rest of the times set the flag to FALSE.
