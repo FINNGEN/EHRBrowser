@@ -1,8 +1,7 @@
 FROM --platform=linux/amd64  rocker/r-ver:4.4.1
 RUN /rocker_scripts/setup_R.sh https://packagemanager.posit.co/cran/__linux__/jammy/2025-06-12
 
-# install OS dependencies including java, python 3, node.js, and nginx
-RUN apt-get update && apt-get install -y openjdk-8-jdk liblzma-dev libbz2-dev libncurses5-dev curl python3-dev python3.venv git pandoc nginx\
+RUN apt-get update && apt-get install -y openjdk-8-jdk liblzma-dev libbz2-dev libncurses5-dev curl python3-dev python3.venv git pandoc nginx tini\
     # rjava
     libssl-dev libcurl4-openssl-dev  libpcre2-dev libicu-dev \
     # xml2

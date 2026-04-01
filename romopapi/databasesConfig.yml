@@ -13,11 +13,11 @@ BQ5K:
           bigint: integer64
       tempEmulationSchema: atlas-development-270609.sandbox
     cdm:
-        cdmDatabaseSchema: atlas-development-270609.finngen_omop_r13_v3_5k
-        vocabularyDatabaseSchema: atlas-development-270609.finngen_omop_r13_v3_5k
-        resultsDatabaseSchema: atlas-development-270609.finngen_omop_result_r13_v3_5k
+        cdmDatabaseSchema: atlas-development-270609.finngen_omop_dev_5k
+        vocabularyDatabaseSchema: atlas-development-270609.finngen_omop_dev_5k
+        resultsDatabaseSchema: atlas-development-270609.finngen_omop_results_dev_5k
 # AtlasDevelopment-full
-BQ5:
+BQ:
   cohortTableHandler:
     database:
       databaseId: BQ
@@ -32,10 +32,10 @@ BQ5:
           bigint: integer64
       tempEmulationSchema: atlas-development-270609.sandbox
     cdm:
-        cdmDatabaseSchema: atlas-development-270609.finngen_omop_r13_v3
-        vocabularyDatabaseSchema: atlas-development-270609.finngen_omop_r13_v3
-        resultsDatabaseSchema: atlas-development-270609.finngen_omop_result_r13_v3
-DF13:
+        cdmDatabaseSchema: atlas-development-270609.finngen_omop_dev
+        vocabularyDatabaseSchema: atlas-development-270609.finngen_omop_dev
+        resultsDatabaseSchema: atlas-development-270609.finngen_omop_results_dev
+LATEST:
   cohortTableHandler:
     database:
       databaseId: DF13
@@ -53,7 +53,7 @@ DF13:
       cdmDatabaseSchema: finngen-production-library.finngen_omop_r13_v3
       vocabularyDatabaseSchema: finngen-production-library.finngen_omop_r13_v3
       resultsDatabaseSchema: finngen-production-library.finngen_omop_result_r13_v3
-DF13test:
+DEV:
   cohortTableHandler:
     database:
       databaseId: DEV

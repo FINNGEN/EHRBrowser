@@ -4,8 +4,8 @@ host <- "0.0.0.0"
 port <- 8564
 
 # check is one of the following databases
-if (!(database %in% c("OnlyCounts-FinnGen", "AtlasDevelopment-BQ5k", "AtlasDevelopment-BQ500k", "Sandbox-DF13", "Sandbox-DF13test"))) {
-    stop("ROMOPAPI_DATABASE must be one of: OnlyCounts-FinnGen, AtlasDevelopment-BQ5K, AtlasDevelopment-BQ500k, Sandbox-DF13, Sandbox-DF13test")
+if (!(database %in% c("OnlyCounts-FinnGen", "AtlasDevelopment-BQ5K", "AtlasDevelopment-BQ", "Sandbox-DF13", "Sandbox-DF13test"))) {
+    stop("ROMOPAPI_DATABASE must be one of: OnlyCounts-FinnGen, AtlasDevelopment-BQ5K, AtlasDevelopment-BQ, Sandbox-DF13, Sandbox-DF13test")
 }
 
 # Create the cohortTableHandlerConfig based on the database
@@ -26,10 +26,10 @@ if (database |> stringr::str_detect("AtlasDevelopment")) {
 
     databasesConfig <- yaml::read_yaml("/romopapi/databasesConfig.yml")
 
-    if (database == "AtlasDevelopment-BQ5k") {
-        cohortTableHandlerConfig <- databasesConfig$BQ5k$cohortTableHandler
-    } else if (database == "AtlasDevelopment-BQ500k") {
-        cohortTableHandlerConfig <- databasesConfig$BQ500k$cohortTableHandler
+    if (database == "AtlasDevelopment-BQ5K") {
+        cohortTableHandlerConfig <- databasesConfig$BQ5K$cohortTableHandler
+    } else if (database == "AtlasDevelopment-BQ") {
+        cohortTableHandlerConfig <- databasesConfig$BQ$cohortTableHandler
     }
 }
 
