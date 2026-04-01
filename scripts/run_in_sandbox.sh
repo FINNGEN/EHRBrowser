@@ -23,11 +23,11 @@ ENVIRONMENT="production"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --tag)
+        -t|--tag)
             TAG="$2"
             shift 2
             ;;
-        --rebuild_count_table)
+        -r|--rebuild_count_table)
             if [[ "$2" != "TRUE" && "$2" != "FALSE" ]]; then
                 echo "Error: --rebuild_count_table must be TRUE or FALSE"
                 exit 1
@@ -35,11 +35,11 @@ while [[ $# -gt 0 ]]; do
             REBUILD_COUNTS_TABLE="$2"
             shift 2
             ;;
-        --database)
+        -d|--database)
             DATABASE="$2"
             shift 2
             ;;
-        --environment)
+        -e|--environment)
             if [[ "$2" != "preview" && "$2" != "production" ]]; then
                 echo "Error: --environment must be preview or production"
                 exit 1
@@ -49,7 +49,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--tag TAG] [--rebuild_count_table TRUE|FALSE] [--database DATABASE] [--environment preview|production]"
+            echo "Usage: $0 [-t|--tag TAG] [-r|--rebuild_count_table TRUE|FALSE] [-d|--database DATABASE] [-e|--environment preview|production]"
             exit 1
             ;;
     esac
@@ -65,10 +65,10 @@ if [ "$ENVIRONMENT" = "preview" ]; then
     fi
     # Set default database to 'DEV' for preview if not explicitly provided
     if [ -z "$DATABASE" ]; then
-        DATABASE="DEV"
+        DATABASE="Sandbox-DEV"
     fi
-    EXTERNAL_PORT_UI=8563
-    EXTERNAL_PORT_API=8564
+    EXTERNAL_PORT_UI=18563
+    EXTERNAL_PORT_API=18564
     CONTAINER_NAME="ehr_browser_preview"
 else
     # Set default tag to 'latest' for production if not explicitly provided
@@ -77,7 +77,7 @@ else
     fi
     # Set default database to 'LATEST' for production if not explicitly provided
     if [ -z "$DATABASE" ]; then
-        DATABASE="LATEST"
+        DATABASE="Sandbox-LATEST"
     fi
     EXTERNAL_PORT_UI=8563
     EXTERNAL_PORT_API=8564
@@ -98,7 +98,13 @@ fi
 #
 docker pull eu.gcr.io/finngen-sandbox-v3-containers/ehr_browser:${TAG}
 
-docker run --rm -d -p ${EXTERNAL_PORT_UI}:8563 -p ${EXTERNAL_PORT_API}:8564 \
+# Run detached for production, foreground for preview
+DETACHED_FLAG=""
+if [ "$ENVIRONMENT" = "production" ]; then
+    DETACHED_FLAG="-d"
+fi
+
+docker run --rm $DETACHED_FLAG -p ${EXTERNAL_PORT_UI}:8563 \
     --name $CONTAINER_NAME \
     -e ROMOPAPI_DATABASE="$DATABASE" \
     -e SANDBOX_PROJECT="$SANDBOX_PROJECT" \
@@ -111,7 +117,7 @@ docker run --rm -d -p ${EXTERNAL_PORT_UI}:8563 -p ${EXTERNAL_PORT_API}:8564 \
 #
 echo "Waiting for EHR Browser to be ready, may take few seconds"
 counter=0
-until [ "$(curl -s -o /dev/null -I -w '%{http_code}' "http://localhost:${EXTERNAL_PORT_API}/__docs__/")" -eq 200 ] && [ "$(curl -s -o /dev/null -I -w '%{http_code}' "http://localhost:${EXTERNAL_PORT_UI}")" -eq 200 ]
+until [ "$(curl -s -o /dev/null -I -w '%{http_code}' "http://localhost:${EXTERNAL_PORT_UI}")" -eq 200 ]
 do
     sleep 1
     ((counter++))

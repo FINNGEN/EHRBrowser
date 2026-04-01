@@ -11,6 +11,7 @@ import po from './po.js';
 import { UMAP } from 'umap-js';
 
 function App() {
+  const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || '/api';
   const color = {
     darkpurple: '#170540',
     mediumpurple: '#765ab6',
@@ -97,7 +98,7 @@ function App() {
   // let timer = null
 
   async function sendFeedback(text) {
-    const response = await fetch('http://127.0.0.1:8564/sendFeedback', {
+    const response = await fetch(`${API_BASE_URL}/sendFeedback`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -520,12 +521,12 @@ function App() {
     const params = new URLSearchParams(window.location.search)
     setLoaded(true)
     loadNews()
-    fetch(`http://127.0.0.1:8564/getAPIInfo`)
+    fetch(`${API_BASE_URL}/getAPIInfo`)
       .then(res=> res.json())
       .then(data=>{
         setApiInfo(data)
       })
-    fetch(`http://127.0.0.1:8564/getListOfConcepts`)
+    fetch(`${API_BASE_URL}/getListOfConcepts`)
       .then(res=> res.json())
       .then(data=>{
         // console.log("concept list",data)
@@ -569,7 +570,7 @@ function App() {
       setRootArray(array)
       Promise.all(
         array.map(r =>
-          fetch(`http://127.0.0.1:8564/getCodeCounts?conceptId=${r}`)
+          fetch(`${API_BASE_URL}/getCodeCounts?conceptId=${r}`)
             .then(res => {
               if (!res.ok) {
                 throw new Error(`HTTP ${res.status} for conceptId ${r}`)

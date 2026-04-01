@@ -53,6 +53,10 @@ WORKDIR /app
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/sites-available/default
 
+# Copy startup script
+COPY scripts/startup.sh /startup.sh
+RUN chmod +x /startup.sh
+
 # Install the drivers for the database, Uncomment to install the drivers for your database
 # ENV DATABASECONNECTOR_JAR_FOLDER=/drivers
 # RUN Rscript -e 'DatabaseConnector::downloadJdbcDrivers(dbms = "postgresql")'
@@ -82,4 +86,4 @@ RUN npm run build
 # Run both the APIb & Rscript -e \"source('/romopapi/runOmopApi.R')\""] 
 # CMD ["sh", "-c", "Rscript -e \"source('/romopapi/runOmopApi.R')\" & python3 -m http.server 8563 --directory build"]
 # Run both the R API service and nginx reverse proxy
-CMD ["sh", "-c", "Rscript -e \"source('/romopapi/runOmopApi.R')\" & nginx -g 'daemon off;'"]
+CMD ["/startup.sh"]
