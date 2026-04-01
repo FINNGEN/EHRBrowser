@@ -21,6 +21,7 @@ function Header (props) {
     const apiInfo = props.apiInfo
     const searchIsLoaded = props.searchIsLoaded
     const version = props.version
+    const commitSha = process.env.REACT_APP_COMMIT_SHA || 'unknown'
     const allVocabularies = props.allVocabularies
     const searchFilter = props.searchFilter
     const setSearchFilter = props.setSearchFilter
@@ -420,6 +421,7 @@ function Header (props) {
             </div> 
             <div id = "api-popup" style = {{display:'none'}}>
                 <p><span className = "api-popup-title">app version:</span>{version}</p>
+                <p><span className = "api-popup-title">commit sha:</span>{commitSha}</p>
                 <p><span className = "api-popup-title">cdm source abbreviation:</span>{apiInfo?.cdm_source_abbreviation}</p>
                 <p><span className = "api-popup-title">cdm source name:</span>{apiInfo?.cdm_source_name}</p>
                 <p><span className = "api-popup-title">romop api version:</span>{apiInfo?.romop_api_version}</p>
