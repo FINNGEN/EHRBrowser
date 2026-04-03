@@ -40,6 +40,8 @@ function GraphSection (props) {
     const colorList = props.colorList
     const annotations = props.annotations
     const treeSelections = props.treeSelections
+    const showRootLine = props.showRootLine
+    const setShowRootLine = props.setShowRootLine
     const graphContainerRef = useRef()
     const margin = 20
     let hoverLabelCircle = false
@@ -219,7 +221,8 @@ function GraphSection (props) {
             .keys(conceptNames)
             (rollup)  
         updateStack(stackedData)  
-        updateRootLine()
+        if (showRootLine) updateRootLine()
+        else d3.select('#graph-line').selectAll('.lines').remove()
         d3.select("#graph-viz").raise()
     }
     // draw annotations
@@ -230,7 +233,7 @@ function GraphSection (props) {
             .style("background", "white")
             .style("padding", "6px 10px")
             .style("filter", "drop-shadow(0px 3px 5px rgba(0,0,0,0.2))")
-            .style("border-radius", "10px")
+            .style("border-radius", "12px")
             .style("font-size", "12px")
             .style("display", "none")
         const filteredAnnotations = annotations.filter(a => a.year >= extent[0] && a.year <= extent[1])
@@ -310,7 +313,7 @@ function GraphSection (props) {
         // x and y scales
         let maxRollup = d3.max(rollup, obj => Object.entries(obj).reduce((sum, [key, val]) => key !== 'year' ? sum + val : sum, 0))
         let maxRootLine = d3.max(rootLine, d => d[1])
-        let maxY = rollup.length > 0 ? maxRollup > maxRootLine ? maxRollup : maxRootLine : maxRootLine
+        let maxY = rollup.length > 0 ? showRootLine ? maxRollup > maxRootLine ? maxRollup : maxRootLine : maxRollup : maxRootLine
         let scaleX = d3.scaleLinear().domain(extent).range([0, width])
         let scaleY = d3.scaleLinear().domain([0, maxY*1.05]).range([height, 0])
         // grid lines
@@ -624,7 +627,7 @@ function GraphSection (props) {
                 .attr("height", height)
             if (rootLine) getGraph(stackData, width, height, ticks)  
         }
-    }, [stackData, rootLine, extent, graphSectionWidth, conceptNames.length < 50 ? hovered : null])
+    }, [stackData, rootLine, extent, graphSectionWidth, showRootLine, conceptNames.length < 50 ? hovered : null])
 
     // update labels
     useEffect(()=> {
@@ -895,6 +898,7 @@ function GraphSection (props) {
                         <div id = "graph-labels"></div>  
                     </div> 
                     <div ref={graphContainerRef} id = "graph-container" style = {{position:'relative'}}>
+                        <div id = "rootline-btn" style = {{backgroundColor: showRootLine ? color.text : 'transparent',color: showRootLine ? 'white' : color.text,fontWeight: showRootLine ? 700 : 400, border: showRootLine ? '1px solid var(--text)' : '1px solid var(--textlightest)'}} onClick = {() => setShowRootLine(!showRootLine)}>Root DRC</div>
                         <div id = "reset-zoom" style = {{display: zoomed ? 'block' : 'none'}} onClick = {() => resetZoom()}>Reset</div>
                         <svg style = {{display:'block'}} id = "graph">
                             <g className = "brush"></g>

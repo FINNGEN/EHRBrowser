@@ -79,7 +79,7 @@
         // TREE AND LIST FUNCTIONS        
         function getYPosition(source, axis, cy, node) {
             const mappings = nodes.filter(n => n.name === source.name)[0].mappings
-            const direction = mappings.filter(d => d === node)[0].direction
+            const direction = mappings.filter(d => d.name === node.name)[0].direction
             const generation = mappings.filter(d => d.direction === direction).sort((a,b) => b.total_counts - a.total_counts)
             const index = generation.map(d => d.name).indexOf(node.name) 
             let gap = 0
@@ -188,7 +188,7 @@
                     setExcludeList(eList)
                 }
             }
-            const newInclusions = sidebarRoot.name.map(r => nodes.map(n => n.name).includes(r) ? getInclusions(r,eList,dFilter,nodes.find(n => n.name === r).descendants,nodes) : getInclusions(r,eList,dFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)),nodes)).flat().filter((e,n,l) => l.indexOf(e) === n)
+            const newInclusions = sidebarRoot.name.map(r => nodes.map(n => n.name).includes(r) ? getInclusions(r,eList,dFilter,nodes.find(n => n.name === r).descendants) : getInclusions(r,eList,dFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)))).flat().filter((e,n,l) => l.indexOf(e) === n)
                 .map(i => treeSelections.includes('mappings') ? fullTree.nodes.find(n => n.name === i).mappings.map(m => m.name) : i).flat()   
                 .filter(i => sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts !== 0)
             updateConcepts(newInclusions,nodes,[],[])
@@ -471,8 +471,8 @@
                             line.append('path')
                                 .classed('line-path',true)
                                 .attr('fill','none')
-                                .attr('stroke', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? color.textmedium : nodes.length > 130 ? color.background : nodes.find(n => n.name === d.source.name).levels === "-1" ? color.darkbackground : color.textlightest)
-                                .attr('stroke-width', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? 1.5 : 1)
+                                .attr('stroke', d => (inclusions.includes(d.source.name) || d.source.mappings.map(m => m.name).some(m => inclusions.includes(m))) && (inclusions.includes(d.target.name) || d.target.mappings.map(m => m.name).some(m => inclusions.includes(m))) ? color.textmedium : nodes.length > 130 ? color.background : nodes.find(n => n.name === d.source.name).levels === "-1" ? color.darkbackground : color.textlightest)
+                                .attr('stroke-width', d => (inclusions.includes(d.source.name) || d.source.mappings.map(m => m.name).some(m => inclusions.includes(m))) && (inclusions.includes(d.target.name) || d.target.mappings.map(m => m.name).some(m => inclusions.includes(m))) ? 1.5 : 1)
                                 .attr("d", d => {
                                     let sourceX = d.source.x
                                     let sourceY = d.source.distance > d.target.distance ? cy + (genHeight[d.source.distance]) - scaleRadius(Math.sqrt(d.source.total_counts)) - 43 : cy + (genHeight[d.source.distance]) + scaleRadius(Math.sqrt(d.source.total_counts)) + 18
@@ -492,7 +492,7 @@
                                 })
                             line.append('path')
                                 .classed('tree-arrow', true)
-                                .attr('fill', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? color.textmedium : color.textlightest)
+                                .attr('fill', d => (inclusions.includes(d.source.name) || d.source.mappings.map(m => m.name).some(m => inclusions.includes(m))) && (inclusions.includes(d.target.name) || d.target.mappings.map(m => m.name).some(m => inclusions.includes(m))) ? color.textmedium : color.textlightest)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x = d.target.x
@@ -505,8 +505,8 @@
                                 .transition()
                                 .style('opacity', d => hovered ? 0.2 : 1)
                             update.select('.line-path')
-                                .attr('stroke', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? color.textmedium : nodes.length > 130 ? color.background : nodes.find(n => n.name === d.source.name).levels === "-1" ? color.darkbackground : color.textlightest)
-                                .attr('stroke-width', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? 1.5 : 1)
+                                .attr('stroke', d => (inclusions.includes(d.source.name) || d.source.mappings.map(m => m.name).some(m => inclusions.includes(m))) && (inclusions.includes(d.target.name) || d.target.mappings.map(m => m.name).some(m => inclusions.includes(m))) ? color.textmedium : nodes.length > 130 ? color.background : nodes.find(n => n.name === d.source.name).levels === "-1" ? color.darkbackground : color.textlightest)
+                                .attr('stroke-width', d => (inclusions.includes(d.source.name) || d.source.mappings.map(m => m.name).some(m => inclusions.includes(m))) && (inclusions.includes(d.target.name) || d.target.mappings.map(m => m.name).some(m => inclusions.includes(m))) ? 1.5 : 1)
                                 .attr("d", d => {
                                     let sourceX = d.source.x
                                     let sourceY = d.source.distance > d.target.distance ? cy + (genHeight[d.source.distance]) - scaleRadius(Math.sqrt(d.source.total_counts)) - 43 : cy + (genHeight[d.source.distance]) + scaleRadius(Math.sqrt(d.source.total_counts)) + 18
@@ -527,7 +527,7 @@
                             update.select('.tree-arrow')
                                 .transition()
                                 .duration(500)
-                                .attr('fill', d => conceptNames.includes(d.source.name) && conceptNames.includes(d.target.name) ? color.textmedium : color.textlightest)
+                                .attr('fill', d => (inclusions.includes(d.source.name) || d.source.mappings.map(m => m.name).some(m => inclusions.includes(m))) && (inclusions.includes(d.target.name) || d.target.mappings.map(m => m.name).some(m => inclusions.includes(m))) ? color.textmedium : color.textlightest)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x = d.target.x
@@ -560,7 +560,7 @@
                                 .classed('map-line', true)
                                 .attr('fill','none')
                                 .attr('stroke-width', d => conceptNames.includes(d.name) && mapRoot.includes(d.source.name) ? 2 : 1.5)
-                                .attr('stroke', d => conceptNames.includes(d.name) ? color.textmedium : mapRoot.includes(d.source.name) ? color.textlightest : color.textlightest)
+                                .attr('stroke', d => inclusions.includes(d.name) ? color.textmedium : mapRoot.includes(d.source.name) ? color.textlightest : color.textlightest)
                                 .attr('stroke-dasharray', d => mapRoot.includes(d.source.name) ? '4 2' : 'none')
                                 .attr("d", d => {
                                     let sourceX = getMap(d).x 
@@ -573,7 +573,7 @@
                                 .classed('map-tree-arrow', true)
                                 .attr('id', d => 'map-arrow-'+d.name)
                                 .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
-                                .attr('fill', d => d.source.mappings?.map(d => d.name).some(name => conceptNames.includes(name)) ? color.textmedium : color.textlightest)
+                                .attr('fill', d => d.source.mappings?.map(d => d.name).some(name => inclusions.includes(name)) ? color.textmedium : color.textlightest)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 16 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 6
@@ -773,7 +773,7 @@
                             update.select('.map-line')
                                 .attr('stroke-width', d => conceptNames.includes(d.name) && mapRoot.includes(d.source.name) ? 2 : 1.5)
                                 .attr('stroke-dasharray', d => mapRoot.includes(d.source.name) ? '4 2' : 'none')
-                                .attr('stroke', d => conceptNames.includes(d.name) ? color.textmedium : mapRoot.includes(d.source.name) ? color.textlightest : color.textlightest)
+                                .attr('stroke', d => inclusions.includes(d.name) ? color.textmedium : mapRoot.includes(d.source.name) ? color.textlightest : color.textlightest)
                                 .transition(2000)
                                 .attr("d", d => {
                                     let sourceX = getMap(d).x
@@ -784,7 +784,7 @@
                                 )
                             update.select('.map-tree-arrow')
                                 .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
-                                .attr('fill', d => d.source.mappings?.map(d => d.name).some(name => conceptNames.includes(name)) ? color.textmedium : color.textlightest)
+                                .attr('fill', d => d.source.mappings?.map(d => d.name).some(name => inclusions.includes(name)) ? color.textmedium : color.textlightest)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 16 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 6
@@ -1253,14 +1253,14 @@
                             .attr('x1',d => d.x)
                             .attr('y1',d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 18)
                             .attr('x2',d => d.x + 0.1)
-                            .attr('y2',d => cy + (genHeight[d.distance]) + 100)
+                            .attr('y2',d => cy + (genHeight[d.distance]) + (num - 20))
                         pruneLine.append('path')
                             .classed('prune-arrow', true)
-                            .attr('fill', color.background)
+                            .attr('fill', color.darkbackground)
                             .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                             .attr("transform", d => {
                                 let x = d.x
-                                let y = cy + (genHeight[d.distance]) + 100
+                                let y = cy + (genHeight[d.distance]) + (num - 20)
                                 return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
                             }) 
                         node.selectAll(".prune-curve").data(d => d.connections, d => d.child)
@@ -1279,16 +1279,16 @@
                                     let x1 = sourceNode.x
                                     let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18
                                     let x2 = getMidX(d.parents)
-                                    let y2 = cy + (genHeight[sourceNode.distance]) + 100
+                                    let y2 = cy + (genHeight[sourceNode.distance]) + (num - 20)
                                     return curveY({source: [x1, y1], target: [x2, y2]})
                                 })
                             curve.append('path')
                                 .classed('prune-curve-arrow', true)
-                                .attr('fill', color.background)
+                                .attr('fill', color.darkbackground)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x = getMidX(d.parents)
-                                    let y = cy + (genHeight[nodes.filter(e => e.name === d.source)[0].distance]) + 100
+                                    let y = cy + (genHeight[nodes.filter(e => e.name === d.source)[0].distance]) + (num - 20)
                                     return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
                                 }) 
                         },update => {
@@ -1300,13 +1300,13 @@
                                     let x1 = sourceNode.x
                                     let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18
                                     let x2 = getMidX(d.parents)
-                                    let y2 = cy + (genHeight[sourceNode.distance]) + 100
+                                    let y2 = cy + (genHeight[sourceNode.distance]) + (num - 20)
                                     return curveY({source: [x1, y1], target: [x2, y2]})
                                 })
                             update.select('.prune-curve-arrow')
                                 .attr("transform", d => {
                                     let x = getMidX(d.parents)
-                                    let y = cy + (genHeight[nodes.filter(e => e.name === d.source)[0].distance]) + 100
+                                    let y = cy + (genHeight[nodes.filter(e => e.name === d.source)[0].distance]) + (num - 20)
                                     return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
                                 })    
                         })
@@ -1332,7 +1332,7 @@
                                 .classed('map-line', true)
                                 .attr('fill','none')
                                 .attr('stroke-width', d => conceptNames.includes(d.name) && mapRoot.includes(d.source.name) ? 2 : 1.5)
-                                .attr('stroke', d => conceptNames.includes(d.name) ? color.textmedium : mapRoot.includes(d.source.name) ? color.textlightest : color.textlightest)
+                                .attr('stroke', d => inclusions.includes(d.name) ? color.textmedium : mapRoot.includes(d.source.name) ? color.textlightest : color.textlightest)
                                 .attr('stroke-dasharray', d => mapRoot.includes(d.source.name) ? '4 2' : 'none')
                                 .attr("d", d => {
                                     let sourceX = getMap(d).x 
@@ -1345,7 +1345,7 @@
                                 .classed('map-tree-arrow', true)
                                 .attr('id', d => 'map-arrow-'+d.name)
                                 .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
-                                .attr('fill', d => d.source.mappings?.map(d => d.name).some(name => conceptNames.includes(name)) ? color.textmedium : color.textlightest)
+                                .attr('fill', d => d.source.mappings?.map(d => d.name).some(name => inclusions.includes(name)) ? color.textmedium : color.textlightest)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 16 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 6
@@ -1545,7 +1545,7 @@
                             update.select('.map-line')
                                 .attr('stroke-width', d => conceptNames.includes(d.name) && mapRoot.includes(d.source.name) ? 2 : 1.5)
                                 .attr('stroke-dasharray', d => mapRoot.includes(d.source.name) ? '4 2' : 'none')
-                                .attr('stroke', d => conceptNames.includes(d.name) ? color.textmedium : mapRoot.includes(d.source.name) ? color.textlightest : color.textlightest)
+                                .attr('stroke', d => inclusions.includes(d.name) ? color.textmedium : mapRoot.includes(d.source.name) ? color.textlightest : color.textlightest)
                                 .transition(2000)
                                 .attr("d", d => {
                                     let sourceX = getMap(d).x
@@ -1556,7 +1556,7 @@
                                 )
                             update.select('.map-tree-arrow')
                                 .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
-                                .attr('fill', d => d.source.mappings?.map(d => d.name).some(name => conceptNames.includes(name)) ? color.textmedium : color.textlightest)
+                                .attr('fill', d => d.source.mappings?.map(d => d.name).some(name => inclusions.includes(name)) ? color.textmedium : color.textlightest)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 16 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 6
@@ -1927,11 +1927,11 @@
                             .attr('x1',d => d.x)
                             .attr('y1',d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 18)
                             .attr('x2',d => d.x + 0.1)
-                            .attr('y2',d => cy + (genHeight[d.distance]) + 100)
+                            .attr('y2',d => cy + (genHeight[d.distance]) + (num - 20))
                         update.select('.prune-arrow')
                             .attr("transform", d => {
                                 let x = d.x
-                                let y = cy + (genHeight[d.distance]) + 100
+                                let y = cy + (genHeight[d.distance]) + (num - 20)
                                 return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
                             }) 
                         update.selectAll(".prune-curve").data(d => d.connections, d => d.child)
@@ -1950,16 +1950,16 @@
                                     let x1 = sourceNode.x
                                     let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18
                                     let x2 = getMidX(d.parents)
-                                    let y2 = cy + (genHeight[sourceNode.distance]) + 100
+                                    let y2 = cy + (genHeight[sourceNode.distance]) + (num - 20)
                                     return curveY({source: [x1, y1], target: [x2, y2]})
                                 })
                             curve.append('path')
                                 .classed('prune-curve-arrow', true)
-                                .attr('fill', color.background)
+                                .attr('fill', color.darkbackground)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x = getMidX(d.parents)
-                                    let y = cy + (genHeight[nodes.filter(e => e.name === d.source)[0].distance]) + 100
+                                    let y = cy + (genHeight[nodes.filter(e => e.name === d.source)[0].distance]) + (num - 20)
                                     return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
                                 }) 
                         },update => {
@@ -1971,13 +1971,13 @@
                                     let x1 = sourceNode.x
                                     let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18
                                     let x2 = getMidX(d.parents)
-                                    let y2 = cy + (genHeight[sourceNode.distance]) + 100
+                                    let y2 = cy + (genHeight[sourceNode.distance]) + (num - 20)
                                     return curveY({source: [x1, y1], target: [x2, y2]})
                                 })
                             update.select('.prune-curve-arrow')
                                 .attr("transform", d => {
                                     let x = getMidX(d.parents)
-                                    let y = cy + (genHeight[nodes.filter(e => e.name === d.source)[0].distance]) + 100
+                                    let y = cy + (genHeight[nodes.filter(e => e.name === d.source)[0].distance]) + (num - 20)
                                     return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
                                 })    
                         })
@@ -2008,7 +2008,7 @@
                 return a1 - b1 || a2 - b2
                 })
             let childrenGroups = childrenArray.reduce((acc, obj) => {
-                const groupKey = obj.relationship.split('-')[0]
+                const groupKey = parseInt(obj.relationship.split('-')[0]) + 1
                 if (!acc[groupKey]) acc[groupKey] = []
                 acc[groupKey].push(obj)
                 return acc
@@ -2032,31 +2032,20 @@
                 const title = section.append('div')    
                     .classed('section-title',true)
                     .style('border-radius', '16px 16px 0px 0px')
-                    .style('height', d => sidebarRoot.name.length === 1 ? d.section === 'ROOT' ? '24px' : '20px' : '20px')
-                    .style('background-color', d => sidebarRoot.name.length === 1 ? d.section === 'ROOT' ? color.purple : 'white' : 'white')
-                    .style('opacity', d => hovered ? 0.2 : d.section === 'PARENTS' ? 0.5 : 1)
+                    .style('height', '20px')
+                    .style('background-color', 'white')
+                    .style('opacity', d => hovered ? 0.2 : d.section === 'PARENTS' ? 0.4 : 1)
                 title.append('i')
                     .classed('section-arrow fa-solid fa-arrow-up fa-xs',true)
-                     .style('display', d => sidebarRoot.name.length === 1 ? d.section === 'ROOT' ? 'none' : 'block' : 'block')
                     .style('transform', d => d.section === 'ROOT' ? 'rotate('+90+'deg)' : d.section !== 'PARENTS' ? 'rotate('+180+'deg)' : 'none')
                     .style('transform-origin', 'center')
                 title.append('p')
                     .classed('level-number',true)
-                    .style('display', d => sidebarRoot.name.length > 1 ? 'block' : d.section !== 'PARENTS' && d.section !== 'ROOT' ? 'block' : 'none')
-                    .html(d => sidebarRoot.name.length > 1 ? d.section === 'PARENTS' ? '-1': d.section === 'ROOT' ? 0 : d.section : d.section)
+                    .html(d => d.section === 'ROOT' ? 1 : d.section)
                     .style('font-size','10px')
                     .style('font-weight', 700)
                     .style('margin-left', '2px')
                     .style('margin-right', '4px')
-                title.append('p')
-                    .classed('section-name',true)
-                    .style('margin', '0px')
-                    .style('padding-left', d => d.section === 'ROOT' ? '13px' : '2px')
-                    .style('color', d => d.section === 'ROOT' ? 'white' : color.text)
-                    .style('font-size','10px')
-                    .style('font-weight', 700)
-                    .style('display', d => (d.section === 'PARENTS' || d.section === 'ROOT' || d.section === '1') && sidebarRoot.name.length === 1 ? 'block' : 'none')
-                    .html(d => d.section === '1' ? 'CHILDREN' : d.section === 'ROOT' ? 'ROOT' : d.section)
                 // CONCEPT LIST
                 section.selectAll(".list-item-container").data(d => d.nodes, d => d.name)
                 .join(enter => {
@@ -2068,7 +2057,7 @@
                         .style('margin-bottom', '4px')
                         .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
                         .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                        .style('border-radius', d => sidebarRoot.name.length > 1 ? '20px' : sidebarRoot.name.includes(d.name) ? '0px 0px 16px 16px' : '20px')
+                        .style('border-radius', '20px')
                         .style('opacity', d => hovered && hovered !== d.name ? 0.2 : d.levels === "-1" ? 0.7 : 1)
                     const titleSection = item.append('div')
                         .classed('title-section',true)
@@ -2202,15 +2191,15 @@
                         .style('color', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
                         .html(d => d.data.concept.vocabulary_id)
                         .style('margin-right','5px')
-                    titleP.append('span')
-                        .classed('title-level',true)
-                        .attr('id', d => 'title-level-'+d.name)
-                        .style('font-size', '10px')
-                        .style('font-weight',700)
-                        .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
-                        .style('margin-right', '12px')
-                        .html(d => d.levels)    
-                    title.append('i')
+                    // titleP.append('span')
+                    //     .classed('title-level',true)
+                    //     .attr('id', d => 'title-level-'+d.name)
+                    //     .style('font-size', '10px')
+                    //     .style('font-weight',700)
+                    //     .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
+                    //     .style('margin-right', '12px')
+                    //     .html(d => d.levels)    
+                    titleP.append('i')
                         .classed('info-icon fa-solid fa-circle-info',true)  
                         .attr('id', d => 'info-icon-'+d.name)  
                         .style('color', color.text)
@@ -2235,36 +2224,36 @@
                             }
                             
                         })
-                    title.append('i')
+                    titleP.append('i')
                         .classed('title-caret-down fa-solid fa-lg fa-caret-down',true)
                         .attr('id', d => 'caret-down-'+d.name)
                         .style('color', color.text)
-                        .style('display', d => !mapRoot.includes(d.name) ? d.mappings.length > 0 ? 'block' : 'none' : 'none')
+                        .style('display', d => !mapRoot.includes(d.name) ? d.mappings.length > 0 ? 'inline-block' : 'none' : 'none')
                         .style('cursor','pointer')
                         .style('opacity', 0.2)
-                        .style('margin-right','5px')
+                        .style('margin-right','2px')
                         .on('click', (e,d) => {
-                            if (d3.select('#caret-down-'+d.name).style('display') === 'block') {
+                            if (d3.select('#caret-down-'+d.name).style('display') === 'inline-block') {
                                 d3.select('#caret-down-'+d.name).style('display','none')  
-                                d3.select('#caret-up-'+d.name).style('display','block') 
+                                d3.select('#caret-up-'+d.name).style('display','inline-block') 
                                 d3.select('#mappings-container-'+d.name).transition().style('height','auto').style('display','flex')
                                 setMapRoot([...mapRoot,d.name])
                             }
                         })
                         .on('mouseover', (e,d) => d3.select('#caret-down-'+d.name).style('opacity',1))
                         .on('mouseout', (e,d) => d3.select('#caret-down-'+d.name).style('opacity',0.2))
-                    title.append('i')
+                    titleP.append('i')
                         .classed('title-caret-up fa-solid fa-lg fa-caret-up',true)
                         .attr('id', d => 'caret-up-'+d.name)
                         .style('color', color.text)
-                        .style('display', d => mapRoot.includes(d.name) && d.mappings.length > 0 ? 'block' : 'none')
+                        .style('display', d => mapRoot.includes(d.name) && d.mappings.length > 0 ? 'inline-block' : 'none')
                         .style('cursor','pointer')
-                        .style('margin-right','5px')
+                        .style('margin-right','2px')
                         // .style('padding-top','4px')
                         .on('click', (e,d) => {
-                            if (d3.select('#caret-up-'+d.name).style('display') === 'block') {
+                            if (d3.select('#caret-up-'+d.name).style('display') === 'inline-block') {
                                 d3.select('#caret-up-'+d.name).style('display','none')  
-                                d3.select('#caret-down-'+d.name).style('display','block') 
+                                d3.select('#caret-down-'+d.name).style('display','inline-block') 
                                 d3.select('#mappings-container-'+d.name).transition().style('height','0px').style('display','none')
                                 const filteredMapRoot = mapRoot.filter(id => id !== d.name)
                                 setMapRoot(filteredMapRoot)
@@ -2380,7 +2369,7 @@
                             .attr('id', d => 'list-item-'+d.name)
                             .style('margin-bottom', '4px')
                             .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
+                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px dashed var(--background)')
                             .style('border-radius', '20px')
                             .style('opacity', d => hovered && hovered !== d.name ? 0.2 : 1)
                         const mapTitleSection = mapItem.append('div')
@@ -2513,7 +2502,7 @@
                             .style('color', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
                             .html(d => d.data.concept.vocabulary_id)
                             .style('margin-right', '12px') 
-                        mapTitle.append('i')
+                        mapTitleP.append('i')
                             .classed('map-info-icon fa-solid fa-circle-info',true)  
                             .attr('id', d => 'info-icon-'+d.name)  
                             .style('color', color.text)
@@ -2627,7 +2616,7 @@
                     }, update => {
                         update.select('.map-list-item')
                             .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
+                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px dashed var(--background)')
                             .transition()
                             .style('opacity', d => hovered && hovered !== d.name ? 0.2 : 1)
                         update.select('.map-title-circle')
@@ -2756,7 +2745,6 @@
                     update.select('.list-item')
                         .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
                         .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                        .style('border-radius', d => sidebarRoot.name.length > 1 ? '20px' : sidebarRoot.name.includes(d.name) ? '0px 0px 16px 16px' : '20px')
                         .transition()
                         .style('opacity', d => hovered && hovered !== d.name ? 0.2 : d.levels === "-1" ? 0.7 : 1)
                     update.select('.title-circle')
@@ -2851,9 +2839,9 @@
                     update.select('.title-vocab')
                         .style('color', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
                         .html(d => d.data.concept.vocabulary_id)
-                    update.select('.title-level')
-                        .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
-                        .html(d => d.levels)  
+                    // update.select('.title-level')
+                    //     .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
+                    //     .html(d => d.levels)  
                     update.select('.info-icon')
                         .on('mouseover', (e,d) => d3.select('#info-icon-'+d.name).style('opacity',1))
                         .on('mouseout', (e,d) => {
@@ -2874,11 +2862,11 @@
                             
                         })
                     update.select('.title-caret-down')
-                        .style('display', d => !mapRoot.includes(d.name) ? d.mappings.length > 0 ? 'block' : 'none' : 'none')
+                        .style('display', d => !mapRoot.includes(d.name) ? d.mappings.length > 0 ? 'inline-block' : 'none' : 'none')
                         .on('click', (e,d) => {
-                            if (d3.select('#caret-down-'+d.name).style('display') === 'block') {
+                            if (d3.select('#caret-down-'+d.name).style('display') === 'inline-block') {
                                 d3.select('#caret-down-'+d.name).style('display','none')  
-                                d3.select('#caret-up-'+d.name).style('display','block') 
+                                d3.select('#caret-up-'+d.name).style('display','inline-block') 
                                 d3.select('#mappings-container-'+d.name).transition().style('height','auto').style('display','flex')
                                 setMapRoot([...mapRoot,d.name])
                             }
@@ -2886,11 +2874,11 @@
                         .on('mouseover', (e,d) => d3.select('#caret-down-'+d.name).style('opacity',1))
                         .on('mouseout', (e,d) => d3.select('#caret-down-'+d.name).style('opacity',0.2))
                     update.select('.title-caret-up')
-                        .style('display', d => mapRoot.includes(d.name) && d.mappings.length > 0 ? 'block' : 'none')
+                        .style('display', d => mapRoot.includes(d.name) && d.mappings.length > 0 ? 'inline-block' : 'none')
                         .on('click', (e,d) => {
-                            if (d3.select('#caret-up-'+d.name).style('display') === 'block') {
+                            if (d3.select('#caret-up-'+d.name).style('display') === 'inline-block') {
                                 d3.select('#caret-up-'+d.name).style('display','none')  
-                                d3.select('#caret-down-'+d.name).style('display','block') 
+                                d3.select('#caret-down-'+d.name).style('display','inline-block') 
                                 d3.select('#mappings-container-'+d.name).transition().style('height','0px').style('display','none')
                                 const filteredMapRoot = mapRoot.filter(id => id !== d.name)
                                 setMapRoot(filteredMapRoot)
@@ -2927,7 +2915,7 @@
                             .attr('id', d => 'list-item-'+d.name)
                             .style('margin-bottom', '4px')
                             .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
+                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px dashed var(--background)')
                             .style('border-radius', '20px')
                             .style('opacity', d => hovered && hovered !== d.name ? 0.2 : 1)
                         const mapTitleSection = mapItem.append('div')
@@ -3060,7 +3048,7 @@
                             .style('color', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
                             .html(d => d.data.concept.vocabulary_id)
                             .style('margin-right', '12px') 
-                        mapTitle.append('i')
+                        mapTitleP.append('i')
                             .classed('map-info-icon fa-solid fa-circle-info',true)  
                             .attr('id', d => 'info-icon-'+d.name)  
                             .style('color', color.text)
@@ -3174,7 +3162,7 @@
                     }, update => {
                         update.select('.map-list-item')
                             .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
+                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px dashed var(--background)')
                             .transition()
                             .style('opacity', d => hovered && hovered !== d.name ? 0.2 : 1)
                         update.select('.map-title-circle')
@@ -3312,7 +3300,7 @@
                         .style('margin-bottom', '4px')
                         .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
                         .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                        .style('border-radius', d => sidebarRoot.name.length > 1 ? '20px' : sidebarRoot.name.includes(d.name) ? '0px 0px 16px 16px' : '20px')
+                        .style('border-radius', '20px')
                         .style('opacity', d => hovered && hovered !== d.name ? 0.2 : d.levels === "-1" ? 0.7 : 1)
                     const titleSection = item.append('div')
                         .classed('title-section',true)
@@ -3446,15 +3434,15 @@
                         .style('color', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
                         .html(d => d.data.concept.vocabulary_id)
                         .style('margin-right','5px')
-                    titleP.append('span')
-                        .classed('title-level',true)
-                        .attr('id', d => 'title-level-'+d.name)
-                        .style('font-size', '10px')
-                        .style('font-weight',700)
-                        .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
-                        .style('margin-right', '12px')
-                        .html(d => d.levels)    
-                    title.append('i')
+                    // titleP.append('span')
+                    //     .classed('title-level',true)
+                    //     .attr('id', d => 'title-level-'+d.name)
+                    //     .style('font-size', '10px')
+                    //     .style('font-weight',700)
+                    //     .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
+                    //     .style('margin-right', '12px')
+                    //     .html(d => d.levels)    
+                    titleP.append('i')
                         .classed('info-icon fa-solid fa-circle-info',true)  
                         .attr('id', d => 'info-icon-'+d.name)  
                         .style('color', color.text)
@@ -3479,36 +3467,36 @@
                             }
                             
                         })
-                    title.append('i')
+                    titleP.append('i')
                         .classed('title-caret-down fa-solid fa-lg fa-caret-down',true)
                         .attr('id', d => 'caret-down-'+d.name)
                         .style('color', color.text)
-                        .style('display', d => !mapRoot.includes(d.name) ? d.mappings.length > 0 ? 'block' : 'none' : 'none')
+                        .style('display', d => !mapRoot.includes(d.name) ? d.mappings.length > 0 ? 'inline-block' : 'none' : 'none')
                         .style('cursor','pointer')
                         .style('opacity', 0.2)
-                        .style('margin-right','5px')
+                        .style('margin-right','2px')
                         .on('click', (e,d) => {
-                            if (d3.select('#caret-down-'+d.name).style('display') === 'block') {
+                            if (d3.select('#caret-down-'+d.name).style('display') === 'inline-block') {
                                 d3.select('#caret-down-'+d.name).style('display','none')  
-                                d3.select('#caret-up-'+d.name).style('display','block') 
+                                d3.select('#caret-up-'+d.name).style('display','inline-block') 
                                 d3.select('#mappings-container-'+d.name).transition().style('height','auto').style('display','flex')
                                 setMapRoot([...mapRoot,d.name])
                             }
                         })
                         .on('mouseover', (e,d) => d3.select('#caret-down-'+d.name).style('opacity',1))
                         .on('mouseout', (e,d) => d3.select('#caret-down-'+d.name).style('opacity',0.2))
-                    title.append('i')
+                    titleP.append('i')
                         .classed('title-caret-up fa-solid fa-lg fa-caret-up',true)
                         .attr('id', d => 'caret-up-'+d.name)
                         .style('color', color.text)
-                        .style('display', d => mapRoot.includes(d.name) && d.mappings.length > 0 ? 'block' : 'none')
+                        .style('display', d => mapRoot.includes(d.name) && d.mappings.length > 0 ? 'inline-block' : 'none')
                         .style('cursor','pointer')
-                        .style('margin-right','5px')
+                        .style('margin-right','2px')
                         // .style('padding-top','4px')
                         .on('click', (e,d) => {
-                            if (d3.select('#caret-up-'+d.name).style('display') === 'block') {
+                            if (d3.select('#caret-up-'+d.name).style('display') === 'inline-block') {
                                 d3.select('#caret-up-'+d.name).style('display','none')  
-                                d3.select('#caret-down-'+d.name).style('display','block') 
+                                d3.select('#caret-down-'+d.name).style('display','inline-block') 
                                 d3.select('#mappings-container-'+d.name).transition().style('height','0px').style('display','none')
                                 const filteredMapRoot = mapRoot.filter(id => id !== d.name)
                                 setMapRoot(filteredMapRoot)
@@ -3624,7 +3612,7 @@
                             .attr('id', d => 'list-item-'+d.name)
                             .style('margin-bottom', '4px')
                             .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
+                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px dashed var(--background)')
                             .style('border-radius', '20px')
                             .style('opacity', d => hovered && hovered !== d.name ? 0.2 : 1)
                         const mapTitleSection = mapItem.append('div')
@@ -3757,7 +3745,7 @@
                             .style('color', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
                             .html(d => d.data.concept.vocabulary_id)
                             .style('margin-right', '12px') 
-                        mapTitle.append('i')
+                        mapTitleP.append('i')
                             .classed('map-info-icon fa-solid fa-circle-info',true)  
                             .attr('id', d => 'info-icon-'+d.name)  
                             .style('color', color.text)
@@ -3871,7 +3859,7 @@
                     }, update => {
                         update.select('.map-list-item')
                             .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
+                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px dashed var(--background)')
                             .transition()
                             .style('opacity', d => hovered && hovered !== d.name ? 0.2 : 1)
                         update.select('.map-title-circle')
@@ -4000,7 +3988,6 @@
                     update.select('.list-item')
                         .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
                         .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                        .style('border-radius', d => sidebarRoot.name.length > 1 ? '20px' : sidebarRoot.name.includes(d.name) ? '0px 0px 16px 16px' : '20px')
                         .transition()
                         .style('opacity', d => hovered && hovered !== d.name ? 0.2 : d.levels === "-1" ? 0.7 : 1)
                     update.select('.title-circle')
@@ -4095,9 +4082,9 @@
                     update.select('.title-vocab')
                         .style('color', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
                         .html(d => d.data.concept.vocabulary_id)
-                    update.select('.title-level')
-                        .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
-                        .html(d => d.levels)  
+                    // update.select('.title-level')
+                    //     .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
+                    //     .html(d => d.levels)  
                     update.select('.info-icon')
                         .on('mouseover', (e,d) => d3.select('#info-icon-'+d.name).style('opacity',1))
                         .on('mouseout', (e,d) => {
@@ -4118,11 +4105,11 @@
                             
                         })
                     update.select('.title-caret-down')
-                        .style('display', d => !mapRoot.includes(d.name) ? d.mappings.length > 0 ? 'block' : 'none' : 'none')
+                        .style('display', d => !mapRoot.includes(d.name) ? d.mappings.length > 0 ? 'inline-block' : 'none' : 'none')
                         .on('click', (e,d) => {
-                            if (d3.select('#caret-down-'+d.name).style('display') === 'block') {
+                            if (d3.select('#caret-down-'+d.name).style('display') === 'inline-block') {
                                 d3.select('#caret-down-'+d.name).style('display','none')  
-                                d3.select('#caret-up-'+d.name).style('display','block') 
+                                d3.select('#caret-up-'+d.name).style('display','inline-block') 
                                 d3.select('#mappings-container-'+d.name).transition().style('height','auto').style('display','flex')
                                 setMapRoot([...mapRoot,d.name])
                             }
@@ -4130,11 +4117,11 @@
                         .on('mouseover', (e,d) => d3.select('#caret-down-'+d.name).style('opacity',1))
                         .on('mouseout', (e,d) => d3.select('#caret-down-'+d.name).style('opacity',0.2))
                     update.select('.title-caret-up')
-                        .style('display', d => mapRoot.includes(d.name) && d.mappings.length > 0 ? 'block' : 'none')
+                        .style('display', d => mapRoot.includes(d.name) && d.mappings.length > 0 ? 'inline-block' : 'none')
                         .on('click', (e,d) => {
-                            if (d3.select('#caret-up-'+d.name).style('display') === 'block') {
+                            if (d3.select('#caret-up-'+d.name).style('display') === 'inline-block') {
                                 d3.select('#caret-up-'+d.name).style('display','none')  
-                                d3.select('#caret-down-'+d.name).style('display','block') 
+                                d3.select('#caret-down-'+d.name).style('display','inline-block') 
                                 d3.select('#mappings-container-'+d.name).transition().style('height','0px').style('display','none')
                                 const filteredMapRoot = mapRoot.filter(id => id !== d.name)
                                 setMapRoot(filteredMapRoot)
@@ -4171,7 +4158,7 @@
                             .attr('id', d => 'list-item-'+d.name)
                             .style('margin-bottom', '4px')
                             .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
+                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px dashed var(--background)')
                             .style('border-radius', '20px')
                             .style('opacity', d => hovered && hovered !== d.name ? 0.2 : 1)
                         const mapTitleSection = mapItem.append('div')
@@ -4304,7 +4291,7 @@
                             .style('color', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
                             .html(d => d.data.concept.vocabulary_id)
                             .style('margin-right', '12px') 
-                        mapTitle.append('i')
+                        mapTitleP.append('i')
                             .classed('map-info-icon fa-solid fa-circle-info',true)  
                             .attr('id', d => 'info-icon-'+d.name)  
                             .style('color', color.text)
@@ -4418,7 +4405,7 @@
                     }, update => {
                         update.select('.map-list-item')
                             .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered === d.name ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
+                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px dashed var(--background)')
                             .transition()
                             .style('opacity', d => hovered && hovered !== d.name ? 0.2 : 1)
                         update.select('.map-title-circle')
@@ -4544,24 +4531,13 @@
                             .style('width', d => scaleWidth(d.descendant_counts) + 'px')    
                     })
                 })
-                // update 
-                    // .style('padding-bottom', d => sidebarRoot.name.length === 1 ? d.section === 'PARENTS' || d.section === 'ROOT' ? '5px' : '0px' : '5px')
                 update.select('.section-title')
-                    .style('height', d => sidebarRoot.name.length === 1 ? d.section === 'ROOT' ? '24px' : '20px' : '20px')
-                    .style('background-color', d => sidebarRoot.name.length === 1 ? d.section === 'ROOT' ? color.purple : 'white' : 'white')
                     .transition()
-                    .style('opacity', d => hovered ? 0.2 : d.section === 'PARENTS' ? 0.5 : 1)
+                    .style('opacity', d => hovered ? 0.2 : d.section === 'PARENTS' ? 0.4 : 1)
                 update.select('.section-arrow')
-                    .style('display', d => sidebarRoot.name.length === 1 ? d.section === 'ROOT' ? 'none' : 'block' : 'block')
                     .style('transform', d => d.section === 'ROOT' ? 'rotate('+90+'deg)' : d.section !== 'PARENTS' ? 'rotate('+180+'deg)' : 'none')
                 update.select('.level-number')
-                    .style('display', d => sidebarRoot.name.length > 1 ? 'block' : d.section !== 'PARENTS' && d.section !== 'ROOT' ? 'block' : 'none')
-                    .html(d => sidebarRoot.name.length > 1 ? d.section === 'PARENTS' ? '-1': d.section === 'ROOT' ? 0 : d.section : d.section)
-                update.select('.section-name')
-                    .style('padding-left', d => d.section === 'ROOT' ? '13px' : '5px')
-                    .style('color', d => d.section === 'ROOT' ? 'white' : color.text)
-                    .style('display', d => (d.section === 'PARENTS' || d.section === 'ROOT' || d.section === '1') && sidebarRoot.name.length === 1 ? 'block' : 'none')
-                    .html(d => d.section === '1' ? 'CHILDREN' : d.section === 'ROOT' ? 'ROOT' : d.section)
+                    .html(d => d.section === 'ROOT' ? 1 : d.section)
             })
         }
         // expand and collapse tree
@@ -4648,12 +4624,12 @@
                             const level = d-1
                             if (levelFilter !== level) {
                                 if (initialPrune) setInitialPrune(false)
-                                if (level > levelFilter && !classFilter.includes('All')) {
-                                    const newAllClasses = sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").filter(d => d.levels === '-1' || parseInt(d.levels.split('-')[0]) <= level).map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined)
-                                    const notIncluded = newAllClasses.filter(d => !allClasses.includes(d)).filter(d => !classFilter.includes(d)).filter(d => !removedClasses.includes(d))
-                                    console.log('not included',notIncluded,'removed',removedClasses)
-                                    setClassFilter(prev => [...prev, ...notIncluded])
-                                }
+                                // if (level > levelFilter && !classFilter.includes('All')) {
+                                //     const newAllClasses = sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").filter(d => d.levels === '-1' || parseInt(d.levels.split('-')[0]) <= level).map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined)
+                                //     const notIncluded = newAllClasses.filter(d => !allClasses.includes(d)).filter(d => !classFilter.includes(d)).filter(d => !removedClasses.includes(d))
+                                //     console.log('not included',notIncluded,'removed',removedClasses)
+                                //     setClassFilter(prev => [...prev, ...notIncluded])
+                                // }
                                 setLevelFilter(level)
                                 d3.select('#open-levels-btn').style('display', 'block')
                                 d3.select('#close-levels-btn').style('display', 'none')  
@@ -4671,12 +4647,12 @@
                             const level = d-1
                             if (levelFilter !== level) {
                                 if (initialPrune) setInitialPrune(false)
-                                if (level > levelFilter && !classFilter.includes('All')) {
-                                    const newAllClasses = sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").filter(d => d.levels === '-1' || parseInt(d.levels.split('-')[0]) <= level).map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined)
-                                    const notIncluded = newAllClasses.filter(d => !allClasses.includes(d)).filter(d => !classFilter.includes(d)).filter(d => !removedClasses.includes(d))
-                                    console.log('not included',notIncluded,'removed',removedClasses)
-                                    setClassFilter(prev => [...prev, ...notIncluded])
-                                }
+                                // if (level > levelFilter && !classFilter.includes('All')) {
+                                //     const newAllClasses = sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").filter(d => d.levels === '-1' || parseInt(d.levels.split('-')[0]) <= level).map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined)
+                                //     const notIncluded = newAllClasses.filter(d => !allClasses.includes(d)).filter(d => !classFilter.includes(d)).filter(d => !removedClasses.includes(d))
+                                //     console.log('not included',notIncluded,'removed',removedClasses)
+                                //     setClassFilter(prev => [...prev, ...notIncluded])
+                                // }
                                 setLevelFilter(level)
                                 d3.select('#open-levels-btn').style('display', 'block')
                                 d3.select('#close-levels-btn').style('display', 'none')  
@@ -4690,7 +4666,7 @@
                     const container = enter.append('div')
                         .classed('class',true)  
                         .style('opacity', d => allClasses.includes(d) ? 1 : 0.2) 
-                        .style('pointer-events', d => allClasses.includes(d) ? 'all' : 'none')
+                        // .style('pointer-events', d => allClasses.includes(d) ? 'all' : 'none')
                     const checkBox = container.append('div') 
                         .classed('check-box',true)
                         .style('cursor','pointer')
@@ -4699,7 +4675,6 @@
                         .style('border', d => classFilter.includes(d) || classFilter.includes('All') ? '1px solid var(--text)' : '1px solid var(--textlightest)')
                         .on('click', (e,d) => {
                             if (classFilter.includes('All')) {
-                                if (initialPrune) setInitialPrune(false)
                                 if (allClasses.length > 1) {
                                     let newFilter = allClasses.filter(c => c !== d)
                                     let newRemoved = removedClasses
@@ -4742,13 +4717,12 @@
                 },update =>{
                     update 
                         .style('opacity', d => allClasses.includes(d) ? 1 : 0.2) 
-                        .style('pointer-events', d => allClasses.includes(d) ? 'all' : 'none')
+                        // .style('pointer-events', d => allClasses.includes(d) ? 'all' : 'none')
                     update.select('.check-box')
                         .style('background-color', d => classFilter.includes(d) || classFilter.includes('All') ? color.text : 'transparent')
                         .style('border', d => classFilter.includes(d) || classFilter.includes('All') ? '1px solid var(--text)' : '1px solid var(--textlightest)')
                         .on('click', (e,d) => {
                             if (classFilter.includes('All')) {
-                                if (initialPrune) setInitialPrune(false)
                                 if (allClasses.length > 1) {
                                     let newFilter = allClasses.filter(c => c !== d)
                                     let newRemoved = removedClasses
@@ -4785,7 +4759,7 @@
                         .html(d => d)
                 })
                 let classSelections = classFilter
-                if (allClasses.every(c => classSelections.includes(c))) classSelections = ['All']
+                if (fullClassList.every(c => classSelections.includes(c))) classSelections = ['All']
                 d3.select('#class-selections').selectAll('.class-selection').data(classSelections, d => d)
                 .join(enter => {
                     enter.append('p')
@@ -4919,21 +4893,14 @@
                                 onClick = {() => {
                                     if (!treeSelections.includes('descendants')) {
                                         d3.select('#add-descendants').style('background-color', color.text).style('color','white').style('font-weight',700)
-                                        const newInclusions = sidebarRoot.name.map(r => nodes.map(n => n.name).includes(r) ? getInclusions(r,excludeList,descendantsFilter,nodes.find(n => n.name === r).descendants,nodes) : getInclusions(r,excludeList,descendantsFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)),nodes)).flat().filter((e,n,l) => l.indexOf(e) === n)
+                                        const newInclusions = sidebarRoot.name.map(r => nodes.map(n => n.name).includes(r) ? getInclusions(r,excludeList,descendantsFilter,nodes.find(n => n.name === r).descendants) : getInclusions(r,excludeList,descendantsFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)))).flat().filter((e,n,l) => l.indexOf(e) === n)
                                             .filter(i => sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts !== 0)
                                         updateConcepts(newInclusions,nodes,[],[])
-                                        // const newConcepts = nodes
-                                        //     .filter(d => !d.leaf ? inclusions.includes(d.name) : d)
-                                        //     .map(d => ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.filter(d => inclusions.includes(d)).includes(c.concept_id))}})) 
-                                        // setSelectedConcepts(newConcepts)
                                         setTreeSelections(['descendants'])
                                         setMapRoot([])
                                     } else {
                                         d3.select('#add-descendants').style('background-color', 'transparent').style('color',color.text).style('font-weight',400)
-                                        // let descendantNames = list.map(d => d.name)
-                                        // let filteredConcepts = selectedConcepts.filter(e => !descendantNames.includes(e.name))
                                         setSelectedConcepts([]) 
-                                        // let newSelections = treeSelections.filter(s => s !== 'descendants')  
                                         setTreeSelections([])
                                         setMapRoot([])
                                     }
@@ -4946,25 +4913,16 @@
                                 onMouseOut={() => d3.select('#add-mappings').style('font-weight', () => !treeSelections.includes('mappings') ? 400 : 700)}
                                 onClick = {() => {
                                     if (!treeSelections.includes('mappings')) {
-                                        const newInclusions = sidebarRoot.name.map(r => nodes.map(n => n.name).includes(r) ? getInclusions(r,excludeList,descendantsFilter,nodes.find(n => n.name === r).descendants,nodes) : getInclusions(r,excludeList,descendantsFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)),nodes)).flat().filter((e,n,l) => l.indexOf(e) === n)
+                                        const newInclusions = sidebarRoot.name.map(r => nodes.map(n => n.name).includes(r) ? getInclusions(r,excludeList,descendantsFilter,nodes.find(n => n.name === r).descendants) : getInclusions(r,excludeList,descendantsFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)))).flat().filter((e,n,l) => l.indexOf(e) === n)
                                             .map(i => fullTree.nodes.find(n => n.name === i).mappings.map(m => m.name)).flat()   
                                             .filter(i => sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts !== 0)
                                         updateConcepts(newInclusions,nodes,[],[])
-                                        // const mappings = nodes.filter(d => inclusions.includes(d.name)).map(d => d.mappings).flat()
-                                        // const newConcepts = mappings
-                                        //     .filter(d => d.total_counts !== 0)
-                                        //     .map(d => ({name: d.name, leaf: false, distance: d.distance, data: d.data}))
-                                        // const mapRootNames = mappings.map(d => d.source.name).filter((e,n,l) => l.indexOf(e) === n)
                                         setMapRoot(nodes.filter(n => n.mappings.length > 0).map(n => n.name))
-                                        // setSelectedConcepts(newConcepts)
                                         setTreeSelections(['mappings'])
                                     } else {
                                         d3.select('#add-mappings').style('background-color', 'transparent').style('color',color.text).style('font-weight',400)
-                                        // let mapNames = mappings.map(d => d.name)
-                                        // let filteredConcepts = selectedConcepts.filter(e => !mapNames.includes(e.name))
                                         setMapRoot([])
                                         setSelectedConcepts([])   
-                                        // let newSelections = treeSelections.filter(s => s !== 'mappings')  
                                         setTreeSelections([])
                                     }
                                 }}>
@@ -5006,9 +4964,9 @@
                                 />
                             </div> 
                             <div className="dropdown-container" id = "class-dropdown">
-                                <div className = "concept-selection-btn" style = {{marginRight: classFilter && (classFilter.includes('All') || allClasses.every(c => classFilter.includes(c))) ? '0.2em' : '1px', width:'auto',border:'none',alignItems:'flex-start'}}>
-                                    <p style = {{whiteSpace:'nowrap',fontWeight: classFilter && !classFilter.includes('All') && !allClasses.every(c => classFilter.includes(c)) ? 700: 400, paddingRight:5,marginLeft:levelFilter < fullTreeMax ? 10 : 0}}>Classes</p>
-                                    <div className = "dropdown-header" id = "classes-header" style = {{border:classFilter && !classFilter.includes('All') && !allClasses.every(c => classFilter.includes(c)) ? '0.5px solid var(--text)' : '0.5px solid var(--greylight)', color: classFilter && !classFilter.includes('All') && !allClasses.every(c => classFilter.includes(c)) ? 'white' : 'var(--text)', backgroundColor: classFilter && !classFilter.includes('All') && !allClasses.every(c => classFilter.includes(c)) ? 'var(--text)' : 'var(--greylight)',overflow:'hidden'}}
+                                <div className = "concept-selection-btn" style = {{marginRight: classFilter && (classFilter.includes('All') || fullClassList.every(c => classFilter.includes(c))) ? '0.2em' : '1px', width:'auto',border:'none',alignItems:'flex-start'}}>
+                                    <p style = {{whiteSpace:'nowrap',fontWeight: classFilter && !classFilter.includes('All') && !fullClassList.every(c => classFilter.includes(c)) ? 700: 400, paddingRight:5,marginLeft:levelFilter < fullTreeMax ? 10 : 0}}>Classes</p>
+                                    <div className = "dropdown-header" id = "classes-header" style = {{border:classFilter && !classFilter.includes('All') && !fullClassList.every(c => classFilter.includes(c)) ? '0.5px solid var(--text)' : '0.5px solid var(--greylight)', color: classFilter && !classFilter.includes('All') && !fullClassList.every(c => classFilter.includes(c)) ? 'white' : 'var(--text)', backgroundColor: classFilter && !classFilter.includes('All') && !fullClassList.every(c => classFilter.includes(c)) ? 'var(--text)' : 'var(--greylight)',overflow:'hidden'}}
                                         onMouseOver={() => d3.select('#open-classes-btn').style('opacity', 1)}
                                         onMouseOut={() => d3.select('#open-classes-btn').style('opacity', 0.3)}
                                         onClick = {() => {
@@ -5024,12 +4982,12 @@
                                         }}
                                     >
                                         <div id = "class-selections"></div>
-                                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'open-classes-btn' icon={faCaretDown} style = {{color: classFilter && !classFilter.includes('All') && !allClasses.every(c => classFilter.includes(c)) ? 'white' : 'var(--text)', display:'block',opacity: 0.3,padding:'1px 3px 1px 5px'}}/>
-                                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'close-classes-btn' icon={faCaretUp} style = {{color: classFilter && !classFilter.includes('All') && !allClasses.every(c => classFilter.includes(c)) ? 'white' : 'var(--text)', display:'none',opacity: 1,padding:'2px 3px 1px 5px'}}/>     
+                                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'open-classes-btn' icon={faCaretDown} style = {{color: classFilter && !classFilter.includes('All') && !fullClassList.every(c => classFilter.includes(c)) ? 'white' : 'var(--text)', display:'block',opacity: 0.3,padding:'1px 3px 1px 5px'}}/>
+                                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'close-classes-btn' icon={faCaretUp} style = {{color: classFilter && !classFilter.includes('All') && !fullClassList.every(c => classFilter.includes(c)) ? 'white' : 'var(--text)', display:'none',opacity: 1,padding:'2px 3px 1px 5px'}}/>     
                                     </div>
                                 </div>   
                                 <div className = "selections-dropdown-content" id = "classes-dropdown" style = {{right:-15,alignItems:'flex-start'}}></div>  
-                                <FontAwesomeIcon style = {{display: classFilter && (classFilter.includes('All') || allClasses.every(c => classFilter.includes(c))) ? 'none' : 'block'}} className = "reset-filter fa-2xs" id = "reset-class" icon={faX} 
+                                <FontAwesomeIcon style = {{display: classFilter && (classFilter.includes('All') || fullClassList.every(c => classFilter.includes(c))) ? 'none' : 'block'}} className = "reset-filter fa-2xs" id = "reset-class" icon={faX} 
                                     onClick = {() => {
                                         setClassFilter(fullClassList)
                                         d3.select('#open-classes-btn').style('display', 'block')
