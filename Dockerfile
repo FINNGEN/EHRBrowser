@@ -1,8 +1,7 @@
 FROM --platform=linux/amd64  rocker/r-ver:4.4.1
 RUN /rocker_scripts/setup_R.sh https://packagemanager.posit.co/cran/__linux__/jammy/2025-06-12
 
-# install OS dependencies including java, python 3, node.js, and nginx
-RUN apt-get update && apt-get install -y openjdk-8-jdk liblzma-dev libbz2-dev libncurses5-dev curl python3-dev python3.venv git pandoc nginx\
+RUN apt-get update && apt-get install -y openjdk-8-jdk liblzma-dev libbz2-dev libncurses5-dev curl python3-dev python3.venv git pandoc nginx tini\
     # rjava
     libssl-dev libcurl4-openssl-dev  libpcre2-dev libicu-dev \
     # xml2
@@ -54,6 +53,10 @@ WORKDIR /app
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/sites-available/default
 
+# Copy startup script
+COPY scripts/startup.sh /startup.sh
+RUN chmod +x /startup.sh
+
 # Install the drivers for the database, Uncomment to install the drivers for your database
 # ENV DATABASECONNECTOR_JAR_FOLDER=/drivers
 # RUN Rscript -e 'DatabaseConnector::downloadJdbcDrivers(dbms = "postgresql")'
@@ -61,11 +64,15 @@ COPY nginx.conf /etc/nginx/sites-available/default
 # Update the romopapi package
 # Add cache bust to ensure latest ROMOPAPI is installed
 ARG CACHE_BUST=4
+ARG COMMIT_SHA=unknown
 RUN --mount=type=secret,id=build_github_pat \
     cp /usr/local/lib/R/etc/Renviron /tmp/Renviron \
     && echo "GITHUB_PAT=$(cat /run/secrets/build_github_pat)" >> /usr/local/lib/R/etc/Renviron \
     && Rscript -e 'remotes::install_github("FINNGEN/ROMOPAPI");remotes::install_github("javier-gracia-tabuenca-tuni/DatabaseConnector@bigquery-DBI-2");install.packages("bigrquery")' \
     && cp /tmp/Renviron /usr/local/lib/R/etc/Renviron;
+
+# Pass commit SHA to React build
+ENV REACT_APP_COMMIT_SHA=$COMMIT_SHA
 
 # Expose only the main port (nginx will handle internal routing)
 EXPOSE 8563
@@ -79,4 +86,4 @@ RUN npm run build
 # Run both the APIb & Rscript -e \"source('/romopapi/runOmopApi.R')\""] 
 # CMD ["sh", "-c", "Rscript -e \"source('/romopapi/runOmopApi.R')\" & python3 -m http.server 8563 --directory build"]
 # Run both the R API service and nginx reverse proxy
-CMD ["sh", "-c", "Rscript -e \"source('/romopapi/runOmopApi.R')\" & nginx -g 'daemon off;'"]
+CMD ["/startup.sh"]

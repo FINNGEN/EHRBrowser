@@ -71,22 +71,45 @@ The easies way to create this in on run time durint the first run, see Run below
 
 # Build
 
-Build the Docker image.
+Build the Docker image :
 ```
-docker build -t ehr_browser .
+docker build \
+ --secret id=build_github_pat,src=GITHUBPAT.txt \
+ --build-arg COMMIT_SHA=$(git rev-parse --short HEAD) \
+ --build-arg CACHE_BUST=$(date +%s) \
+ -t ehr_browser .
 ```
 
 # Run
+
+## Run in demo enviroment 
+
+Demo environment runs with demo database with few codes available and counts already computed.
+This table already has the necessary data pre calculated.
+
+```
+docker run --rm -p 8563:8563 -p 8564:8564  ehr_browser  
+```
+
+Open the browser.
+http://localhost:8564/
+
+For debugging, you can also talk to the API directly in:
+http://localhost:8563/__docs__
+
+## Run in build environmet
+
 Run the Docker container.
 
 If it is the first time running, set the flag to TRUE to rebuild the counts table.
 ```
-docker run --rm -p 8563:8563 -p 8564:8564 -e REBUILD_COUNTS_TABLE=TRUE ehr_browser
-```
-
-The rest of the times set the flag to FALSE.
-```
-docker run --rm -p 8563:8563 -p 8564:8564 -e REBUILD_COUNTS_TABLE=FALSE ehr_browser
+docker run --rm \
+-p 8563:8563 -p 8564:8564 \
+-v /Users/javier/keys/atlas-development-270609-410deaacc58b.json:/keys/keys.json \
+-e GCP_SERVICE_KEY=/keys/keys.json \
+-e ROMOPAPI_DATABASE=AtlasDevelopment-BQ5K \
+-e REBUILD_COUNTS_TABLE=TRUE \
+ehr_browser
 ```
 
 Open the browser.
@@ -96,8 +119,30 @@ For debugging, you can also talk to the API directly in:
 http://localhost:8563/__docs__
 
 
+## Run in Preview environment
+
+Required environment variables must be set:
+  - `SANDBOX_PROJECT`: The GCP sandbox project identifier
+  - `SESSION_MANAGER`: The session manager configuration
 
 
+```bash
+run_in_sandbox.sh --environment preview [--rebuild_count_table TRUE|FALSE] 
+```
+
+Open the browser 
+http://localhost:18564/
+
+
+## Run in Production enviroment
+
+Required environment variables must be set:
+  - `SANDBOX_PROJECT`: The GCP sandbox project identifier
+  - `SESSION_MANAGER`: The session manager configuration-en
+
+```bash
+run_in_sandbox.sh
+```
 
 
 
