@@ -249,7 +249,6 @@ function App() {
     setMapRoot([])
   }
   function getAllDescendants(relationships, rootId, descendants) {
-    console.log('r',relationships)
     const immediateChildren = relationships
       .filter(r => r.parent_concept_id === rootId && r.child_concept_id !== rootId)
       .map(r => r.child_concept_id);
@@ -264,7 +263,7 @@ function App() {
   }
   
   function createInitialStates(data,trees,filterClass,filterLevel,filteredClassList) {
-    console.log('run',data)
+    console.log('run',data,trees)
     // set nodes 
     const subsumesData = data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to")
     const mappingData = data.concept_relationships.filter(d => d.levels === "Mapped from" || d.levels === "Maps to")
@@ -361,7 +360,7 @@ function App() {
       // const layers = poset.analytics.substructures.depth
       const layers = poset.layers.reverse()
       // *** set based on width of biggest layer
-      if (!classFilter && !levelFilter) {
+      if (!filterClass && !filterLevel) {
         const thisWidth = (d3.max(layers, d => d.length)/2)*nodeWidth
         bufferArray.push(thisWidth)
         let buffer = index === 0 ? bufferArray[index] : bufferArray[index] + thisWidth
@@ -410,7 +409,7 @@ function App() {
       .filter(d => d.levels !== "-1")
       // .map(d => d.levels === "-1" ? ({...d,parent_concept_id: d.child_concept_id,child_concept_id: d.parent_concept_id}) : d)
       .map(d => ([d.parent_concept_id.toString(),d.child_concept_id.toString()]))
-    // can also be filterLevel
+    // ***** should this be filtered? 
     if (filterClass) colorEdges = colorEdges.filter(d => d.concept_class_id !== 'Ingredient' && d.concept_class_id !== "Clinical Drug Comp")
     if (colorEdges.length > 1) colorEdges = colorEdges.filter(d => d[0] !== d[1])
     const {matrix,nodes} = po.domFromEdges(colorEdges)
@@ -450,7 +449,6 @@ function App() {
     setPruned(false)
     setFullTree({relationships:subsumesData,trees:trees,nodes:nodeData,links:linkData,selected:selectedNodes,mappings:mappingData.map(d => d.child_concept_id)})
     setBuffers(bufferArray)
-    console.log('og nodes',nodeData)
     if (!filterClass && !filterLevel) {
       setNodes(nodeData)
       setLinks(linkData)
