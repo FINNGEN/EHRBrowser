@@ -57,6 +57,49 @@ const po = {//edges need to be unique
         
         return (value)=> value * ratio
     },
+    dotProd: (a, b) => a.map((x, i) => x * b[i]).reduce((acc, el) => acc + el),
+    findSubspaces : function(profiles) {
+                    const labels = profiles.map(e=>e[0])
+                    const vectors = profiles.map(e=>e[1])
+                    
+                    const checked = new Set();
+                    const subspaces = [];
+                    const ids = [];
+                    const {dotProd} = this
+                    // DFS recursive search: collect all connected vectors (by dot > 0)
+                    function dfs(idx, currSpace, currLabels) {
+                        checked.add(idx);
+                        currSpace.push(vectors[idx]);
+                        currLabels.push(labels[idx]);
+                        for (let n = 0; n < vectors.length; ++n) {
+                            if (!checked.has(n) && dotProd(vectors[idx], vectors[n]) > 0) {
+                                dfs(n, currSpace, currLabels);
+                            }
+                        }
+                    }
+
+                    for (let i = 0; i < profiles.length; ++i) {
+                        if (!checked.has(i)) {
+                            const subspace = [];
+                            const labelSet = [];
+                            dfs(i, subspace,labelSet);
+                            subspaces.push(subspace);
+                            ids.push(labelSet);
+                            //ids.push(subspace);
+                        }
+                    }
+
+                    return {subspaces,ids};
+                },
+    dominanceScores : (poset,layer)=>{ 
+        const l = poset.setLayers().layers[layer]
+        const rootIndexes = l.map(node => poset.elements.indexOf(node))
+
+        return rootIndexes.map((ri, n) => [
+            poset.elements[ri],
+            poset.elements.map(e=>poset.getUpset(e).includes(poset.elements[ri])?1:0)
+        ])
+    },
 
     // rootsFromLayer : (poset,n,w) => {
     //     const roots = poset.layers[n]
@@ -421,273 +464,13 @@ const po = {//edges need to be unique
     //         .attr("fill","none")
     //         .attr("stroke","black")
     //         .attr("stroke-width",0.05)
-        
-
-        
-        
-        
-        
-        
-        
-
-        
             
             
 
     //    },
        
-    // circularEmbedding: function (profiles,ids = Array.from({length:profiles.length},(_,n)=>n), cells = 12, iterations = 100, learningRate = 0.1, seed=42) {
-              
-    //             console.log("PIDS",profiles,JSON.parse(JSON.stringify(profiles))) 
-    //             //profiles = JSON.parse(JSON.stringify(profiles))
-    //              //ids = ['n10', 'n12', 'n14', 'n11', 'n15', 'n13', 'n16']
-    //             //  profiles = 
-    //             //  [
-    //             //      [1,1,1,0,1,0,0,0,0,0,0,0,0,0,0,0],
-    //             //      [1,1,0,1,0,1,0,0,0,0,0,0,0,0,0,0],
-    //             //      [1,1,0,1,0,1,0,0,0,0,0,0,0,0,0,0],
-    //             //      [1,1,0,1,0,0,1,0,0,0,0,0,0,0,0,0],
-    //             //      [1,1,0,1,0,0,1,0,0,0,0,0,0,0,0,0],
-    //             //      [1,1,0,1,0,0,0,1,0,0,0,0,0,0,0,0],
-    //             //      [1,1,0,1,0,0,0,0,1,0,0,0,0,0,0,0]
-    //             //  ]
-    //             //! profiles is reallocated
-                
-    //             const dotProd = (a, b) => a.map((x, i) => x * b[i]).reduce((acc, el) => acc + el);
-
-    //             const findAllSubspaces = (profiles) => {
-    //                 const checked = new Set();
-    //                 const subspaces = [];
-
-    //                 // DFS recursive search: collect all connected vectors (by dot > 0)
-    //                 function dfs(idx, currSpace) {
-    //                     checked.add(idx);
-    //                     currSpace.push(profiles[idx]);
-    //                     for (let n = 0; n < profiles.length; ++n) {
-    //                         if (!checked.has(n) && dotProd(profiles[idx], profiles[n]) > 0) {
-    //                             dfs(n, currSpace);
-    //                         }
-    //                     }
-    //                 }
-
-    //                 for (let i = 0; i < profiles.length; ++i) {
-    //                     if (!checked.has(i)) {
-    //                         const subspace = [];
-    //                         dfs(i, subspace);
-    //                         subspaces.push(subspace);
-    //                     }
-    //                 }
-
-    //                 return subspaces;
-    //             };
-    //             const subspaces = findAllSubspaces(profiles)
-                
-                
-                
-                
-
-    //             function createSeededRandom(seed) {
-    //                 // LCG constants (commonly used values from Numerical Recipes)
-    //                 // 'a' (multiplier): Large prime number
-    //                 // 'c' (increment): Another prime number
-    //                 // 'm' (modulus): A large power of 2 (or a large prime)
-    //                 // These values are chosen to maximize the period and statistical quality of the sequence.
-    //                 const a = 1103515245;
-    //                 const c = 12345;
-    //                 const m = Math.pow(2, 31); // Using 2^31 as modulus for a typical 32-bit PRNG
-        
-    //                 // Ensure the initial seed is an integer and within the valid range [0, m-1]
-    //                 // Using bitwise OR 0 to convert to a 32-bit integer and ensure positivity
-    //                 let currentSeed = (Math.abs(Math.floor(seed)) || 1) % m;
-        
-    //                 // Return a function that generates the next number in the sequence
-    //                 return function() {
-    //                     // Apply the LCG formula
-    //                     currentSeed = (a * currentSeed + c) % m;
-    //                     // Normalize the result to be between 0 (inclusive) and 1 (exclusive)
-    //                     return currentSeed / m;
-    //                 };
-    //             }
-    //             const random = createSeededRandom(seed)
-    //             //get extent
-                
-    //             const transposed =  Array.from({length: profiles[0].length}).fill(0).map( (_,tCol) => profiles.map(row=>row[tCol]))
-    //             const extent = (l) => [Math.min(...l),Math.max(...l)] 
-                
-    //             const extentProfiles = transposed.map(l=>extent(l))
-                
-                
-    //             const minSpectrum = 6//180 is rather slow
-    //             const maxSpectrum = 30//180 is rather slow
-    //             console.log("CELLS",cells)
-    //             cells = cells > maxSpectrum ? maxSpectrum : cells < minSpectrum ? minSpectrum : cells
-                
-    //             const epsilon = 1e-3; // Perturbation magnitude
-    //             const threshold = 1e-4; // Euclidean distance threshold for detecting duplicates
-
-    //             // Function to compute the Euclidean distance between two weight vectors
-    //             const euclideanDistance = (a, b) =>
-    //                 Math.sqrt(a.reduce((sum, val, idx) => sum + (val - b[idx]) ** 2, 0));
-
-    //             // Function to apply a small perturbation to the weights
-    //             function perturbVector(weights) {
-    //                 return weights.map(w => w + epsilon * (random() - 0.5));
-    //             }
-
-    //             // Function to remove duplicates
-    //             function removeDuplicates(neurons) {
-    //                 const seen = [];
-
-    //                 neurons.forEach(neuron => {
-    //                     let isDuplicate = false;
-    //                     for (let i = 0; i < seen.length; i++) {
-    //                         if (euclideanDistance(neuron.weights, seen[i].weights) < threshold) {
-    //                             // Perturb weights if too close to another neuron
-    //                             neuron.weights = perturbVector(neuron.weights);
-    //                             isDuplicate = true;
-    //                             break;
-    //                         }
-    //                     }
-    //                     if (!isDuplicate) {
-    //                         seen.push(neuron); // Add to seen list if no duplicate was found
-    //                     }
-    //                 });
-    //             }
-
-    //             // Initialize neurons
-    //             //TODO
-    //             //* add subspace weighted partitioning 
-    //             //* Multiply the weights (e.g. by10) and/or add 1 so that small numbers are less likely to average to 0-like values
-
-    //             const CPRatio = cells / profiles.length 
-    //             const ratioPerSubspace = subspaces.map(ssp=>ssp.length*CPRatio)
-                
-                
-    //             const subspaceExtent = (subspace) => {
-    //                 const transposed =  Array.from({length: subspace[0].length}).fill(0).map( (_,tCol) => subspace.map(row=>row[tCol]))
-    //                 const extent = (l) => [Math.min(...l),Math.max(...l)] 
-                
-    //                 const extentProfiles = transposed.map(l=>extent(l))
-    //                 return extentProfiles
-    //             }
-
-    //             const ExtentSSPs = subspaces.map(ssp=>subspaceExtent(ssp))
-                
-    //             let ssCount=0, 
-    //                 sspThreshold = ratioPerSubspace[0] 
-    //             const neurons = Array.from({ length: cells }, (_, N) => ({
-    //                 position: N,
-    //                 // weights: [...Array(profiles[0].length).fill(0)].map((_, n) => 
-    //                 //     extentProfiles[n][0] + random() * (extentProfiles[n][1] - extentProfiles[n][0])
-    //                 // ),
-    //                 weights: [...Array(profiles[0].length).fill(0)].map((_, n) => {
-    //                     if(N > sspThreshold ){
-    //                         ssCount = ssCount + 1;
-    //                         sspThreshold = sspThreshold + ratioPerSubspace[ssCount]
-    //                     }
-    //                     return ExtentSSPs[ssCount][n][0] + random() * (ExtentSSPs[ssCount][n][1] - ExtentSSPs[ssCount][n][0])
-    //                 }),
-                    
-    //                 bmus: [],
-    //                 bmusID: [],
-    //                 ref: []
-    //             }));
-                
-    //             // Remove duplicates
-    //             removeDuplicates(neurons);
-
-                
-    //             // Helper function to calculate Euclidean distance
-                
-
-    //             // Helper function to update weights
-    //             const updateWeights = (neuron, profile, rate) => {
-    //                 for (let i = 0; i < neuron.weights.length; i++) {
-    //                     neuron.weights[i] += rate * (profile[i] - neuron.weights[i]);
-    //                 }
-    //             };
-
-    //             // Training process
-    //             for (let t = 0; t < iterations; t++) {
-    //                 const rate = learningRate * (1 - t / iterations); // Decaying learning rate
-
-    //                 profiles.forEach(profile => {
-    //                     // Step 1: Find the Best Matching Unit (BMU)
-    //                     let bmuIndex = 0;
-    //                     let minDist = Infinity;
-    //                     neurons.forEach((neuron, index) => {
-    //                         const dist = euclideanDistance(neuron.weights, profile);
-    //                         if (dist < minDist) {
-    //                             minDist = dist;
-    //                             bmuIndex = index;
-    //                         }
-    //                     });
-
-    //                     // Step 2: Update weights of the BMU and its neighbors
-    //                     for (let i = 0; i < cells; i++) {
-    //                         // Calculate neighborhood influence
-    //                         const distance = Math.min(
-    //                             Math.abs(bmuIndex - i),
-    //                             cells - Math.abs(bmuIndex - i) // Wrap around for cylindrical grid
-    //                         );
-    //                         const influence = Math.exp(-distance / (2 * (1 - t / iterations)));
-
-    //                         // Update weights
-    //                         updateWeights(neurons[i], profile, rate * influence);
-    //                     }
-    //                 });
-    //             }
-
-    //             // Assign profiles to neurons as BMUs
-    //             // profiles.forEach((profile,n) => {
-    //             //     let bmuIndex = 0;
-    //             //     let minDist = Infinity;
-
-    //             //     neurons.forEach((neuron, index) => {
-    //             //         const dist = euclideanDistance(neuron.weights, profile);
-    //             //         if (dist < minDist) {
-    //             //             minDist = dist;
-    //             //             bmuIndex = index;
-    //             //         }
-    //             //     });
-
-    //             //     // Ensure no two neurons share the same BMU
-    //             //     neurons[bmuIndex].bmus.push(profile);
-    //             //     neurons[bmuIndex].bmusID.push(n);
-    //             //     neurons[bmuIndex].ref.push(ids[n]);
-                    
-    //             // });
-    //             profiles.forEach((profile, n) => {
-    //                 console.log(ids[n])
-    //                 let bmuIndex = 0;
-    //                 let minDist = Infinity;
-
-    //                 neurons.forEach((neuron, index) => {
-    //                     const dist = euclideanDistance(neuron.weights, profile);
-    //                     if (dist < minDist) {
-    //                         minDist = dist;
-    //                         bmuIndex = index;
-    //                     }
-    //                 });
-                
-    //                 neurons[bmuIndex].bmus.push(profile);
-    //                 neurons[bmuIndex].bmusID.push(ids[n]);  // ← Usa ids[n] invece di n
-    //                 neurons[bmuIndex].ref.push(ids[n]);     // ← Questo è ridondante ora
-    //             });
-
-    //             // Return SOM object
-    //             return { 
-    //                 neurons , 
-    //                 getNeuron : function(id){ return this.neurons.find(neuron=>neuron.bmusID.includes(id)).position} ,
-    //                 toHue : d3.scaleLinear([0,cells],[0,360])
-    //             };
-    //     },
-    circularEmbedding: function (profiles,ids = Array.from({length:profiles.length},(_,n)=>n), cells = 12, iterations = 100, learningRate = 0.1, seed=42) {
-              
-                
-                
-                
-                // console.log(ids.map((id,n)=>`${id} => ${profiles[n]}`))
+    circularEmbedding: function (profiles,ids = Array.from({length:profiles.length},(_,n)=>n), cells = 12, iterations = 100, learningRate = 0.1, seed=42) { 
+                // console.log(profiles)
                 //FIND SUBSPACES
                 const dotProd = (a, b) => a.map((x, i) => x * b[i]).reduce((acc, el) => acc + el);
                 
@@ -718,7 +501,7 @@ const po = {//edges need to be unique
                     return subspaces;
                 };
                 const subspaces = findAllSubspaces(profiles)
-                
+                // console.log("SSP",subspaces)
                 
                 
                 
@@ -857,7 +640,7 @@ const po = {//edges need to be unique
 
                 // Helper function to create a new interpolated neuron
                 const interpolateNeurons = (a,b) => {
-                    // console.log("INTERPOLATING",a,b)
+                    
                  return{
                     position : (a.position+b.position)/2,
                     weights: a.weights.map((w,n)=>(w+b.weights[n])/2),
@@ -941,7 +724,7 @@ const po = {//edges need to be unique
                     });
                 }
 
-                // console.log(neurons)
+                
                 
                 profiles.forEach((profile, n) => {
                     
@@ -956,7 +739,7 @@ const po = {//edges need to be unique
                         }
                     });
                     
-                    // console.log("ASSIGNED", ids[n])
+                    
                     neurons[bmuIndex].bmus.push(profile);
                     neurons[bmuIndex].bmusID.push(ids[n]);  // ← Usa ids[n] invece di n
                     neurons[bmuIndex].ref.push(ids[n]);     // ← Questo è ridondante ora
@@ -988,6 +771,8 @@ const po = {//edges need to be unique
 
         },
     createPoset:(input, elementNames = null) => {
+        const isPoset = typeof input === 'object' && input?.type === 'poset'
+        
         let isDominanceMatrix = Array.isArray(input[0]) && typeof input[0][0] === 'number' && input[0].length === input.length;
         let elements, profiles, dominanceMatrix;
 
@@ -996,7 +781,7 @@ const po = {//edges need to be unique
             dominanceMatrix = input;
             elements = elementNames || Array.from({length: dominanceMatrix.length}, (_, i) => `profile_${i}`);
             profiles = elements.map((_, i) => dominanceMatrix[i]);
-        } else {
+        } else if(!isPoset) {
             // Input is a multidimensional indices matrix
             profiles = input.sort((a, b) => a.every((v, n) => v >= b[n]) ? 1 : -1);
             elements = elementNames || profiles.map((_, n) => `profile_${n}`);
@@ -1010,9 +795,14 @@ const po = {//edges need to be unique
                     }
                 }
             }
+        }else{
+            elements = input.elements; 
+            profiles = input.profiles; 
+            dominanceMatrix = input.dominanceMatrix; 
         }
-
-        const poset = {
+        
+        
+        const poset =  {
             elements,
             profiles,
             dominanceMatrix,
@@ -1024,7 +814,8 @@ const po = {//edges need to be unique
                 suprema: [],
                 infima: [],
             },
-           
+            
+            
 
             getUpset: function(element,mask=false) {
                 const index = this.elements.indexOf(element);
@@ -1142,8 +933,10 @@ const po = {//edges need to be unique
 
 
             enrich: function() {
-                this.features = {};
-                this.elements.forEach(e => this.features[e] = {"name": e});
+                if(!this.features){
+                    this.features = {};
+                    this.elements.forEach(e => this.features[e] = {"name": e});
+                }
                 this.enrich = function(){return this}
                 this.feature = function(key, value) {
                     if (value === undefined) {
@@ -1184,28 +977,48 @@ const po = {//edges need to be unique
             analyze:  function(name,f,args=[]){
                 poset.analytics[name] = f(...args)
                 return this
+            },
+            exportStructure: function(){
+                
+                this.type = 'poset'
+                const deepCopy = JSON.parse(JSON.stringify(this))
+                
+                return deepCopy
             }
         };
 
+        if(isPoset){
+            if(input.features)poset.features = input.features
+            poset.enrich()
+            if(input.layers)poset.layers = input.layers
+            if(input.analytics)poset.analytics = input.analytics
+        }
         
-
+        // console.log("DM",input,dominanceMatrix)
         // Derive relations from dominance matrix
-        for (let i = 0; i < dominanceMatrix.length; i++) {
-            for (let j = 0; j < dominanceMatrix.length; j++) {
-                if (i !== j && dominanceMatrix[i][j] === 1) {
-                    poset.relationsP.push([i, j]);
-                    poset.relations.push([elements[i], elements[j]]);
-                    poset.relationsMSI.push([dominanceMatrix[i], dominanceMatrix[j]]);
+        if(isPoset){
+            poset.relationsP = input.relationsP
+            poset.relations = input.relations
+            poset.relationsMSI = input.relationsMSI
+            
+        }else{
+            for (let i = 0; i < dominanceMatrix.length; i++) {
+                for (let j = 0; j < dominanceMatrix.length; j++) {
+                    if (i !== j && dominanceMatrix[i][j] === 1) {
+                        poset.relationsP.push([i, j]);
+                        poset.relations.push([elements[i], elements[j]]);
+                        poset.relationsMSI.push([dominanceMatrix[i], dominanceMatrix[j]]);
+                    }
                 }
             }
+            
+            // Find suprema and infima
+            const dominants = poset.relations.map(e => e[1]);
+            poset.analytics.infima = poset.elements.filter(p => !dominants.includes(p));
+            
+            const dominated = poset.relations.map(e => e[0]);
+            poset.analytics.suprema = poset.elements.filter(p => !dominated.includes(p));
         }
-
-        // Find suprema and infima
-        const dominants = poset.relations.map(e => e[1]);
-        poset.analytics.infima = poset.elements.filter(p => !dominants.includes(p));
-
-        const dominated = poset.relations.map(e => e[0]);
-        poset.analytics.suprema = poset.elements.filter(p => !dominated.includes(p));
 
 
         // function getCoverRelations() {
@@ -1792,7 +1605,7 @@ const po = {//edges need to be unique
                 const substructure = []
                 this.eachFeature(depth,(name,feature)=>substructure[feature] === undefined ? substructure[feature] = [name] : substructure[feature].push(name))
                 this.analytics.substructures[name] = substructure
-                // console.log("ENTERED",substructure)
+                
             }else if(typeof depth === "function"){
                 const substructure = []
                 this.elements.forEach(name=>substructure[depth(name)]  === undefined ? substructure[depth(name)] = [name] : substructure[depth(name)].push(name))
@@ -2183,12 +1996,11 @@ const po = {//edges need to be unique
                 ])
                 
                 // Topological sorting
-                
                 roots
                     .sort((a,b)=>b[1].reduce((acc,el)=>acc+el)-a[1].reduce((acc,el)=>acc+el))
                     .sort((a,b)=>(a[1].join("")<b[1].join("")?-1:1))
                     
-                
+                // console.log("ROOTS",roots)
                 
                 // Estrai separatamente i vettori e gli ID nello stesso ordine
                 const vectors = roots.map(r => r[1])  // I profili
@@ -2200,8 +2012,8 @@ const po = {//edges need to be unique
                 const rootsCategorized = categories.neurons.filter(neuron=>neuron.bmus.length>0)
                     .map(neuron=>(neuron.ref
                         .map(ref=>{
-                            // console.log(ref,neuron.weights)
-                            const angle=categories.toHue(neuron.position);
+                            
+                            const angle=(categories.toHue(neuron.position ) + seed ) % 360;
                             const theta=angle*Math.PI/180;
                             return {
                                 
@@ -2214,7 +2026,7 @@ const po = {//edges need to be unique
                     ))
                     .flat()
                 
-                    // console.log("D",delta)
+                    
                 polarRepulsion(rootsCategorized,delta,1).forEach(pNode=>(
                     poset.features[pNode.id]["pX"] = pNode.x,
                     poset.features[pNode.id]["pY"] = pNode.y,
@@ -2298,7 +2110,7 @@ const po = {//edges need to be unique
                 const remainder = (d.depth*(degree/(poset.layers.length-1)))
                 let l = flip ? 100 - (lThreshold + (d.depth)*degree + remainder)
                 : lThreshold + (d.depth)*degree + remainder
-                
+                poset.features[node]["pL"] = l
                 //TODO
                 //*l is used before declaration
                 

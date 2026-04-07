@@ -64,7 +64,7 @@
         const setDescendantsFilter = props.setDescendantsFilter
         const excludeList = props.excludeList
         const setExcludeList = props.setExcludeList
-        const buffers = props.buffers
+        const centers = props.centers
         const inclusions = props.inclusions
         const setInclusions = props.setInclusions
         const getInclusions = props.getInclusions
@@ -189,6 +189,7 @@
                 }
             }
             const newInclusions = sidebarRoot.name.map(r => nodes.map(n => n.name).includes(r) ? getInclusions(r,eList,dFilter,nodes.find(n => n.name === r).descendants) : getInclusions(r,eList,dFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)))).flat().filter((e,n,l) => l.indexOf(e) === n)
+                .filter(i => fullTree.nodes.find(n => n.name === i).levels !== '-1')
                 .map(i => treeSelections.includes('mappings') ? fullTree.nodes.find(n => n.name === i).mappings.map(m => m.name) : i).flat()   
                 .filter(i => sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts !== 0)
             updateConcepts(newInclusions,nodes,[],[])
@@ -4810,34 +4811,37 @@
         // dynamic width
         useEffect(() => {
             if (poset && nodes.length > 1) {
-                const width = d3.select("#tree").node().getBoundingClientRect().width
+                // const width = d3.select("#tree").node().getBoundingClientRect().width
                 let positions = {}
+                let centerArray = []
                 // update x
                 poset.forEach((newPoset,index) => {
                     // const layers = newPoset.layers
                     const elements = nodes.map(n => n.name)
                     let layers = poset[index].layers
                     layers = layers.map(layer => layer.filter(e => elements.includes(parseInt(e))))
-                    // const layers = newPoset.analytics.substructures.depth
-                    const nodeWidth = biDirectional ? 160 : 140
-                    const thisWidth = (d3.max(layers, d => d.length)/2)*nodeWidth
-                    let buffer = index === 0 ? buffers[index] : buffers[index] + thisWidth 
+                    const maxLength = d3.max(layers, d => d.length)
+                    const maxIndex = layers.findIndex(a => a.length === maxLength)
+                    const spacingUnit = biDirectional ? 200 : 180
+                    const thisWidth = maxLength*(layers[maxIndex].some(e => mapRoot.includes(parseInt(e))) ? spacingUnit*2 : spacingUnit)
+                    centerArray.push(thisWidth)
+                    let center = d3.sum(centerArray) - thisWidth/2
                     layers.forEach((layer,i) => {
                         const layerInt = layer.map(d => parseInt(d))
                         const mapArrays = nodes.filter(d => mapRoot.includes(d.name)).map(d => d.mappings)
                         const multiBiDirectional = mapArrays.map(array => array.map(d => d.direction)).filter(arr => arr.includes(1) && arr.includes(-1)).length >= 2
-                        const nodeWidth = mapRoot.some(element => layerInt.includes(element)) ? multiBiDirectional ? 320 : 240 : biDirectional ? 160 : 140
-                        const center = (width/poset.length)/2 + (width)*index + buffer
+                        const nodeWidth = mapRoot.some(element => layerInt.includes(element)) ? multiBiDirectional ? 320 : 280 : biDirectional ? 160 : 140
                         if (i === 0) {
-                            let unit = (width/poset.length)/layer.length
+                            // let unit = (width/poset.length)/layer.length
                             let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
                             let median = Math.floor(layer.length/2) 
-                            layer.forEach((node,i) => newPoset.features[node].x = unit >= nodeWidth ? unit*i + unit/2 + (width)*index + buffer : i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
+                            layer.forEach((node,i) => newPoset.features[node].x = i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
+                            // layer.forEach((node,i) => newPoset.features[node].x = unit >= nodeWidth ? unit*i + unit/2 + (width)*index + buffer : i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
                         } else {
                             let missingParent = false
                             layer.forEach(node => newPoset.features[node].parents.length === 0 ? missingParent = true : null)
                             let xPositions = []
-                            let unit = (width/poset.length)/layer.length
+                            // let unit = (width/poset.length)/layer.length
                             let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
                             let median = Math.floor(layer.length/2) 
                             if (missingParent) xPositions = fullTree.nodes.filter(d => layer.includes(d.name.toString())).map(d => ({id:d.name.toString(),x:d.x}))
@@ -4845,7 +4849,8 @@
                             xPositions.sort((a, b) => d3.ascending(a.x, b.x))
                             let minDistance = d3.min(d3.pairs(xPositions, (a, b) => b.x - a.x))
                             if ((minDistance < nodeWidth && layer.length > 1) || missingParent) {
-                                layer.forEach(node => newPoset.features[node].x = unit >= nodeWidth ? unit*xPositions.findIndex(d => d.id === node) + unit/2 + (width)*index + buffer : xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
+                                layer.forEach(node => newPoset.features[node].x = xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
+                                // layer.forEach(node => newPoset.features[node].x = unit >= nodeWidth ? unit*xPositions.findIndex(d => d.id === node) + unit/2 + (width)*index + buffer : xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
                             } else layer.forEach(node => newPoset.features[node].x = xPositions.find(d => d.id === node)?.x)
                         }
                     })    

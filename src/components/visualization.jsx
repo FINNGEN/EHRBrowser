@@ -81,8 +81,8 @@ function Visualization (props) {
     const excludeList = props.excludeList
     const setExcludeList = props.setExcludeList
     const annotations = props.annotations
-    const buffers = props.buffers
-    const setBuffers = props.setBuffers
+    const centers = props.centers
+    const setCenters = props.setCenters
     const inclusions = props.inclusions
     const setInclusions = props.setInclusions
     const getAllDescendants = props.getAllDescendants
@@ -208,7 +208,7 @@ function Visualization (props) {
             .map(e => ({
                 ...e,
                 descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => e.included_descendants.includes(c.concept_id)),
-                leaf: e.included_descendants.filter(d => d !== e.name).length > 0 && ((e.distance === levelFilter+1 && !links.map(d => d.source).map(d => d.name).includes(e.name)) && e.levels !== '-1') ? true : false}
+                leaf: e.included_descendants.filter(d => d !== e.name  && !e.mappings.map(m => m.name).includes(d)).length > 0 && ((e.distance === levelFilter+1 && !links.map(d => d.source).map(d => d.name).includes(e.name)) && e.levels !== '-1') ? true : false}
             ))
             .map(e => ({...e,descendant_counts:getCounts(e.descendant_code_counts,'node_record_counts')}))
         console.log('new inclusions', inclusionList, 'new nodes',newNodes)
@@ -289,6 +289,7 @@ function Visualization (props) {
     // filter tree data
     useEffect(()=>{
         if (fullTree.nodes) {
+            console.log('filter')
             // filter nodes and links
             let filteredNodes = fullTree.nodes
                 .filter(d => levelFilter === undefined || d.distance <= levelFilter+1)
@@ -305,6 +306,7 @@ function Visualization (props) {
                     children: fullTree.nodes.find(n => n.name === e.name).children.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class))
                 }))
             const newInclusions = sidebarRoot.name.map(r => filteredNodes.map(n => n.name).includes(r) ? getInclusions(r,excludeList,descendantsFilter,filteredNodes.find(n => n.name === r).descendants) : getInclusions(r,excludeList,descendantsFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)))).flat().filter((e,n,l) => l.indexOf(e) === n)
+                .filter(i => fullTree.nodes.find(n => n.name === i).levels !== '-1')
                 .map(i => treeSelections.includes('mappings') ? fullTree.nodes.find(n => n.name === i).mappings.map(m => m.name) : i).flat()   
                 .filter(i => sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts !== 0)
             filteredNodes = filteredNodes
@@ -315,9 +317,8 @@ function Visualization (props) {
                 .map(e => ({
                     ...e,
                     descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => e.included_descendants.includes(c.concept_id)),
-                    leaf: e.included_descendants.filter(d => d !== e.name).length > 0 && e.leaf ? true : false}
+                    leaf: e.included_descendants.filter(d => d !== e.name && !e.mappings.map(m => m.name).includes(d)).length > 0 && e.leaf ? true : false}
                 ))
-            console.log('updated nodes',filteredNodes)
             // filter connections 
             let filteredConnections = crossConnections
                 .filter(c => !filteredNodes.map(d => d.name).includes(c.child))
@@ -341,41 +342,43 @@ function Visualization (props) {
             let positions = {}
             const nodeNames = filteredNodes.map(d => d.name)
             const trees = fullTree.trees
-            const width = d3.select("#tree").node().getBoundingClientRect().width
+            // const width = d3.select("#tree").node().getBoundingClientRect().width
             const mappingDirections = filteredNodes.map(d => d.mappings).flat().map(d => d.direction)
             const biDirectionalMapping = mappingDirections.includes(1) && mappingDirections.includes(-1)
             setBiDirectional(biDirectionalMapping)
-            const nodeWidth = biDirectional ? 160 : 140
-            let bufferArray = [0]
+            let centerArray = []
             // iterate through trees
             trees.forEach((tree,index) => {
                 const allElements = [...new Set(tree.map(d => ([d.parent_concept_id,d.child_concept_id])).flat())]
                 const elements = allElements.filter(e => nodeNames.includes(e))
                 let layers = poset[index].layers
                 layers = layers.map(layer => layer.filter(e => elements.includes(parseInt(e))))
-                // *** set based on width of biggest layer
                 const maxLength = d3.max(layers, d => d.length)
                 const maxIndex = layers.findIndex(a => a.length === maxLength)
-                const multiplier = 1.2 + Math.min(maxLength * 0.01, 1)
-                const thisWidth = layers[maxIndex].some(e => mapRoot.includes(parseInt(e))) ? (maxLength/2)*(nodeWidth*multiplier) : (maxLength/2)*nodeWidth
-                bufferArray.push(thisWidth)
-                let buffer = index === 0 ? buffers[index] : buffers[index] + thisWidth 
+                const spacingUnit = biDirectional ? 200 : 180
+                const thisWidth = maxLength*(layers[maxIndex].some(e => mapRoot.includes(parseInt(e))) ? spacingUnit*2 : spacingUnit)
+                centerArray.push(thisWidth)
+                let center = d3.sum(centerArray) - thisWidth/2
+                // console.log(index,centerArray,buffer)
                 layers.forEach((layer,i) => {
                     const layerInt = layer.map(d => parseInt(d))
                     const mapArrays = filteredNodes.filter(d => mapRoot.includes(d.name)).map(d => d.mappings)
                     const multiBiDirectional = mapArrays.map(array => array.map(d => d.direction)).filter(arr => arr.includes(1) && arr.includes(-1)).length >= 2
-                    const nodeWidth = mapRoot.some(element => layerInt.includes(element)) ? multiBiDirectional ? 320 : 240 : biDirectional ? 160 : 140
-                    const center = (width/poset.length)/2 + (width)*index + buffer
+                    const nodeWidth = mapRoot.some(element => layerInt.includes(element)) ? multiBiDirectional ? 320 : 280 : biDirectional ? 160 : 140
+                    // const nodeWidth = mapRoot.some(element => layerInt.includes(element)) ? multiBiDirectional ? 320 : 280 : biDirectional ? 160 : 140
+                    // const center = (width/poset.length)/2 + center
+                    // const center = buffer
                     if (i === 0) {
-                        let unit = (width/poset.length)/layer.length
+                        // let unit = (width/poset.length)/layer.length
                         let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
                         let median = Math.floor(layer.length/2) 
-                        layer.forEach((node,i) => positions[parseInt(node)] = unit >= nodeWidth ? unit*i + unit/2 + (width)*index + buffer : i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
+                        layer.forEach((node,i) => positions[parseInt(node)] = i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
+                        // layer.forEach((node,i) => positions[parseInt(node)] = unit >= nodeWidth ? unit*i + unit/2 + center : i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
                     } else {
                         let missingParent = false
                         layer.forEach(node => filteredNodes.find(n => n.name === parseInt(node)).parents.length === 0 ? missingParent = true : null)
                         let xPositions = []
-                        let unit = (width/poset.length)/layer.length
+                        // let unit = (width/poset.length)/layer.length
                         let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
                         let median = Math.floor(layer.length/2) 
                         if (missingParent) xPositions = fullTree.nodes.filter(d => layer.includes(d.name.toString())).map(d => ({id:d.name.toString(),x:d.x}))
@@ -383,15 +386,16 @@ function Visualization (props) {
                         xPositions.sort((a, b) => d3.ascending(a.x, b.x))
                         let minDistance = d3.min(d3.pairs(xPositions, (a, b) => b.x - a.x))
                         if ((minDistance < nodeWidth && layer.length > 1) || missingParent) {
-                            layer.forEach(node => positions[parseInt(node)] = unit >= nodeWidth ? unit*xPositions.findIndex(d => d.id === node) + unit/2 + (width)*index + buffer : xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
+                            layer.forEach(node => positions[parseInt(node)] = xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
+                            // layer.forEach(node => positions[parseInt(node)] = unit >= nodeWidth ? unit*xPositions.findIndex(d => d.id === node) + unit/2 + center : xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
                         } else layer.forEach(node => positions[parseInt(node)] = xPositions.find(d => d.id === node)?.x)
                     }
                 })
             })
-            setBuffers(bufferArray)
+            setCenters(centerArray)
             // update nodes and links
             filteredNodes = filteredNodes
-                .map(d => ({...d,descendant_counts:getCounts(d.descendant_code_counts,'node_record_counts'),x:positions[d.name] ? positions[d.name] : d.x}))
+                .map(d => ({...d,descendant_counts:getCounts(d.descendant_code_counts,'node_record_counts'),x:positions[d.name]}))
                 .map(d => ({...d,mappings:d.mappings.map(m => ({...m,source:d}))}))
             filteredLinks = filteredLinks.map(d => ({...d,source:filteredNodes[nodeNames.indexOf(d.source.name)],target:filteredNodes[nodeNames.indexOf(d.target.name)]}))
             // pruned
@@ -445,7 +449,7 @@ function Visualization (props) {
     //         const biDirectionalMapping = mappingDirections.includes(1) && mappingDirections.includes(-1)
     //         setBiDirectional(biDirectionalMapping)
     //         const nodeWidth = biDirectional ? 160 : 140
-    //         let bufferArray = [0]
+    //         let centerArray = [0]
     //         // iterate through trees
     //         trees.forEach((tree,index) => {
     //             const allElements = [...new Set(tree.map(d => ([d.parent_concept_id,d.child_concept_id])).flat())]
@@ -457,19 +461,19 @@ function Visualization (props) {
     //             const maxIndex = layers.findIndex(a => a.length === maxLength)
     //             const multiplier = 1.2 + Math.min(maxLength * 0.01, 1)
     //             const thisWidth = layers[maxIndex].some(e => mapRoot.includes(parseInt(e))) ? (maxLength/2)*(nodeWidth*multiplier) : (maxLength/2)*nodeWidth
-    //             bufferArray.push(thisWidth)
-    //             let buffer = index === 0 ? buffers[index] : buffers[index] + thisWidth 
+    //             centerArray.push(thisWidth)
+    //             let buffer = index === 0 ? centers[index] : centers[index] + thisWidth 
     //             layers.forEach((layer,i) => {
     //                 const layerInt = layer.map(d => parseInt(d))
     //                 const mapArrays = filteredNodes.filter(d => mapRoot.includes(d.name)).map(d => d.mappings)
     //                 const multiBiDirectional = mapArrays.map(array => array.map(d => d.direction)).filter(arr => arr.includes(1) && arr.includes(-1)).length >= 2
     //                 const nodeWidth = mapRoot.some(element => layerInt.includes(element)) ? multiBiDirectional ? 320 : 240 : biDirectional ? 160 : 140
-    //                 const center = (width/poset.length)/2 + (width)*index + buffer
+    //                 const center = (width/poset.length)/2 + center
     //                 if (i === 0) {
     //                     let unit = (width/poset.length)/layer.length
     //                     let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
     //                     let median = Math.floor(layer.length/2) 
-    //                     layer.forEach((node,i) => positions[parseInt(node)] = unit >= nodeWidth ? unit*i + unit/2 + (width)*index + buffer : i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
+    //                     layer.forEach((node,i) => positions[parseInt(node)] = unit >= nodeWidth ? unit*i + unit/2 + center : i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
     //                 } else {
     //                     let missingParent = false
     //                     layer.forEach(node => filteredNodes.find(n => n.name === parseInt(node)).parents.length === 0 ? missingParent = true : null)
@@ -482,12 +486,12 @@ function Visualization (props) {
     //                     xPositions.sort((a, b) => d3.ascending(a.x, b.x))
     //                     let minDistance = d3.min(d3.pairs(xPositions, (a, b) => b.x - a.x))
     //                     if ((minDistance < nodeWidth && layer.length > 1) || missingParent) {
-    //                         layer.forEach(node => positions[parseInt(node)] = unit >= nodeWidth ? unit*xPositions.findIndex(d => d.id === node) + unit/2 + (width)*index + buffer : xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
+    //                         layer.forEach(node => positions[parseInt(node)] = unit >= nodeWidth ? unit*xPositions.findIndex(d => d.id === node) + unit/2 + center : xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
     //                     } else layer.forEach(node => positions[parseInt(node)] = xPositions.find(d => d.id === node)?.x)
     //                 }
     //             })
     //         })
-    //         setBuffers(bufferArray)
+    //         setCenters(centerArray)
     //         // update nodes and links
     //         filteredNodes = filteredNodes
     //             .map(d => ({...d,x:positions[d.name] ? positions[d.name] : d.x}))
@@ -637,7 +641,7 @@ function Visualization (props) {
                 setDescendantsFilter = {setDescendantsFilter}
                 excludeList = {excludeList}
                 setExcludeList = {setExcludeList}
-                buffers = {buffers}
+                centers = {centers}
                 inclusions = {inclusions}
                 setInclusions = {setInclusions}
                 getInclusions = {getInclusions}
