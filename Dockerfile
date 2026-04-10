@@ -42,7 +42,6 @@ COPY romopapi /romopapi
 ENV ROMOPAPI_DATABASE=OnlyCounts-FinnGen
 
 # Copy the React application
-COPY node_modules /app/node_modules
 COPY package.json /app/package.json
 COPY package-lock.json /app/package-lock.json
 COPY public /app/public
