@@ -70,4 +70,4 @@ DEV:
     cdm:
       cdmDatabaseSchema: <sandboxProject>.finngen_omop_dev
       vocabularyDatabaseSchema: <sandboxProject>.finngen_omop_dev
-      resultsDatabaseSchema: <sandboxProject>.finngen_omop_results_dev
+      resultsDatabaseSchema: <sandboxProject>.finngen_omop_result_dev
