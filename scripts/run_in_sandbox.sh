@@ -15,11 +15,14 @@ fi
 #
 # Get CLI parameters
 #
-
-TAG=""
+TAG="latest"
 REBUILD_COUNTS_TABLE="FALSE"
-DATABASE=""
+DATABASE="Sandbox-LATEST"
 ENVIRONMENT="production"
+EXTERNAL_PORT_UI=8563
+EXTERNAL_PORT_API=8564
+CONTAINER_NAME="ehr_browser"
+    
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -70,18 +73,6 @@ if [ "$ENVIRONMENT" = "preview" ]; then
     EXTERNAL_PORT_UI=18563
     EXTERNAL_PORT_API=18564
     CONTAINER_NAME="ehr_browser_preview"
-else
-    # Set default tag to 'latest' for production if not explicitly provided
-    if [ -z "$TAG" ]; then
-        TAG="latest"
-    fi
-    # Set default database to 'LATEST' for production if not explicitly provided
-    if [ -z "$DATABASE" ]; then
-        DATABASE="Sandbox-LATEST"
-    fi
-    EXTERNAL_PORT_UI=8563
-    EXTERNAL_PORT_API=8564
-    CONTAINER_NAME="ehr_browser"
 fi
 
 #
