@@ -42,7 +42,7 @@ const po = {//edges need to be unique
         //         e.row = matrix[e[1]]
         //         return e
         //     })
-        //     console.log(nodeDict)
+        
         
 
         //matrix.sort((a,b)=>a.filter(v=>v!==0).length-b.filter(v=>v!==0).length)
@@ -93,6 +93,7 @@ const po = {//edges need to be unique
                 },
     dominanceScores : (poset,layer)=>{ 
         const l = poset.setLayers().layers[layer]
+        
         const rootIndexes = l.map(node => poset.elements.indexOf(node))
 
         return rootIndexes.map((ri, n) => [
@@ -100,7 +101,7 @@ const po = {//edges need to be unique
             poset.elements.map(e=>poset.getUpset(e).includes(poset.elements[ri])?1:0)
         ])
     },
-
+    isSubset: (a,b) => po.dotProd(a,b) === a.filter(x=>x===1).length,
     // rootsFromLayer : (poset,n,w) => {
     //     const roots = poset.layers[n]
     //     w = !w ? w : w === true ? [0,1] : w
@@ -157,12 +158,12 @@ const po = {//edges need to be unique
     //         }) 
     //         //const us = getNext(-1,0,Array.from({length:poset.elements.length},()=>0))// ?? []
     //         //const ds = getNext(1,0,Array.from({length:poset.elements.length},()=>0)) //?? []
-    //         //console.log(us,ds)
+    
     //         //const context = ds.map((e,n)=>e+us[n])
     //             //.concat(Array.from({length: poset.layers[0]}, ()=>0))
     //             //.concat(ds)//.map(e=>poset.elements.indexOf(e))
             
-    //             //console.log("ctx",context)
+    
     //         return vectors//.map(vectorSet=>vectorSet[n])
     //     }
 
@@ -216,7 +217,7 @@ const po = {//edges need to be unique
                 return deltaTheta > 0 ? "left" : "right";
             }
             
-            
+            //? the distance is oblivious of how gray something is– would it make sense for it to have an effect on the repulsion?
             const distance = (radius, theta1, theta2, isDegrees = true) => {
                 // Convert degrees to radians if necessary
                 if (isDegrees) {
@@ -256,7 +257,7 @@ const po = {//edges need to be unique
             
             
                     
-                    //if(isTooCloseL || isTooCloseR) console.log("collision")
+                    
                     
                     if(isTooCloseL)data[n]=position(data[n],decrement(p.theta , delta))
                     if(isTooCloseR)data[n]=position(data[n],increment(p.theta , delta))
@@ -366,8 +367,8 @@ const po = {//edges need to be unique
     //         })
     //         .flat()
     //     const neurons = cSOM.neurons.filter(n=>n.bmus.length>0).map(n=>(n.theta = cSOM.toHue(n.position),n))
-    //     // console.log(neurons.map(n=>n.theta))
-    //     // console.log(cSOM,po.polarRepulsion(
+    
+    
     //     //     neurons,
     //     //     10
     //     // ).map(n=>n.theta))
@@ -424,7 +425,8 @@ const po = {//edges need to be unique
     //     `translate(
     //         ${radius * Math.cos(toRad(d.embedding))},
     //         ${radius * Math.sin(toRad(d.embedding))}
-    //     )`)).on("click",(_,d)=>console.log(d))
+    //     )`))
+    
     //     assignment.append("circle")
     //     .attr("r",2)
     //     .attr("fill",d=>(jchToRgb(d3.jch(70, 100, d.embedding))))
@@ -470,7 +472,7 @@ const po = {//edges need to be unique
     //    },
        
     circularEmbedding: function (profiles,ids = Array.from({length:profiles.length},(_,n)=>n), cells = 12, iterations = 100, learningRate = 0.1, seed=42) { 
-                // console.log(profiles)
+                
                 //FIND SUBSPACES
                 const dotProd = (a, b) => a.map((x, i) => x * b[i]).reduce((acc, el) => acc + el);
                 
@@ -501,7 +503,7 @@ const po = {//edges need to be unique
                     return subspaces;
                 };
                 const subspaces = findAllSubspaces(profiles)
-                // console.log("SSP",subspaces)
+                
                 
                 
                 
@@ -716,7 +718,10 @@ const po = {//edges need to be unique
                                 Math.abs(bmuIndex - i),
                                 cells - Math.abs(bmuIndex - i) // Wrap around for cylindrical grid
                             );
-                            const influence = Math.exp(-distance / (2 * (1 - t / iterations)));
+                            //const influence = Math.exp(-distance / (2 * (1 - t / iterations)));
+                            const minSigma = 0.5; // wider = smoother final map
+                            const sigma = (1 - t / iterations) + minSigma;
+                            const influence = Math.exp(-(distance ** 2) / (2 * sigma ** 2))
                             
                             // Update weights
                             updateWeights(neurons[i], profile, rate * influence);
@@ -916,19 +921,21 @@ const po = {//edges need to be unique
             },
 
 
-            getCovering: function(element) {
+            getUpper: function(element) {
                 const row = this.elements.indexOf(element);
                 return this.getCovMatrix()[row]
                     .map((e, n) => e === 1 ? n : -1)
                     .filter(e => e !== -1).map(n=>this.elements[n]);
             },
+           
 
-            getCovered: function(element) {
+            getLower: function(element) {
                 const col = this.elements.indexOf(element);
                 return this.getCovMatrix().map(row => row[col])
                     .map((e, n) => e === 1 ? n : -1)
                     .filter(e => e !== -1).map(n=>this.elements[n]);
             },
+            
 
 
 
@@ -938,6 +945,22 @@ const po = {//edges need to be unique
                     this.elements.forEach(e => this.features[e] = {"name": e});
                 }
                 this.enrich = function(){return this}
+                this.featureOf = function(query,feature,value){
+                    const get = value === undefined
+                    if(Array.isArray(query)){
+                        if(get) {
+                            return query.map(node=>poset.features[node][feature])
+                        }
+                        else {
+                            query.map(node=>poset.features[node][feature] = value)
+                            return this
+                        }
+                    }
+                    if(get) return this.features[query][feature]
+                    
+                    this.features[query][feature] = value
+                    return this
+                }
                 this.feature = function(key, value) {
                     if (value === undefined) {
                         return Object.keys(this.features).map(node => this.features[node][key]);
@@ -994,7 +1017,7 @@ const po = {//edges need to be unique
             if(input.analytics)poset.analytics = input.analytics
         }
         
-        // console.log("DM",input,dominanceMatrix)
+        
         // Derive relations from dominance matrix
         if(isPoset){
             poset.relationsP = input.relationsP
@@ -1175,11 +1198,12 @@ const po = {//edges need to be unique
                 return acc;
             }, {});
         
+            const getX = (node)=>poset.features[node]?.x
             Object.keys(levelNodes).forEach(level => {
                 const nodesAtLevel = levelNodes[level];
                 const spacing = width / (nodesAtLevel.length + 1);
                 nodesAtLevel.forEach((node, index) => {
-                    node.x = spacing * (index + 1);
+                    node.x = getX(poset.elements[node.id]) ?? spacing * (index + 1);
                 });
             });
         
@@ -1208,20 +1232,21 @@ const po = {//edges need to be unique
             const edgeSelection = svg.append("g")
                 .selectAll("line")
                 .data(edges)
-                .enter().append("line")
+                .join("line")
                 .attr("stroke", "black")
                 .attr("stroke-width", 1.5)
                 .attr("opacity", 0.25)
                 .attr("opacity", 0.1)
                 .attr("marker-end", "url(#arrowhead)");
         
+            
             // Draw nodes
             const nodeSelection = svg.append("g")
                 .selectAll("circle")
                 .data(nodePositions)
                 .join("circle")
                 .attr("r", 15)
-                .attr("cx", d => d.x)
+                .attr("cx", d => getX(poset.elements[d.id]) ??d.x)
                 .attr("cy", d => d.depth)
                 //.attr("fill", d=>(Object.values(poset.features)[d.id].isLeaf?"green":"lightgray"))
                 .attr("fill", d=>poset.features[poset.elements[0]]?.fill?poset.features[poset.elements[d.id]].fill:"lightgray")
@@ -1246,8 +1271,8 @@ const po = {//edges need to be unique
             const labelSelection = svg.append("g")
                 .selectAll("text")
                 .data(nodePositions)
-                .enter().append("text")
-                .attr("x", d => d.x)
+                .join("text")
+                .attr("x", d => getX(poset.elements[d.id]) ??d.x)
                 .attr("y", d => d.depth)
                 .text(d => poset.elements[d.id])
                 .attr("dy", 5)
@@ -1891,7 +1916,7 @@ const po = {//edges need to be unique
         //                     }})
         //             ))
         //             .flat()
-        //         console.log("categories",rootsCategorized.map(r=>r.theta))
+        
                     
         //         polarRepulsion(rootsCategorized,delta,1).forEach(pNode=>(
         //             poset.features[pNode.id]["pX"] = pNode.x,
@@ -1918,8 +1943,8 @@ const po = {//edges need to be unique
         //             ))
                 
         //         //assign descendants to parents
-        //         parents.forEach((p,n)=>parents[n].descendants=poset.getCovered(p.id))
-        //         //parents.forEach((p,n)=>parents[n].descendants=poset.getCovered(p.id).map(i=>poset.elements[i]))
+        //         parents.forEach((p,n)=>parents[n].descendants=poset.getLower(p.id))
+        //         //parents.forEach((p,n)=>parents[n].descendants=poset.getLower(p.id).map(i=>poset.elements[i]))
                 
         //         const ancestorsPerPoint = {}
         //         const points = layer.map(node=>{
@@ -2000,7 +2025,7 @@ const po = {//edges need to be unique
                     .sort((a,b)=>b[1].reduce((acc,el)=>acc+el)-a[1].reduce((acc,el)=>acc+el))
                     .sort((a,b)=>(a[1].join("")<b[1].join("")?-1:1))
                     
-                // console.log("ROOTS",roots)
+                
                 
                 // Estrai separatamente i vettori e gli ID nello stesso ordine
                 const vectors = roots.map(r => r[1])  // I profili
@@ -2048,7 +2073,7 @@ const po = {//edges need to be unique
                     ))
                 
                 //assign descendants to parents
-                parents.forEach((p,n)=>parents[n].descendants=poset.getCovered(p.id))
+                parents.forEach((p,n)=>parents[n].descendants=poset.getLower(p.id))
                 
                 const ancestorsPerPoint = {}
                 const points = layer.map(node=>{

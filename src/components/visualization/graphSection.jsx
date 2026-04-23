@@ -113,7 +113,7 @@ function GraphSection (props) {
                         .y0(d => scaleY(d[0]))
                         .y1(d => scaleY(d[1]))
                     )
-                    .attr('opacity', d => hovered && hovered !== d.key ? 0.2 : 1)
+                    .attr('opacity', d => hovered.length > 0 && !hovered.includes(d.key) ? 0.2 : 1)
                 geometry.append("path")
                     .classed("area-path-background", true)
                     .attr("cursor", "pointer")
@@ -123,7 +123,7 @@ function GraphSection (props) {
                         let element = selectedConcepts.filter(c => c.name === d.key)[0]
                         const el = this
                         el.__hoverTimeout__ = setTimeout(() => {
-                            setHovered(d.key)
+                            setHovered([d.key])
                             tooltipHover(element, "enter", e) 
                         },400) 
                     })
@@ -131,7 +131,7 @@ function GraphSection (props) {
                         const el = this
                         clearTimeout(el.__hoverTimeout__)
                         let element = selectedConcepts.filter(c => c.name === d.key)[0]
-                        setHovered()
+                        setHovered([])
                         tooltipHover(element, "leave", e)    
                     })
                     .style("fill", "transparent")
@@ -145,7 +145,7 @@ function GraphSection (props) {
             },update => {
                 update.select('.area-path')
                     .transition()
-                    .attr('opacity', d => hovered && hovered !== d.key ? 0.2 : 1)
+                    .attr('opacity', d => hovered.length > 0 && !hovered.includes(d.key) ? 0.2 : 1)
                     .attr("d", d3.area()
                         .x((d,i) => scaleX(d.data.year))
                         .y0(d => scaleY(d[0]))
@@ -163,7 +163,7 @@ function GraphSection (props) {
                         let element = selectedConcepts.filter(c => c.name === d.key)[0]
                         const el = this
                         el.__hoverTimeout__ = setTimeout(() => {
-                            setHovered(d.key)
+                            setHovered([d.key])
                             tooltipHover(element, "enter", e) 
                         },400) 
                     })
@@ -171,7 +171,7 @@ function GraphSection (props) {
                         const el = this
                         clearTimeout(el.__hoverTimeout__)
                         let element = selectedConcepts.filter(c => c.name === d.key)[0]
-                        setHovered()
+                        setHovered([])
                         tooltipHover(element, "leave", e)    
                     })
                     .transition()
@@ -639,7 +639,7 @@ function GraphSection (props) {
                         .classed('labels', true) 
                         .attr('id', d => 'label-' + d[0])
                         .style("cursor", "pointer")
-                        .style('background-color', d => sidebarRoot.name.includes(d[0]) || hovered === d[0] ? color.lightpurple : 'none')
+                        .style('background-color', d => sidebarRoot.name.includes(d[0]) || hovered.includes(d[0]) ? color.lightpurple : 'none')
                         .style('border-radius', '20px')
                         .style('margin-right', '2px')
                         .on('click', (e,d) => {
@@ -650,7 +650,7 @@ function GraphSection (props) {
                             el.__hoverTimeout__ = setTimeout(() => {
                                 d3.select("#label-text-" + d[0]).style('font-weight',700)
                                 d3.select('#label-' + d[0]).style('background-color', color.lightpurple)
-                                setHovered(d[0])
+                                setHovered([d[0]])
                             },200)
                         })
                         .on("mouseout", function (e,d) {
@@ -658,10 +658,10 @@ function GraphSection (props) {
                             clearTimeout(el.__hoverTimeout__)
                             d3.select("#label-text-" + d[0]).style("font-weight", d => sidebarRoot.name.includes(d[0]) ? 700 : 400)
                             d3.select('#label-' + d[0]).style('background-color', d => sidebarRoot.name.includes(d[0]) ? color.lightpurple : 'none')
-                            setHovered()
+                            setHovered([])
                         })
                         .style('transition','0.5s opacity')
-                        .style('opacity', d => hovered && hovered !== d[0] ? 0.2 : 1)
+                        .style('opacity', d => hovered.length > 0 && !hovered.includes(d[0]) ? 0.2 : 1)
                     labels.append("div")
                         .classed('label-circle', true)
                         .attr("id", d => "label-circle-" + d[0])
@@ -706,7 +706,7 @@ function GraphSection (props) {
                             if (selectedConcepts.length > 1) {
                                 let filteredConcepts = selectedConcepts.filter(e => e.name !== d.key)
                                 setSelectedConcepts(filteredConcepts) 
-                                setHovered()  
+                                setHovered([])  
                                 tooltipHover(d[1][0], "leave", e) 
                             }   
                         })
@@ -721,7 +721,7 @@ function GraphSection (props) {
                     text.append('tspan')
                         .classed('label-text', true)
                         .attr("id", d => "label-text-" + d[0])
-                        .style("font-weight", d => sidebarRoot.name.includes(d[0]) || hovered === d[0] ? 700 : 400)
+                        .style("font-weight", d => sidebarRoot.name.includes(d[0]) || hovered.includes(d[0]) ? 700 : 400)
                         .html(d => d[1][0].data.concept.concept_name)
                         .style('pointer-events','none')
                     text.append('tspan')
@@ -741,7 +741,7 @@ function GraphSection (props) {
                         .style('pointer-events','none')
                 }, update => {
                     const labels = update
-                        .style('background-color', d => sidebarRoot.name.includes(d[0]) || hovered === d[0] ? color.lightpurple : 'white')
+                        .style('background-color', d => sidebarRoot.name.includes(d[0]) || hovered.includes(d[0]) ? color.lightpurple : 'white')
                         .on('click', (e,d) => {
                             if (!hoverLabelCircle) navigate(`/${d[0]}`)
                         })
@@ -750,7 +750,7 @@ function GraphSection (props) {
                             el.__hoverTimeout__ = setTimeout(() => {
                                 d3.select("#label-text-" + d[0]).style('font-weight',700)
                                 d3.select('#label-' + d[0]).style('background-color', color.lightpurple)
-                                setHovered(d[0])
+                                setHovered([d[0]])
                             },200)
                         })
                         .on("mouseout", function (e,d) {
@@ -758,9 +758,9 @@ function GraphSection (props) {
                             clearTimeout(el.__hoverTimeout__)
                             d3.select("#label-text-" + d[0]).style("font-weight", d => sidebarRoot.name.includes(d[0]) ? 700 : 400)
                             d3.select('#label-' + d[0]).style('background-color', d => sidebarRoot.name.includes(d[0]) ? color.lightpurple : 'none')
-                            setHovered()
+                            setHovered([])
                         })
-                        .style('opacity', d => hovered && hovered !== d[0] ? 0.2 : 1)
+                        .style('opacity', d => hovered.length > 0 && !hovered.includes(d[0]) ? 0.2 : 1)
                     labels.select('.label-circle')
                         .style('background', d => {
                             if (!d[1][0].data.concept.standard_concept) {
@@ -803,13 +803,13 @@ function GraphSection (props) {
                             if (selectedConcepts.length > 1) {
                                 let filteredConcepts = selectedConcepts.filter(e => e.name !== d.key)
                                 setSelectedConcepts(filteredConcepts)   
-                                setHovered()
+                                setHovered([])
                                 tooltipHover(d[1][0], "leave", e) 
                             }   
                         })
                     labels.select('.label-text')
                         .html(d => d[1][0].data.concept.concept_name)
-                        .style("font-weight", d => sidebarRoot.name.includes(d[0]) || hovered === d[0] ? 700 : 400)
+                        .style("font-weight", d => sidebarRoot.name.includes(d[0]) || hovered.includes(d[0]) ? 700 : 400)
                     labels.select('.label-vocab')
                         .html(d => d[1][0].data.concept.vocabulary_id)
                 },exit => exit.remove())    

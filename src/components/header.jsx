@@ -29,6 +29,7 @@ function Header (props) {
     const setIsConceptSet = props.setIsConceptSet
     const refresh = props.refresh
     const setRefresh = props.setRefresh
+    const setExpression = props.setExpression
     // const listIndexes = props.listIndexes
     const codes = conceptList.map(d => d.concept_id.toString())
     const names = conceptList.map(d => d.concept_name.toLowerCase())
@@ -36,6 +37,26 @@ function Header (props) {
     const [prevSearch,setPrevSearch] = useState()
     const [showFilter, setShowFilter] = useState(false)
     const navigate = useNavigate()
+    const fileInputRef = useRef(null);
+
+    const handleButtonClick = () => fileInputRef.current.click()
+    
+    const handleFileChange = (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+
+        reader.onload = (e) => {
+            const text = e.target.result;
+            // Simple CSV parsing
+            const rows = text.split("\n").map(row => row.split(","))
+            rows.shift()
+            const obj = rows.map(r => ({name:Number(r[2]),exclude:r[10] === '"TRUE"' ? true : false,descendants:r[11] === '"TRUE"'}))
+            setExpression(obj);
+            navigate(`/${obj.map(o => o.name).join(",")}`)
+        };
+        reader.readAsText(file);
+    };
    
     const handleClick = () => {
         d3.select('#searchConcept').style('height', '18px').style('border-radius', '20px') 
@@ -383,9 +404,9 @@ function Header (props) {
                         onKeyDown = {(e) => {if (e.key === 'Enter') e.preventDefault()}}
                     />
                     <div id = "search-root-container" style = {{display: refresh ? 'flex' : 'none'}}></div>
-                    <FontAwesomeIcon onClick = {()=>handleClick()} className = "fa-xl fal fa-search" id = "searchBtn" icon={faSearch}></FontAwesomeIcon>
+                    <FontAwesomeIcon onClick = {()=>handleClick()} className = "fa-lg fal fa-search" id = "searchBtn" icon={faSearch}></FontAwesomeIcon>
                     <div style = {{top:32}} className="dropdown-content" id = "suggestions-container"></div>
-                    <div className='search-filter-btn' onClick = {()=>{navigate(``)}} id = "clear-concept-set" style = {{display:isConceptSet && !refresh ? 'block' : 'none'}}>Clear set</div>
+                    <div onClick = {()=>{navigate(``)}} id = "clear-concept-set" style = {{display:isConceptSet && !refresh ? 'block' : 'none'}}>Clear set</div>
                     <div onClick = {()=>setShowFilter(!showFilter)} onMouseOver={()=>d3.select('#filter-search').style('opacity',1)} onMouseOut={()=>d3.select('#filter-search').style('opacity',()=>searchFilter.length > 0 || showFilter ? 1 : 0.5)} style = {{opacity: searchFilter.length > 0 || showFilter ? 1 : 0.5, display: refresh ? 'none' : 'block'}} id = "filter-search">Filter</div>
                 </div>    
             </div>  
@@ -397,6 +418,16 @@ function Header (props) {
                 <div style = {{display:'flex',flexWrap:'wrap',maxWidth:'100%'}} id = "search-filters"></div>
                 <div className = "search-filter-btn" onClick = {() => setShowFilter(false)} style = {{fontWeight: searchFilter.length > 0 ? 700 : 400,backgroundColor:searchFilter.length > 0 ? 'white' : 'transparent',color:searchFilter.length > 0 ? color.darkpurple : 'white',alignSelf:'flex-end'}}>Confirm</div>
             </div> 
+            <div style = {{position:'absolute',left:600}}>
+                <button className = 'header-btn' id = "upload-btn" onClick={handleButtonClick}>Upload Concept Set</button>
+                <input
+                    type="file"
+                    accept=".csv"
+                    ref={fileInputRef}
+                    style={{ display: "none" }}
+                    onChange={handleFileChange}
+                />
+            </div>
             <div id = "search-info" style = {{display: root.split(',').map(Number).length === 1 ? rootData.stratified_code_counts?.length > 0 ? 'flex' : 'none' : 'none'}}>
                 <div className = "search-info-line"></div>
                 <div><span style = {{opacity:0.5,fontWeight:400,marginRight:8}}>Record Counts:</span>{rootData.stratified_code_counts?.length > 0 ? getCounts(rootData.stratified_code_counts.filter(d => d.concept_id === parseInt(root)),"node_record_counts") : null}</div>
@@ -404,7 +435,7 @@ function Header (props) {
                 <div style = {{marginRight:10}}><span style = {{opacity:0.5,fontWeight:400,marginRight:8}}>Descendant Record Counts:</span>{rootData.stratified_code_counts?.length > 0 ? getCounts(rootData.stratified_code_counts.filter(d => d.concept_id === parseInt(root)),"node_descendant_record_counts") : null}</div>
             </div> 
             <div id = "header-btns">
-                <div id = "feedback-btn" 
+                <div className = 'header-btn' id = "feedback-btn" 
                     onClick={() => {
                         d3.select('#feedback').style('display','block')
                         d3.select('#send-feedback').style('display','block')
