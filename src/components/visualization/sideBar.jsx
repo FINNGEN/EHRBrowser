@@ -74,6 +74,8 @@
         const setPruned = props.setPruned
         const edges = props.edges
         const linearLayout = props.linearLayout
+        const setLoading = props.setLoading
+        const getMidX = props.getMidX
         // const setRoot = props.setRoot
         // const [graphSectionWidth, setGraphSectionWidth] = useState()
         const margin = 10
@@ -149,7 +151,7 @@
             const {x,y,k} = e.transform
             d3.select("#tree-graphics").attr("transform", "translate(" + x + "," + y + ")" + " scale(" + k + ")");
         }
-        function zoomToFit(padding = 10) {
+        function zoomToFit(padding = 20) {
             const svgNode = d3.select('#tree').node()
             const gNode = d3.select('#tree-graphics').node()
             const svgWidth = svgNode.getBoundingClientRect().width + padding*2
@@ -163,7 +165,7 @@
             let scale = Math.min((svgWidth - padding) / width,(svgHeight - padding) / height)
             if (nodes.length === 1) scale = scale / 2
             const translateX = (svgWidth - width * scale) / 2 - x * scale 
-            const translateY = (svgHeight - height * scale) / 2 - y * scale + padding 
+            const translateY = (svgHeight - height * scale) / 2 - y * scale 
             d3.select('#tree-graphics').transition().attr("transform", `translate(${translateX},${translateY}) scale(${scale})`)
         }
         function setExcludeInclude(type,id) {
@@ -198,26 +200,19 @@
                 .filter(i => sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts !== 0)
             updateConcepts(newInclusions,nodes,[],[])
         }
+        // *** fix this, now that edges can be from full tree ***
         function updateWidth(mapRoot) {
-            const dom = po.domFromEdges(edges)
-            const matrix = dom.matrix
-            const domNodes = dom.nodes
-            const newPoset = po.createPoset(matrix,domNodes)
-            newPoset.enrich()
-                .setLayers()
-                .feature("lower_bound",(node)=>newPoset.getLower(node))
-                .feature("upper_bound",(node)=>newPoset.getUpper(node))
-                .feature("node_degree",(node,f)=>f.lower_bound.length+f.upper_bound.length)
-            if (mapRoot.length > 0) linearLayout(newPoset,300)  
-            else linearLayout(newPoset,150)  
+            const nWidth = mapRoot.length > 0 ? 300 : 150
+            if (nodes.length !== fullTree.nodes.length) linearLayout(poset,edges,nWidth,fullTree.poset) 
+            else linearLayout(poset,edges,nWidth)
             const nodeList = nodes.map(d => d.name)
-            const nodesArray = nodes
-                .map(d => ({...d,x:newPoset.featureOf(d.name,"x") ? newPoset.featureOf(d.name,"x") : d.x}))
+            let nodesArray = nodes
+                .map(d => ({...d,x:poset.featureOf(d.name,"x") ? poset.featureOf(d.name,"x") : d.x}))
                 .map(e => ({...e,mappings: e.mappings.map(map => ({...map,source: e}))}))
+            nodesArray = nodesArray.map(d => ({...d,connections:d.connections.map(c => ({...c,x:d.x,mid:getMidX(c.parents,nodesArray)}))}))
             const linksArray = links.map(d=>({source: nodesArray[nodeList.indexOf(d.source.name)], target: nodesArray[nodeList.indexOf(d.target.name)]}))
-            setPoset(poset)
             setNodes(nodesArray)
-            setLinks(linksArray)      
+            setLinks(linksArray)    
         }
                         
         // DRAWING
@@ -391,39 +386,48 @@
             const extent = d3.extent(sums)
             const scaleRadius = d3.scaleLinear().domain([0, extent[1]]).range(extent[1] === 0 ? [4,4] : [12, 30])
             // get dimensions
+            let genHeight
+            let num
             let width = d3.select("#tree").node().getBoundingClientRect().width + margin*2
-            let maxLevel = d3.max(nodes.map(d => d.distance))
-            let svgHeight = d3.select("#tree").node().getBoundingClientRect().height
-            let num = (svgHeight/(maxLevel+1) - 12) < 200 ? 200 : (svgHeight/(maxLevel+1) - 12)
-            let length = maxLevel + 1
-            let genHeight = Array.from({length}, (_, i) => i * num)
             let nodeHeight = 60
-            let bufferedHeights = []
-            let maxArray = Array.from({length}, (_, i) => 0)
-            if (mapRoot.length > 0) {
-                genHeight.forEach((h,i) => {
-                    if (i === 0) bufferedHeights.push(0)
-                    else {
-                        let generation = nodes.filter(d => d.distance === i)
-                        let prevGeneration = nodes.filter(d => d.distance === i - 1)
-                        let thisIncludesMappings = mapRoot.some(element => generation.map(d => d.name).includes(element))
-                        let prevIncludesMappings = mapRoot.some(element => prevGeneration.map(d => d.name).includes(element))
-                        let prevMax = maxArray[i-1]
-                        if (thisIncludesMappings) {
-                            let thisMax = Math.max(...generation.filter(d => mapRoot.includes(d.name)).map(d => d.mappings).map(mappings => mappings.length))*nodeHeight 
-                            maxArray[i] = thisMax
-                            if (prevIncludesMappings) thisMax + prevMax > num ? bufferedHeights.push(bufferedHeights[i-1] + thisMax + prevMax) : bufferedHeights.push(bufferedHeights[i-1] + num)
-                            else thisMax > num ? bufferedHeights.push(bufferedHeights[i-1] + thisMax) : bufferedHeights.push(bufferedHeights[i-1] + num)
-                        }
-                        else if (prevIncludesMappings) prevMax > num ? bufferedHeights.push(bufferedHeights[i-1] + prevMax) : bufferedHeights.push(bufferedHeights[i-1] + num)
-                        else bufferedHeights.push(bufferedHeights[i-1] + num)
-                    }
-                })    
-                genHeight = bufferedHeights
+            let maxLevel = d3.max(nodes.map(d => d.distance))
+            if (maxLevel === 0) {
+                num = 200
+                genHeight = [num]
             }
+            else {
+                let svgHeight = d3.select("#tree").node().getBoundingClientRect().height
+                num = (svgHeight/maxLevel - 12) < 200 ? 200 : (svgHeight/maxLevel - 12)
+                let length = maxLevel + 1
+                genHeight = Array.from({length}, (_, i) => i * num)
+                let bufferedHeights = []
+                let maxArray = Array.from({length}, (_, i) => 0)
+                if (mapRoot.length > 0) {
+                    genHeight.forEach((h,i) => {
+                        if (i === 0) bufferedHeights.push(0)
+                        else {
+                            let generation = nodes.filter(d => d.distance === i)
+                            let prevGeneration = nodes.filter(d => d.distance === i - 1)
+                            let thisIncludesMappings = mapRoot.some(element => generation.map(d => d.name).includes(element))
+                            let prevIncludesMappings = mapRoot.some(element => prevGeneration.map(d => d.name).includes(element))
+                            let prevMax = maxArray[i-1]
+                            if (thisIncludesMappings) {
+                                let thisMax = Math.max(...generation.filter(d => mapRoot.includes(d.name)).map(d => d.mappings).map(mappings => mappings.length))*nodeHeight 
+                                maxArray[i] = thisMax
+                                if (prevIncludesMappings) thisMax + prevMax > num ? bufferedHeights.push(bufferedHeights[i-1] + thisMax + prevMax) : bufferedHeights.push(bufferedHeights[i-1] + num)
+                                else thisMax > num ? bufferedHeights.push(bufferedHeights[i-1] + thisMax) : bufferedHeights.push(bufferedHeights[i-1] + num)
+                            }
+                            else if (prevIncludesMappings) prevMax > num ? bufferedHeights.push(bufferedHeights[i-1] + prevMax) : bufferedHeights.push(bufferedHeights[i-1] + num)
+                            else bufferedHeights.push(bufferedHeights[i-1] + num)
+                        }
+                    })    
+                    genHeight = bufferedHeights
+                }
+            }
+            
             let cx = width/2 + margin
             let cy = 50
-            const arrowSize = 16
+            const arrowSize = 20
             const curveY = d3.link(d3.curveBumpY)
             const curveX = d3.link(d3.curveBumpX)
             const customCurve = d3.line()
@@ -441,29 +445,12 @@
                 .attr("y2", "100%")
             linearGradient.append("stop")
                 .attr("offset", "0%")
-                .attr("stop-color", color.textlightest)
-                .attr("stop-opacity", 1)
+                .attr("stop-color", color.textmedium)
+                .attr("stop-opacity", 0.6)
             linearGradient.append("stop")
                 .attr("offset", "100%")
-                .attr("stop-color", color.textlightest)
+                .attr("stop-color", color.textmedium)
                 .attr("stop-opacity", 0.2)
-            // get midpoint between nodes
-            function getMidX(ids) {
-                let xPositions = []
-                ids.forEach(id => xPositions.push(nodes.filter(d => d.name === id)[0].x))
-                // const boxes = ids
-                //     .map(id => document.getElementById('alt-group-'+id))
-                //     .filter(el => el)
-                //     .map(el => el.getBoundingClientRect())
-                // if (boxes.length === 0) return null
-                // // const minX = Math.min(...boxes.map(b => b.left))
-                // // const maxX = Math.max(...boxes.map(b => b.right))
-                // // const midX = (minX + maxX) / 2
-                // const maxY = Math.max(...boxes.map(b => b.bottom))
-                const midX = d3.sum(xPositions)/xPositions.length
-                return midX
-                // return { midX, maxY }
-            }
             // get subsumes label positioning
             const getLabel = d => {
                 let labelPosition = {x: 0, y: 0}
@@ -493,12 +480,13 @@
                         const line = geometry.append('g')
                             .classed('tree-line', true)
                             .attr('id', d => 'tree-line-' + d.source.name+d.target.name)
-                            .style('opacity', d => hovered.length > 0 ? 0.2 : 1)
+                            .style('opacity', d => hovered.includes(d.source.name) && hovered.includes(d.target.name) ? 1 : hovered.length > 0 ? 0.2 : 1)
                             line.append('path')
                                 .classed('line-path',true)
+                                .style('cursor','pointer')
                                 .attr('fill','none')
-                                .attr('stroke', d => (inclusions.includes(d.source.name) || d.source.mappings.map(m => m.name).some(m => inclusions.includes(m))) && (inclusions.includes(d.target.name) || d.target.mappings.map(m => m.name).some(m => inclusions.includes(m))) ? color.textmedium : nodes.length > 130 ? color.textmedium : nodes.find(n => n.name === d.source.name).levels === "-1" ? color.darkbackground : color.textmedium)
-                                .attr('stroke-width', d => (inclusions.includes(d.source.name) || d.source.mappings.map(m => m.name).some(m => inclusions.includes(m))) && (inclusions.includes(d.target.name) || d.target.mappings.map(m => m.name).some(m => inclusions.includes(m))) ? 1.5 : 1)
+                                .attr('stroke', d => (inclusions.includes(d.source.name) || d.source.mappings.map(m => m.name).some(m => inclusions.includes(m))) && (inclusions.includes(d.target.name) || d.target.mappings.map(m => m.name).some(m => inclusions.includes(m))) ? color.textmedium : color.textlightest)
+                                .attr('stroke-width', 1.5)
                                 .attr("d", d => {
                                     let sourceX = d.source.x
                                     let sourceY = d.source.distance > d.target.distance ? cy + (genHeight[d.source.distance]) - scaleRadius(Math.sqrt(d.source.total_counts)) - 43 : cy + (genHeight[d.source.distance]) + scaleRadius(Math.sqrt(d.source.total_counts)) + 18
@@ -516,6 +504,33 @@
                                     }
                                     else return curveY({source: [sourceX, sourceY], target: [targetX, targetY]})
                                 })
+                                // .on('mouseover', (e,d) => setHovered([d.source.name,d.target.name]))
+                                // .on('mouseout', (e,d) => setHovered([]))
+                            line.append('path')
+                                .classed('line-background',true)
+                                .style('cursor','pointer')
+                                .attr('fill','none')
+                                .attr('stroke','transparent')
+                                .attr('stroke-width',5)
+                                .attr("d", d => {
+                                    let sourceX = d.source.x
+                                    let sourceY = d.source.distance > d.target.distance ? cy + (genHeight[d.source.distance]) - scaleRadius(Math.sqrt(d.source.total_counts)) - 43 : cy + (genHeight[d.source.distance]) + scaleRadius(Math.sqrt(d.source.total_counts)) + 18
+                                    let targetX = d.target.x
+                                    let targetY = d.source.distance >= d.target.distance ? cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.total_counts)) + 23 : cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 43
+                                    if (d.source.distance === d.target.distance) {
+                                        const points =  [
+                                            { x: sourceX, y: sourceY },
+                                            { x: sourceX, y: sourceY + 24 },   
+                                            { x: (sourceX + targetX)/2, y: sourceY + 60 },
+                                            { x: targetX, y: targetY + 24 },    
+                                            { x: targetX, y: targetY }
+                                        ]
+                                        return customCurve(points)
+                                    }
+                                    else return curveY({source: [sourceX, sourceY], target: [targetX, targetY]})
+                                })
+                                .on('mouseover', (e,d) => setHovered([d.source.name,d.target.name]))
+                                .on('mouseout', (e,d) => setHovered([]))
                             line.append('path')
                                 .classed('tree-arrow', true)
                                 .attr('fill', d => (inclusions.includes(d.source.name) || d.source.mappings.map(m => m.name).some(m => inclusions.includes(m))) && (inclusions.includes(d.target.name) || d.target.mappings.map(m => m.name).some(m => inclusions.includes(m))) ? color.textmedium : color.textlightest)
@@ -529,10 +544,8 @@
                     }, update => {
                             update.select('.tree-line')
                                 .transition()
-                                .style('opacity', d => hovered.length > 0 ? 0.2 : 1)
-                            update.select('.line-path')
-                                .attr('stroke', d => (inclusions.includes(d.source.name) || d.source.mappings.map(m => m.name).some(m => inclusions.includes(m))) && (inclusions.includes(d.target.name) || d.target.mappings.map(m => m.name).some(m => inclusions.includes(m))) ? color.textmedium : nodes.length > 130 ? color.textmedium : nodes.find(n => n.name === d.source.name).levels === "-1" ? color.darkbackground : color.textmedium)
-                                .attr('stroke-width', d => (inclusions.includes(d.source.name) || d.source.mappings.map(m => m.name).some(m => inclusions.includes(m))) && (inclusions.includes(d.target.name) || d.target.mappings.map(m => m.name).some(m => inclusions.includes(m))) ? 1.5 : 1)
+                                .style('opacity', d => hovered.includes(d.source.name) && hovered.includes(d.target.name) ? 1 : hovered.length > 0 ? 0.2 : 1)
+                            update.select('.line-background')
                                 .attr("d", d => {
                                     let sourceX = d.source.x
                                     let sourceY = d.source.distance > d.target.distance ? cy + (genHeight[d.source.distance]) - scaleRadius(Math.sqrt(d.source.total_counts)) - 43 : cy + (genHeight[d.source.distance]) + scaleRadius(Math.sqrt(d.source.total_counts)) + 18
@@ -550,6 +563,29 @@
                                     }
                                     else return curveY({source: [sourceX, sourceY], target: [targetX, targetY]})
                                 })
+                                .on('mouseover', (e,d) => setHovered([d.source.name,d.target.name]))
+                                .on('mouseout', (e,d) => setHovered([]))
+                            update.select('.line-path')
+                                .attr('stroke', d => (inclusions.includes(d.source.name) || d.source.mappings.map(m => m.name).some(m => inclusions.includes(m))) && (inclusions.includes(d.target.name) || d.target.mappings.map(m => m.name).some(m => inclusions.includes(m))) ? color.textmedium : color.textlightest)
+                                .attr("d", d => {
+                                    let sourceX = d.source.x
+                                    let sourceY = d.source.distance > d.target.distance ? cy + (genHeight[d.source.distance]) - scaleRadius(Math.sqrt(d.source.total_counts)) - 43 : cy + (genHeight[d.source.distance]) + scaleRadius(Math.sqrt(d.source.total_counts)) + 18
+                                    let targetX = d.target.x
+                                    let targetY = d.source.distance >= d.target.distance ? cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.total_counts)) + 23 : cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 43
+                                    if (d.source.distance === d.target.distance) {
+                                        const points =  [
+                                            { x: sourceX, y: sourceY },
+                                            { x: sourceX, y: sourceY + 24 },   
+                                            { x: (sourceX + targetX)/2, y: sourceY + 60 },
+                                            { x: targetX, y: targetY + 24 },    
+                                            { x: targetX, y: targetY }
+                                        ]
+                                        return customCurve(points)
+                                    }
+                                    else return curveY({source: [sourceX, sourceY], target: [targetX, targetY]})
+                                })
+                                // .on('mouseover', (e,d) => setHovered([d.source.name,d.target.name]))
+                                // .on('mouseout', (e,d) => setHovered([]))
                             update.select('.tree-arrow')
                                 .transition()
                                 .duration(500)
@@ -959,7 +995,7 @@
                         const node = nodeContainer.append('g')  
                             .classed('subsumes-node', true)
                             .attr('id', d => 'subsumes-node-'+d.name)
-                            .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : d.levels === '-1' ? 0.5 : 1)
+                            .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : d.levels === '-1' ? 0.8 : 1)
                             // .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : d.levels === '-1' || (!sidebarRoot.name.includes(d.name) && d.parents.some(parent => descendantsFilter.includes(parent))) || (sidebarRoot.name.includes(d.name) && excludeList.includes(d.name)) ? 0.5 : 1)
                         node.append('circle')
                             .classed('tree-circle-background', true)
@@ -1223,6 +1259,7 @@
                             })
                             .on('click', (e,d) => {
                                 tooltipHover(d, 'leave', e)
+                                setLoading(true)
                                 navigate(`/${d.name}`) 
                             })
                             .style('cursor', 'pointer')
@@ -1287,6 +1324,7 @@
                             .classed('prune-group', true)
                             .attr('id', d => 'prune-group-' + d.name)
                             .style('display', d => pruned && d.leaf && !d.children?.every(child => d.connections.map(d => d.child).includes(child)) ? 'block' : 'none')
+                            .style('opacity', d => hovered.length === 1 && hovered.includes(d.name) ? 1 : hovered.length > 0 ? 0.2 : 1)
                         pruneLine.append('line')
                             .classed('prune-line',true)
                             .attr('fill', 'none')
@@ -1305,10 +1343,11 @@
                                 let y = cy + (genHeight[d.distance]) + (num - 20)
                                 return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
                             }) 
-                        node.selectAll(".prune-curve").data(d => d.connections, d => d.child)
+                        node.selectAll(".prune-curve").data(d => d.connections)
                         .join(enter => {
                             const curve = enter.append('g')
                                 .classed('prune-curve',true)
+                                .style('opacity', d => d.parents === hovered ? 1 : hovered.length > 0 ? 0.2 : 1)
                             curve.append('path')
                                 .classed('prune-curve-line',true)
                                 .attr('fill', 'none')
@@ -1317,37 +1356,78 @@
                                 .style('display', pruned ? 'block' : 'none')
                                 .attr("d", d => {
                                     let sourceNode = nodes.filter(e => e.name === d.source)[0]
-                                    // let coordinates = getMidXAndMaxY(d.parents)
-                                    let x1 = sourceNode.x
+                                    // // let coordinates = getMidXAndMaxY(d.parents)
+                                    // let x1 = sourceNode.x
+                                    let x1 = d.x
                                     let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18
-                                    let x2 = getMidX(d.parents)
+                                    let x2 = d.mid
                                     let y2 = cy + (genHeight[sourceNode.distance]) + (num - 20)
                                     return curveY({source: [x1, y1], target: [x2, y2]})
                                 })
+                                // .on('mouseover',(e,d) => setHovered(d.parents))
+                                // .on('mouseout',(e,d) => setHovered([]))
+                            curve.append('path')
+                                .classed('prune-curve-background',true)
+                                .attr('fill', 'none')
+                                .attr("stroke", "transparent")
+                                .attr('stroke-width', 5)
+                                .style('cursor','pointer')
+                                .style('display', pruned ? 'block' : 'none')
+                                .attr("d", d => {
+                                    let sourceNode = nodes.filter(e => e.name === d.source)[0]
+                                    // // let coordinates = getMidXAndMaxY(d.parents)
+                                    // let x1 = sourceNode.x
+                                    let x1 = d.x
+                                    let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18
+                                    let x2 = d.mid
+                                    let y2 = cy + (genHeight[sourceNode.distance]) + (num - 20)
+                                    return curveY({source: [x1, y1], target: [x2, y2]})
+                                })
+                                .on('mouseover',(e,d) => setHovered(d.parents))
+                                .on('mouseout',(e,d) => setHovered([]))
                             curve.append('path')
                                 .classed('prune-curve-arrow', true)
                                 .attr('fill', color.darkbackground)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
-                                    let x = getMidX(d.parents)
+                                    let x = d.mid
                                     let y = cy + (genHeight[nodes.filter(e => e.name === d.source)[0].distance]) + (num - 20)
                                     return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
                                 }) 
                         },update => {
+                            update 
+                                .style('opacity', d => d.parents === hovered ? 1 : hovered.length > 0 ? 0.2 : 1)
                             update.select('.prune-curve-line')
                                 .style('display', pruned ? 'block' : 'none')
                                 .attr("d", d => {
                                     let sourceNode = nodes.filter(e => e.name === d.source)[0]
-                                    // let coordinates = getMidXAndMaxY(d.parents)
-                                    let x1 = sourceNode.x
+                                    // // let coordinates = getMidXAndMaxY(d.parents)
+                                    // let x1 = sourceNode.x
+                                    let x1 = d.x
                                     let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18
-                                    let x2 = getMidX(d.parents)
+                                    let x2 = d.mid
                                     let y2 = cy + (genHeight[sourceNode.distance]) + (num - 20)
                                     return curveY({source: [x1, y1], target: [x2, y2]})
                                 })
+                                // .on('mouseover',(e,d) => setHovered(d.parents))
+                                // .on('mouseout',(e,d) => setHovered([]))
+                            update.select(".prune-curve-background")
+                                .style('display', pruned ? 'block' : 'none')
+                                .attr("d", d => {
+                                    let sourceNode = nodes.filter(e => e.name === d.source)[0]
+                                    // // let coordinates = getMidXAndMaxY(d.parents)
+                                    // let x1 = sourceNode.x
+                                    let x1 = d.x
+                                    let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18
+                                    let x2 = d.mid
+                                    let y2 = cy + (genHeight[sourceNode.distance]) + (num - 20)
+                                    return curveY({source: [x1, y1], target: [x2, y2]})
+                                })
+                                .on('mouseover',(e,d) => setHovered(d.parents))
+                                .on('mouseout',(e,d) => setHovered([]))
                             update.select('.prune-curve-arrow')
                                 .attr("transform", d => {
-                                    let x = getMidX(d.parents)
+                                    let x = d.mid
                                     let y = cy + (genHeight[nodes.filter(e => e.name === d.source)[0].distance]) + (num - 20)
                                     return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
                                 })    
@@ -1745,7 +1825,7 @@
                         //Subsumes node
                         update.select('.subsumes-node')
                             .transition()
-                            .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : d.levels === '-1' ? 0.5 : 1)
+                            .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : d.levels === '-1' ? 0.8 : 1)
                             // .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : d.levels === '-1' || (!sidebarRoot.name.includes(d.name) && d.parents.some(parent => descendantsFilter.includes(parent))) || (sidebarRoot.name.includes(d.name) && excludeList.includes(d.name)) ? 0.5 : 1)
                         update.select('.tree-circle-background') 
                             .transition()
@@ -1889,7 +1969,8 @@
                             })
                             .on('click', (e,d) => {
                                 tooltipHover(d, 'leave', e)
-                                navigate(`/${d.name}`) 
+                                setLoading(true)
+                                navigate(`/${d.name}`)
                             })
                         update.select('.tree-text')
                             .text(d => {
@@ -1981,6 +2062,7 @@
                             .attr('y', d => cy + (genHeight[d.distance]) - 8)
                         update.select('.prune-group')
                             .style('display', d => pruned && d.leaf && d.children.length > 0 && !d.children?.every(child => d.connections.map(d => d.child).includes(child)) ? 'block' : 'none')
+                            .style('opacity', d => hovered.length === 1 && hovered.includes(d.name) ? 1 : hovered.length > 0 ? 0.2 : 1)
                         update.select('.prune-line')
                             .attr('x1',d => d.x)
                             .attr('y1',d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 18)
@@ -1992,49 +2074,91 @@
                                 let y = cy + (genHeight[d.distance]) + (num - 20)
                                 return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
                             }) 
-                        update.selectAll(".prune-curve").data(d => d.connections, d => d.child)
+                        update.selectAll(".prune-curve").data(d => d.connections)
                         .join(enter => {
                             const curve = enter.append('g')
                                 .classed('prune-curve',true)
+                                .style('opacity', d => d.parents === hovered ? 1 : hovered.length > 0 ? 0.2 : 1)
                             curve.append('path')
                                 .classed('prune-curve-line',true)
                                 .attr('fill', 'none')
                                 .attr("stroke", "url(#myGradient)")
-                                .attr('stroke-width', 1)
+                                .attr('stroke-width', 1.5)
                                 .style('display', pruned ? 'block' : 'none')
                                 .attr("d", d => {
                                     let sourceNode = nodes.filter(e => e.name === d.source)[0]
-                                    // let coordinates = getMidXAndMaxY(d.parents)
-                                    let x1 = sourceNode.x
+                                    // // let coordinates = getMidXAndMaxY(d.parents)
+                                    // let x1 = sourceNode.x
+                                    let x1 = d.x
                                     let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18
-                                    let x2 = getMidX(d.parents)
+                                    let x2 = d.mid
                                     let y2 = cy + (genHeight[sourceNode.distance]) + (num - 20)
                                     return curveY({source: [x1, y1], target: [x2, y2]})
                                 })
+                                // .on('mouseover',(e,d) => setHovered(d.parents))
+                                // .on('mouseout',(e,d) => setHovered([]))
+                            curve.append('path')
+                                .classed('prune-curve-background',true)
+                                .attr('fill', 'none')
+                                .attr("stroke", "transparent")
+                                .attr('stroke-width', 5)
+                                .style('cursor','pointer')
+                                .style('display', pruned ? 'block' : 'none')
+                                .attr("d", d => {
+                                    let sourceNode = nodes.filter(e => e.name === d.source)[0]
+                                    // // let coordinates = getMidXAndMaxY(d.parents)
+                                    // let x1 = sourceNode.x
+                                    let x1 = d.x
+                                    let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18
+                                    let x2 = d.mid
+                                    let y2 = cy + (genHeight[sourceNode.distance]) + (num - 20)
+                                    return curveY({source: [x1, y1], target: [x2, y2]})
+                                })
+                                .on('mouseover',(e,d) => setHovered(d.parents))
+                                .on('mouseout',(e,d) => setHovered([]))
                             curve.append('path')
                                 .classed('prune-curve-arrow', true)
                                 .attr('fill', color.darkbackground)
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
-                                    let x = getMidX(d.parents)
+                                    let x = d.mid
                                     let y = cy + (genHeight[nodes.filter(e => e.name === d.source)[0].distance]) + (num - 20)
                                     return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
                                 }) 
                         },update => {
+                            update 
+                                .style('opacity', d => d.parents === hovered ? 1 : hovered.length > 0 ? 0.2 : 1)
                             update.select('.prune-curve-line')
                                 .style('display', pruned ? 'block' : 'none')
                                 .attr("d", d => {
                                     let sourceNode = nodes.filter(e => e.name === d.source)[0]
-                                    // let coordinates = getMidXAndMaxY(d.parents)
-                                    let x1 = sourceNode.x
+                                    // // let coordinates = getMidXAndMaxY(d.parents)
+                                    // let x1 = sourceNode.x
+                                    let x1 = d.x
                                     let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18
-                                    let x2 = getMidX(d.parents)
+                                    let x2 = d.mid
                                     let y2 = cy + (genHeight[sourceNode.distance]) + (num - 20)
                                     return curveY({source: [x1, y1], target: [x2, y2]})
                                 })
+                                // .on('mouseover',(e,d) => setHovered(d.parents))
+                                // .on('mouseout',(e,d) => setHovered([]))
+                            update.select(".prune-curve-background")
+                                .style('display', pruned ? 'block' : 'none')
+                                .attr("d", d => {
+                                    let sourceNode = nodes.filter(e => e.name === d.source)[0]
+                                    // // let coordinates = getMidXAndMaxY(d.parents)
+                                    // let x1 = sourceNode.x
+                                    let x1 = d.x
+                                    let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18
+                                    let x2 = d.mid
+                                    let y2 = cy + (genHeight[sourceNode.distance]) + (num - 20)
+                                    return curveY({source: [x1, y1], target: [x2, y2]})
+                                })
+                                .on('mouseover',(e,d) => setHovered(d.parents))
+                                .on('mouseout',(e,d) => setHovered([]))
                             update.select('.prune-curve-arrow')
                                 .attr("transform", d => {
-                                    let x = getMidX(d.parents)
+                                    let x = d.mid
                                     let y = cy + (genHeight[nodes.filter(e => e.name === d.source)[0].distance]) + (num - 20)
                                     return "translate(" + x + "," + y + ")rotate(" + 180 + ")"
                                 })    
@@ -2206,7 +2330,8 @@
                         .style('padding-right', '4px')
                         .style('cursor','pointer')
                         .on('click', (e,d) => {
-                            navigate(`/${d.name}`) 
+                            setLoading(true)
+                                navigate(`/${d.name}`)
                             //conceptHover(d.name, "leave") 
                         })
                         .on('mouseover', function (e,d) {
@@ -2521,7 +2646,8 @@
                             .style('padding-right', '4px')
                             .style('cursor','pointer')
                             .on('click', (e,d) => {
-                                navigate(`/${d.name}`) 
+                                setLoading(true)
+                                navigate(`/${d.name}`)
                                 //conceptHover(d.name, "leave") 
                             })
                             .on('mouseover', function (e,d) {
@@ -2737,7 +2863,8 @@
                             .style('color', d => conceptNames.includes(d.name) || hovered.includes(d.name) ? color.text : color.textlight)
                             .html(d => d.data.concept.concept_name)
                             .on('click', (e,d) => {
-                                navigate(`/${d.name}`) 
+                                setLoading(true)
+                                navigate(`/${d.name}`)
                                 //conceptHover(d.name, "leave") 
                             })
                             .on('mouseover', function (e,d) {
@@ -3068,7 +3195,8 @@
                             .style('padding-right', '4px')
                             .style('cursor','pointer')
                             .on('click', (e,d) => {
-                                navigate(`/${d.name}`) 
+                                setLoading(true)
+                                navigate(`/${d.name}`)
                                 //conceptHover(d.name, "leave") 
                             })
                             .on('mouseover', function (e,d) {
@@ -3284,7 +3412,8 @@
                             .style('color', d => conceptNames.includes(d.name) || hovered.includes(d.name) ? color.text : color.textlight)
                             .html(d => d.data.concept.concept_name)
                             .on('click', (e,d) => {
-                                navigate(`/${d.name}`) 
+                                setLoading(true)
+                                navigate(`/${d.name}`)
                                 //conceptHover(d.name, "leave") 
                             })
                             .on('mouseover', function (e,d) {
@@ -3452,7 +3581,8 @@
                         .style('padding-right', '4px')
                         .style('cursor','pointer')
                         .on('click', (e,d) => {
-                            navigate(`/${d.name}`) 
+                            setLoading(true)
+                                navigate(`/${d.name}`)
                             //conceptHover(d.name, "leave") 
                         })
                         .on('mouseover', function (e,d) {
@@ -3767,7 +3897,8 @@
                             .style('padding-right', '4px')
                             .style('cursor','pointer')
                             .on('click', (e,d) => {
-                                navigate(`/${d.name}`) 
+                                setLoading(true)
+                                navigate(`/${d.name}`)
                                 //conceptHover(d.name, "leave") 
                             })
                             .on('mouseover', function (e,d) {
@@ -3983,7 +4114,8 @@
                             .style('color', d => conceptNames.includes(d.name) || hovered.includes(d.name) ? color.text : color.textlight)
                             .html(d => d.data.concept.concept_name)
                             .on('click', (e,d) => {
-                                navigate(`/${d.name}`) 
+                                setLoading(true)
+                                navigate(`/${d.name}`)
                                 //conceptHover(d.name, "leave") 
                             })
                             .on('mouseover', function (e,d) {
@@ -4314,7 +4446,8 @@
                             .style('padding-right', '4px')
                             .style('cursor','pointer')
                             .on('click', (e,d) => {
-                                navigate(`/${d.name}`) 
+                                setLoading(true)
+                                navigate(`/${d.name}`)
                                 //conceptHover(d.name, "leave") 
                             })
                             .on('mouseover', function (e,d) {
@@ -4530,7 +4663,8 @@
                             .style('color', d => conceptNames.includes(d.name) || hovered.includes(d.name) ? color.text : color.textlight)
                             .html(d => d.data.concept.concept_name)
                             .on('click', (e,d) => {
-                                navigate(`/${d.name}`) 
+                                setLoading(true)
+                                navigate(`/${d.name}`)
                                 //conceptHover(d.name, "leave") 
                             })
                             .on('mouseover', function (e,d) {
@@ -4671,21 +4805,21 @@
         // filter dropdowns 
         useEffect(()=>{
             if (nodes.length > 0) {
-                const levels = Array.from({length: fullTreeMax + 1}, (_, i) => i + 1)
+                const levels = Array.from({ length: fullTreeMax }, (_, i) => i + 1)
                 d3.select('#levels-dropdown').selectAll('.level').data(levels, d => d)
                 .join(enter => {
                     enter.append('p')
                         .classed('level',true)
                         .attr('id', d => 'level-'+d)
-                        .style('font-weight', d => maxLevel === d - 1 ? 700 : 400)
+                        .style('font-weight', d => maxLevel === d ? 700 : 400)
                         .style('cursor','pointer')
                         .style('width','100%')
                         .style('text-align','center')
-                        .style('color', d => maxLevel === d - 1 ? color.text : color.textlight)
+                        .style('color', d => maxLevel === d  ? color.text : color.textlight)
                         .on('mouseover', (e,d) => d3.select('#level-'+d).style('color', color.text).style('font-weight',700))
-                        .on('mouseout', (e,d) => d3.select('#level-'+d).style('color', d => maxLevel === d - 1 ? color.text : color.textlight).style('font-weight',() => maxLevel === d - 1 ? 700 : 400))
+                        .on('mouseout', (e,d) => d3.select('#level-'+d).style('color', d => maxLevel === d ? color.text : color.textlight).style('font-weight',() => maxLevel === d ? 700 : 400))
                         .on('click',(e,d) => {
-                            const level = d-1
+                            const level = d
                             if (levelFilter !== level) {
                                 if (initialPrune) setInitialPrune(false)
                                 // if (level > levelFilter && !classFilter.includes('All')) {
@@ -4703,12 +4837,12 @@
                         .html(d => d)
                 },update =>{
                     update
-                        .style('font-weight', d => maxLevel === d - 1 ? 700 : 400)
-                        .style('color', d => maxLevel === d - 1 ? color.text : color.textlight)
+                        .style('font-weight', d => maxLevel === d ? 700 : 400)
+                        .style('color', d => maxLevel === d ? color.text : color.textlight)
                         .on('mouseover', (e,d) => d3.select('#level-'+d).style('color', color.text).style('font-weight',700))
-                        .on('mouseout', (e,d) => d3.select('#level-'+d).style('color', d => maxLevel === d - 1 ? color.text : color.textlight).style('font-weight',() => maxLevel === d - 1 ? 700 : 400))
+                        .on('mouseout', (e,d) => d3.select('#level-'+d).style('color', d => maxLevel === d ? color.text : color.textlight).style('font-weight',() => maxLevel === d ? 700 : 400))
                         .on('click',(e,d) => {
-                            const level = d-1
+                            const level = d
                             if (levelFilter !== level) {
                                 if (initialPrune) setInitialPrune(false)
                                 // if (level > levelFilter && !classFilter.includes('All')) {
@@ -4849,7 +4983,6 @@
                     d3.select('#set-container').style('display','none')
                     d3.select('#list-container').style('display','none')
                     drawTree()
-                    zoomToFit()
                 }
                 if (view === 'List') {
                     d3.select('#list-container').style('display','block')
@@ -4867,10 +5000,12 @@
         },[nodes,conceptNames,mapRoot,view,hovered])
         //,conceptNames.length < 50 ? hovered : null
 
-        // reset zoom when tree updates (remove for opening mappings?)
+        // reset zoom 
         useEffect(()=>{
-            setTimeout(() => zoomToFit(),400)
-        },[nodes,treeSelections])
+            setTimeout(() => {
+                zoomToFit()
+            }, 500)
+        },[nodes,treeSelections,graphSectionWidth])
 
         useEffect(() => {
             const sum = getCounts(sidebarRoot.data.stratified_code_counts.filter(c => inclusions.includes(c.concept_id)),'node_record_counts')
@@ -4886,7 +5021,12 @@
                             <div id = "view-title-set" className = "view-title" style = {{zIndex: 3000,fontWeight: view === 'Set' ? 700 : 400, color: view === 'Set' ? color.slate : color.mediumslate}}>Concept set</div>
                             <div className = "selection-bar" style = {{opacity: view === 'Set' ? 1 : 0}}></div>
                         </div>
-                        <div id = "view-tree" className="view-btn" onClick={() => setView('Tree')} onMouseOver={() => {if (view !== 'Tree') d3.select('#view-title-tree').style("font-weight",700)}} onMouseOut={() => {if (view !== 'Tree') d3.select('#view-title-tree').style("font-weight",400)}}>
+                        <div id = "view-tree" className="view-btn" onClick={() => {
+                            setView('Tree')
+                            setTimeout(() => {
+                                zoomToFit()
+                            }, 500)
+                            }} onMouseOver={() => {if (view !== 'Tree') d3.select('#view-title-tree').style("font-weight",700)}} onMouseOut={() => {if (view !== 'Tree') d3.select('#view-title-tree').style("font-weight",400)}}>
                             <div id = "view-title-tree" className = "view-title" style = {{zIndex: 3000,fontWeight: view === 'Tree' ? 700 : 400, color: view === 'Tree' ? color.slate : color.mediumslate}}>Tree</div>
                             <div className = "selection-bar" style = {{opacity: view === 'Tree' ? 1 : 0}}></div>
                         </div>
@@ -4963,7 +5103,7 @@
                                             }
                                         }}
                                     >
-                                        <p id = "max-level" style = {{fontWeight:700,padding:'1px 3px 1px 3px',margin:0}}>{maxLevel + 1}</p>
+                                        <p id = "max-level" style = {{fontWeight:700,padding:'1px 3px 1px 3px',margin:0}}>{maxLevel}</p>
                                         <FontAwesomeIcon className = "dropBtn fa-lg" id = 'open-levels-btn' icon={faCaretDown} style = {{display:'block',opacity: 0.3,padding:'1px 3px 1px 5px',color: levelFilter < fullTreeMax ? 'white' : 'var(--text)'}}/>
                                         <FontAwesomeIcon className = "dropBtn fa-lg" id = 'close-levels-btn' icon={faCaretUp} style = {{display:'none',opacity: 1,padding:'2px 3px 1px 5px',color: levelFilter < fullTreeMax ? 'white' : 'var(--text)'}}/>     
                                     </div>

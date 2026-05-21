@@ -93,7 +93,6 @@ const po = {//edges need to be unique
                 },
     dominanceScores : (poset,layer)=>{ 
         const l = poset.setLayers().layers[layer]
-        
         const rootIndexes = l.map(node => poset.elements.indexOf(node))
 
         return rootIndexes.map((ri, n) => [
@@ -945,6 +944,7 @@ const po = {//edges need to be unique
                     this.elements.forEach(e => this.features[e] = {"name": e});
                 }
                 this.enrich = function(){return this}
+                this.delete = function(feature){this.elements.forEach(profile=>delete this.features[profile][feature])}
                 this.featureOf = function(query,feature,value){
                     const get = value === undefined
                     if(Array.isArray(query)){

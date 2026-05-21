@@ -83,6 +83,8 @@ function App() {
   const [inclusions, setInclusions] = useState([])
   const [expression, setExpression] = useState([])
   const [edges, setEdges] = useState([])
+  const [fullPoset,setFullPoset] = useState()
+  const [maxDistance, setMaxDistance] = useState()
   const fetchedRef = useRef(false)
   const [annotations,setAnnotations] = useState([{key:'PURCH',year:1995},{key:'REIMB',year:1964},{key:'PRIM_OUT',year:2011},{key:'INPAT',year:1969},{key:'OUTPAT',year:1998},{key:'CANC',year:1953},{key:'DEATH',year:1969},{key:'OPER_IN',year:1969},{key:'OPER_OUT',year:1969},{key:'BIRTH',year:1953}])
   const conceptNames = useMemo(() => selectedConcepts.map(d => d.name).filter((e,n,l) => l.indexOf(e) === n),[selectedConcepts])
@@ -94,23 +96,13 @@ function App() {
       return {counts:counts,descendantCounts:descendantCounts,all:allCounts}
     }
   ,[selectedConcepts])
-  const maxLevel = useMemo(() => d3.max(nodes.filter(d => d.levels !== '-1').map(d => parseInt(d.levels.split('-')[0]))),[nodes])
-  const fullTreeMax = useMemo(() => sidebarRoot ? d3.max(sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to" && d.levels !== "-1").map(d => parseInt(d.levels.split('-')[0]))) : null,[sidebarRoot])
-  const allClasses = useMemo(() => sidebarRoot ? sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").filter(d => levelFilter === undefined || (d.levels === '-1' || parseInt(d.levels.split('-')[0]) <= levelFilter)).map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined) : null,[sidebarRoot,levelFilter])
+  const maxLevel = useMemo(() => nodes ? d3.max(nodes.map(d => d.distance)) : null,[nodes])
+  const fullTreeMax = useMemo(() => fullTree.nodes ? d3.max(fullTree.nodes.map(d => d.distance)) : null,[fullTree.nodes])
+  // filter -1?
+  const allClasses = useMemo(() => fullTree.nodes ? fullTree.nodes.map(d => d.class).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined) : null,[fullTree.nodes,levelFilter])
   const years = useMemo(() => extent ? Array.from({ length: extent[1] - extent[0] + 1 }, (_, i) => extent[0] + i) : null,[extent])
   // let timer = null
 
-  async function sendFeedback(text) {
-    const response = await fetch(`${API_BASE_URL}/sendFeedback`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ feedback: text }) 
-    })
-    if (!response.ok) throw new Error(`Server error: ${response.status}`);
-    return response.json().catch(() => ({}))
-  }
   const loadNews = async () => {
     const res = await fetch('/NEWS.md')
     const text = await res.text()
@@ -299,12 +291,12 @@ function App() {
         profiles.forEach(profile => {
             // Step 1: Find the Best Matching Unit (BMU)
             let bmuIndex = 0;
-            let minDist = Infinity;
+            let w = Infinity;
             
             neurons.forEach((neuron, index) => {
                 const dist = jaccardDistance(neuron.weights, profile);
-                if (dist < minDist) {
-                    minDist = dist;
+                if (dist < w) {
+                    w = dist;
                     bmuIndex = index;
                 }
             });
@@ -326,12 +318,12 @@ function App() {
     profiles.forEach((profile, n) => {
         
         let bmuIndex = 0;
-        let minDist = Infinity;
+        let w = Infinity;
 
         neurons.forEach((neuron, index) => {
             const dist = jaccardDistance(neuron.weights, profile);
-            if (dist < minDist) {
-                minDist = dist;
+            if (dist < w) {
+                w = dist;
                 bmuIndex = index;
             }
         });
@@ -354,622 +346,247 @@ function App() {
 
   }
 
-  function linearLayout1(poset,nWidth) {
-    // const barycenterSort = (sets, ids) => {
-    //   const order = [...ids]
-    //   const supersetCount = i => ids.filter(j => j !== i && po.isSubset(sets[ids.indexOf(i)], sets[ids.indexOf(j)])).length
-    //   const toMove = [...ids].sort((a, b) => supersetCount(b) - supersetCount(a))
-    //   for (const node of toMove) {
-    //       const nodeVec = sets[ids.indexOf(node)]
-    //       const supersets = order.filter(j => j !== node && po.isSubset(nodeVec, sets[ids.indexOf(j)]))
-    //       if (supersets.length === 0) continue
-    //       const positions = supersets.map(s => order.indexOf(s))
-    //       const mid = Math.round(positions.reduce((a, b) => a + b, 0) / positions.length)
-    //       order.splice(order.indexOf(node), 1)
-    //       order.splice(mid, 0, node)
-    //   }
-    //   return order
-    // }
-    const barycenterSort = (sets, ids) => {
-      const order = [...ids];
-      
-      const supersetCount = i => ids.filter(j => j !== i && po.isSubset(sets[ids.indexOf(i)], sets[ids.indexOf(j)])).length;
-      const toMove = [...ids].sort((a, b) => supersetCount(b) - supersetCount(a));
+  // const topDown = (layers,f,tree,sorted=false) => {
+  //   for (let i = 0; i < layers.length-1; i++) {
+  //       f(layers[i], 'up',tree,sorted)
+  //   }  
+  // }
 
-      for (const node of toMove) {
-          const nodeVec = sets[ids.indexOf(node)];
-          const supersets = order.filter(j => j !== node && po.isSubset(nodeVec, sets[ids.indexOf(j)]));
-          if (supersets.length === 0) continue;
-
-          const positions = supersets.map(s => order.indexOf(s));
-          const mid = Math.round(positions.reduce((a, b) => a + b, 0) / positions.length);
-
-          order.splice(order.indexOf(node), 1);
-          order.splice(mid, 0, node);
-      }
-
-      return order;
+  const propagate = (layers,start,f,tree,sorted=false) => {
+    const below = layers.slice(0, start).reverse()
+    const above = layers.slice(start + 1)
+    below.forEach(l => f(l,'up',tree,sorted))
+    above.forEach(l => f(l,'down',tree,sorted))
   }
-    const countNonZeros = (subspace) => subspace.length > 1
-          ? subspace.reduce((l1,l2)=>l1.map((v,n)=>v+l2[n])).filter(e=>e!==0).length
-          : subspace[0].filter(e=>e!==0).length
-    function spreadOverlap(nodes,w,center) {
-      let nodeWidth
-      const layerIndex = poset.layers.findIndex(i => i.includes(nodes[0]))
-      if (layerIndex === poset.layers.length-1) nodeWidth = nWidth
-      else nodeWidth = w/nodes.length
-      let adjustment = nodes.length % 2 !== 0 ? 0 : nodeWidth/2
-      let median = Math.floor(nodes.length/2) 
-      const childrenArray = nodes.map(node => poset.getLower(node))
-      const uniqueChildren = childrenArray.flat().filter((e,n,l) => l.indexOf(e) === n)
-      const numChildren = childrenArray.map(array => array.length)
-      // at least one node with all children -> spread evenly
-      if (d3.max(numChildren) === uniqueChildren.length) {
-        nodes.forEach(node => poset.features[node].x = nodes.findIndex(d => d === node) >= median ? center + ((nodes.findIndex(d => d === node) - median) * nodeWidth) + adjustment : center - ((median - nodes.findIndex(d => d === node)) * nodeWidth) + adjustment)
-        nodes.forEach(node => poset.features[node].width = w/nodes.length)  
-      } else {
-        // spread based on counts ratio 
-        const counts = nodes.map(node => poset.getLower(node).filter(child => poset.layers.findIndex(i => i.includes(child)) === layerIndex-1).length > 0 ? poset.getDownset(node) : [node]).map(array => array.length)
-        const ratios = counts.map(count => count / d3.sum(counts))
-        const widths = getWidths(ratios,w)
-        const centroids = getCentroids(center-(w/2),widths)
-        nodes.forEach((id,i) => {
-          poset.features[id].x = centroids[i]
-          poset.features[id].width = widths[i]
-        })
-      }  
-    }
-    const getWidths = (ratios,totalWidth) => ratios.map(ratio => ratio * totalWidth)
-    const getCentroids = (acc,widths) => {
-      return widths.map(w => {
-        const center = acc + (w / 2)
-        acc += w
-        return center  
-      })
-    }
-    const setPositions = (ids,widths,centroids) => {
-      ids.forEach((array,i) => {
-          if (array.length > 1) spreadOverlap(array,widths[i],centroids[i])
-          else {
-            array.forEach(id => {
-              poset.features[id].x = centroids[i]
-              poset.features[id].width = widths[i]
-            })    
-          }
-        })
-    }
-    let prevSubsets
-    for (let L = poset.layers.length-1; L >= 0; L--) {
-      const {ids,subspaces} = po.findSubspaces(po.dominanceScores(poset,L))
-      // re-order ids with linearEmbedding and barycenterSort
-      let idArray = ids
-      // for (let i = 0; i < subspaces.length; i++) {
-      //   const LE = linearEmbedding(subspaces[i],ids[i])
-      //   const sets = LE.neurons.flatMap(neu=>neu.bmus)
-      //   const sspids = LE.neurons.flatMap(neu=>neu.bmusID)
-      //   console.log('ordered',barycenterSort(sets, sspids))
-      //   idArray[i] = barycenterSort(sets, sspids)
-      // }
-      // console.log('check',ids,idArray)
-      // first layer
-      if (L === poset.layers.length-1) {
-        // set positioning for first layer
-        const counts = subspaces.map(ssp=>countNonZeros(ssp))
-        const widths = counts.map(count => count === 0 ? nWidth : count * nWidth)
-        const centroids = getCentroids(0,widths)
-        setPositions(idArray,widths,centroids)
-      } else {
-        // group subspaces by shared parents based on previous layer's subspaces
-        const data = idArray.map((array,i) => ({ids:array,subspaces:subspaces[i],parents:array.map(id => poset.getUpper(id)).flat().filter((e,n,l) => l.indexOf(e) === n).filter(p => poset.layers.findIndex(i => i.includes(p)) === L+1)}))
-        let clusters = prevSubsets.map(idList => ([...idList,...data.filter(d => idList.some(id => d.parents.includes(id)))]))
-        clusters = clusters.map(inner => inner.filter(item => typeof item === "object" && !Array.isArray(item))).filter(inner => inner.length > 0)
-        // set positioning for each group
-        clusters.forEach(cluster => {
-          const parents = cluster.map(c => c.parents).flat().filter((e,n,l) => l.indexOf(e) === n)
-          const counts = cluster.map(c => c.subspaces).map(ssp=>countNonZeros(ssp)).map(c => c === 0 ? 1 : c)
-          const ratios = counts.map(count => count / d3.sum(counts))
-          const widths = getWidths(ratios,d3.sum(parents.map(p => poset.features[p].width)))
-          const firstParent = parents.sort((a,b) => poset.features[a].x - poset.features[b].x)[0]
-          const startX = poset.features[firstParent].x - (poset.features[firstParent].width/2)
-          let centroids
-          if (widths.length === 1) centroids = [d3.sum(parents.map(p => poset.features[p].x))/parents.length]
-          else centroids = getCentroids(startX,widths)
-          setPositions(cluster.map(c => c.ids),widths,centroids)
-        })
-      }
-      prevSubsets = idArray
+
+  const bottomUp = (layers,f,tree,sorted=false) => {
+    for (let i = 1; i <= layers.length-1; i++) {
+        f(layers[i], 'down',tree,sorted)
     }
   }
-  function linearLayout2(poset, nWidth) {
-    const allNodes = poset.elements
-    const exp = 0.6
-    const offset = 2
 
-    const countNonZeros = (subspace) => subspace.length > 1
-      ? subspace.reduce((l1,l2)=>l1.map((v,n)=>v+l2[n])).filter(e=>e!==0).length
-      : subspace[0].filter(e=>e!==0).length
+  function spreadAroundCentroid(nodes,centroid,w) {
+    const adjustment = nodes.length % 2 !== 0 ? 0 : w/2
+    const median = Math.floor(nodes.length/2) 
+    const spreadPositions = nodes.map((n,i) => ({node:n,x:i >= median ? centroid+((i-median)*w)+adjustment : centroid-((median-i)*w)+adjustment}))
+    return spreadPositions
+  }
 
-    // ---------------------------
-    // 🔧 GLOBAL PRECOMPUTATION
-    // ---------------------------
-    const layerIndex = new Map()
-    poset.layers.forEach((layer, i) => {
-      for (const node of layer) layerIndex.set(node, i)
+  function spreadAroundCentroidTree(nodes,widths,sum,centroid) {
+    let acc = centroid - (sum/2)
+    const spreadPositions = []
+    nodes.forEach(node => {
+      const x = acc + (widths[node]/2)
+      spreadPositions.push({node:node,x:x})
+      acc += widths[node]
     })
+    return spreadPositions
+  }
+  
+  const barycenterSort = (sets, ids) => {
+    const order = [...ids];
+    
+    const supersetCount = i => ids.filter(j => j !== i && po.isSubset(sets[ids.indexOf(i)], sets[ids.indexOf(j)])).length;
+    const toMove = [...ids].sort((a, b) => supersetCount(b) - supersetCount(a));
 
-    const lowerCache = new Map()
-    const upperCache = new Map()
-    const downsetCache = new Map()
+    for (const node of toMove) {
+        const nodeVec = sets[ids.indexOf(node)];
+        const supersets = order.filter(j => j !== node && po.isSubset(nodeVec, sets[ids.indexOf(j)]));
+        if (supersets.length === 0) continue;
 
-    for (const node of allNodes) {
-      lowerCache.set(node, poset.getLower(node))
-      upperCache.set(node, poset.getUpper(node))
-      downsetCache.set(node, poset.getDownset(node))
+        const positions = supersets.map(s => order.indexOf(s));
+        const mid = Math.round(positions.reduce((a, b) => a + b, 0) / positions.length);
+
+        order.splice(order.indexOf(node), 1);
+        order.splice(mid, 0, node);
     }
 
-    // ---------------------------
-    // ⚡ BARYCENTER SORT
-    // ---------------------------
-    const barycenterSort = (ids, sets) => {
-      const order = [...ids]
-      const supersetCount = i => ids.filter(j => j !== i && po.isSubset(sets[ids.indexOf(i)], sets[ids.indexOf(j)])).length
-      const toMove = [...ids].sort((a, b) => supersetCount(b) - supersetCount(a))
-      for (const node of toMove) {
-          const nodeVec = sets[ids.indexOf(node)]
-          const supersets = order.filter(j => j !== node && po.isSubset(nodeVec, sets[ids.indexOf(j)]))
-          if (supersets.length === 0) continue
-          const positions = supersets.map(s => order.indexOf(s))
-          const mid = Math.round(positions.reduce((a, b) => a + b, 0) / positions.length)
-          order.splice(order.indexOf(node), 1)
-          order.splice(mid, 0, node)
-      }
-      return order
-    }
-
-    // ---------------------------
-    // ⚡ CLUSTERING
-    // ---------------------------
-    function buildClusters(prevSubsets, data) {
-      const parentToCluster = new Map()
-
-      prevSubsets.forEach((group, i) => {
-        for (const id of group) {
-          parentToCluster.set(id, i)
-        }
-      })
-
-      const clusters = Array.from({ length: prevSubsets.length }, () => [])
-
-      for (const item of data) {
-        for (const p of item.parents) {
-          const idx = parentToCluster.get(p)
-          if (idx !== undefined) {
-            clusters[idx].push(item)
-            break
-          }
-        }
-      }
-
-      return clusters.filter(c => c.length > 0)
-    }
-
-    // ---------------------------
-    // ⚡ SPREAD OVERLAP
-    // ---------------------------
-    function spreadOverlap(nodes, totalWidth, center) {
-      const n = nodes.length
-      if (!n) return
-
-      const layer = layerIndex.get(nodes[0])
-      const isLast = layer === poset.layers.length - 1
-
-      const nodeWidth = isLast ? nWidth : totalWidth / n
-      const half = Math.floor(n / 2)
-      const offsetFix = n % 2 === 0 ? nodeWidth / 2 : 0
-
-      const childrenArray = new Array(n)
-      const childCounts = new Array(n)
-
-      for (let i = 0; i < n; i++) {
-        const children = lowerCache.get(nodes[i]) || []
-        childrenArray[i] = children
-        childCounts[i] = children.length
-      }
-
-      const uniqueChildren = new Set()
-      for (const arr of childrenArray) {
-        for (const c of arr) uniqueChildren.add(c)
-      }
-
-      const maxChildren = Math.max(...childCounts)
-
-      // Even spread
-      if (maxChildren === uniqueChildren.size) {
-        for (let i = 0; i < n; i++) {
-          const offset = (i - half) * nodeWidth + offsetFix
-          poset.features[nodes[i]].x = center + offset
-          poset.features[nodes[i]].width = totalWidth / n
-        }
-        return
-      }
-
-      // Proportional spread
-      const counts = new Array(n)
-      // let total = 0
-
-      for (let i = 0; i < n; i++) {
-        const node = nodes[i]
-
-        const hasLower = (lowerCache.get(node) || []).some(
-          c => layerIndex.get(c) === layer - 1
-        )
-
-        const arr = hasLower
-          ? downsetCache.get(node) || [node]
-          : [node]
-
-        counts[i] = arr.length || 1
-        // total += counts[i]
-      }
-
-      const adjustedCounts = counts.map(c => Math.pow(c + offset, exp) - Math.pow(offset, exp))
-      const total = adjustedCounts.reduce((a,b)=>a+b,0)
-
-      let acc = center - totalWidth / 2
-
-      for (let i = 0; i < n; i++) {
-        const w = (adjustedCounts[i] / total) * totalWidth
-        const x = acc + w / 2
-
-        poset.features[nodes[i]].x = x
-        poset.features[nodes[i]].width = w
-
-        acc += w
-      }
-    }
-
-    // ---------------------------
-    // MAIN LOOP
-    // ---------------------------
-    let prevSubsets
-
-    for (let L = poset.layers.length - 1; L >= 0; L--) {
-
-      const { ids, subspaces } = po.findSubspaces(
-        po.dominanceScores(poset, L)
-      )
-
-      const idArray = []
-
-      // Sort each subspace
-      for (let i = 0; i < subspaces.length; i++) {
-        const LE = linearEmbedding(subspaces[i], ids[i])
-        const sets = LE.neurons.flatMap(neu => neu.bmus)
-        const sspids = LE.neurons.flatMap(neu => neu.bmusID)
-
-        idArray[i] = barycenterSort(sspids, sets)
-      }
-
-      // First layer
-      if (L === poset.layers.length - 1) {
-        const widths = subspaces.map(ssp=>countNonZeros(ssp)).map(count => count === 0 ? nWidth : count * nWidth)
-
-        let acc = 0
-        for (let i = 0; i < idArray.length; i++) {
-          const width = widths[i]
-          const center = acc + (width / 2)
-
-          const nodes = idArray[i]
-          if (nodes.length > 1) {
-            spreadOverlap(nodes, width, center)
-          } else {
-            poset.features[nodes[0]].x = center
-            poset.features[nodes[0]].width = width
-          }
-
-          acc += width
-        }
-
-      } else {
-        const data = idArray.map((array, i) => {
-          const parentsSet = new Set()
-
-          for (const id of array) {
-            const parents = upperCache.get(id) || []
-            for (const p of parents) {
-              if (layerIndex.get(p) === L + 1) {
-                parentsSet.add(p)
-              }
-            }
-          }
-
-          return {
-            ids: array,
-            subspaces: subspaces[i],
-            parents: [...parentsSet]
-          }
-        })
-
-        const clusters = buildClusters(prevSubsets, data)
-
-        for (const cluster of clusters) {
-          const parentSet = new Set()
-          for (const c of cluster) {
-            for (const p of c.parents) parentSet.add(p)
-          }
-
-          const parents = [...parentSet]
-
-          let totalWidth = 0
-          for (const p of parents) {
-            totalWidth += poset.features[p].width
-          }
-
-          let startX = Infinity
-          for (const p of parents) {
-            const x = poset.features[p].x
-            const w = poset.features[p].width
-            startX = Math.min(startX, x - w / 2)
-          }
-
-          // ---- compute counts using your function ----
-          const counts = new Array(cluster.length)
-
-          for (let i = 0; i < cluster.length; i++) {
-            let count = countNonZeros(cluster[i].subspaces)
-            if (count === 0) count = 1
-
-            counts[i] = count
-          }
-
-          const adjustedCounts = counts.map(c => Math.pow(c + offset, exp) - Math.pow(offset, exp))
-          const totalCount = adjustedCounts.reduce((a,b)=>a+b,0)
-
-          // ---- compute widths ----
-          const widths = new Array(cluster.length)
-          for (let i = 0; i < cluster.length; i++) {
-            widths[i] = (adjustedCounts[i] / totalCount) * totalWidth
-          }
-
-          // ---- assign positions ----
-          let acc = startX
-
-          for (let i = 0; i < cluster.length; i++) {
-            const c = cluster[i]
-            const width = widths[i]
-            let center
-            if (cluster.length === 1) center = d3.sum(parents.map(p => poset.features[p].x))/parents.length
-            else center = acc + width / 2
-            const nodes = c.ids
-
-            if (nodes.length > 1) {
-              spreadOverlap(nodes, width, center)
-            } else {
-              const node = nodes[0]
-              poset.features[node].x = center
-              poset.features[node].width = width
-            }
-
-            acc += width
-          }
-        }
-      }
-
-      prevSubsets = idArray
-    }
+    return order;
   }
 
-  function linearLayout(poset,width) {
-    const countNonZeros = (subspace) => subspace.length > 1
-        ? subspace.reduce((l1,l2)=>l1.map((v,n)=>v+l2[n])).filter(e=>e!==0).length
-        : subspace[0].filter(e=>e!==0).length
+  function isTree(nodes,edges,suprema) {
+    return edges.length === nodes.length - 1 && suprema.length === 1
+  }
 
-    const bb = poset.layers.map((l,n)=>({n:n, l:l, deg:l.map(node=>poset.featureOf(node,"node_degree")).reduce((acc,el)=>acc+el)})).sort((a,b)=>b.deg-a.deg)[0]
-    const L = bb.n
-
-    const trees = po.findSubspaces(po.dominanceScores(poset,poset.layers.length-1))
-    // trees.counts = trees.subspaces.map(ssp=>countNonZeros(ssp))
-    trees.descendants = trees.ids.map(group => group.map(id => poset.getDownset(id)).flat().filter((e,n,l) => l.indexOf(e) === n))
-    trees.counts = trees.descendants.map(d => d3.max(poset.layers.map(layer => layer.filter(l => d.includes(l))).map(l => l.length)))
-
-    const {ids,subspaces} = po.findSubspaces(po.dominanceScores(poset,L))
-    // const counts = subspaces.map(ssp=>countNonZeros(ssp))
-    
-    //TODO: not using the useless zeroes would be nice
-    // const unit_h = height / poset.layers.length
-    // const unit_w = width / subspaces.flat().length
+  function linearLayout(poset,edges,width,fullPoset=null) {
     const unit_w = width
 
-    const bbIds = subspaces.map((ssp,n)=>{
-        const LE = linearEmbedding(ssp,ids[n])
-        // console.log(LE)
-        if(ssp.length>1){
-            const sets = LE.neurons.flatMap(neu=>neu.bmus)
-            const sspids = LE.neurons.flatMap(neu=>neu.bmusID)
-            const barycenterSort = (sets, ids) => {
-                const order = [...ids];
-                
-                const supersetCount = i => ids.filter(j => j !== i && po.isSubset(sets[ids.indexOf(i)], sets[ids.indexOf(j)])).length;
-                const toMove = [...ids].sort((a, b) => supersetCount(b) - supersetCount(a));
-
-                for (const node of toMove) {
-                    const nodeVec = sets[ids.indexOf(node)];
-                    const supersets = order.filter(j => j !== node && po.isSubset(nodeVec, sets[ids.indexOf(j)]));
-                    if (supersets.length === 0) continue;
-
-                    const positions = supersets.map(s => order.indexOf(s));
-                    const mid = Math.round(positions.reduce((a, b) => a + b, 0) / positions.length);
-
-                    order.splice(order.indexOf(node), 1);
-                    order.splice(mid, 0, node);
-                }
-
-                return order;
-            }
-            return barycenterSort(sets, sspids);
-        }
-        return LE.neurons.flatMap(neu=>neu.bmusID)
-    }).flat()
-
-    const groupedByTree = trees.ids.map((ids,i) => ({counts:trees.counts[i],bbIds:bbIds.filter(i => ids.some(id => poset.getUpset(i).includes(id)))}))
-    groupedByTree.forEach(group => {
-      let acc = 0
-      group.bbIds.forEach((id,n)=>{
-        const x = acc + unit_w/2
-        poset.featureOf(id,"x",x)
-        acc += unit_w
-      })
-      // acc += group.counts*unit_w + unit_w
-    })
-
-    const propagate = (start,f) =>{
-      const below = poset.layers.slice(0, start).reverse()
-      const above = poset.layers.slice(start + 1)
-      below.forEach(l => f(l,poset.layers.findIndex(i => i === l),'up'))
-      above.forEach(l => f(l,poset.layers.findIndex(i => i === l),'down'))
+    function filterLayers(poset,descendants) {
+      return poset.layers.map(layer => layer.filter(l => descendants.includes(l)))
     }
-
-    const setX = (e,n,direction) => {
-      let idealPositions,sortedPositions,emptyNodes
-
-      function spreadAroundCentroid(nodes,centroid,w) {
-        const adjustment = nodes.length % 2 !== 0 ? 0 : w/2
-        const median = Math.floor(nodes.length/2) 
-        const sorted = nodes
-          .map((n,i) => ({ node: n, x: i >= median ? centroid+((i-median)*w)+adjustment : centroid-((median-i)*w)+adjustment}))
-          .sort((a, b) => a.x - b.x);
-        sorted.forEach(d => {
-          idealPositions.set(d.node, d.x)
-          poset.featureOf(d.node, "x", d.x)
-        });
-        if (sortedPositions.length > 0) shiftByGroup(sorted,w) 
-        else sortedPositions = [sorted]
-      }
-      function shiftByGroup(group,minDist) {
+    function sortLayersByX(layers) {
+      return layers.map(layer => layer.sort((a,b) => poset.featureOf(a,'x') - poset.featureOf(b,'x')))
+    }
+    function getWidth(poset,descendants) {
+      const max = d3.max(filterLayers(poset,descendants).map(layer => layer.length))
+      return max === 0 ? unit_w : max * unit_w
+    }
+    const setX = (e,direction,tree,sorted) => {
+      let idealPositions = []
+      let sortedPositions = []
+      let shiftToEnd = []
+      function shiftPositionsByGroup(group,sortedPositions,w) {
         const ref = group[0]
         const prevGroup = sortedPositions[sortedPositions.length-1]
         const prev = prevGroup[prevGroup.length-1]
-
-        if (ref.x < prev.x || ref.x-prev.x < minDist) {
-          const shifted = group.map((d,i) => ({node:d.node,x:prev.x+minDist+(minDist*i)}))
-          shifted.forEach(d => {
-            idealPositions.set(d.node, d.x)
-            sortedPositions = [...sortedPositions,shifted]
-            poset.featureOf(d.node, "x", d.x)
-          });
-        } else sortedPositions = [...sortedPositions,group]
+        if (ref.x < prev.x || ref.x-prev.x < w) {
+          const shifted = group.map((d,i) => ({node:d.node,x:prev.x+w+(w*i)}))
+          sortedPositions = [...sortedPositions,shifted]
+        } else sortedPositions = [...sortedPositions,group] 
+        return sortedPositions
       }
-      function resolveCollisions(nodes, minDist) {
-        let sorted = nodes
-          .filter(n => !emptyNodes.includes(n))
-          .map(n => ({ node: n, x: idealPositions.get(n) }))
-          .sort((a, b) => a.x - b.x);
-        const empties = emptyNodes.map((n,i)=> ({node:n,x:sorted[sorted.length-1].x+(minDist*i)}))
-        sorted = [...sorted,...empties]
-
-        // --- forward pass (push right)
-        for (let i = 1; i < sorted.length; i++) {
-          const prev = sorted[i - 1];
-          const curr = sorted[i];
-          if (curr.x < prev.x + minDist) {
-            curr.x = prev.x + minDist;
-          }
+      e.forEach(node => {
+        let x
+        const refs = direction === 'up' ? poset.getUpper(node) : poset.getLower(node)
+        const values = poset.featureOf(refs, "x").filter(v => v !== undefined)
+        if (values.length) x = values.reduce((a, b) => a + b, 0) / values.length
+        if (!x) {
+          if (poset.featureOf(node,'x') == null) shiftToEnd.push(node)
+          else x = poset.featureOf(node,'x')
         }
-
-        // --- backward pass (push left)
-        for (let i = sorted.length - 2; i >= 0; i--) {
-          const curr = sorted[i];
-          const next = sorted[i + 1];
-          if (curr.x > next.x - minDist) {
-            curr.x = next.x - minDist;
-          }
-        }
-
-        // --- recenter to original centroid
-        const originalCenter =
-          nodes.map(n => idealPositions.get(n)).reduce((a, b) => a + b, 0) / nodes.length;
-
-        const newCenter =
-          sorted.map(d => d.x).reduce((a, b) => a + b, 0) / sorted.length;
-
-        const shift = originalCenter - newCenter;
-
-        // --- apply corrected positions
-        sorted.forEach(d => {
-          const corrected = d.x + shift;
-          idealPositions.set(d.node, corrected);
-          poset.featureOf(d.node, "x", corrected);
-        });
-      }
-
-      const groupedByTree = trees.descendants.map((d,i) => e.filter(l => d.includes(l) || trees.ids[i].includes(l)))
-      groupedByTree.forEach((layer,index) => {
-        idealPositions = new Map();
-        sortedPositions = []
-        emptyNodes = []
-        layer.forEach((node,i) => {
-          let x
-          const refs = direction === 'up' ? poset.getUpper(node) : poset.getLower(node);
-          const values = poset.featureOf(refs, "x").filter(v => v !== undefined);
-          if (values.length) {
-            x = values.reduce((a, b) => a + b, 0) / values.length;
-          }
-          if (!x) {
-            if (poset.featureOf(node,'x') == null) {
-              x = 0
-              emptyNodes.push(node)
-            } else x = poset.featureOf(node,'x')
-          }
-          idealPositions.set(node, x);
-        });
-        const grouped = new Map();
-        for (const [key, value] of idealPositions) {
-            if (!grouped.has(value)) {
-                grouped.set(value, []);
-            }
-            grouped.get(value).push(key);
-        }
-        const sortedGroups = new Map(
-          [...grouped.entries()].sort((a, b) => a[0] - b[0])
-        );
-        for (const [value, keys] of sortedGroups) {
-            if (keys.length > 1) spreadAroundCentroid(keys,value,unit_w)
-            else {
-              poset.featureOf(keys[0], "x", value)
-              const group = keys.map(id => ({node:id,x:value}))
-              if (sortedPositions.length > 0) shiftByGroup(group,unit_w)
-              else sortedPositions = [group]
-            }
-        }
-        resolveCollisions(layer,unit_w)
+        if (x) idealPositions.push({node:node,x:x})
       })
-    }
 
-    const topDown = () => {
-      for (let i = poset.layers.length-1; i > 0; i--) {
-          setX(poset.layers[i], i, 'down');
-      }  
-    }
-    const bottomUp = () => {
-      for (let i = 0; i < poset.layers.length-1; i++) {
-          setX(poset.layers[i], i, 'up');
+      const groups = new Map()
+      for (const obj of idealPositions) {
+        if (!groups.has(obj.x)) groups.set(obj.x, [])
+        groups.get(obj.x).push(obj)
       }
+      let groupedByPosition = Array.from(groups.values())
+
+      if (!sorted) groupedByPosition = groupedByPosition.sort((a,b) => a[0].x - b[0].x)
+
+      groupedByPosition.forEach(groupArray => {
+        let group
+        let nodes = groupArray.map(d => d.node)
+        let value = groupArray[0].x
+        if (groupArray.length > 1) {
+          if (tree) {
+            const widths = {}
+            let sum = 0
+            groupArray.map(d => d.node).forEach(n => {
+              const max = d3.max(poset.layers.map(layer => layer.filter(l => poset.getDownset(n).includes(l))).map(layer => layer.length))
+              const width = max === 0 ? unit_w : max*unit_w
+              widths[n] = width
+              sum += width
+            })
+            group = spreadAroundCentroidTree(nodes,widths,sum,value)
+            
+          } else group = spreadAroundCentroid(nodes,value,unit_w)
+          if (sortedPositions.length === 0) sortedPositions.push(group)
+          else sortedPositions = shiftPositionsByGroup(group,sortedPositions,unit_w)  
+        } else {
+          group = nodes.map(n => ({node:n,x:value}))
+          if (sortedPositions.length === 0) sortedPositions.push(group)
+          else sortedPositions = shiftPositionsByGroup(group,sortedPositions,unit_w)
+        }
+      })
+      if (shiftToEnd.length > 0) {
+        const max = d3.max(sortedPositions.flat().map(d => d.x))
+        shiftToEnd.forEach((node,i) => poset.featureOf(node,'x',max+unit_w+(unit_w*i)))
+      }
+      sortedPositions.flat().forEach(d => poset.featureOf(d.node,'x',d.x))
     }
 
-    const iterations = 3
-    for (let i = 0; i < iterations; i++) {
-      propagate(L,setX)
-      topDown()
+    let fullSubspaces = {}
+    let subspaceIds = []
+    // get subspaces of entire poset *** save subspaces from og? ***
+    if (fullPoset) {
+      fullSubspaces = po.findSubspaces(po.dominanceScores(fullPoset,fullPoset.layers.length-1))  
+      fullSubspaces.descendants = fullSubspaces.ids.map(group => [...group.map(id => fullPoset.getDownset(id)).flat(),...group].filter((e,n,l) => l.indexOf(e) === n))
+      fullSubspaces.descendants = fullSubspaces.descendants.map(descendants => descendants.filter(id => poset.elements.includes(id)))
+      subspaceIds = fullSubspaces.ids.map((sbsp,i) => {
+        const layers = filterLayers(poset,fullSubspaces.descendants[i])
+        return layers[layers.length-1]
+      })
+      fullSubspaces.ids = subspaceIds
+    } else {
+      fullSubspaces = po.findSubspaces(po.dominanceScores(poset,poset.layers.length-1))
+      fullSubspaces.descendants = fullSubspaces.ids.map(group => [...group.map(id => poset.getDownset(id)).flat(),...group].filter((e,n,l) => l.indexOf(e) === n))
+      subspaceIds = fullSubspaces.ids
     }
-    // *** shift each tree based on max x of previous tree ***
 
-    let descendantsByTree = trees.descendants.map((descendants,i) => ({descendants:[...descendants,...trees.ids[i]],max:d3.max(poset.featureOf([...descendants,...trees.ids[i]], "x"))}))
-    console.log(descendantsByTree)
-    descendantsByTree.forEach((obj,i) => {
-      if (i !== 0) {
-        const max = descendantsByTree[i-1].max + (unit_w*3)
-        obj.descendants.forEach(d => poset.featureOf(d,'x',poset.featureOf(d,'x') + max))
-        descendantsByTree = descendantsByTree.map(obj => ({...obj,max:d3.max(poset.featureOf(obj.descendants, "x"))}))
+    // iterate through subspaces and set x 
+    let L
+    subspaceIds.forEach((idArray,index) => {
+      const nodes = fullSubspaces.descendants[index]
+      //poset.relations
+      const tree = isTree(nodes,edges.filter(e => nodes.includes(e[0]) && nodes.includes(e[1])),poset.analytics.suprema.filter(n => nodes.includes(n)))
+      const layers = filterLayers(poset,nodes)
+      if (layers.length === 0 || layers.filter(l => l.length > 0).length === 0) return
+      if (layers.length === 1) {
+        let acc = 0
+        idArray.forEach(id => {
+          const x = acc + unit_w/2
+          poset.featureOf(id,"x",x)
+          acc += unit_w
+        })
+      }
+      else {
+        // *** is a tree ***
+        if (tree) {
+          L = layers.length-1
+          let acc = 0
+          idArray.forEach(id => {
+            // *** ids will always just be a single id ***
+            const descendants = poset.getDownset(id)
+            const width = getWidth(poset,descendants)
+            const x = acc + (width/2)
+            poset.featureOf(id,"x",x)
+            acc += width  
+          })
+
+          propagate(layers,L,setX,tree)
+          bottomUp(layers,setX,tree)
+
+          // *** is not a tree ***
+        } else {
+          const bb = layers.map((l,n)=>({n:n, l:l, deg:l.length === 0 ? 0 : l.map(node=>poset.featureOf(node,"node_degree")).reduce((acc,el)=>acc+el)})).sort((a,b)=>b.deg-a.deg)[0]
+          L = bb.n
+          console.log('bb',bb.n)
+
+          // *** use full poset if filtering ***
+          const pos = fullPoset ? fullPoset : poset
+          const i = fullPoset ? fullPoset.layers.findIndex(l => bb.l.some(id => l.includes(id))) : L
+          const {ids,subspaces} = po.findSubspaces(po.dominanceScores(pos,i))
+          const idsFiltered = [], subspacesFiltered = []
+          ids.forEach((arr,i) => {
+            if (arr.some(id => nodes.includes(id))) {
+              idsFiltered.push(arr)
+              subspacesFiltered.push(subspaces[i])
+            }
+          })
+
+          const bbIds = subspacesFiltered.map((ssp,n)=>{
+              const LE = linearEmbedding(ssp,idsFiltered[n])
+              if(ssp.length>1){
+                  const sets = LE.neurons.flatMap(neu=>neu.bmus)
+                  const sspids = LE.neurons.flatMap(neu=>neu.bmusID)
+                  return barycenterSort(sets, sspids)
+              }
+              return LE.neurons.flatMap(neu=>neu.bmusID)
+          }).flat().filter(id => nodes.includes(id))
+
+          let acc = 0
+          bbIds.forEach(id => {
+            const x = acc + unit_w/2
+            poset.featureOf(id,"x",x)
+            acc += unit_w
+          })
+          propagate(layers,L,setX,tree)
+          const sortedLayers = sortLayersByX(layers)
+          bottomUp(sortedLayers,setX,tree,true)
+        }    
+      }
+      // shift right of prev subspace
+      if (index > 0 && fullSubspaces.descendants[index-1].length > 0) {
+        const prevMax = d3.max(poset.featureOf(fullSubspaces.descendants[index-1],'x'))
+        const thisMin = d3.min(poset.featureOf(nodes,'x'))  
+        const ideal = prevMax + (unit_w*2)
+        if (thisMin !== ideal) {
+          const adjustment = ideal - thisMin
+          nodes.forEach(node => poset.featureOf(node,'x',poset.featureOf(node,'x') + adjustment))
+        }  
       }
     })
   }
@@ -1004,11 +621,13 @@ function App() {
     }
   }
   
-  function createInitialStates(data,trees,filterClass,filterLevel,filteredClassList) {
+  // *** optimize this ***
+  function createInitialStates(data,filterClass,filterLevel,filteredClassList) {
     console.log('run',data)
     // set nodes 
     const subsumesData = data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to")
     const mappingData = data.concept_relationships.filter(d => d.levels === "Mapped from" || d.levels === "Maps to")
+    // what is this doing? 
     let nodeData = Array.from(
       subsumesData
       .reduce((map, obj) => {
@@ -1020,21 +639,52 @@ function App() {
       }, new Map())
       .values()
     )
+    // poset
+    let colors = {}
+    let distances = {}
+    let edges = data.concept_relationships
+      .filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to")
+      .map(d => d.levels === "-1" ? ({...d,parent_concept_id: d.child_concept_id,child_concept_id: d.parent_concept_id}) : d)
+      .map(d => ([d.parent_concept_id.toString(),d.child_concept_id.toString()]))
+    if (edges.length > 1) edges = edges.filter(d => d[0] !== d[1])
+    const {matrix,nodes} = po.domFromEdges(edges)
+    const poset = po.createPoset(matrix,nodes)
+    poset.enrich()
+      .setLayers()
+      .color(80,25,90)
+      .feature("lower_bound",(node)=>poset.getLower(node))
+      .feature("upper_bound",(node)=>poset.getUpper(node))
+      .feature("node_degree",(node,f)=>f.lower_bound.length+f.upper_bound.length)
+    linearLayout(poset,edges,150)
+    // *** consider case if there are no edges and just a single node (missing nodes function from vis) ***
+    const layers = [...poset.layers].reverse()
+    const depthScale = d3.scaleLinear(d3.extent(layers.map((l,i)=>i)), [20,70])
+    poset.elements.forEach(name => {
+        distances[name] = layers.findIndex(i => i.includes(name))
+        colors[name] = `hsl(${poset.featureOf(name,'pTheta')},${poset.featureOf(name,'pAlpha')*100}%,${depthScale(distances[name])}%)`})
     nodeData = nodeData.map(e=>({
         'name': e.child_concept_id, 
-        'distance': subsumesData.map(d => d.levels).includes('-1') ? e.levels === "-1" ? 0 : parseInt(e.levels.split('-')[0]) + 1 : parseInt(e.levels.split('-')[0]), 
         'levels': e.levels,
         'relationship': e.levels,
         'class': e.concept_class_id,
-        'color': generateColor(e.child_concept_id),
+        // 'color': generateColor(e.child_concept_id),
+        'distance': distances[e.child_concept_id], 
+        'color': colors[e.child_concept_id] ? colors[e.child_concept_id] : generateColor(e.child_concept_id),
+        'x': poset.featureOf(e.child_concept_id,"x") ? poset.featureOf(e.child_concept_id,"x") : 0,
         'leaf': !subsumesData.map(d => d.parent_concept_id).includes(e.child_concept_id) ? true : false,
-        'parents': rootArray.includes(e.child_concept_id) ? subsumesData.filter(d => d.parent_concept_id === e.child_concept_id).filter(d => d.levels === '-1').map(d => d.child_concept_id).concat(subsumesData.filter(d => d.child_concept_id === e.child_concept_id).map(d => d.parent_concept_id).filter(p => parseInt(e.levels.split('-')[0]) > parseInt(subsumesData.filter(n => n.child_concept_id === p)[0].levels.split('-')[0])).flat()) : e.levels === "-1" ? [] : subsumesData.filter(d => d.child_concept_id === e.child_concept_id).map(d => d.parent_concept_id).filter(p => parseInt(e.levels.split('-')[0]) > parseInt(subsumesData.filter(n => n.child_concept_id === p)[0].levels.split('-')[0])),
-        'children': e.levels === "-1" ? subsumesData.filter(d => d.child_concept_id === e.child_concept_id).map(d => d.parent_concept_id) : subsumesData.filter(d => d.parent_concept_id === e.child_concept_id && d.child_concept_id !== e.child_concept_id).map(d => d.child_concept_id),
+        'parents': poset.getUpper(e.child_concept_id.toString()).map(d => parseInt(d)),
+        'children': poset.getLower(e.child_concept_id.toString()).map(d => parseInt(d)),
+        // 'descendants': poset.getDownset(e.child_concept_id.toString()).map(d => parseInt(d)),
+        // 'parents': rootArray.includes(e.child_concept_id) ? subsumesData.filter(d => d.parent_concept_id === e.child_concept_id).filter(d => d.levels === '-1').map(d => d.child_concept_id).concat(subsumesData.filter(d => d.child_concept_id === e.child_concept_id).map(d => d.parent_concept_id).filter(p => parseInt(e.levels.split('-')[0]) > parseInt(subsumesData.filter(n => n.child_concept_id === p)[0].levels.split('-')[0])).flat()) : e.levels === "-1" ? [] : subsumesData.filter(d => d.child_concept_id === e.child_concept_id).map(d => d.parent_concept_id).filter(p => parseInt(e.levels.split('-')[0]) > parseInt(subsumesData.filter(n => n.child_concept_id === p)[0].levels.split('-')[0])),
+        // 'children': e.levels === "-1" ? subsumesData.filter(d => d.child_concept_id === e.child_concept_id).map(d => d.parent_concept_id) : subsumesData.filter(d => d.parent_concept_id === e.child_concept_id && d.child_concept_id !== e.child_concept_id).map(d => d.child_concept_id),
         'connections': [],
         'total_counts': getCounts(data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),'node_record_counts'),
         'descendants': [...getAllDescendants(subsumesData,e.child_concept_id,[]),e.child_concept_id],
         'data': {code_counts: data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id), concept: data.concepts.filter(d => d.concept_id === e.child_concept_id)[0]}
     })) 
+    // set max distance
+    const maxD = d3.max(nodeData.map(d => d.distance))
+    setMaxDistance(maxD)
     // set root line 
     let rootDescendants = []
     rootArray.forEach(root => rootDescendants.push(...nodeData.find(n => n.name === root).descendants))
@@ -1060,110 +710,8 @@ function App() {
     allChildren.forEach(child => allNodes.filter(d => d.child_concept_id === child).length > 1 ? connections.push({child:child,parents:allNodes.filter(d => d.child_concept_id === child).map(d => d.parent_concept_id)}) : null)
     connections = connections.filter(d => d.parents.length > 1)
     setCrossConnections(connections)
-    // posets
-    // const posetArray = []
-    // const width = window.innerWidth*0.4
-    // const nodeWidth = mappingData.map(d => d.levels).includes('Maps to') && mappingData.map(d => d.levels).includes('Mapped from') ? 160 : 140
-    // const spacingUnit = nodeWidth + 40
-    const depthScale = d3.scaleLinear(d3.extent(nodeData.map(d => d.distance)), [20,70])
-    let colors = {}
-    // let positions = {}
-    let distances = {}
-    // let centerArray = []
-    // iterate through trees
-    // trees.forEach((tree,index) => {
-    //   const edges = tree
-    //     .filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to")
-    //     .filter(d => subsumesData.length === 1 && d.parent_concept_id === d.child_concept_id ? d : d.parent_concept_id !== d.child_concept_id)
-    //     // .filter(d => d.levels !== "-1")
-    //     .map(d => d.levels === "-1" ? ({...d,parent_concept_id: d.child_concept_id,child_concept_id: d.parent_concept_id}) : d)
-    //     .map(d => ([d.parent_concept_id.toString(),d.child_concept_id.toString()]))
-    //   const {matrix,nodes} = po.domFromEdges(edges)
-    //   const poset = po.createPoset(matrix,nodes)
-    //   poset
-    //     .enrich()
-    //     .feature("depth",node => nodeData.filter(d => d.name === parseInt(node))[0].distance)
-    //     .setSubstructure("depth","depth")
-    //     .setLayers()
-    //     .feature("parents",node => nodeData.filter(d => d.name === parseInt(node))[0].parents)
-    //   // set x
-    //   // const layers = poset.analytics.substructures.depth
-    //   const layers = poset.layers.reverse()
-    //   // const classes = tree.map(d => d.concept_class_id)
-    //   // const maxLevel = d3.max(tree.filter(d => d.levels !== '-1' && d.levels !== "Mapped from" && d.levels !== "Maps to").map(d => parseInt(d.levels.split('-')[0]) + 1))
-    //   // *** set based on width of biggest layer
-    //   // if ((!filterClass && !filterLevel) || (filterClass && (!classes.includes('Ingredient') && !classes.includes('Clinical Drug Comp'))) || (filterLevel && maxLevel <= 3)) {  
-    //   if (!filterClass && !filterLevel) {
-    //     const thisWidth = d3.max(layers, d => d.length)*spacingUnit
-    //     centerArray.push(thisWidth)
-    //     let center = d3.sum(centerArray) - thisWidth/2
-    //     // layers = layers.reverse()
-    //     layers.forEach((layer,i) => {
-    //       // const center = (width/trees.length)/2 + (width)*index + buffer
-    //       if (i === 0) {
-    //         // let unit = (width/trees.length)/layer.length
-    //         let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
-    //         let median = Math.floor(layer.length/2) 
-    //         layer.forEach((node,i) => poset.features[node].x = i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
-    //         // layer.forEach((node,i) => poset.features[node].x = unit >= nodeWidth ? unit*i + unit/2 + (width)*index + buffer : i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
-    //       } else {
-    //         let xPositions = []
-    //         // let unit = (width/trees.length)/layer.length
-    //         let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
-    //         let median = Math.floor(layer.length/2) 
-    //         layer.forEach(node => {
-    //           xPositions.push({id:node,x: d3.sum(poset.features[node].parents.map(parent => poset.features[parent].x))/poset.features[node].parents.length})})
-    //         xPositions.sort((a, b) => d3.ascending(a.x, b.x))
-    //         let minDistance = d3.min(d3.pairs(xPositions, (a, b) => b.x - a.x))
-    //         if (minDistance < nodeWidth && layer.length > 1) {
-    //           layer.forEach(node => poset.features[node].x = xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
-    //           // layer.forEach(node => poset.features[node].x = unit >= nodeWidth ? unit*xPositions.findIndex(d => d.id === node) + unit/2 + (width)*index + buffer : xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
-    //         } else layer.forEach(node => poset.features[node].x = xPositions.find(d => d.id === node)?.x)
-    //       }
-    //     })
-    //     // set distance and positions list
-    //     poset.elements.forEach(name => {
-    //       // colors[name] = `hsl(${colorPoset.features[name].pTheta},${colorPoset.features[name].pAlpha*100}%,${depthScale(poset.features[name].depth)}%)` 
-    //       positions[name] = poset.features[name].x
-    //       distances[name] = layers.findIndex(i => i.includes(name))
-    //     })    
-    //   } 
-    //   else {
-    //     // const thisWidth = (d3.max(layers, d => d.length)/2)*nodeWidth
-    //     // centerArray.push(thisWidth)
-    //     // set distance and positions list
-    //     poset.elements.forEach(name => {
-    //       // colors[name] = `hsl(${colorPoset.features[name].pTheta},${colorPoset.features[name].pAlpha*100}%,${depthScale(poset.features[name].depth)}%)` 
-    //       // positions[name] = 0
-    //       distances[name] = layers.findIndex(i => i.includes(name))
-    //     })
-    //   }
-    //   posetArray.push(poset)
-    // })
-    // set color
-    const combinedEdges = trees.flat()
-    let edges = combinedEdges 
-      .filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to")
-      .map(d => d.levels === "-1" ? ({...d,parent_concept_id: d.child_concept_id,child_concept_id: d.parent_concept_id}) : d)
-      .map(d => ([d.parent_concept_id.toString(),d.child_concept_id.toString()]))
-    if (edges.length > 1) edges = edges.filter(d => d[0] !== d[1])
-      // console.log('edges',edges)
-    const {matrix,nodes} = po.domFromEdges(edges)
-    const poset = po.createPoset(matrix,nodes)
-    poset.enrich()
-      .setLayers()
-      .color(80,25,90)
-      .feature("lower_bound",(node)=>poset.getLower(node))
-      .feature("upper_bound",(node)=>poset.getUpper(node))
-      .feature("node_degree",(node,f)=>f.lower_bound.length+f.upper_bound.length)
-    if (!filterClass && !filterLevel) linearLayout(poset,150) 
-    const layers = poset.layers.reverse()
-    poset.elements.forEach(name => {
-        distances[name] = layers.findIndex(i => i.includes(name))
-        colors[name] = `hsl(${poset.features[name].pTheta},${poset.features[name].pAlpha*100}%,${depthScale(poset.layers.findIndex(i => i.includes(name)))}%)`})
-    // update color, position, and distance
-    nodeData = nodeData.map(d => ({...d,distance:distances[d.name], color: colors[d.name] ? colors[d.name] : d.color,x:poset.featureOf(d.name,"x") ? poset.featureOf(d.name,"x") : 0}))
-    setColorList(colors)
+    // // update color, position, and distance
+    // nodeData = nodeData.map(d => ({...d,distance:distances[d.name], color: colors[d.name] ? colors[d.name] : d.color,x:poset.featureOf(d.name,"x") ? poset.featureOf(d.name,"x") : 0}))
     // set selections
     const inclusionList = rootArray.map(r => getInclusions(rootArray,nodeData,r,excludeList,descendantsFilter,nodeData.find(n => n.name === r).descendants)).flat()
       .filter(i => nodeData.find(n => n.name === i).levels !== '-1')
@@ -1184,13 +732,15 @@ function App() {
           'direction': e.levels === "Mapped from" ? -1 : 1,
           'distance': node.distance,
           'source': node,
-          'color': colors[e.child_concept_id] ? colors[e.child_concept_id] : generateColor(e.child_concept_id),
+          'color': node.color,
+          // 'color': colors[e.child_concept_id] ? colors[e.child_concept_id] : generateColor(e.child_concept_id),
           'total_counts': getCounts(data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),'node_record_counts'),
           'descendant_counts': data.concepts.find(c => c.concept_id === e.child_concept_id).descendant_record_counts,
           'data': {code_counts: data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),concept: data.concepts.filter(d => d.concept_id === e.child_concept_id)[0]}
           })).sort((a, b) => b.total_counts - a.total_counts)
       }))
     nodeData.forEach(node => {node.mappings.forEach(map => colors[map.name] = map.color)})
+    setColorList(colors)
     // set links
     const nodeNames = nodeData.map(d => d.name)
     const linkData = subsumesData.filter(d => d.parent_concept_id !== d.child_concept_id).map(d=>({...d, source: d.levels === "-1" ? nodeData[nodeNames.indexOf(d.child_concept_id)] : nodeData[nodeNames.indexOf(d.parent_concept_id)], target: d.levels === "-1" ? nodeData[nodeNames.indexOf(d.parent_concept_id)] : nodeData[nodeNames.indexOf(d.child_concept_id)]}))
@@ -1202,7 +752,7 @@ function App() {
     setEdges(edges)
     setPoset(poset)
     setPruned(false)
-    setFullTree({relationships:subsumesData,trees:trees,nodes:nodeData,links:linkData,selected:selectedNodes,mappings:mappingData.map(d => d.child_concept_id),edges:edges})
+    setFullTree({relationships:subsumesData,layers:layers,nodes:nodeData,links:linkData,selected:selectedNodes,mappings:mappingData.map(d => d.child_concept_id),edges:edges,poset:poset,maxDistance:maxD})
     if (!filterClass && !filterLevel) {
       // setCenters(centerArray)
       setNodes(nodeData)
@@ -1257,18 +807,20 @@ function App() {
   useEffect(()=>{
     if (conceptList.length > 0) {
       setSearchIsLoaded(true)
-      // setLoading(false)
+      setLoading(false)
     }
   },[conceptList])
 
   // on root load
   useEffect(()=>{
+    setLoading(true)
     if (!root) {
       setRootData([])
       setRootLabels([])
       setIsConceptSet(false)
       setSearchOnly(true)
     } else {
+      // setLoading(true)
       fetchedRef.current = true
       setSearchOnly(false)
       setLevelFilter()
@@ -1313,7 +865,6 @@ function App() {
   // on data load
   useEffect(()=>{
     if (dataArray && dataArray.length > 0) {
-      let trees = [dataArray[0].concept_relationships]
       let combinedData = dataArray[0]
       if (dataArray.length > 1) {
         let toRemove = []
@@ -1334,8 +885,7 @@ function App() {
         }))
         let filteredData = dataArray
         if (toRemove.length > 0) filteredData = dataArray.filter((data,i) => !toRemove.includes(i))
-        trees = filteredData.map(d => d.concept_relationships)
-        combinedData.concept_relationships = trees.flat()
+        combinedData.concept_relationships = filteredData.map(d => d.concept_relationships).flat()
         combinedData.concepts = filteredData.map(d => d.concepts).flat().filter((e, i, a) => a.findIndex(x => deepEqual(x, e)) === i)
         combinedData.stratified_code_counts = filteredData.map(d => d.stratified_code_counts).flat()
       } 
@@ -1376,7 +926,7 @@ function App() {
       } 
       const initialPrune = filterLevel || filterClass ? true : false
       setInitialPrune(initialPrune)
-      createInitialStates(combinedData,trees,filterClass,filterLevel,filteredClassList)  
+      createInitialStates(combinedData,filterClass,filterLevel,filteredClassList)  
     }
   },[dataArray])
 
@@ -1487,6 +1037,9 @@ function App() {
         refresh = {refresh}
         setRefresh = {setRefresh}
         setExpression = {setExpression}
+        setLoading = {setLoading}
+        loading = {loading}
+        API_BASE_URL = {API_BASE_URL}
       />
       {(searchIsLoaded && searchOnly) && <div className = "loading">
         <img style = {{width:60,opacity: 0.2}} src={finngen} alt="Finngen logo"/>
@@ -1555,7 +1108,6 @@ function App() {
               filteredCounts = {filteredCounts}
               drawingComplete = {drawingComplete}
               setDrawingComplete = {setDrawingComplete}
-              sendFeedback = {sendFeedback}
               initialPrune = {initialPrune}
               setInitialPrune = {setInitialPrune}
               visible = {visible}
@@ -1577,9 +1129,12 @@ function App() {
               setInclusions = {setInclusions}
               getAllDescendants = {getAllDescendants}
               linearLayout = {linearLayout}
+              // linearLayoutTree = {linearLayoutTree}
               getInclusions = {getInclusions}
               edges = {edges}
               setEdges = {setEdges}
+              maxDistance = {maxDistance}
+              setMaxDistance = {setMaxDistance}
             />      
           } />
         </Routes>
