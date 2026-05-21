@@ -177,7 +177,7 @@ h4 {
   color: white;
   opacity: 0.5;
   transition: 0.5s opacity;
-  margin-top: 10px;
+  margin-top: 12px;
   cursor: pointer;
 }
 #searchBtn:hover {
@@ -185,7 +185,7 @@ h4 {
 }
 #search-info {
   position: absolute;
-  left: 595px;
+  left: 740px;
   width: auto;
   display: flex;
   align-items: center;
@@ -197,9 +197,16 @@ h4 {
 #clear-concept-set {
   position: absolute;
   left: 430px;
-  top: 7px;
+  top: 8px;
   padding: 4px 8px 4px 8px;
-  /* border-radius: 20px; */
+  color: white;
+  background-color: #ffffff20;
+  border-radius: 20px;
+  cursor:pointer;
+  filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.4));
+}
+#clear-concept-set:hover {
+  font-weight: 700;
 }
 .search-info-line {
   width: 1px;
@@ -398,7 +405,7 @@ textarea:focus {
   right: 0.8em;
   color: var(--text);
   opacity: 0.5;
-  z-index:2000;
+  z-index:100;
 }
 .expand-compress:hover {
   opacity: 1;
@@ -744,9 +751,10 @@ textarea:focus {
   white-space: nowrap;
 }
 .item-title, .map-item-title {
-  max-width: calc(100% - 120px);
+  max-width: calc(100% - 164px);
   display: flex;
   align-items: center;
+  justify-content: space-between;
 }
 .list-counts-container, .map-list-counts-container {
   display: flex;
@@ -966,12 +974,21 @@ textarea:focus {
   bottom: 74px;
   font-weight: 700;
 }
+#rootline-btn {
+  position: absolute;
+  text-align: end;
+  right: 20px;
+  top: -10px;
+  padding: 3px 10px 3px 10px;
+  border-radius: 12px;
+  cursor: pointer;  
+}
 #reset-zoom {
   display: none;
   position: absolute;
   text-align: end;
-  right: 20px;
-  top: -20px;
+  right: 102px;
+  top: -10px;
   padding: 3px 6px 3px 6px;
   border: 1px solid var(--textlightest);
   background-color: transparent;
@@ -1080,34 +1097,19 @@ textarea:focus {
   right: 10px;
   color: white;
 }
-#feedback-btn {
-  width: 110px;
-  border-radius: 20px;
-  border: 1px solid #ffffff60;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-weight: 400;  
-  margin-right: 1em;
-}
-#feedback-btn:hover {
-  background-color: white;
-  color: var(--darkpurple);
-  font-weight: 700;
-}
 #api-info {
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  border: 0.5px solid #ffffff60;
-  border-radius: 18px;
-  width: 18px;
-  height: 18px;
+  /* border: 0.5px solid #ffffff80; */
+  border-radius: 16px;
+  width: 16px;
+  height: 16px;
   font-size: 10px;
   cursor: pointer;
+  color: var(--darkpurple);
+  background-color: white;
 }
 #api-popup {
   width: auto;
@@ -1193,4 +1195,34 @@ textarea:focus {
   font-size: 14px;
   color: #333;
 }
-
+.header-btn {
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-weight: 400;  
+  margin-right: 1em;
+  font-size: 12px;
+  padding: 6px 12px 6px 12px;
+}
+#feedback-btn {
+  color: white;
+  background-color: var(--darkpurple);
+  border: 1px solid #ffffff80;
+}
+#feedback-btn:hover {
+  background-color: white;
+  color: var(--darkpurple);
+  border: 1px solid white;
+  font-weight: 700;
+}
+#upload-btn {
+  color: white;
+  background-color: #342458;
+  border: 1px solid var(--mediumpurple);
+}
+#upload-btn:hover {
+  background-color: var(--mediumpurple);
+  font-weight: 700;
+}

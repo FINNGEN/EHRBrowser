@@ -81,14 +81,20 @@ function Visualization (props) {
     const excludeList = props.excludeList
     const setExcludeList = props.setExcludeList
     const annotations = props.annotations
-    const buffers = props.buffers
-    const setBuffers = props.setBuffers
+    const centers = props.centers
+    const setCenters = props.setCenters
     const inclusions = props.inclusions
     const setInclusions = props.setInclusions
+    const getAllDescendants = props.getAllDescendants
+    const linearLayout = props.linearLayout
+    const getInclusions = props.getInclusions
+    const [showRootLine, setShowRootLine] = useState(true)
     const [zoomed, setZoomed] = useState(false)
     const [biDirectional, setBiDirectional] = useState()
     const [text,setText] = useState('')
     const [graphSectionWidth, setGraphSectionWidth] = useState('60vw')
+    const edges = props.edges
+    const setEdges = props.setEdges
     const hoverTimeout = useRef(null)
     const hideTimeout = useRef(null)
 
@@ -115,7 +121,7 @@ function Visualization (props) {
                 .on('click', () => {
                     if (!sidebarRoot.name.includes(d.name)) {  
                         navigate(`/${d.name}`)
-                        setHovered()
+                        setHovered([])
                         setVisible(false) 
                     }
                 })   
@@ -198,8 +204,18 @@ function Visualization (props) {
     }
     // add concepts to graph 
     function updateConcepts(inclusionList,nodeList,toAdd,toRemove) {
-        // *** is this part necessary for add / remove? ***
-        let newNodes = nodeList.map(e => ({...e,descendant_counts:getCounts(sidebarRoot.data.stratified_code_counts.filter(c => e.descendants.filter(d => inclusionList.includes(d)).includes(c.concept_id) || e.descendants.map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => inclusionList.includes(d)).includes(c.concept_id)),'node_record_counts'),leaf: (e.descendants.filter(d => d !== e.name).some(item => inclusionList.includes(item)) || e.descendants.filter(d => d !== e.name).map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => inclusionList.includes(d)).some(item => inclusionList.includes(item))) && ((e.distance === levelFilter+1 || !links.map(d => d.source).map(d => d.name).includes(e.name)) && e.levels !== '-1')? true : false}))
+        let newNodes = nodeList
+            .map(e => ({
+                ...e,
+                included_descendants: [...e.descendants.filter(d => inclusionList.includes(d)),...e.descendants.map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => inclusionList.includes(d))]
+            }))
+            .map(e => ({
+                ...e,
+                descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => e.included_descendants.includes(c.concept_id)),
+                leaf: e.included_descendants.filter(d => d !== e.name  && !e.mappings.map(m => m.name).includes(d)).length > 0 && ((e.distance === levelFilter+1 && !links.map(d => d.source).map(d => d.name).includes(e.name)) && e.levels !== '-1') ? true : false}
+            ))
+            .map(e => ({...e,descendant_counts:getCounts(e.descendant_code_counts,'node_record_counts')}))
+        console.log('new inclusions', inclusionList, 'new nodes',newNodes)
         let newConnections = crossConnections
             .filter(c => inclusionList.includes(c.child) || fullTree.nodes.find(n => n.name === c.child).mappings.map(m => m.name).some(item => inclusionList.includes(item)))
             .map(d => ({...d,parents:d.parents.filter(p => newNodes.map(d => d.name).includes(p)).filter(p => newNodes.filter(d => d.name === p)[0]?.leaf)}))
@@ -207,13 +223,13 @@ function Visualization (props) {
         newNodes = newNodes.map(e => ({...e,connections: newConnections.filter(c => c.parents.includes(e.name)).map(d => ({...d,source:e.name}))}))
         const updatedSelections = newNodes
             .filter(d => !d.leaf ? inclusionList.includes(d.name) : d)
-            .map(d => ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: !d.leaf ? d.data : {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.filter(d => inclusionList.includes(d)).includes(c.concept_id) || d.descendants.map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => inclusionList.includes(d)).includes(c.concept_id))}})) 
+            .map(d => ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: !d.leaf ? d.data : {...d.data,descendant_code_counts:d.descendant_code_counts}})) 
         const mapSelections = newNodes.map(d => d.mappings).flat()
             .filter(d => inclusionList.includes(d.name) && !newNodes.find(n => n.name === d.source.name).leaf)
             .map(d => ({name: d.name, leaf: false, distance: d.distance, data: d.data}))
         let newSelections = [...updatedSelections,...mapSelections]
         if (toAdd.length > 0) {
-            toAdd = toAdd.map(d => d.source ? ({name: d.name, leaf: false, distance: d.distance, data: d.data}) : ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.filter(d => inclusionList.includes(d)).includes(c.concept_id))}}))
+            toAdd = toAdd.map(d => d.source ? ({name: d.name, leaf: false, distance: d.distance, data: d.data}) : ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: d.data}))
             newSelections = [...newSelections.filter(d => !toAdd.map(e => e.name).includes(d.name)),...toAdd]
         }
         if (toRemove.length > 0) {
@@ -244,77 +260,53 @@ function Visualization (props) {
     }
 
     const handleChange = (e) => {setText(e.target.value)}
-
-    function getInclusions(id,eList,dFilter,descendants,nodeList) {
-        // both selected
-        if (eList.includes(id) && !dFilter.includes(id)) {
-            const rootStillIncluded = descendants.filter(d => sidebarRoot.name.includes(d) && !eList.includes(d))
-            return rootStillIncluded
-        }
-        else {
-            // descendants unselected
-            if (dFilter.includes(id)) {
-                let stillIncluded = sidebarRoot.name.filter(r => r !== id && (fullTree.nodes.find(n => n.name === r).distance < fullTree.nodes.find(n => n.name === id).distance) && (!eList.includes(r) && !dFilter.includes(r))).map(r => fullTree.nodes.find(n => n.name === r).descendants.filter(d => d !== r).filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class))).flat().filter(d => descendants.includes(d))
-                const rootStillIncluded = descendants.filter(d => sidebarRoot.name.includes(d) && !eList.includes(d))
-                stillIncluded = [...stillIncluded,...rootStillIncluded]
-                // exclude unselected
-                if (!eList.includes(id)) {
-                    return stillIncluded.includes(id) ? stillIncluded : [...stillIncluded,id]
-                } else {
-                    return stillIncluded.filter(d => d !== id)
-                }
-            // descendants selected
-            } else {
-                let stillExcluded = sidebarRoot.name.filter(r => r !== id && (fullTree.nodes.find(n => n.name === r).distance < fullTree.nodes.find(n => n.name === id).distance) && (eList.includes(r) && !dFilter.includes(r))).map(r => fullTree.nodes.find(n => n.name === r).descendants.filter(d => d !== r).filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class))).flat().filter(d => descendants.includes(d) && d !== id)
-                const rootExclusions = descendants.filter(d => sidebarRoot.name.includes(d) && eList.includes(d))
-                const rootDescendantExclusions = rootExclusions.filter(r => !dFilter.includes(r)).map(r => fullTree.nodes.find(n => n.name === r).descendants.filter(d => d !== r).filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class))).flat()
-                stillExcluded = [...stillExcluded,...rootExclusions,...rootDescendantExclusions]
-                return descendants.filter(d => !stillExcluded.includes(d))
-            }
-        }
-    }
     
     // filter tree data
     useEffect(()=>{
-        if (sidebarRoot && !initialPrune) {
+        if (fullTree.nodes) {
+            console.log('filter')
             // filter nodes and links
             let filteredNodes = fullTree.nodes
                 .filter(d => levelFilter === undefined || d.distance <= levelFilter+1)
                 .filter(d => classFilter.includes('All') ? d : d.class ? classFilter.includes(d.class) : d)
             let filteredLinks = fullTree.links
                 .filter(d => filteredNodes.map(d => d.name).includes(d.source.name) && filteredNodes.map(d => d.name).includes(d.target.name))
+            // **** filter parent and children by class
             filteredNodes = filteredNodes
                 .map(e => ({
                     ...e,
-                    leaf: (e.distance === levelFilter+1 || !filteredLinks.map(d => d.source).map(d => d.name).includes(e.name)) && e.levels !== '-1' ? true : false,
-                    parents: e.parents.filter(p => filteredNodes.map(d => d.name).includes(p)),
-                    descendants: fullTree.nodes.find(n => n.name === e.name).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)),
-                    children: e.levels === "-1" ? fullTree.links.filter(d => d.target.name === e.name).map(d => d.source.name) : fullTree.links.filter(d => d.source.name === e.name && d.target.name !== e.name).map(d => d.target.name)
+                    leaf: (e.distance === levelFilter+1 && !filteredLinks.map(d => d.source).map(d => d.name).includes(e.name)) && e.levels !== '-1' ? true : false,
+                    parents: fullTree.nodes.find(n => n.name === e.name).parents.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)),
+                    descendants: [...getAllDescendants(fullTree.relationships.filter(r => classFilter.includes('All') ? r : classFilter.includes(r.concept_class_id)),e.name,[]),e.name],
+                    children: fullTree.nodes.find(n => n.name === e.name).children.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)),
+                    // *** fix this ***
+                    // x: nodes ? nodes.map(n => n.name).includes(e.name) ? nodes.find(n => n.name === e.name).x : e.x : e.x
                 }))
-            // let newInclusions = sidebarRoot.name.map(r => filteredNodes.map(n => n.name).includes(r) ? getInclusions(r,excludeList,descendantsFilter,filteredNodes.find(n => n.name === r).descendants,filteredNodes) : getInclusions(r,excludeList,descendantsFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)),filteredNodes)).flat().filter((e,n,l) => l.indexOf(e) === n)
-            //     .map(i => treeSelections.includes('mappings') ? fullTree.nodes.find(n => n.name === i).mappings.map(m => m.name) : i).flat()   
-            //     .filter(i => sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts !== 0)
-            // **** if it is a map node filter based on source node class
-            let newInclusions = inclusions.filter(d => classFilter.includes('All') ? d : fullTree.nodes.map(n => n.name).includes(d) ? fullTree.nodes.find(n => n.name === d).class ? classFilter.includes(fullTree.nodes.find(n => n.name === d).class) : d : fullTree.nodes.map(n => n.mappings).flat().find(m => m.name === d).source.class ? classFilter.includes(fullTree.nodes.map(n => n.mappings).flat().find(m => m.name === d).source.class) : d)
+            const newInclusions = sidebarRoot.name.map(r => filteredNodes.map(n => n.name).includes(r) ? getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,filteredNodes.find(n => n.name === r).descendants) : getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)))).flat().filter((e,n,l) => l.indexOf(e) === n)
+                .filter(i => fullTree.nodes.find(n => n.name === i).levels !== '-1')
+                .map(i => treeSelections.includes('mappings') ? fullTree.nodes.find(n => n.name === i).mappings.map(m => m.name) : i).flat()   
+                .filter(i => sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts !== 0)
             filteredNodes = filteredNodes
-                .map(e => ({...e,descendant_counts:getCounts(sidebarRoot.data.stratified_code_counts.filter(c => e.descendants.filter(d => newInclusions.includes(d)).includes(c.concept_id) || e.descendants.map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => newInclusions.includes(d)).includes(c.concept_id)),'node_record_counts'),leaf: (e.descendants.filter(d => d !== e.name).some(item => newInclusions.includes(item)) || e.descendants.filter(d => d !== e.name).map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => newInclusions.includes(d)).some(item => newInclusions.includes(item))) && e.leaf ? true : false}))
+                .map(e => ({
+                    ...e,
+                    included_descendants: [...e.descendants.filter(d => newInclusions.includes(d)),...e.descendants.map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => newInclusions.includes(d))]
+                }))
+                .map(e => ({
+                    ...e,
+                    descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => e.included_descendants.includes(c.concept_id)),
+                    leaf: e.included_descendants.filter(d => d !== e.name && !e.mappings.map(m => m.name).includes(d)).length > 0 && e.leaf ? true : false}
+                ))
             // filter connections 
             let filteredConnections = crossConnections
                 .filter(c => !filteredNodes.map(d => d.name).includes(c.child))
-                .filter(c => newInclusions.includes(c.child) || fullTree.nodes.find(n => n.name === c.child).mappings.map(m => m.name).some(item => newInclusions.includes(item)))
+                .filter(c => classFilter.includes('All') ? c : classFilter.includes(fullTree.nodes.find(n => n.name === c.child).class))
+                // .filter(c => newInclusions.includes(c.child) || fullTree.nodes.find(n => n.name === c.child).mappings.map(m => m.name).some(item => newInclusions.includes(item)))
                 .map(d => ({...d,parents:d.parents.filter(p => filteredNodes.map(d => d.name).includes(p)).filter(p => filteredNodes.filter(d => d.name === p)[0]?.leaf)}))
             filteredConnections = filteredConnections.filter(d => d.parents.length > 1)
             filteredNodes = filteredNodes.map(e => ({...e,connections: filteredConnections.filter(c => c.parents.includes(e.name)).map(d => ({...d,source:e.name}))}))
-            // const filteredSelected = !treeSelections.includes('mappings') ? 
-            //     filteredNodes
-            //         .filter(d => !d.leaf ? newInclusions.includes(d.name) : d)
-            //         .map(d => ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.filter(d => newInclusions.includes(d)).includes(c.concept_id))}})) : 
-            //     filteredNodes.filter(d => newInclusions.includes(d.name)).map(d => d.mappings).flat()
-            //         .filter(d => d.total_counts !== 0)
-            //         .map(d => ({name: d.name, leaf: false, distance: d.distance, data: d.data}))
             const updatedSelections = filteredNodes
                 .filter(d => !d.leaf ? newInclusions.includes(d.name) : d)
-                .map(d => ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: !d.leaf ? d.data : {...d.data,descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => d.descendants.filter(d => newInclusions.includes(d)).includes(c.concept_id) || d.descendants.map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => newInclusions.includes(d)).includes(c.concept_id))}})) 
+                .map(d => ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: !d.leaf ? d.data : {...d.data,descendant_code_counts:d.descendant_code_counts}})) 
             const mapSelections = filteredNodes.map(d => d.mappings).flat()
                 .filter(d => newInclusions.includes(d.name) && !filteredNodes.find(n => n.name === d.source.name).leaf)
                 .map(d => ({name: d.name, leaf: false, distance: d.distance, data: d.data}))
@@ -324,71 +316,194 @@ function Visualization (props) {
             setInclusions(newInclusions)
             if (treeSelections.includes('mappings')) setMapRoot(filteredNodes.filter(n => n.mappings.length > 0).map(n => n.name))
             // updated poset
-            let positions = {}
+            // let positions = {}
             const nodeNames = filteredNodes.map(d => d.name)
             const trees = fullTree.trees
-            const width = d3.select("#tree").node().getBoundingClientRect().width
-            const mappingDirections = filteredNodes.map(d => d.mappings).flat().map(d => d.direction)
-            const biDirectionalMapping = mappingDirections.includes(1) && mappingDirections.includes(-1)
-            setBiDirectional(biDirectionalMapping)
-            const nodeWidth = biDirectional ? 160 : 140
-            let bufferArray = [0]
-            // iterate through trees
-            trees.forEach((tree,index) => {
-                const allElements = [...new Set(tree.map(d => ([d.parent_concept_id,d.child_concept_id])).flat())]
-                const elements = allElements.filter(e => nodeNames.includes(e))
-                let layers = poset[index].layers
-                layers = layers.map(layer => layer.filter(e => elements.includes(parseInt(e))))
-                // *** set based on width of biggest layer
-                const maxLength = d3.max(layers, d => d.length)
-                const maxIndex = layers.findIndex(a => a.length === maxLength)
-                const multiplier = 1.2 + Math.min(maxLength * 0.01, 1)
-                const thisWidth = layers[maxIndex].some(e => mapRoot.includes(parseInt(e))) ? (maxLength/2)*(nodeWidth*multiplier) : (maxLength/2)*nodeWidth
-                bufferArray.push(thisWidth)
-                let buffer = index === 0 ? buffers[index] : buffers[index] + thisWidth 
-                layers.forEach((layer,i) => {
-                    const layerInt = layer.map(d => parseInt(d))
-                    const mapArrays = filteredNodes.filter(d => mapRoot.includes(d.name)).map(d => d.mappings)
-                    const multiBiDirectional = mapArrays.map(array => array.map(d => d.direction)).filter(arr => arr.includes(1) && arr.includes(-1)).length >= 2
-                    const nodeWidth = mapRoot.some(element => layerInt.includes(element)) ? multiBiDirectional ? 320 : 240 : biDirectional ? 160 : 140
-                    const center = (width/poset.length)/2 + (width)*index + buffer
-                    if (i === 0) {
-                        let unit = (width/poset.length)/layer.length
-                        let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
-                        let median = Math.floor(layer.length/2) 
-                        layer.forEach((node,i) => positions[parseInt(node)] = unit >= nodeWidth ? unit*i + unit/2 + (width)*index + buffer : i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
-                    } else {
-                        let missingParent = false
-                        layer.forEach(node => filteredNodes.find(n => n.name === parseInt(node)).parents.length === 0 ? missingParent = true : null)
-                        let xPositions = []
-                        let unit = (width/poset.length)/layer.length
-                        let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
-                        let median = Math.floor(layer.length/2) 
-                        if (missingParent) xPositions = fullTree.nodes.filter(d => layer.includes(d.name.toString())).map(d => ({id:d.name.toString(),x:d.x}))
-                        else layer.forEach(node => xPositions.push({id:node,x:d3.sum(filteredNodes.find(n => n.name === parseInt(node)).parents.map(parent => positions[parent]))/filteredNodes.find(n => n.name === parseInt(node)).parents.length})) 
-                        xPositions.sort((a, b) => d3.ascending(a.x, b.x))
-                        let minDistance = d3.min(d3.pairs(xPositions, (a, b) => b.x - a.x))
-                        if ((minDistance < nodeWidth && layer.length > 1) || missingParent) {
-                            layer.forEach(node => positions[parseInt(node)] = unit >= nodeWidth ? unit*xPositions.findIndex(d => d.id === node) + unit/2 + (width)*index + buffer : xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
-                        } else layer.forEach(node => positions[parseInt(node)] = xPositions.find(d => d.id === node)?.x)
-                    }
-                })
-            })
-            setBuffers(bufferArray)
+            // const width = d3.select("#tree").node().getBoundingClientRect().width
+            // const mappingDirections = filteredNodes.map(d => d.mappings).flat().map(d => d.direction)
+            // const biDirectionalMapping = mappingDirections.includes(1) && mappingDirections.includes(-1)
+            // setBiDirectional(biDirectionalMapping)
+            // let centerArray = []
+            // // iterate through trees
+            // trees.forEach((tree,index) => {
+            //     const allElements = [...new Set(tree.map(d => ([d.parent_concept_id,d.child_concept_id])).flat())]
+            //     const elements = allElements.filter(e => nodeNames.includes(e))
+            //     let layers = poset[index].layers
+            //     layers = layers.map(layer => layer.filter(e => elements.includes(parseInt(e))))
+            //     const maxLength = d3.max(layers, d => d.length)
+            //     const maxIndex = layers.findIndex(a => a.length === maxLength)
+            //     const spacingUnit = biDirectional ? 200 : 180
+            //     const thisWidth = maxLength*(layers[maxIndex].some(e => mapRoot.includes(parseInt(e))) ? spacingUnit*2 : spacingUnit)
+            //     centerArray.push(thisWidth)
+            //     let center = d3.sum(centerArray) - thisWidth/2
+            //     // console.log(index,centerArray,buffer)
+            //     layers.forEach((layer,i) => {
+            //         const layerInt = layer.map(d => parseInt(d))
+            //         const mapArrays = filteredNodes.filter(d => mapRoot.includes(d.name)).map(d => d.mappings)
+            //         const multiBiDirectional = mapArrays.map(array => array.map(d => d.direction)).filter(arr => arr.includes(1) && arr.includes(-1)).length >= 2
+            //         const nodeWidth = mapRoot.some(element => layerInt.includes(element)) ? multiBiDirectional ? 320 : 280 : biDirectional ? 160 : 140
+            //         // const nodeWidth = mapRoot.some(element => layerInt.includes(element)) ? multiBiDirectional ? 320 : 280 : biDirectional ? 160 : 140
+            //         // const center = (width/poset.length)/2 + center
+            //         // const center = buffer
+            //         if (i === 0) {
+            //             // let unit = (width/poset.length)/layer.length
+            //             let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
+            //             let median = Math.floor(layer.length/2) 
+            //             layer.forEach((node,i) => positions[parseInt(node)] = i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
+            //             // layer.forEach((node,i) => positions[parseInt(node)] = unit >= nodeWidth ? unit*i + unit/2 + center : i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
+            //         } else {
+            //             let missingParent = false
+            //             layer.forEach(node => filteredNodes.find(n => n.name === parseInt(node)).parents.length === 0 ? missingParent = true : null)
+            //             let xPositions = []
+            //             // let unit = (width/poset.length)/layer.length
+            //             let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
+            //             let median = Math.floor(layer.length/2) 
+            //             if (missingParent) xPositions = fullTree.nodes.filter(d => layer.includes(d.name.toString())).map(d => ({id:d.name.toString(),x:d.x}))
+            //             else layer.forEach(node => xPositions.push({id:node,x:d3.sum(filteredNodes.find(n => n.name === parseInt(node)).parents.map(parent => positions[parent]))/filteredNodes.find(n => n.name === parseInt(node)).parents.length})) 
+            //             xPositions.sort((a, b) => d3.ascending(a.x, b.x))
+            //             let minDistance = d3.min(d3.pairs(xPositions, (a, b) => b.x - a.x))
+            //             if ((minDistance < nodeWidth && layer.length > 1) || missingParent) {
+            //                 layer.forEach(node => positions[parseInt(node)] = xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
+            //                 // layer.forEach(node => positions[parseInt(node)] = unit >= nodeWidth ? unit*xPositions.findIndex(d => d.id === node) + unit/2 + center : xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
+            //             } else layer.forEach(node => positions[parseInt(node)] = xPositions.find(d => d.id === node)?.x)
+            //         }
+            //     })
+            // })
+            // setCenters(centerArray)
+            const combinedEdges = trees.flat()
+            let edges = combinedEdges 
+                .filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to")
+                .filter(d => filteredNodes.map(n => n.name).includes(d.parent_concept_id) && filteredNodes.map(n => n.name).includes(d.child_concept_id))
+                .map(d => d.levels === "-1" ? ({...d,parent_concept_id: d.child_concept_id,child_concept_id: d.parent_concept_id}) : d)
+                .map(d => ([d.parent_concept_id.toString(),d.child_concept_id.toString()]))
+            if (edges.length > 1) edges = edges.filter(d => d[0] !== d[1])
+            const {matrix,nodes} = po.domFromEdges(edges)
+            const poset = po.createPoset(matrix,nodes)
+            poset.enrich()
+                .setLayers()
+                .feature("lower_bound",(node)=>poset.getLower(node))
+                .feature("upper_bound",(node)=>poset.getUpper(node))
+                .feature("node_degree",(node,f)=>f.lower_bound.length+f.upper_bound.length)
+            if (mapRoot.length > 0 ) linearLayout(poset,300)   
+            else linearLayout(poset,150)  
             // update nodes and links
             filteredNodes = filteredNodes
-                .map(d => ({...d,x:positions[d.name] ? positions[d.name] : d.x}))
-                .map(e => ({...e,mappings: e.mappings.map(map => ({...map,distance: e.distance,source: e}))}))
+                .map(d => ({...d,descendant_counts:getCounts(d.descendant_code_counts,'node_record_counts'),x:poset.elements.includes(d.name.toString()) ? poset.featureOf(d.name,"x") : d.x}))
+                .map(d => ({...d,mappings:d.mappings.map(m => ({...m,source:d}))}))
             filteredLinks = filteredLinks.map(d => ({...d,source:filteredNodes[nodeNames.indexOf(d.source.name)],target:filteredNodes[nodeNames.indexOf(d.target.name)]}))
             // pruned
             let isPruned = false
             filteredNodes.filter(d => d.leaf).forEach(d => d.children.length > 0 ? isPruned = true : null)
             // set states
+            setEdges(edges)
+            setPoset(poset)
             setPruned(isPruned)
             setNodes(filteredNodes)
             setLinks(filteredLinks)  
+            if (initialPrune) {
+                setTimeout(() => {
+                    setInitialPrune(false)
+                }, 1000)    
+            }
         }    
-    }, [levelFilter,classFilter])
+    }, [classFilter,levelFilter])
+
+    // useEffect(()=> {
+    //     if (fullTree.nodes) {
+    //         console.log('filter level')
+    //         // filter nodes and links
+    //         let filteredNodes = fullTree.nodes
+    //             .filter(d => levelFilter === undefined || d.distance <= levelFilter+1)
+    //             .filter(d => classFilter.includes('All') ? d : d.class ? classFilter.includes(d.class) : d)
+    //         let filteredLinks = fullTree.links
+    //             .filter(d => filteredNodes.map(d => d.name).includes(d.source.name) && filteredNodes.map(d => d.name).includes(d.target.name))
+    //         filteredNodes = filteredNodes.map(e => ({...e,leaf: (e.distance === levelFilter+1 && !filteredLinks.map(d => d.source).map(d => d.name).includes(e.name)) && e.levels !== '-1' && e.included_descendants.filter(d => d !== e.name).length > 0 ? true : false}))
+    //         let filteredConnections = crossConnections
+    //             .filter(c => !filteredNodes.map(d => d.name).includes(c.child))
+    //             .filter(c => classFilter.includes('All') ? c : classFilter.includes(fullTree.nodes.find(n => n.name === c.child).class))
+    //             // .filter(c => inclusions.includes(c.child) || fullTree.nodes.find(n => n.name === c.child).mappings.map(m => m.name).some(item => inclusions.includes(item)))
+    //             .map(d => ({...d,parents:d.parents.filter(p => filteredNodes.map(d => d.name).includes(p)).filter(p => filteredNodes.filter(d => d.name === p)[0]?.leaf)}))
+    //         filteredConnections = filteredConnections.filter(d => d.parents.length > 1)
+    //         filteredNodes = filteredNodes.map(e => ({...e,connections:filteredConnections.filter(c => c.parents.includes(e.name)).map(d => ({...d,source:e.name}))}))
+    //         const updatedSelections = filteredNodes
+    //             .filter(d => !d.leaf ? inclusions.includes(d.name) : d)
+    //             .map(d => ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: !d.leaf ? d.data : {...d.data,descendant_code_counts:d.descendant_code_counts}})) 
+    //         const mapSelections = filteredNodes.map(d => d.mappings).flat()
+    //             .filter(d => inclusions.includes(d.name) && !filteredNodes.find(n => n.name === d.source.name).leaf)
+    //             .map(d => ({name: d.name, leaf: false, distance: d.distance, data: d.data}))
+    //         const filteredSelected = [...updatedSelections,...mapSelections]
+    //         filteredSelected.sort((a,b) => d3.ascending(a.distance, b.distance))
+    //         setSelectedConcepts(filteredSelected)
+    //         if (treeSelections.includes('mappings')) setMapRoot(filteredNodes.filter(n => n.mappings.length > 0).map(n => n.name))
+    //         const nodeNames = filteredNodes.map(d => d.name)
+    //         // updated poset
+    //         let positions = {}
+    //         const trees = fullTree.trees
+    //         const width = d3.select("#tree").node().getBoundingClientRect().width
+    //         const mappingDirections = filteredNodes.map(d => d.mappings).flat().map(d => d.direction)
+    //         const biDirectionalMapping = mappingDirections.includes(1) && mappingDirections.includes(-1)
+    //         setBiDirectional(biDirectionalMapping)
+    //         const nodeWidth = biDirectional ? 160 : 140
+    //         let centerArray = [0]
+    //         // iterate through trees
+    //         trees.forEach((tree,index) => {
+    //             const allElements = [...new Set(tree.map(d => ([d.parent_concept_id,d.child_concept_id])).flat())]
+    //             const elements = allElements.filter(e => nodeNames.includes(e))
+    //             let layers = poset[index].layers
+    //             layers = layers.map(layer => layer.filter(e => elements.includes(parseInt(e))))
+    //             // *** set based on width of biggest layer
+    //             const maxLength = d3.max(layers, d => d.length)
+    //             const maxIndex = layers.findIndex(a => a.length === maxLength)
+    //             const multiplier = 1.2 + Math.min(maxLength * 0.01, 1)
+    //             const thisWidth = layers[maxIndex].some(e => mapRoot.includes(parseInt(e))) ? (maxLength/2)*(nodeWidth*multiplier) : (maxLength/2)*nodeWidth
+    //             centerArray.push(thisWidth)
+    //             let buffer = index === 0 ? centers[index] : centers[index] + thisWidth 
+    //             layers.forEach((layer,i) => {
+    //                 const layerInt = layer.map(d => parseInt(d))
+    //                 const mapArrays = filteredNodes.filter(d => mapRoot.includes(d.name)).map(d => d.mappings)
+    //                 const multiBiDirectional = mapArrays.map(array => array.map(d => d.direction)).filter(arr => arr.includes(1) && arr.includes(-1)).length >= 2
+    //                 const nodeWidth = mapRoot.some(element => layerInt.includes(element)) ? multiBiDirectional ? 320 : 240 : biDirectional ? 160 : 140
+    //                 const center = (width/poset.length)/2 + center
+    //                 if (i === 0) {
+    //                     let unit = (width/poset.length)/layer.length
+    //                     let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
+    //                     let median = Math.floor(layer.length/2) 
+    //                     layer.forEach((node,i) => positions[parseInt(node)] = unit >= nodeWidth ? unit*i + unit/2 + center : i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
+    //                 } else {
+    //                     let missingParent = false
+    //                     layer.forEach(node => filteredNodes.find(n => n.name === parseInt(node)).parents.length === 0 ? missingParent = true : null)
+    //                     let xPositions = []
+    //                     let unit = (width/poset.length)/layer.length
+    //                     let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
+    //                     let median = Math.floor(layer.length/2) 
+    //                     if (missingParent) xPositions = fullTree.nodes.filter(d => layer.includes(d.name.toString())).map(d => ({id:d.name.toString(),x:d.x}))
+    //                     else layer.forEach(node => xPositions.push({id:node,x:d3.sum(filteredNodes.find(n => n.name === parseInt(node)).parents.map(parent => positions[parent]))/filteredNodes.find(n => n.name === parseInt(node)).parents.length})) 
+    //                     xPositions.sort((a, b) => d3.ascending(a.x, b.x))
+    //                     let minDistance = d3.min(d3.pairs(xPositions, (a, b) => b.x - a.x))
+    //                     if ((minDistance < nodeWidth && layer.length > 1) || missingParent) {
+    //                         layer.forEach(node => positions[parseInt(node)] = unit >= nodeWidth ? unit*xPositions.findIndex(d => d.id === node) + unit/2 + center : xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
+    //                     } else layer.forEach(node => positions[parseInt(node)] = xPositions.find(d => d.id === node)?.x)
+    //                 }
+    //             })
+    //         })
+    //         setCenters(centerArray)
+    //         // update nodes and links
+    //         filteredNodes = filteredNodes
+    //             .map(d => ({...d,x:positions[d.name] ? positions[d.name] : d.x}))
+    //             .map(d => ({...d,mappings:d.mappings.map(m => ({...m,source:d}))}))
+    //         filteredLinks = filteredLinks.map(d => ({...d,source:filteredNodes[nodeNames.indexOf(d.source.name)],target:filteredNodes[nodeNames.indexOf(d.target.name)]}))
+    //         let isPruned = false
+    //         filteredNodes.filter(d => d.leaf).forEach(d => d.children.length > 0 ? isPruned = true : null)
+    //         setPruned(isPruned)
+    //         setNodes(filteredNodes)
+    //         setLinks(filteredLinks)  
+    //         if (initialPrune) {
+    //             setTimeout(() => {
+    //                 setInitialPrune(false)
+    //             }, 1000)    
+    //         }
+    //     }    
+    // },[levelFilter])
 
     // update extent
     useEffect(()=>{
@@ -501,6 +616,7 @@ function Visualization (props) {
                 setClassFilter = {setClassFilter}
                 pruned = {pruned}
                 poset = {poset}
+                setPoset = {setPoset}
                 getConceptInfo = {getConceptInfo}
                 setNodes = {setNodes}
                 setLinks = {setLinks}
@@ -521,12 +637,14 @@ function Visualization (props) {
                 setDescendantsFilter = {setDescendantsFilter}
                 excludeList = {excludeList}
                 setExcludeList = {setExcludeList}
-                buffers = {buffers}
+                centers = {centers}
                 inclusions = {inclusions}
                 setInclusions = {setInclusions}
                 getInclusions = {getInclusions}
                 getCounts = {getCounts}
                 setPruned = {setPruned}
+                edges = {edges}
+                linearLayout = {linearLayout}
             ></SideBar> 
             <GraphSection
                 color = {color}
@@ -558,6 +676,8 @@ function Visualization (props) {
                 colorList = {colorList}
                 annotations = {annotations}
                 treeSelections = {treeSelections}
+                showRootLine = {showRootLine}
+                setShowRootLine = {setShowRootLine}
             />  
         </div> : null
     )
