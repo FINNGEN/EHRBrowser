@@ -232,17 +232,21 @@ textarea:focus {
   flex-direction: row;
 }
 #graph-section {
+  width: 60vw;
+  height: calc(100% - 3em);
+  padding: 1.5em;
+}
+#graph-section-container {
   display: flex;
   flex-direction: column;
   align-self: flex-end;
-  justify-content: flex-end;
-  width: 60vw;
-  height: 98%;
-  padding: 1.5em;
+  justify-content: flex-end;  
+  width: 100%;
+  height: 100%;
 }
 #graph-group {
   width: 100%; 
-  height: 80%;
+  /* height: 80%; */
   flex-grow: 1;
   /* height: 100%; */
   display: flex;
@@ -640,27 +644,28 @@ textarea:focus {
   align-items: flex-end;
 }
 #gender-viz {
-  position: relative;
+  /* position: relative; */
   display: flex;
   align-items: center;
   justify-content: center;
   height: 30px;
   width: 120px;
 }
-#age-viz {
-  position: relative;
+#age-viz,#source-viz {
+  /* position: relative; */
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  height: 60px;
-  width: 360px;
+  height: 50px;
+  /* width: 360px; */
   background-color: none;
 }
 .filter-container {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
+  /* justify-content: flex-end; */
 }
 .map-node {
   z-index: 0;

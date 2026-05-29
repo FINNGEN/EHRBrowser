@@ -14,7 +14,7 @@ function Header (props) {
     const getCounts = props.getCounts
     // const setRoot = props.setRoot
     const inputRef = useRef(null)
-    const reset = props.reset
+    // const reset = props.reset
     const conceptList = props.conceptList
     const filteredList = props.filteredList
     const setFilteredList = props.setFilteredList
@@ -99,8 +99,8 @@ function Header (props) {
         setSuggestions([]) 
         if (inputRef.current) {
             setRefresh(true)
-            if (inputRef.current.value === root) reset()
-            else {
+            // if (inputRef.current.value === root) reset()
+            // else {
                 if (codes.includes(inputRef.current.value)) {
                     setLoading(true)
                     navigate(`/${inputRef.current.value}`)
@@ -110,7 +110,7 @@ function Header (props) {
                     navigate(`/${codes[names.indexOf(inputRef.current.value.toLowerCase())].toString()}`)
                 }
                 else console.warn(`Concept ${inputRef.current.value} not found.`)
-            } 
+            // } 
         }
     }
 

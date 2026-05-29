@@ -76,6 +76,8 @@
         const linearLayout = props.linearLayout
         const setLoading = props.setLoading
         const getMidX = props.getMidX
+        const subspaces = props.subspaces
+        const spaceSubspaces = props.spaceSubspaces
         // const setRoot = props.setRoot
         // const [graphSectionWidth, setGraphSectionWidth] = useState()
         const margin = 10
@@ -201,13 +203,18 @@
             updateConcepts(newInclusions,nodes,[],[])
         }
         // *** fix this, now that edges can be from full tree ***
-        function updateWidth(mapRoot) {
-            const nWidth = mapRoot.length > 0 ? 300 : 150
-            if (nodes.length !== fullTree.nodes.length) linearLayout(poset,edges,nWidth,fullTree.poset) 
-            else linearLayout(poset,edges,nWidth)
+        function updateWidth(openedMappings) {
+            
             const nodeList = nodes.map(d => d.name)
+            const filteredSubspaces = subspaces.map(nodes => nodes.filter(n => poset.elements.includes(n)))
+            filteredSubspaces.filter(nodes => nodes.length > 0).forEach(nodes => { 
+                const nWidth = openedMappings.filter(r => nodes.includes(r.toString())).length > 0 ? 300 : 150
+                linearLayout(poset,edges,nodes,nWidth)
+            })
+            spaceSubspaces(poset,filteredSubspaces,150)
+            // *** need to re-space not in poset nodes ***
             let nodesArray = nodes
-                .map(d => ({...d,x:poset.featureOf(d.name,"x") ? poset.featureOf(d.name,"x") : d.x}))
+                .map(d => ({...d,x:poset.elements.includes(d.name.toString()) ? poset.featureOf(d.name,"x") ? poset.featureOf(d.name,"x") : d.x : d.x}))
                 .map(e => ({...e,mappings: e.mappings.map(map => ({...map,source: e}))}))
             nodesArray = nodesArray.map(d => ({...d,connections:d.connections.map(c => ({...c,x:d.x,mid:getMidX(c.parents,nodesArray)}))}))
             const linksArray = links.map(d=>({source: nodesArray[nodeList.indexOf(d.source.name)], target: nodesArray[nodeList.indexOf(d.target.name)]}))
@@ -4997,7 +5004,7 @@
                     drawSet()     
                 }    
             }
-        },[nodes,conceptNames,mapRoot,view,hovered])
+        },[nodes,conceptNames,view,hovered])
         //,conceptNames.length < 50 ? hovered : null
 
         // reset zoom 

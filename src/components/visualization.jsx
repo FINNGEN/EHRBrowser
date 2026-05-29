@@ -90,6 +90,9 @@ function Visualization (props) {
     const getInclusions = props.getInclusions
     const maxDistance = props.maxDistance
     const setMaxDistance = props.setMaxDistance
+    const subspaces = props.subspaces
+    const spaceSubspaces = props.spaceSubspaces
+    const sourceData = props.sourceData
     const [showRootLine, setShowRootLine] = useState(true)
     const [zoomed, setZoomed] = useState(false)
     const [biDirectional, setBiDirectional] = useState()
@@ -287,57 +290,59 @@ function Visualization (props) {
             let newPoset
             let newEdges
             const excludedPositions = {}
-            if (filteredNodes.length === fullTree.nodes.length) {
-                newEdges = fullTree.edges
-                newPoset = fullTree.poset
-            } else {
-                let missingLayer = false
-                nodeDistances.forEach((d,i) => i !== nodeDistances.length-1 || !filteredNodes.map(n => n.levels).includes('-1') ? d+1 !== nodeDistances[i+1] ? missingLayer = true : null : null)
-                newEdges = fullTree.edges.filter(d => nodeNames.map(n => n.toString()).includes(d[0]) && nodeNames.map(n => n.toString()).includes(d[1]))
-                if (newEdges.length > 1) newEdges = newEdges.filter(d => d[0] !== d[1])
-                if (newEdges.length === 0) newEdges = nodeNames.map(n => [n.toString(),n.toString()])
-                // if (missingLayer) {
-                //     const targets = newEdges.map(n => n[1])
-                //     const notInTargets = nodeNames.filter(name => filteredNodes.find(n => n.name === name).levels !== '-1').map(name => name.toString()).filter(name => !targets.includes(name))
-                //     const phantomEdges = notInTargets.map(n => ['null',n])
-                //     newEdges = [...newEdges,...phantomEdges]
-                // }
-                const {matrix,nodes} = po.domFromEdges(newEdges)
-                newPoset = po.createPoset(matrix,nodes)
-                // *** use full poset to get node_degree *** 
-                newPoset.enrich()
-                    .setLayers()
-                    .feature("node_degree",(node)=>fullTree.poset.featureOf(node,'node_degree'))
-                const nWidth = mapRoot.length > 0 ? 300 : 150
-                linearLayout(newPoset,newEdges,nWidth,fullTree.poset)
-                const notInPoset = filteredNodes.filter(n => !newPoset.elements.includes(n.name.toString()))
-                if (notInPoset.length > 0) {
-                    const w = mapRoot.length > 0 ? 300 : 150
-                    let groupedExclusions = notInPoset.reduce((acc, item) => {
-                    const key = item.distance
-                    if (!acc[key]) {
-                        acc[key] = []
-                    }
-                    acc[key].push(item)
-                    return acc
+            // if (filteredNodes.length === fullTree.nodes.length) {
+            //     newEdges = fullTree.edges
+            //     newPoset = fullTree.poset
+            // } else {
+                // let missingLayer = false
+                // nodeDistances.forEach((d,i) => i !== nodeDistances.length-1 || !filteredNodes.map(n => n.levels).includes('-1') ? d+1 !== nodeDistances[i+1] ? missingLayer = true : null : null)
+            // *** get everything into the poset ***
+            newEdges = fullTree.edges.filter(d => nodeNames.map(n => n.toString()).includes(d[0]) && nodeNames.map(n => n.toString()).includes(d[1]))
+            if (newEdges.length > 1) newEdges = newEdges.filter(d => d[0] !== d[1])
+            if (newEdges.length === 0) newEdges = nodeNames.map(n => [n.toString(),n.toString()])
+            const {matrix,nodes} = po.domFromEdges(newEdges)
+            newPoset = po.createPoset(matrix,nodes)
+            // *** use full poset to get node_degree *** 
+            newPoset.enrich()
+                .setLayers()
+                .feature("node_degree",(node)=>fullTree.poset.featureOf(node,'node_degree'))
+            const nWidth = mapRoot.length > 0 ? 300 : 150
+            
+            const filteredSubspaces = subspaces.map(nodes => nodes.filter(n => newPoset.elements.includes(n)))
+            filteredSubspaces.filter(nodes => nodes.length > 0).forEach(nodes => linearLayout(newPoset,newEdges,nodes,nWidth))
+            // *** does not take into account missing layer *** 
+            spaceSubspaces(newPoset,filteredSubspaces,nWidth)
+            
+            const notInPoset = filteredNodes.filter(n => !newPoset.elements.includes(n.name.toString()))
+            if (notInPoset.length > 0) {
+                const groupedBySubspace = subspaces.map(nodes => notInPoset.filter(n => nodes.includes(n.name.toString())))
+                groupedBySubspace.forEach((nodeGroup,i) => {
+                    const includedNodes = filteredNodes.filter(n => filteredSubspaces[i].includes(n.name.toString()))
+                    let groupedByDistance = nodeGroup.reduce((acc, item) => {
+                        const key = item.distance
+                        if (!acc[key]) acc[key] = []
+                        acc[key].push(item)
+                        return acc
                     }, {})
-                    const positions = newPoset.featureOf(newPoset.elements,'x')
+                    const positions = newPoset.featureOf(filteredSubspaces[i],'x')
                     const center = (Math.min(...positions) + Math.max(...positions)) / 2
-                    groupedExclusions = Object.values(groupedExclusions)
-                    groupedExclusions.forEach(group => {
-                        const includedFromLayer = filteredNodes.filter(n => n.distance === group[0].distance).filter(n => !group.map(d => d.name).includes(n.name)).map(n => n.name.toString())
-                        if (includedFromLayer.length === 0) {
+                    groupedByDistance = Object.values(groupedByDistance)
+                    groupedByDistance.forEach(group => {
+                        const inclusionsFromLayer = includedNodes.filter(n => n.distance === group[0].distance).filter(n => !group.map(d => d.name).includes(n.name)).map(n => n.name.toString())
+                        // full layer is missing
+                        if (inclusionsFromLayer.length === 0) {
                             const centroid = center
-                            const adjustment = group.length % 2 !== 0 ? 0 : w/2
+                            const adjustment = group.length % 2 !== 0 ? 0 : nWidth/2
                             const median = Math.floor(group.length/2) 
-                            group.forEach((n,i) => excludedPositions[n.name] = i >= median ? centroid+((i-median)*w)+adjustment : centroid-((median-i)*w)+adjustment)   
+                            group.forEach((n,i) => excludedPositions[n.name] = i >= median ? centroid+((i-median)*nWidth)+adjustment : centroid-((median-i)*nWidth)+adjustment)   
                         } else {
-                            const lastPosition = newPoset.featureOf(includedFromLayer,'x').sort((a,b)=>b-a)[0]
-                            group.forEach((n,i) => excludedPositions[n.name] = lastPosition + (w*(i+1)))
+                            const lastPosition = newPoset.featureOf(inclusionsFromLayer,'x').sort((a,b)=>b-a)[0]
+                            group.forEach((n,i) => excludedPositions[n.name] = lastPosition + (nWidth*(i+1)))
                         }
                     })
-                }
+                })
             }
+
             filteredNodes = filteredNodes
                 .map(e => ({
                     ...e,
@@ -514,6 +519,8 @@ function Visualization (props) {
                 setLoading = {setLoading}
                 getMidX = {getMidX}
                 maxDistance = {maxDistance}
+                subspaces = {subspaces}
+                spaceSubspaces = {spaceSubspaces}
             ></SideBar> 
             <GraphSection
                 color = {color}
@@ -535,6 +542,7 @@ function Visualization (props) {
                 // setRoot = {setRoot}
                 ageData = {ageData}
                 genderData = {genderData}
+                sourceData = {sourceData}
                 maxGender = {maxGender}
                 getConceptInfo = {getConceptInfo}
                 zoomed = {zoomed}
