@@ -463,7 +463,7 @@ function Header (props) {
                             paddingTop: 11,
                             paddingRight: 10,
                             paddingLeft: 40,
-                            border: 'none',
+                            border:'none',
                             resize: 'none',
                             height: 18,
                             maxHeight: 330,

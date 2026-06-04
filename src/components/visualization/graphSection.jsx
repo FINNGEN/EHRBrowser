@@ -419,34 +419,29 @@ function GraphSection (props) {
                 d3.select('#bar-'+id).style('background-color', color.text)
                 d3.select('#age-p-'+id).style('color',color.text)    
             }
-            else {
-                // if (!graphFilter.source.includes(id)) d3.select('#btn-'+id).style('font-weight', 700)
-                d3.select('#bar-'+id).style('background-color', color.text)
-                d3.select('#source-p-'+id).style('color',color.text)       
-            }
+            if (type === 'source') d3.select('#source-'+id).style('background-color', color.text).style('color','white')  
         } else {
             d3.select('#btn-'+id).style('font-weight', graphFilter.age.includes(id) || graphFilter.gender === id ? 700 : 400)
             d3.select('#bar-'+id).style('background-color', graphFilter.age.includes(id) || graphFilter.gender === id || graphFilter.source.includes(id) ? color.text : '#b1bbc4')  
             d3.select('#arc-'+id).attr("fill", () => graphFilter.gender === id ? color.text : id === maxGender ? '#b1bbc4' : color.grey)
             d3.select('#age-p-'+id).style('color', () => graphFilter.age.includes(id) ? color.text : color.textlight)
-            d3.select('#source-p-'+id).style('color', () => graphFilter.source.includes(id) ? color.text : color.textlight)
+            d3.select('#source-'+id).style('color', () => graphFilter.source.includes(id) ? 'white' : color.text).style('background-color',() => graphFilter.source.includes(id) ? color.text : '#b1bbc4')
             d3.select('#gender-text-'+id).style('fill', () => graphFilter.gender === id ? color.text : color.textlight)
         }
     }
     // select filter
     function filterSelect(id,type) {
-        if (!openFilters) {
-            d3.selectAll('.filter-viz').style('display', 'none')
-            d3.select('#open-btn').style('display', 'block')
-            d3.select('#close-btn').style('display', 'none')    
-        }
+        // if (!openFilters) {
+        //     d3.selectAll('.filter-viz').style('display', 'none')
+        //     d3.select('#open-btn').style('display', 'block')
+        //     d3.select('#close-btn').style('display', 'none')    
+        // }
         if (type === 'age') {
             let ages = graphFilter.age
             if (!ages.includes(id)) {
                 ages.push(id)
             } else {ages = ages.filter(age => age !== id)}
-            setGraphFilter({gender:graphFilter.gender,age:ages,source:[-1]})
-            // filterCounts(selectedConcepts, {gender:graphFilter.gender,age:ages})    
+            setGraphFilter({gender:graphFilter.gender,age:ages,source:graphFilter.source})  
         } 
         if (type === 'source') {
             let sources = graphFilter.source
@@ -455,14 +450,9 @@ function GraphSection (props) {
             } else {sources = sources.filter(source => source !== id)}
             setGraphFilter({gender:graphFilter.gender,age:graphFilter.age,source:sources})    
         }
-        else {
-            if (graphFilter.gender !== id) {
-                setGraphFilter({gender:id,age:graphFilter.age,source:graphFilter.source})
-                // filterCounts(selectedConcepts, {gender:id,age:graphFilter.age})     
-            } else {
-                setGraphFilter({gender:-1,age:graphFilter.age,source:graphFilter.source})
-                // filterCounts(selectedConcepts, {gender:-1,age:graphFilter.age})    
-            }
+        if (type === 'gender') {
+            if (graphFilter.gender !== id) setGraphFilter({gender:id,age:graphFilter.age,source:graphFilter.source})
+            else setGraphFilter({gender:-1,age:graphFilter.age,source:graphFilter.source})   
         }
         
     }
@@ -515,20 +505,34 @@ function GraphSection (props) {
         }
     }
 
+    // close source dropdown
+    document.addEventListener('click', (e) => {
+        if (document.getElementById('source-dropdown')) {
+            const sourceContainer = document.getElementById('source-dropdown')
+            if (!sourceContainer.contains(e.target)) {
+                d3.select('#open-sources-btn').style('display', 'block')
+                d3.select('#close-sources-btn').style('display', 'none')  
+                d3.select('#sources-dropdown').style('visibility','hidden') 
+            } 
+        }
+    })
+
     // filters viz
     useEffect(() => {
         if (sourceData) {
             if (genderData.length > 0 && ageData.length > 0 && sourceData.length > 0) {
+                console.log(sourceData)
                 // gender
                 const genders = [8507,8532]
-                const width = 110
-                const height = 110
+                const width = 90
+                const height = 90
+                const piMargin = 8
                 const radius = Math.min(width, height) / 2
                 d3.select("#gender-svg")
                     .attr("width", width)
                     .attr("height", height)
                     .append('g')
-                    .attr("transform", `translate(${width/2}, ${height/2 - 12}) scale(0.5) rotate(180)`) 
+                    .attr("transform", `translate(${width/2}, ${height/2 - piMargin}) scale(0.5) rotate(180)`) 
                 const pieData = d3.pie().value(d => d.sum).sort(null)(genderData)
                 const arcGenerator = d3.arc()
                     .innerRadius(0)
@@ -574,7 +578,7 @@ function GraphSection (props) {
                             .on("mouseover", (e,d) => filterHover(d.data.id, "enter",'gender'))
                             .on("mouseout", (e,d) => filterHover(d.data.id, "leave",'gender'))
                             .on("click", (e,d) => filterSelect(d.data.id, "gender"))
-                            .attr("transform", `translate(${width/2}, ${height/2 - 12}) scale(0.5) rotate(180)`)
+                            .attr("transform", `translate(${width/2}, ${height/2 - piMargin}) scale(0.5) rotate(180)`)
                         container.append('text')
                             .classed('arc-text',true)
                             .attr('id', d => 'gender-text-'+d.data.id)
@@ -584,11 +588,12 @@ function GraphSection (props) {
                             .attr("text-anchor", d => d.data.id === genders[0] ? "end" : "start") 
                             .style("font-size", "8px")
                             .style("fill", d => graphFilter.gender === d.data.id ? color.text : color.textlight)
-                            .attr("transform", `translate(${width/2}, ${height/2 - 12})`)
+                            .attr("transform", `translate(${width/2}, ${height/2 - piMargin})`)
                     },update=>{
                         update.select('.arc-path')
                             .on("mouseover", (e,d) => filterHover(d.data.id, "enter",'gender'))
                             .on("mouseout", (e,d) => filterHover(d.data.id, "leave",'gender'))
+                            .on("click", (e,d) => filterSelect(d.data.id, "gender"))
                             .transition()
                             .attr("d", d => d.endAngle === d.startAngle ? null : arcGenerator(d))
                             .attr("fill", d => graphFilter.gender === d.data.id ? color.text : d.data.id === maxGender ? '#b1bbc4' : color.grey)
@@ -656,63 +661,125 @@ function GraphSection (props) {
                             .style('height', d => d.sum === 0 ? '0px' : scaleHeight(d.sum) + 'px')
                             .style('background-color', d => graphFilter.age.includes(d.id) ? color.text : '#b1bbc4')
                     })   
-                // source  
-                const scaleHeightSource = d3.scaleLinear().domain([0,d3.extent(sourceData.map(d => d.sum))[1]]).range([0,30])
-                d3.select('#source-labels').selectAll('.toggle').data(sourceData, d => d.id)
+                // source viz
+                // color-mix(in srgb, var(--color), white 80%)
+                const sourceWidth = document.getElementById("source-container").clientWidth
+                const filteredSources = sourceData.map(obj => ({...obj,codes:obj.codes.filter(c => c.sum !== 0)})).filter(obj => obj.codes.length > 0)
+                const sourceSums = filteredSources.map(d => d.codes).flat().map(d => d.sum)
+                const scaleWidth = d3.scaleLinear().domain([0,d3.extent(sourceSums)[1]]).range([30,160])
+                d3.select('#source-labels').selectAll('.category').data(filteredSources, d => d.key)
                     .join(enter => {
-                        enter.append('div')
-                            .classed('toggle',true)
-                            .attr('id',d => 'btn-'+d.id)
-                            .html(d => d.code.length > 5 ? d.code.substring(0, 5) : d.code)
-                            .style('margin', (d,i) => '0px 0.5px 0px 0.5px') 
-                            .style('font-weight','6px')
-                            .style('width','32px') 
-                            // .style('border-radius', (d,i) => i === 0 ? '20px 0px 0px 20px' : i === ageData.length -1  ?'0px 20px 20px 0px' : '0px 0px 0px 0px')                    
-                            .style('font-weight',d => graphFilter.source.includes(d.id) ? 700 : 400)
-                            .style('color', d => graphFilter.source.includes(d.id) ? 'white' : color.text)
-                            .style('background-color', d => graphFilter.source.includes(d.id) ? color.text : color.greylight)
-                            .on('mouseover',(e,d) => filterHover(d.id,'enter','source'))
-                            .on('mouseout',(e,d) => filterHover(d.id,'leave','source'))
-                            .on('click',(e,d) => filterSelect(d.id,'source'))
+                        const category = enter.append('div')
+                            .classed('category',true)
+                            .style('margin','0.5px 0px 0.5px 0px')
+                        category.append('p')
+                            .classed('category-p',true)
+                            .html(d => d.key.slice(0,4))
+                            .style('font-size','8px')
+                            .style('padding-right','2px')
+                            .style('margin',0)
+                            .style('width','20px')
+                        category.selectAll(".toggle").data(d => d.codes, d => d.key)
+                            .join(enter => {
+                                enter.append('div')
+                                    .classed('toggle',true)
+                                    .attr('id',d => 'source-'+d.id)
+                                    .html(d => d.code.length > 5 ? d.code.substring(0,5) : d.code)
+                                    .style('margin', '0px 0.5px 0px 0.5px') 
+                                    .style('font-weight','6px')
+                                    .style('width',d => scaleWidth(d.sum) + 'px') 
+                                    .style('flex','none')             
+                                    .style('font-weight',d => graphFilter.source.includes(d.id) ? 700 : 400)
+                                    .style('color', d => graphFilter.source.includes(d.id) ? 'white' : color.text)
+                                    .style('background-color', d => graphFilter.source.includes(d.id) ? color.text : '#b1bbc4')
+                                    .on('mouseover',(e,d) => filterHover(d.id,'enter','source'))
+                                    .on('mouseout',(e,d) => filterHover(d.id,'leave','source'))
+                                    .on('click',(e,d) => filterSelect(d.id,'source'))
+                            },update => {
+                                update  
+                                    .style('width',d => scaleWidth(d.sum) + 'px') 
+                                    .style('font-weight',d => graphFilter.source.includes(d.id) ? 700 : 400)
+                                    .style('color', d => graphFilter.source.includes(d.id) ? 'white' : color.text)
+                                    .style('background-color', d => graphFilter.source.includes(d.id) ? color.text : '#b1bbc4')
+                                    .on('mouseover',(e,d) => filterHover(d.id,'enter','source'))
+                                    .on('mouseout',(e,d) => filterHover(d.id,'leave','source'))
+                                    .on('click',(e,d) => filterSelect(d.id,'source'))
+                            })   
                     },update => {
-                        update  
-                            .style('font-weight',d => graphFilter.source.includes(d.id) ? 700 : 400)
-                            .style('color', d => graphFilter.source.includes(d.id) ? 'white' : color.text)
-                            .style('background-color', d => graphFilter.source.includes(d.id) ? color.text : color.greylight)
-                            .on('mouseover',(e,d) => filterHover(d.id,'enter','source'))
-                            .on('mouseout',(e,d) => filterHover(d.id,'leave','source'))
-                            .on('click',(e,d) => filterSelect(d.id,'source'))
+                        update.selectAll(".toggle").data(d => d.codes, d => d.key)
+                            .join(enter => {
+                                enter.append('div')
+                                    .classed('toggle',true)
+                                    .attr('id',d => 'source-'+d.id)
+                                    .html(d => d.code.length > 5 ? d.code.substring(0,5) : d.code)
+                                    .style('margin', '0px 0.5px 0px 0.5px') 
+                                    .style('font-weight','6px')
+                                    .style('width',d => scaleWidth(d.sum) + 'px') 
+                                    .style('flex','none')                  
+                                    .style('font-weight',d => graphFilter.source.includes(d.id) ? 700 : 400)
+                                    .style('color', d => graphFilter.source.includes(d.id) ? 'white' : color.text)
+                                    .style('background-color', d => graphFilter.source.includes(d.id) ? color.text : '#b1bbc4')
+                                    .on('mouseover',(e,d) => filterHover(d.id,'enter','source'))
+                                    .on('mouseout',(e,d) => filterHover(d.id,'leave','source'))
+                                    .on('click',(e,d) => filterSelect(d.id,'source'))
+                            },update => {
+                                update  
+                                    .style('width',d => scaleWidth(d.sum) + 'px') 
+                                    .style('font-weight',d => graphFilter.source.includes(d.id) ? 700 : 400)
+                                    .style('color', d => graphFilter.source.includes(d.id) ? 'white' : color.text)
+                                    .style('background-color', d => graphFilter.source.includes(d.id) ? color.text : '#b1bbc4')
+                                    .on('mouseover',(e,d) => filterHover(d.id,'enter','source'))
+                                    .on('mouseout',(e,d) => filterHover(d.id,'leave','source'))
+                                    .on('click',(e,d) => filterSelect(d.id,'source'))
+                            }) 
                     })
-                d3.select('#source-viz').selectAll('.source-bar').data(sourceData, d => d.id)
+                // source dropdown
+                document.getElementById("source-dropdown-header").style.maxWidth = sourceWidth - 40 + 'px'
+                const allSources = sourceData.map(d => d.codes).flat()
+                d3.select('#sources-dropdown').selectAll('.source').data(allSources, d => d.id)
                     .join(enter => {
                         const container = enter.append('div')
-                            .classed('source-bar',true)
-                            .style('display','flex')
-                            .style('flex-direction','column')
-                        container.append('p').classed('source-p',true).attr('id',d=>'source-p-'+d.code).style('margin',0).style('padding-bottom','2px').style('font-size','8px').style('text-align','center').style('color', d => graphFilter.source.includes(d.id) ? color.text : color.textlight).html(d => d.sum === 0 ? '' : d.sum)
-                        container.append('div')
-                            .classed('source-rect',true)
-                            .attr('id', d => 'bar-'+d.id)
-                            .on('mouseover', (e,d) => filterHover(d.id, 'enter','source'))
-                            .on('mouseout', (e,d) => filterHover(d.id, 'leave','source'))
-                            .on('click', (e,d) => filterSelect(d.id, 'source'))
-                            .style('width', '36px')
-                            .style('margin-left','1px')
+                            .classed('source',true)  
+                            .style('opacity', d => d.sum > 0 ? 1 : 0.2) 
+                        const checkBox = container.append('div') 
+                            .classed('source-check-box',true)
                             .style('cursor','pointer')
-                            .style('height', d => d.sum === 0 ? '0px' : scaleHeightSource(d.sum) + 'px')
-                            .style('background-color', d => graphFilter.source.includes(d.id) ? color.text : '#b1bbc4')
-                            .style('border-top', '1px solid var(--background)')
-                            .style('border-bottom', '1px solid var(--background)')
-                    },update => {
-                        update.select('.source-p').style('color', d => graphFilter.source.includes(d.id) ? color.text : color.textlight).html(d => d.sum === 0 ? '' : d.sum)
-                        update.select('.source-rect')
-                            .on('mouseover', (e,d) => filterHover(d.id, 'enter','source'))
-                            .on('mouseout', (e,d) => filterHover(d.id, 'leave','source'))
-                            .on('click', (e,d) => filterSelect(d.id, 'source'))
-                            .transition()    
-                            .style('height', d => d.sum === 0 ? '0px' : scaleHeightSource(d.sum) + 'px')
-                            .style('background-color', d => graphFilter.source.includes(d.id) ? color.text : '#b1bbc4')
-                    })  
+                            .attr('id', d => 'check-box-'+d.id)
+                            .style('background-color', d => graphFilter.source.includes(d.id) ? color.text : 'transparent')
+                            .style('border', d => graphFilter.source.includes(d.id) ? '1px solid var(--text)' : '1px solid var(--textlightest)')
+                            .on('click', (e,d) => filterSelect(d.id,'source'))
+                        checkBox.append('i')
+                            .classed('source-check-mark fa-solid fa-check fa-xs',true)
+                            .style('color','white')
+                            .style('display', d => graphFilter.source.includes(d.id) ? 'block' : 'none')
+                        container.append('p')
+                            .classed('source-p',true)
+                            .attr('id', d => 'source-'+d.id)
+                            .style('font-weight', d => graphFilter.source.includes(d.id) ? 700 : 400)
+                            .style('width','100%')
+                            .style('color', d => graphFilter.source.includes(d.id) ? color.text : color.textlight)
+                            .html(d => d.code)
+                    },update =>{
+                        update 
+                            .style('opacity', d => d.sum > 0 ? 1 : 0.2) 
+                        update.select('.source-check-box')
+                            .style('background-color', d => graphFilter.source.includes(d.id) ? color.text : 'transparent')
+                            .style('border', d => graphFilter.source.includes(d.id) ? '1px solid var(--text)' : '1px solid var(--textlightest)')
+                            .on('click', (e,d) => filterSelect(d.id,'source'))
+                        update.select('.source-check-mark')
+                            .style('display', d => graphFilter.source.includes(d.id) ? 'block' : 'none')
+                        update.select('.source-p')
+                            .style('font-weight', d => graphFilter.source.includes(d.id) ? 700 : 400)
+                            .style('color', d => graphFilter.source.includes(d.id) ? color.text : color.textlight)
+                            .html(d => d.code)
+                    })
+                const sourceSelections = graphFilter.source.length > 1 && graphFilter.source.length-1 !== allSources.length ? graphFilter.source.filter(id => id !== -1).map(id => allSources.find(d => d.id === id).code) : ['All']
+                d3.select('#source-selections').selectAll('.source-selection').data(sourceSelections, d => d)
+                .join(enter => {
+                    enter.append('p')
+                        .classed('source-selection',true)
+                        .html(d => d)
+                })
             }
         }
     },[genderData,ageData,sourceData])
@@ -721,21 +788,25 @@ function GraphSection (props) {
     useEffect(() => {
         if (graphContainerRef.current && extent) {
             d3.select('#graph').append("defs")
+            const fullHeight = document.getElementById('graph-section-container').clientHeight
+            const headerHeight = document.getElementById('graph-section-header').clientHeight
+            const filterHeight = document.getElementById('graph-selections').clientHeight
             const containerWidth = document.getElementById('graph-section').clientWidth
             if (containerWidth < window.innerWidth*0.4 || graphSectionWidth === '40vw') d3.select('#graph-filters').style('display','none')
             else d3.select('#graph-filters').style('display','flex')
-            const containerHeight = document.getElementById('graph-group').clientHeight*0.7
+            document.getElementById("graph-group").style.height = fullHeight - filterHeight - headerHeight + 'px'
+            const containerHeight = document.getElementById('graph-group').clientHeight*0.8
             const width = containerWidth + (margin * 2)
             const height = containerHeight + (margin * 2)
             const ticks1 = ((extent[1]-extent[0])/(Math.round((extent[1]-extent[0])/10)))*Math.round((extent[1]-extent[0])/10)
             const ticks2 = width < 400 ? Math.round(width/60) : ticks1 < 10 || !ticks1 ? Math.round(extent[1]-extent[0]) : 10
             const ticks = {one:ticks1,two:ticks2}
             document.getElementById("graph-container").style.height = containerHeight + 'px'
-            // document.getElementById("graph-labels").style.maxHeight = document.getElementById('graph-group').clientHeight*0.15 - margin + 'px'
+            document.getElementById("graph-labels").style.maxHeight = document.getElementById('graph-group').clientHeight*0.15 - margin + 'px'
             d3.select("#graph")
-                .attr("width", '95%')
-                .attr("height", '100%')
-                .attr("viewBox", `${-margin*2} ${0} ${width} ${height}`)
+                .attr("width", '92%')
+                .attr("height", '95%')
+                .attr("viewBox", `${-margin*3} ${margin} ${width} ${height}`)
                 .attr("preserveAspectRatio", "xMidYMid meet")
                 .append("g")
                 .attr("transform", `translate(${margin}, ${margin})`)
@@ -943,71 +1014,102 @@ function GraphSection (props) {
                     <span id = "counts"></span>
                 </div>
             </div>
-            {/* <div style = {{display:'flex',alignItems:'center',flexWrap:'wrap',marginRight:'1em',marginBottom:5}}>
-                        <div style = {{paddingRight:8,margin:0}}><h2 style = {{margin:0}}>Record Counts</h2></div>
-                        <p style = {{display: extent ? 'block' : 'none',fontSize:12,margin:0,marginTop:2}}>{extent ? extent[0] + "-" + extent[1] : null}</p>    
-                    </div> */}
             <div id = "graph-section-container">
-                <div id = "graph-selections">
-                    <div id = "graph-filters" style = {{display:'flex',flexWrap:'wrap',marginBottom:3,alignItems:'flex-end'}}>
-                        <div className = "graph-selection" id = "gender-container" style = {{marginRight:'1em'}}>
-                            <p style = {{fontWeight: graphFilter.gender !== -1 ? 700 : 400,margin:0,paddingBottom:3,paddingRight:openFilters ? 0 : 5}}>Sex</p>
-                            <div className = "filter-container">
-                                <div className = "filter-viz" style = {{marginBottom:5}} id = "gender-viz">
-                                    <svg style = {{zIndex:0}} id = "gender-svg"></svg>
-                                </div>
-                                <div className = "toggle-container" id = "gender-labels" style = {{zIndex:500,width: 110}}></div>
-                            </div>
-                            <FontAwesomeIcon style = {{display: graphFilter.gender !== -1 ? 'block' : 'none', paddingLeft: openFilters ? 0 : 5, paddingBottom:1}} className = "reset-dropdown fa-2xs" id = "reset-gender" icon={faX} 
-                                onClick = {() => {
-                                    setGraphFilter({gender:-1,age:graphFilter.age,source:graphFilter.source})
-                                }}
-                            />
+                <div id = "graph-section-header">
+                    <div>
+                        <div style = {{display:'flex',paddingRight:8,margin:0}}>
+                            <h2 style = {{margin:0,paddingRight:8}}>Record Counts</h2>
+                            <p style = {{display: extent ? 'block' : 'none',fontSize:12,margin:0,marginTop:2}}>{extent ? extent[0] + "-" + extent[1] : null}</p>  
                         </div>
-                        <div className = "graph-selection" id = "age-container" style = {{marginRight:'1em'}}>
-                            <p style = {{fontWeight: graphFilter.age.length > 1 ? 700 : 400, margin:0,paddingBottom:3,paddingRight:5}}>Age</p>
-                            <div className = "filter-container" id = "age-filter" onMouseDown = {(e) => ageBrush(e,'down')} onMouseUp = {(e) => ageBrush(e,'up')} onMouseMove = {(e) => ageBrush(e,'move')} style = {{cursor:'pointer'}}>
-                                <div className = "filter-viz" style = {{marginBottom:2}} id = "age-viz"></div>
-                                <div className = "toggle-container" id = "age-labels"></div>
-                            </div>
-                            <FontAwesomeIcon style = {{left:5,display: graphFilter.age.length > 1 ? 'block' : 'none',paddingBottom:1}} className = "reset-dropdown fa-2xs" id = "reset-age" icon={faX} 
-                                onClick = {() => {
-                                    setGraphFilter({gender:graphFilter.gender,age:[-1],source:graphFilter.source})
-                                }}
-                            />
-                        </div> 
-                        <div className = "graph-selection" id = "source-container" style = {{marginRight:'1em',marginBottom:5}}>
-                            <p style = {{fontWeight: graphFilter.source.length > 1 ? 700 : 400, margin:0,paddingBottom:3,paddingRight:5}}>Visit Type</p>
-                            <div className = "filter-container" id = "source-filter" style = {{cursor:'pointer'}}>
-                                <div className = "filter-viz" style = {{marginBottom:2}} id = "source-viz"></div>
-                                <div className = "toggle-container" id = "source-labels"></div>
-                            </div>
-                            <FontAwesomeIcon style = {{left:5,display: graphFilter.source.length > 1 ? 'block' : 'none',paddingBottom:1}} className = "reset-dropdown fa-2xs" id = "reset-source" icon={faX} 
-                                onClick = {() => {
-                                    setGraphFilter({gender:graphFilter.gender,age:graphFilter.age,source:[-1]})
-                                }}
-                            />
-                        </div>    
-                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'open-btn' icon={faCaretDown} style = {{display:'none',opacity: 0.3}}
-                        onMouseOver={() => d3.select('#open-btn').style('opacity', 1)}
-                        onMouseOut={() => d3.select('#open-btn').style('opacity', 0.3)}
+                    </div>
+                    <div className = 'openFilterBtn' id = 'open-btn' style = {{display:'none'}} 
+                        onMouseOver={() => d3.select('#open-icon').style('opacity', 1)}
+                        onMouseOut={() => d3.select('#open-icon').style('opacity', 0.3)}
                         onClick = {() => {
                             d3.selectAll('.filter-viz').style('display', 'flex')
+                            d3.select('#source-dropdown').style('display','none')
                             d3.select('#open-btn').style('display', 'none')
-                            d3.select('#close-btn').style('display', 'block')
+                            d3.select('#close-btn').style('display', 'flex')
                             setOpenFilters(true)
-                        }}
-                        />
-                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'close-btn' icon={faCaretUp} style = {{display:'block',opacity: 1}}
+                        }}>
+                        <p style = {{paddingRight:8}}>Expand filters</p>
+                        <FontAwesomeIcon id = 'open-icon' className = "dropBtn fa-lg" icon={faCaretDown} style = {{opacity:0.3}}/>    
+                    </div>
+                    <div className = 'openFilterBtn' id = 'close-btn' style = {{display:'flex'}} 
                         onClick = {() => {
                             d3.selectAll('.filter-viz').style('display', 'none')
-                            d3.select('#open-btn').style('display', 'block')
+                            d3.select('#source-dropdown').style('display','inline-block')
+                            d3.select('#open-btn').style('display', 'flex')
                             d3.select('#close-btn').style('display', 'none')
                             setOpenFilters(false)
-                        }}
-                        />   
+                        }}>
+                        <p style = {{paddingRight:8}}>Collapse filters</p>
+                        <FontAwesomeIcon id = "close-icon" className = "dropBtn fa-lg" icon={faCaretUp} style = {{marginTop:3,opacity:1}}/>   
+                    </div>    
+                </div>
+                <div id = "graph-selections">
+                    <div className = "graph-selection" id = "gender-container">
+                        <div className = 'filter-title'>
+                            <p className = "filter-name" style = {{fontWeight: graphFilter.gender !== -1 ? 700 : 400}}>Sex</p>    
+                            <FontAwesomeIcon style = {{display: graphFilter.gender !== -1 ? 'block' : 'none'}} className = "reset-dropdown fa-2xs" id = "reset-gender" icon={faX} 
+                                onClick = {() => {setGraphFilter({gender:-1,age:graphFilter.age,source:graphFilter.source})}}
+                            />
+                        </div>
+                        <div className = "filter-container">
+                            <div className = "filter-viz" style = {{marginBottom:2}} id = "gender-viz">
+                                <svg style = {{zIndex:0}} id = "gender-svg"></svg>
+                            </div>
+                            <div className = "toggle-container" id = "gender-labels" style = {{zIndex:500,width: 90}}></div>
+                        </div>
                     </div>
-                   
+                    <div className = "graph-selection" id = "age-container">
+                        <div className = 'filter-title'>
+                            <p className = "filter-name" style = {{fontWeight: graphFilter.age.length > 1 ? 700 : 400}}>Age</p>   
+                            <FontAwesomeIcon style = {{display: graphFilter.age.length > 1 ? 'block' : 'none'}} className = "reset-dropdown fa-2xs" id = "reset-age" icon={faX} 
+                                onClick = {() => {setGraphFilter({gender:graphFilter.gender,age:[-1],source:graphFilter.source})}}
+                            />
+                        </div>
+                        <div className = "filter-container" id = "age-filter" onMouseDown = {(e) => ageBrush(e,'down')} onMouseUp = {(e) => ageBrush(e,'up')} onMouseMove = {(e) => ageBrush(e,'move')} style = {{cursor:'pointer'}}>
+                            <div className = "filter-viz" style = {{marginBottom:2}} id = "age-viz"></div>
+                            <div className = "toggle-container" id = "age-labels"></div>
+                        </div>
+                    </div> 
+                    <div className = "graph-selection" id = "source-container" style = {{flexGrow:1,borderRight:'none'}}>
+                        <div className = 'filter-title'>
+                            <p className = "filter-name" style = {{fontWeight: graphFilter.source.length > 1 ? 700 : 400}}>Visit Type</p>    
+                            <FontAwesomeIcon style = {{zIndex:200,display: graphFilter.source.length > 1 ? 'block' : 'none'}} className = "reset-dropdown fa-2xs" id = "reset-source" icon={faX} 
+                                onClick = {() => {setGraphFilter({gender:graphFilter.gender,age:graphFilter.age,source:[-1]})}}
+                            />
+                        </div>
+                        <div className = "filter-container" id = "source-filter" style = {{alignItems:'flex-start',cursor:'pointer'}}>
+                            <div className = "category-container filter-viz" id = "source-labels"></div>
+                            <div className="dropdown-container" id = "source-dropdown" style = {{display:'none',top:-16,marginLeft:-5}}>
+                                <div className = "concept-selection-btn" style = {{width:'auto',border:'none',justifyContent:'flex-start',alignItems:'flex-start'}}>
+                                    <div className = "dropdown-header" id = "source-dropdown-header" style = {{border:graphFilter.source.length > 1 ? '0.5px solid var(--text)' : '0.5px solid var(--greylight)', color: graphFilter.source.length > 1 ? 'white' : 'var(--text)', backgroundColor: graphFilter.source.length > 1 ? 'var(--text)' : 'var(--greylight)',overflow:'hidden'}}
+                                        onMouseOver={() => d3.select('#open-sources-btn').style('opacity', 1)}
+                                        onMouseOut={() => d3.select('#open-sources-btn').style('opacity', 0.3)}
+                                        onClick = {() => {
+                                            if (d3.select('#open-sources-btn').style('display') === 'block') {
+                                                d3.select('#open-sources-btn').style('display', 'none')
+                                                d3.select('#close-sources-btn').style('display', 'block') 
+                                                d3.select('#sources-dropdown').style('visibility','visible')
+                                            } else {
+                                                d3.select('#open-sources-btn').style('display', 'block')
+                                                d3.select('#close-sources-btn').style('display', 'none')  
+                                                d3.select('#sources-dropdown').style('visibility','hidden')
+                                            }
+                                        }}
+                                    >
+                                        <div id = "source-selections"></div>
+                                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'open-sources-btn' icon={faCaretDown} style = {{color: graphFilter.source.length > 1 ? 'white' : 'var(--text)', display:'block',opacity: 0.3,padding:'1px 3px 1px 5px'}}/>
+                                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'close-sources-btn' icon={faCaretUp} style = {{color: graphFilter.source.length > 1 ? 'white' : 'var(--text)', display:'none',opacity: 1,padding:'2px 3px 1px 5px'}}/>     
+                                    </div>
+                                </div>   
+                                <div className = "selections-dropdown-content" id = "sources-dropdown" style = {{alignItems:'flex-start'}}></div>  
+                            </div>  
+
+                        </div>
+                    </div>     
                 </div>   
                 <div className = "box-shadow" id = "graph-group" style = {{position:'relative'}}>
                     <div id = "graph-subheader">

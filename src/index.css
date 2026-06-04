@@ -233,14 +233,15 @@ textarea:focus {
 }
 #graph-section {
   width: 60vw;
+  max-width: 60vw;
   height: calc(100% - 3em);
-  padding: 1.5em;
+  padding: 0 1em 1em 1em;
 }
 #graph-section-container {
   display: flex;
   flex-direction: column;
-  align-self: flex-end;
-  justify-content: flex-end;  
+  align-self: flex-start;
+  justify-content: space-between;  
   width: 100%;
   height: 100%;
 }
@@ -608,7 +609,23 @@ textarea:focus {
   color: var(--background);
   opacity: 0.2;
 }
-.toggle-container {
+.filter-title {
+  display: flex;
+  align-items: center;
+  margin-bottom:2px;
+}
+.filter-name {
+  margin: 0;
+  padding-right:8px;
+  font-size:10px;
+}
+.category-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+.toggle-container, .category {
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -629,22 +646,43 @@ textarea:focus {
 .toggle:hover {
   font-weight: 700 !important;
 }
+.openFilterBtn {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  cursor: pointer;
+}
 #graph-selections {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: flex-end;
   border: none;
-  margin-top: 15px;
-  padding-top: 10px;
+  padding-top: 5px;
   padding-bottom: 5px;
   width: 100%;
+  height: auto;
+}
+#graph-section-header {
+  height: 20px;
+  width: 100%;
+  max-width:100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--darkbackground);
+  padding-top:5px;
+  padding-bottom:5px;
 }
 .graph-selection {
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  padding-right: 5px;
+  padding-left: 5px;
+  border-right: 1px solid var(--darkbackground);
 }
 #gender-viz {
-  /* position: relative; */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -652,12 +690,10 @@ textarea:focus {
   width: 120px;
 }
 #age-viz,#source-viz {
-  /* position: relative; */
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  height: 50px;
-  /* width: 360px; */
+  /* height: 50px; */
   background-color: none;
 }
 .filter-container {
@@ -665,7 +701,6 @@ textarea:focus {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  /* justify-content: flex-end; */
 }
 .map-node {
   z-index: 0;
@@ -848,7 +883,7 @@ textarea:focus {
   z-index: 3000;
 }
 .concept-selection-btn {
-  width: 50%;
+  /* width: 50%; */
   height: 10px;
   border-radius: 20px;
   border: 1px solid var(--textlightest);
@@ -864,12 +899,8 @@ textarea:focus {
   cursor: pointer;
 }
 .reset-dropdown {
-  position: relative;
-  /* left: 6px; */
   color: var(--text);
-  margin-right: 5px;
   cursor: pointer;
-  margin-bottom: 5px;
 }
 .dropdown-container {
   position: relative;
@@ -933,11 +964,11 @@ textarea:focus {
   margin-bottom: 2px;
   margin-left: 1em;
 }
-.class {
+.class,.source {
   display: flex;
   align-items: center;
 }
-.check-box {
+.check-box,.source-check-box {
   margin-right: 8px;
   margin-top: -1px;
   flex-shrink: 0;
@@ -956,7 +987,7 @@ textarea:focus {
   cursor: pointer;
   bottom: -8px;
 }
-#class-selections {
+#class-selections,#source-selections {
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -965,7 +996,7 @@ textarea:focus {
   overflow-x: scroll;
   white-space: nowrap;
 }
-#class-selections p {
+#class-selections,#source-selections p {
   padding: 1px 3px 1px 3px;
   margin: 0;
   /* margin-top: 1px; */

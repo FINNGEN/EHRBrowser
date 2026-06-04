@@ -88,6 +88,7 @@ function App() {
   const [visitTypeNames, setVisitTypeNames] = useState()
   const fetchedRef = useRef(false)
   const [annotations,setAnnotations] = useState([{key:'PURCH',year:1995},{key:'REIMB',year:1964},{key:'PRIM_OUT',year:2011},{key:'INPAT',year:1969},{key:'OUTPAT',year:1998},{key:'CANC',year:1953},{key:'DEATH',year:1969},{key:'OPER_IN',year:1969},{key:'OPER_OUT',year:1969},{key:'BIRTH',year:1953}])
+  const [categories, setCategories] = useState([{key:'Longitudinal',codes:['PURCH','CANC','REIMB','DEATH','OUTPAT']},{key:'Registry',codes:['PRIM_OUT']},{key:'Drug',codes:['PRESCRIPTION_DELIVERY','PRESCRIPTION_DELIVERY_VACCINATION']}])
   const conceptNames = useMemo(() => selectedConcepts.map(d => d.name).filter((e,n,l) => l.indexOf(e) === n),[selectedConcepts])
   const allCounts = useMemo(() => 
     {
@@ -200,11 +201,9 @@ function App() {
 
   const sourceData = useMemo(() => {
     if (visitTypeNames) {
-      let sourceDataVar = []
-      const sources = visitTypeNames.map(d => d.visitGroupConceptId)
       let sourceSums = []
-      sources.forEach(a => selectedConcepts.forEach(d => sourceSums.push({id: a, sum: d.leaf ? getCounts(d.data.descendant_code_counts.filter(e => (e.calendar_year >= extent[0] && e.calendar_year <= extent[1])).filter(e => e.visit_group_concept_id === a),'node_record_counts') : getCounts(d.data.code_counts.filter(e => (e.calendar_year >= extent[0] && e.calendar_year <= extent[1])).filter(e => e.visit_group_concept_id === a),'node_record_counts')})))
-      sources.forEach(a => sourceDataVar.push({id:a,code:visitTypeNames.find(d => d.visitGroupConceptId === a).conceptCode,name:visitTypeNames.find(d => d.visitGroupConceptId === a).conceptName, sum: d3.sum(sourceSums.filter(d => d.id === a).map(d => d.sum))}))
+      visitTypeNames.forEach(obj => selectedConcepts.forEach(d => sourceSums.push({id: obj.visitGroupConceptId,sum: d.leaf ? getCounts(d.data.descendant_code_counts.filter(e => (e.calendar_year >= extent[0] && e.calendar_year <= extent[1])).filter(e => e.visit_group_concept_id === obj.visitGroupConceptId),'node_record_counts') : getCounts(d.data.code_counts.filter(e => (e.calendar_year >= extent[0] && e.calendar_year <= extent[1])).filter(e => e.visit_group_concept_id === obj.visitGroupConceptId),'node_record_counts')})))
+      const sourceDataVar = categories.map(obj => ({key:obj.key,codes:visitTypeNames.filter(d => obj.codes.includes(d.conceptCode)).map(d => ({id:d.visitGroupConceptId,code:d.conceptCode,name:d.conceptName,sum:d3.sum(sourceSums.filter(s => s.id === d.visitGroupConceptId).map(s => s.sum))}))}))
       return sourceDataVar  
     }
   },[filteredCounts,extent,visitTypeNames])
@@ -770,6 +769,7 @@ function App() {
     fetch(`${API_BASE_URL}/getVisitTypeNames`)
       .then(res=> res.json())
       .then(data=>{
+        console.log('visit type names',data)
         setVisitTypeNames(data)
       })
     fetch(`${API_BASE_URL}/getAPIInfo`)
