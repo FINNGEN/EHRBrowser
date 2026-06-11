@@ -289,59 +289,29 @@ function Visualization (props) {
             setMaxDistance(maxD)
             let newPoset
             let newEdges
-            const excludedPositions = {}
-            // if (filteredNodes.length === fullTree.nodes.length) {
-            //     newEdges = fullTree.edges
-            //     newPoset = fullTree.poset
-            // } else {
-                // let missingLayer = false
-                // nodeDistances.forEach((d,i) => i !== nodeDistances.length-1 || !filteredNodes.map(n => n.levels).includes('-1') ? d+1 !== nodeDistances[i+1] ? missingLayer = true : null : null)
-            // *** get everything into the poset ***
+
             newEdges = fullTree.edges.filter(d => nodeNames.map(n => n.toString()).includes(d[0]) && nodeNames.map(n => n.toString()).includes(d[1]))
             if (newEdges.length > 1) newEdges = newEdges.filter(d => d[0] !== d[1])
             if (newEdges.length === 0) newEdges = nodeNames.map(n => [n.toString(),n.toString()])
+            const newElements = newEdges.flat().filter((e,n,l) => l.indexOf(e) === n)
+            // dangling nodes
+            let missing = false
+            if (nodeNames.length > newElements.length) {
+                missing = true
+                const missingNodes = nodeNames.map(n => n.toString()).filter(n => !newElements.includes(n))
+                const missingEdges = missingNodes.map(n => [n,n])
+                newEdges = [...newEdges,...missingEdges]
+            }
             const {matrix,nodes} = po.domFromEdges(newEdges)
             newPoset = po.createPoset(matrix,nodes)
-            // *** use full poset to get node_degree *** 
             newPoset.enrich()
                 .setLayers()
                 .feature("node_degree",(node)=>fullTree.poset.featureOf(node,'node_degree'))
             const nWidth = mapRoot.length > 0 ? 300 : 150
             
             const filteredSubspaces = subspaces.map(nodes => nodes.filter(n => newPoset.elements.includes(n)))
-            filteredSubspaces.filter(nodes => nodes.length > 0).forEach(nodes => linearLayout(newPoset,newEdges,nodes,nWidth))
-            // *** does not take into account missing layer *** 
+            filteredSubspaces.filter(nodes => nodes.length > 0).forEach(nodes => missing ? linearLayout(newPoset,newEdges,nodes,nWidth,fullTree.poset) : linearLayout(newPoset,newEdges,nodes,nWidth))
             spaceSubspaces(newPoset,filteredSubspaces,nWidth)
-            
-            const notInPoset = filteredNodes.filter(n => !newPoset.elements.includes(n.name.toString()))
-            if (notInPoset.length > 0) {
-                const groupedBySubspace = subspaces.map(nodes => notInPoset.filter(n => nodes.includes(n.name.toString())))
-                groupedBySubspace.forEach((nodeGroup,i) => {
-                    const includedNodes = filteredNodes.filter(n => filteredSubspaces[i].includes(n.name.toString()))
-                    let groupedByDistance = nodeGroup.reduce((acc, item) => {
-                        const key = item.distance
-                        if (!acc[key]) acc[key] = []
-                        acc[key].push(item)
-                        return acc
-                    }, {})
-                    const positions = newPoset.featureOf(filteredSubspaces[i],'x')
-                    const center = (Math.min(...positions) + Math.max(...positions)) / 2
-                    groupedByDistance = Object.values(groupedByDistance)
-                    groupedByDistance.forEach(group => {
-                        const inclusionsFromLayer = includedNodes.filter(n => n.distance === group[0].distance).filter(n => !group.map(d => d.name).includes(n.name)).map(n => n.name.toString())
-                        // full layer is missing
-                        if (inclusionsFromLayer.length === 0) {
-                            const centroid = center
-                            const adjustment = group.length % 2 !== 0 ? 0 : nWidth/2
-                            const median = Math.floor(group.length/2) 
-                            group.forEach((n,i) => excludedPositions[n.name] = i >= median ? centroid+((i-median)*nWidth)+adjustment : centroid-((median-i)*nWidth)+adjustment)   
-                        } else {
-                            const lastPosition = newPoset.featureOf(inclusionsFromLayer,'x').sort((a,b)=>b-a)[0]
-                            group.forEach((n,i) => excludedPositions[n.name] = lastPosition + (nWidth*(i+1)))
-                        }
-                    })
-                })
-            }
 
             filteredNodes = filteredNodes
                 .map(e => ({
@@ -388,7 +358,7 @@ function Visualization (props) {
             if (treeSelections.includes('mappings')) setMapRoot(filteredNodes.filter(n => n.mappings.length > 0).map(n => n.name))
             // update nodes and links
             filteredNodes = filteredNodes
-                .map(d => ({...d,descendant_counts:getCounts(d.descendant_code_counts,'node_record_counts'),x:newPoset.elements.includes(d.name.toString()) ? newPoset.featureOf(d.name,"x") : excludedPositions[d.name]}))
+                .map(d => ({...d,descendant_counts:getCounts(d.descendant_code_counts,'node_record_counts'),x:newPoset.elements.includes(d.name.toString()) ? newPoset.featureOf(d.name,"x") : d.x}))
                 .map(d => ({...d,mappings:d.mappings.map(m => ({...m,source:d}))}))
             filteredNodes = filteredNodes.map(d => ({...d,connections:filteredConnections.filter(c => c.parents.includes(d.name)).map(e => ({...e,source:d.name,x:d.x,mid:getMidX(e.parents,filteredNodes)}))}))
             filteredLinks = filteredLinks.map(d => ({...d,source:filteredNodes[nodeNames.indexOf(d.source.name)],target:filteredNodes[nodeNames.indexOf(d.target.name)]}))

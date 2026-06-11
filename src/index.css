@@ -403,6 +403,7 @@ textarea:focus {
 #sidebar-heading {
   display: flex;
   flex-direction: column;
+  max-width: 100%;
 }
 .expand-compress {
   cursor: pointer;
@@ -417,19 +418,14 @@ textarea:focus {
   opacity: 1;
 }
 #view-selections {
-  position: absolute;
-  top: 0;
-  left: 0;
   width: 100%;
-  height: 30px;
+  height: 26px;
   display: flex;
   align-items: flex-end;
   justify-content: center;  
   z-index: 100;
   margin: 0px;
   padding: 0px;
-  /* border-bottom: 1px solid var(--darkbackground); */
-  background-color: #c0c0c980;
 }
 .view-btn {
   flex-grow: 1;
@@ -450,7 +446,7 @@ textarea:focus {
   color: var(--text) !important;
 }
 .selection-bar {
-  width: 95%;
+  width: 100%;
   border-radius: 20px;
   height: 6px;
   background-color: var(--text);
@@ -475,7 +471,7 @@ textarea:focus {
 }
 #sidebar-content {
   position: relative;
-  margin-top: 5px;
+  /* margin-top: 5px; */
   padding: 1em;
   /* padding-top:10px; */
   flex-grow: 1;
@@ -495,11 +491,11 @@ textarea:focus {
   transition: 0.5s opacity;
   pointer-events: none;  
 }
-#data-tooltip {
+#data-tooltip, #filter-tooltip {
   position: absolute;
-  color: white;
-  border-radius: 20px;
-  padding: 7px 12px 7px 12px;
+  background-color: white;
+  border-radius: 8px;
+  padding: 8px;
   opacity: 0;
   transition: 0.5s opacity;
   pointer-events: none;
@@ -619,6 +615,12 @@ textarea:focus {
   padding-right:8px;
   font-size:10px;
 }
+#reset-all {
+  font-weight:400;
+}
+#reset-all:hover {
+  font-weight: 700;
+}
 .category-container {
   display: flex;
   flex-direction: column;
@@ -635,6 +637,7 @@ textarea:focus {
   padding-top: 3px;
   padding-right: 2px;
   padding-left: 2px;
+  min-height: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -700,7 +703,7 @@ textarea:focus {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
 }
 .map-node {
   z-index: 0;
@@ -868,12 +871,10 @@ textarea:focus {
   margin-top: 1px;
 }
 #concept-selections {
-  margin-top: 30px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   width: 220px;
-  padding-bottom: 4px;
 }
 #selection-container {
   display: flex;
@@ -883,18 +884,14 @@ textarea:focus {
   z-index: 3000;
 }
 .concept-selection-btn {
-  /* width: 50%; */
   height: 10px;
+  width: 100px;
   border-radius: 20px;
-  border: 1px solid var(--textlightest);
   background-color: transparent;
   display: flex;
-  align-items: center;
   padding: 5px;
-  margin-top: 3px;
-  margin-left: 0px;
-  margin-right: 0.2em;
-  justify-content: space-around;
+  align-items: center;
+  justify-content: center;
   font-size: 12px;
   cursor: pointer;
 }
@@ -904,30 +901,28 @@ textarea:focus {
 }
 .dropdown-container {
   position: relative;
-  display: inline-block;
-  top: -1px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
 }
 .dropdown-header {
   position: relative;
   display: flex;
-  margin-top: 9px;
   padding: 0px 6px 1px 6px;
   align-items: center;
   justify-content: space-between;
-  /* background-color: var(--background); */
   width: auto;
   height: 20px;
   border: 0.5px solid var(--textlightest);
-  /* color: var(--text); */
   border-radius: 16px;
   z-index: 500;
-  max-width: 100%;
   overflow-x: scroll;
+  cursor:pointer;
 }
 .dropdown-header p {
   background-color: transparent;
-  /* color: var(--text); */
   z-index: 500;
+  padding: 1px 3px 1px 3px;
 }
 .selections-dropdown-content {
   position: absolute;
@@ -954,14 +949,14 @@ textarea:focus {
 #tree-selections-container {
   display: flex;
   width: 100%;
+  max-width: 100%;
   align-items: center;
+  height: 40px;
 }
 #filter-container {
-  /* flex-grow: 1; */
-  /* width: 100%; */
+  flex-grow: 1;
   display: flex;
   align-items: center;
-  margin-bottom: 2px;
   margin-left: 1em;
 }
 .class,.source {
@@ -981,11 +976,8 @@ textarea:focus {
   height: 12px;
 }
 .reset-filter {
-  position: absolute;
-  right: -6px;
   color: var(--text);
   cursor: pointer;
-  bottom: -8px;
 }
 #class-selections,#source-selections {
   display: flex;
@@ -996,11 +988,10 @@ textarea:focus {
   overflow-x: scroll;
   white-space: nowrap;
 }
-#class-selections,#source-selections p {
-  padding: 1px 3px 1px 3px;
+/* #class-selections,#source-selections p {
+  margin: 1px 3px 1px 3px;
   margin: 0;
-  /* margin-top: 1px; */
-}
+} */
 #gender-svg {
   overflow: visible;
 }

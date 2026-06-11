@@ -88,7 +88,7 @@ function App() {
   const [visitTypeNames, setVisitTypeNames] = useState()
   const fetchedRef = useRef(false)
   const [annotations,setAnnotations] = useState([{key:'PURCH',year:1995},{key:'REIMB',year:1964},{key:'PRIM_OUT',year:2011},{key:'INPAT',year:1969},{key:'OUTPAT',year:1998},{key:'CANC',year:1953},{key:'DEATH',year:1969},{key:'OPER_IN',year:1969},{key:'OPER_OUT',year:1969},{key:'BIRTH',year:1953}])
-  const [categories, setCategories] = useState([{key:'Longitudinal',codes:['PURCH','CANC','REIMB','DEATH','OUTPAT']},{key:'Registry',codes:['PRIM_OUT']},{key:'Drug',codes:['PRESCRIPTION_DELIVERY','PRESCRIPTION_DELIVERY_VACCINATION']}])
+  const [categories, setCategories] = useState([{key:'Long.',codes:['PURCH','CANC','REIMB','DEATH','OUTPAT']},{key:'Registry',codes:['PRIM_OUT']},{key:'Drug',codes:['PRESCRIPTION_DELIVERY','PRESCRIPTION_DELIVERY_VACCINATION']}])
   const conceptNames = useMemo(() => selectedConcepts.map(d => d.name).filter((e,n,l) => l.indexOf(e) === n),[selectedConcepts])
   const allCounts = useMemo(() => 
     {
@@ -116,18 +116,18 @@ function App() {
 
   const filteredCounts = useMemo(() => {
     const countsObj = allCounts
-    if (graphFilter.gender !== -1 || graphFilter.age.length > 1 || graphFilter.source.length > 1) {
+    if (graphFilter.gender !== -1 || graphFilter.age.length > 1 || !graphFilter.source.includes(-1)) {
       let counts = countsObj.counts
       // .filter(e => graphFilter.gender !== -1 && graphFilter.age.length > 1 && graphFilter.source.length > 1 ? e.gender_concept_id === graphFilter.gender && graphFilter.age.includes(e.age_decile) && graphFilter.source.includes(e.visit_group_concept_id) : graphFilter.gender !== -1 ? e.gender_concept_id === graphFilter.gender : graphFilter.age.includes(e.age_decile))
       if (graphFilter.gender !== -1) counts = counts.filter(e => e.gender_concept_id === graphFilter.gender)
       if (graphFilter.age.length > 1) counts = counts.filter(e => graphFilter.age.includes(e.age_decile))
-      if (graphFilter.source.length > 1) counts = counts.filter(e => graphFilter.source.includes(e.visit_group_concept_id))
+      if (!graphFilter.source.includes(-1)) counts = counts.filter(e => graphFilter.source.includes(e.visit_group_concept_id))
       let dCounts = []
       countsObj.descendantCounts.forEach(obj => {
         let counts = obj.counts
         if (graphFilter.gender !== -1) counts = counts.filter(e => e.gender_concept_id === graphFilter.gender)
         if (graphFilter.age.length > 1) counts = counts.filter(e => graphFilter.age.includes(e.age_decile))
-        if (graphFilter.source.length > 1) counts = counts.filter(e => graphFilter.source.includes(e.visit_group_concept_id))
+        if (!graphFilter.source.includes(-1)) counts = counts.filter(e => graphFilter.source.includes(e.visit_group_concept_id))
         dCounts.push(counts)
       })
       const descendantCounts = countsObj.descendantCounts.map((obj,i) => ({...obj,counts:dCounts[i]}))
@@ -204,7 +204,8 @@ function App() {
       let sourceSums = []
       visitTypeNames.forEach(obj => selectedConcepts.forEach(d => sourceSums.push({id: obj.visitGroupConceptId,sum: d.leaf ? getCounts(d.data.descendant_code_counts.filter(e => (e.calendar_year >= extent[0] && e.calendar_year <= extent[1])).filter(e => e.visit_group_concept_id === obj.visitGroupConceptId),'node_record_counts') : getCounts(d.data.code_counts.filter(e => (e.calendar_year >= extent[0] && e.calendar_year <= extent[1])).filter(e => e.visit_group_concept_id === obj.visitGroupConceptId),'node_record_counts')})))
       const sourceDataVar = categories.map(obj => ({key:obj.key,codes:visitTypeNames.filter(d => obj.codes.includes(d.conceptCode)).map(d => ({id:d.visitGroupConceptId,code:d.conceptCode,name:d.conceptName,sum:d3.sum(sourceSums.filter(s => s.id === d.visitGroupConceptId).map(s => s.sum))}))}))
-      return sourceDataVar  
+      const sorted = sourceDataVar.map(obj => ({...obj,codes:obj.codes.sort((a,b) => a.sum - b.sum)}))
+      return sorted
     }
   },[filteredCounts,extent,visitTypeNames])
 
@@ -416,7 +417,7 @@ function App() {
     return edges.length === nodes.length - 1 && (suprema.length === 1 || ignoreSuprema)
   }
 
-  function linearLayout(poset,edges,nodes,width) {
+  function linearLayout(poset,edges,nodes,width,fullPoset=null) {
     const unit_w = width
 
     function filterLayers(poset,descendants) {
@@ -488,8 +489,9 @@ function App() {
       sortedPositions.flat().forEach(d => poset.featureOf(d.node,'x',d.x))
     }
 
+    const pos = fullPoset ? fullTree.poset : poset
     const tree = isTree(poset,nodes,edges.filter(e => nodes.includes(e[0]) && nodes.includes(e[1])),poset.analytics.suprema.filter(n => nodes.includes(n)))
-    const layers = filterLayers(poset,nodes)
+    const layers = filterLayers(pos,nodes)
 
     if (layers.length === 0) return
 
@@ -771,6 +773,7 @@ function App() {
       .then(data=>{
         console.log('visit type names',data)
         setVisitTypeNames(data)
+        // setGraphFilter({gender:-1,age:[-1],source:visitTypeNames.map(obj => obj.visitGroupConceptId)})
       })
     fetch(`${API_BASE_URL}/getAPIInfo`)
       .then(res=> res.json())

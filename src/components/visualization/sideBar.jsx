@@ -4812,6 +4812,7 @@
         // filter dropdowns 
         useEffect(()=>{
             if (nodes.length > 0) {
+                document.getElementById("classes-header").style.maxWidth = document.getElementById("tree-selections-container").clientWidth - 440 + 'px'
                 const levels = Array.from({ length: fullTreeMax }, (_, i) => i + 1)
                 d3.select('#levels-dropdown').selectAll('.level').data(levels, d => d)
                 .join(enter => {
@@ -4972,12 +4973,11 @@
                         .html(d => d)
                 })
             }
-        },[maxLevel,classFilter,allClasses])
+        },[maxLevel,classFilter,allClasses,graphSectionWidth])
 
         // call draw functions
         useEffect(()=>{
             if (nodes && nodes.length > 0) {
-                document.getElementById("classes-header").style.maxWidth = d3.select("#sidebar").node().getBoundingClientRect().width - 320 - d3.select("#level-dropdown").node().getBoundingClientRect().width - (margin*2) + 'px'
                 if (view === 'Tree') {
                     let width = d3.select("#tree-container").node().getBoundingClientRect().width + margin*2;
                     let height = d3.select("#tree-container").node().getBoundingClientRect().height + margin*2;
@@ -5042,10 +5042,10 @@
                             <div className = "selection-bar" style = {{opacity: view === 'List' ? 1 : 0}}></div>
                         </div>
                     </div> 
+                    <div className = "selection-bar" style = {{opacity:1,marginTop:-6,backgroundColor:color.darkbackground}}></div>
                     <div id = "tree-selections-container">
                         <div id = "concept-selections">
-                            {/* <div id = "selection-container"> */}
-                            <div className = "concept-selection-btn" id = "add-descendants" style = {{border:treeSelections.includes('descendants') ? '1px solid var(--text)' : '1px solid var(--greylight)', backgroundColor:treeSelections.includes('descendants') ? color.text : color.greylight,color:treeSelections.includes('descendants') ? 'white' : color.text,fontWeight:treeSelections.includes('descendants') ? 700 : 400}} 
+                            <div className = "concept-selection-btn" id = "add-descendants" style = {{marginRight:2,border:treeSelections.includes('descendants') ? '1px solid var(--text)' : '1px solid var(--greylight)', backgroundColor:treeSelections.includes('descendants') ? color.text : color.greylight,color:treeSelections.includes('descendants') ? 'white' : color.text,fontWeight:treeSelections.includes('descendants') ? 700 : 400}} 
                                 onMouseOver={() => d3.select('#add-descendants').style('font-weight', 700)}
                                 onMouseOut={() => d3.select('#add-descendants').style('font-weight', () => !treeSelections.includes('descendants') ? 400 : 700)}
                                 onClick = {() => {
@@ -5092,9 +5092,17 @@
                             </div>  
                         </div>    
                         <div id = "filter-container">
-                            <div className="dropdown-container" id = "level-dropdown">
-                                <div className = "concept-selection-btn" style = {{marginRight: levelFilter < fullTreeMax ? '3px' : '0.2em', width:'auto',border:'none',alignItems:'flex-start'}}>
+                            <div style = {{display:'flex',width:'auto',marginRight:10}}>
+                                <div className="dropdown-container" id = "level-dropdown">
                                     <p style = {{whiteSpace:'nowrap',fontWeight: levelFilter < fullTreeMax ? 700: 400, paddingRight:5}}>Max level</p>
+                                    <FontAwesomeIcon style = {{marginRight:5,display: levelFilter < fullTreeMax ? 'block' : 'none'}} className = "reset-filter fa-solid fa-2xs" id = "reset-level" icon={faX} 
+                                        onClick = {() => {
+                                            setLevelFilter(fullTreeMax)
+                                            d3.select('#open-levels-btn').style('display', 'block')
+                                            d3.select('#close-levels-btn').style('display', 'none') 
+                                            d3.select('#levels-dropdown').style('visibility','hidden')
+                                        }}
+                                    />
                                     <div className = "dropdown-header" id = "levels-header" style = {{border:levelFilter < fullTreeMax ? '0.5px solid var(--text)' : '0.5px solid var(--greylight)', color: levelFilter < fullTreeMax ? 'white' : 'var(--text)', backgroundColor: levelFilter < fullTreeMax ? 'var(--text)' : 'var(--greylight)',overflow:'hidden'}}
                                         onMouseOver={() => d3.select('#open-levels-btn').style('opacity', 1)}
                                         onMouseOut={() => d3.select('#open-levels-btn').style('opacity', 0.3)}
@@ -5108,26 +5116,25 @@
                                                 d3.select('#close-levels-btn').style('display', 'none')  
                                                 d3.select('#levels-dropdown').style('visibility','hidden')
                                             }
-                                        }}
-                                    >
+                                        }}>
                                         <p id = "max-level" style = {{fontWeight:700,padding:'1px 3px 1px 3px',margin:0}}>{maxLevel}</p>
                                         <FontAwesomeIcon className = "dropBtn fa-lg" id = 'open-levels-btn' icon={faCaretDown} style = {{display:'block',opacity: 0.3,padding:'1px 3px 1px 5px',color: levelFilter < fullTreeMax ? 'white' : 'var(--text)'}}/>
                                         <FontAwesomeIcon className = "dropBtn fa-lg" id = 'close-levels-btn' icon={faCaretUp} style = {{display:'none',opacity: 1,padding:'2px 3px 1px 5px',color: levelFilter < fullTreeMax ? 'white' : 'var(--text)'}}/>     
-                                    </div>
-                                </div>   
-                                <div className = "selections-dropdown-content" id = "levels-dropdown" style = {{right:10}}></div>  
-                                <FontAwesomeIcon style = {{display: levelFilter < fullTreeMax ? 'block' : 'none',marginTop:1}} className = "reset-filter fa-solid fa-2xs" id = "reset-level" icon={faX} 
-                                    onClick = {() => {
-                                        setLevelFilter(fullTreeMax)
-                                        d3.select('#open-levels-btn').style('display', 'block')
-                                        d3.select('#close-levels-btn').style('display', 'none') 
-                                        d3.select('#levels-dropdown').style('visibility','hidden')
-                                    }}
-                                />
-                            </div> 
-                            <div className="dropdown-container" id = "class-dropdown">
-                                <div className = "concept-selection-btn" style = {{marginRight: classFilter && (classFilter.includes('All') || fullClassList.every(c => classFilter.includes(c))) ? '0.2em' : '1px', width:'auto',border:'none',alignItems:'flex-start'}}>
-                                    <p style = {{whiteSpace:'nowrap',fontWeight: classFilter && !classFilter.includes('All') && !fullClassList.every(c => classFilter.includes(c)) ? 700: 400, paddingRight:5,marginLeft:levelFilter < fullTreeMax ? 10 : 0}}>Classes</p>
+                                    </div>   
+                                    <div className = "selections-dropdown-content" id = "levels-dropdown" style = {{right:10}}></div>  
+                                </div>     
+                            </div>
+                            <div id = "class-dropdown-container" style = {{display:'flex',alignItems:'center',flexGrow:1}}>
+                                <div className="dropdown-container" id = "class-dropdown">
+                                    <p style = {{whiteSpace:'nowrap',paddingRight:5}}>Classes</p>
+                                    <FontAwesomeIcon style = {{paddingRight:5,display: classFilter && (classFilter.includes('All') || fullClassList.every(c => classFilter.includes(c))) ? 'none' : 'block'}} className = "reset-filter fa-2xs" id = "reset-class" icon={faX} 
+                                        onClick = {() => {
+                                            setClassFilter(fullClassList)
+                                            d3.select('#open-classes-btn').style('display', 'block')
+                                            d3.select('#close-classes-btn').style('display', 'none') 
+                                            d3.select('#classes-dropdown').style('visibility','hidden')
+                                        }}
+                                    />
                                     <div className = "dropdown-header" id = "classes-header" style = {{border:classFilter && !classFilter.includes('All') && !fullClassList.every(c => classFilter.includes(c)) ? '0.5px solid var(--text)' : '0.5px solid var(--greylight)', color: classFilter && !classFilter.includes('All') && !fullClassList.every(c => classFilter.includes(c)) ? 'white' : 'var(--text)', backgroundColor: classFilter && !classFilter.includes('All') && !fullClassList.every(c => classFilter.includes(c)) ? 'var(--text)' : 'var(--greylight)',overflow:'hidden'}}
                                         onMouseOver={() => d3.select('#open-classes-btn').style('opacity', 1)}
                                         onMouseOut={() => d3.select('#open-classes-btn').style('opacity', 0.3)}
@@ -5141,23 +5148,15 @@
                                                 d3.select('#close-classes-btn').style('display', 'none')  
                                                 d3.select('#classes-dropdown').style('visibility','hidden')
                                             }
-                                        }}
-                                    >
+                                        }}>
                                         <div id = "class-selections"></div>
                                         <FontAwesomeIcon className = "dropBtn fa-lg" id = 'open-classes-btn' icon={faCaretDown} style = {{color: classFilter && !classFilter.includes('All') && !fullClassList.every(c => classFilter.includes(c)) ? 'white' : 'var(--text)', display:'block',opacity: 0.3,padding:'1px 3px 1px 5px'}}/>
                                         <FontAwesomeIcon className = "dropBtn fa-lg" id = 'close-classes-btn' icon={faCaretUp} style = {{color: classFilter && !classFilter.includes('All') && !fullClassList.every(c => classFilter.includes(c)) ? 'white' : 'var(--text)', display:'none',opacity: 1,padding:'2px 3px 1px 5px'}}/>     
                                     </div>
-                                </div>   
+                                    {/* </div>    */}
                                 <div className = "selections-dropdown-content" id = "classes-dropdown" style = {{right:-15,alignItems:'flex-start'}}></div>  
-                                <FontAwesomeIcon style = {{display: classFilter && (classFilter.includes('All') || fullClassList.every(c => classFilter.includes(c))) ? 'none' : 'block'}} className = "reset-filter fa-2xs" id = "reset-class" icon={faX} 
-                                    onClick = {() => {
-                                        setClassFilter(fullClassList)
-                                        d3.select('#open-classes-btn').style('display', 'block')
-                                        d3.select('#close-classes-btn').style('display', 'none') 
-                                        d3.select('#classes-dropdown').style('visibility','hidden')
-                                    }}
-                                />
-                            </div>    
+                                </div>     
+                            </div>
                         </div>
                     </div>             
                 </div>
