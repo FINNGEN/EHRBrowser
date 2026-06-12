@@ -64,10 +64,11 @@ RUN chmod +x /startup.sh
 # Add cache bust to ensure latest ROMOPAPI is installed
 ARG CACHE_BUST=4
 ARG COMMIT_SHA=unknown
+ARG ROMOPAPI_BRANCH=main
 RUN --mount=type=secret,id=build_github_pat \
     cp /usr/local/lib/R/etc/Renviron /tmp/Renviron \
     && echo "GITHUB_PAT=$(cat /run/secrets/build_github_pat)" >> /usr/local/lib/R/etc/Renviron \
-    && Rscript -e 'remotes::install_github("FINNGEN/ROMOPAPI");remotes::install_github("javier-gracia-tabuenca-tuni/DatabaseConnector@bigquery-DBI-2");install.packages("bigrquery")' \
+    && Rscript -e "remotes::install_github('FINNGEN/ROMOPAPI@${ROMOPAPI_BRANCH}');remotes::install_github('javier-gracia-tabuenca-tuni/DatabaseConnector@bigquery-DBI-2');install.packages('bigrquery')" \
     && cp /tmp/Renviron /usr/local/lib/R/etc/Renviron;
 
 # Pass commit SHA to React build
