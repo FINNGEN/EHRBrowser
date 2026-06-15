@@ -77,6 +77,7 @@ docker build \
  --secret id=build_github_pat,src=GITHUBPAT.txt \
  --build-arg COMMIT_SHA=$(git rev-parse --short HEAD) \
  --build-arg CACHE_BUST=$(date +%s) \
+ --build-arg ROMOPAPI_BRANCH=development \
  -t ehr_browser .
 ```
 
