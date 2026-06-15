@@ -34,7 +34,7 @@ if (database |> stringr::str_detect("AtlasDevelopment")) {
 }
 
 if (database |> stringr::str_starts("Sandbox")) {
-    message("Running Sandbox-LATEST API")
+    message("Running ", database, " API")
 
 
     if (Sys.getenv("SANDBOX_PROJECT") == "") {

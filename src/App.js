@@ -87,8 +87,12 @@ function App() {
   const [subspaces, setSubspaces] = useState()
   const [visitTypeNames, setVisitTypeNames] = useState()
   const fetchedRef = useRef(false)
-  const [annotations,setAnnotations] = useState([{key:'PURCH',year:1995},{key:'REIMB',year:1964},{key:'PRIM_OUT',year:2011},{key:'INPAT',year:1969},{key:'OUTPAT',year:1998},{key:'CANC',year:1953},{key:'DEATH',year:1969},{key:'OPER_IN',year:1969},{key:'OPER_OUT',year:1969},{key:'BIRTH',year:1953}])
-  const [categories, setCategories] = useState([{key:'Long.',codes:['PURCH','CANC','REIMB','DEATH','OUTPAT']},{key:'Registry',codes:['PRIM_OUT']},{key:'Drug',codes:['PRESCRIPTION_DELIVERY','PRESCRIPTION_DELIVERY_VACCINATION']}])
+  const [annotations,setAnnotations] = useState([{key:'PURCH',year:1995},{key:'REIM',year:1964},{key:'PRIM_OUT',year:2011},{key:'INPAT',year:1969},{key:'OUTPAT',year:1998},{key:'CANC',year:1953},{key:'DEATH',year:1969},{key:'OPER_IN',year:1969},{key:'OPER_OUT',year:1969},{key:'BIRTH_MOTHER',year:1953}])
+  const [categories, setCategories] = useState([
+    {key:'Long.',codes:['INPAT','OPER_IN','OPER_OUT','OUTPAT','PRIM_OUT','REIM','DEATH','PURCH','CANC']},
+    {key:'Registry',codes:['KANTA','BIOBANK','KIDNEY','VISION','BIRTH_MOTHER']},
+    {key:'Drug',codes:['PRESCRIPTION','DELIVERY','PRESCRIPTION_DELIVERY','DELIVERY_KELA','PRESCRIPTION_DELIVERY_KELA']}
+  ])
   const conceptNames = useMemo(() => selectedConcepts.map(d => d.name).filter((e,n,l) => l.indexOf(e) === n),[selectedConcepts])
   const allCounts = useMemo(() => 
     {
@@ -114,6 +118,25 @@ function App() {
     setVersion(version)
   }
 
+  const normalizeVisitTypeName = (row) => {
+    const rawVisitGroupConceptId = row.visitGroupConceptId ?? row.visit_group_concept_id ?? row.visitgroupconceptid ?? row.concept_id ?? row.conceptId ?? row.conceptid
+    const visitGroupConceptId = rawVisitGroupConceptId == null ? undefined : Number(rawVisitGroupConceptId)
+    const conceptName = row.conceptName ?? row.concept_name ?? row.conceptname ?? row.name
+    const conceptCodeRaw = row.conceptCode ?? row.concept_code ?? row.conceptcode ?? conceptName ?? (visitGroupConceptId != null ? String(visitGroupConceptId) : undefined)
+    const conceptCode = typeof conceptCodeRaw === 'string' ? conceptCodeRaw.toUpperCase() : conceptCodeRaw
+    return {
+      ...row,
+      visitGroupConceptId,
+      conceptCode,
+      conceptName
+    }
+  }
+
+  const getVisitGroupConceptId = (row) => {
+    const rawId = row.visit_group_concept_id ?? row.visitGroupConceptId ?? row.visit_source_group_concept_id ?? row.visitSourceGroupConceptId ?? row.concept_id ?? row.conceptId
+    return rawId == null ? undefined : Number(rawId)
+  }
+
   const filteredCounts = useMemo(() => {
     const countsObj = allCounts
     if (graphFilter.gender !== -1 || graphFilter.age.length > 1 || !graphFilter.source.includes(-1)) {
@@ -121,13 +144,13 @@ function App() {
       // .filter(e => graphFilter.gender !== -1 && graphFilter.age.length > 1 && graphFilter.source.length > 1 ? e.gender_concept_id === graphFilter.gender && graphFilter.age.includes(e.age_decile) && graphFilter.source.includes(e.visit_group_concept_id) : graphFilter.gender !== -1 ? e.gender_concept_id === graphFilter.gender : graphFilter.age.includes(e.age_decile))
       if (graphFilter.gender !== -1) counts = counts.filter(e => e.gender_concept_id === graphFilter.gender)
       if (graphFilter.age.length > 1) counts = counts.filter(e => graphFilter.age.includes(e.age_decile))
-      if (!graphFilter.source.includes(-1)) counts = counts.filter(e => graphFilter.source.includes(e.visit_group_concept_id))
+      if (!graphFilter.source.includes(-1)) counts = counts.filter(e => graphFilter.source.includes(getVisitGroupConceptId(e)))
       let dCounts = []
       countsObj.descendantCounts.forEach(obj => {
         let counts = obj.counts
         if (graphFilter.gender !== -1) counts = counts.filter(e => e.gender_concept_id === graphFilter.gender)
         if (graphFilter.age.length > 1) counts = counts.filter(e => graphFilter.age.includes(e.age_decile))
-        if (!graphFilter.source.includes(-1)) counts = counts.filter(e => graphFilter.source.includes(e.visit_group_concept_id))
+        if (!graphFilter.source.includes(-1)) counts = counts.filter(e => graphFilter.source.includes(getVisitGroupConceptId(e)))
         dCounts.push(counts)
       })
       const descendantCounts = countsObj.descendantCounts.map((obj,i) => ({...obj,counts:dCounts[i]}))
@@ -202,8 +225,13 @@ function App() {
   const sourceData = useMemo(() => {
     if (visitTypeNames) {
       let sourceSums = []
-      visitTypeNames.forEach(obj => selectedConcepts.forEach(d => sourceSums.push({id: obj.visitGroupConceptId,sum: d.leaf ? getCounts(d.data.descendant_code_counts.filter(e => (e.calendar_year >= extent[0] && e.calendar_year <= extent[1])).filter(e => e.visit_group_concept_id === obj.visitGroupConceptId),'node_record_counts') : getCounts(d.data.code_counts.filter(e => (e.calendar_year >= extent[0] && e.calendar_year <= extent[1])).filter(e => e.visit_group_concept_id === obj.visitGroupConceptId),'node_record_counts')})))
+      visitTypeNames.forEach(obj => selectedConcepts.forEach(d => sourceSums.push({id: obj.visitGroupConceptId,sum: d.leaf ? getCounts(d.data.descendant_code_counts.filter(e => (e.calendar_year >= extent[0] && e.calendar_year <= extent[1])).filter(e => getVisitGroupConceptId(e) === obj.visitGroupConceptId),'node_record_counts') : getCounts(d.data.code_counts.filter(e => (e.calendar_year >= extent[0] && e.calendar_year <= extent[1])).filter(e => getVisitGroupConceptId(e) === obj.visitGroupConceptId),'node_record_counts')})))
       const sourceDataVar = categories.map(obj => ({key:obj.key,codes:visitTypeNames.filter(d => obj.codes.includes(d.conceptCode)).map(d => ({id:d.visitGroupConceptId,code:d.conceptCode,name:d.conceptName,sum:d3.sum(sourceSums.filter(s => s.id === d.visitGroupConceptId).map(s => s.sum))}))}))
+      const categorizedCodes = new Set(categories.map(obj => obj.codes).flat())
+      const otherCodes = visitTypeNames
+        .filter(d => !categorizedCodes.has(d.conceptCode))
+        .map(d => ({id:d.visitGroupConceptId,code:d.conceptCode,name:d.conceptName,sum:d3.sum(sourceSums.filter(s => s.id === d.visitGroupConceptId).map(s => s.sum))}))
+      if (otherCodes.length > 0) sourceDataVar.push({key:'Other',codes:otherCodes})
       const sorted = sourceDataVar.map(obj => ({...obj,codes:obj.codes.sort((a,b) => a.sum - b.sum)}))
       return sorted
     }
@@ -772,7 +800,7 @@ function App() {
       .then(res=> res.json())
       .then(data=>{
         console.log('visit type names',data)
-        setVisitTypeNames(data)
+        setVisitTypeNames(data.map(normalizeVisitTypeName).filter(d => Number.isFinite(d.visitGroupConceptId)))
         // setGraphFilter({gender:-1,age:[-1],source:visitTypeNames.map(obj => obj.visitGroupConceptId)})
       })
     fetch(`${API_BASE_URL}/getAPIInfo`)
