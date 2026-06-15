@@ -1111,7 +1111,7 @@ function GraphSection (props) {
     useEffect(() => {
         if (graphContainerRef.current && extent) {
             d3.select('#graph').append("defs")
-            const fullHeight = document.getElementById('graph-section-container').clientHeight
+            const fullHeight = document.getElementById('graph-section-container').clientHeight 
             const headerHeight = document.getElementById('graph-section-header').clientHeight
             const filterHeight = document.getElementById('graph-selections').clientHeight
             const containerWidth = document.getElementById('graph-section').clientWidth

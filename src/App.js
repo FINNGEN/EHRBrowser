@@ -353,12 +353,6 @@ function App() {
 
   }
 
-  const topDown = (layers,f,sorted=false) => {
-    for (let i = layers.length-1; i > 0; i--) {
-        f(layers[i], 'down',sorted)
-    }  
-  }
-
   const propagate = (layers,start,f,sorted=false) => {
     const below = layers.slice(0, start).reverse()
     const above = layers.slice(start + 1)
@@ -378,17 +372,6 @@ function App() {
     const spreadPositions = nodes.map((n,i) => ({node:n,x:i >= median ? centroid+((i-median)*w)+adjustment : centroid-((median-i)*w)+adjustment}))
     return spreadPositions
   }
-
-  // function spreadAroundCentroidTree(nodes,widths,sum,centroid) {
-  //   let acc = centroid - (sum/2)
-  //   const spreadPositions = []
-  //   nodes.forEach(node => {
-  //     const x = acc + (widths[node]/2)
-  //     spreadPositions.push({node:node,x:x})
-  //     acc += widths[node]
-  //   })
-  //   return spreadPositions
-  // }
   
   const barycenterSort = (sets, ids) => {
     const order = [...ids];
@@ -417,23 +400,17 @@ function App() {
     return edges.length === nodes.length - 1 && (suprema.length === 1 || ignoreSuprema)
   }
 
-  function linearLayout(poset,edges,nodes,width,fullPoset=null) {
+  function linearLayout(poset,edges,width,unFilteredPoset=null) {
     const unit_w = width
 
-    function filterLayers(poset,descendants) {
-      return poset.layers.map(layer => layer.filter(l => descendants.includes(l)))
-    }
     function sortLayersByX(layers) {
       return layers.map(layer => layer.sort((a,b) => poset.featureOf(a,'x') - poset.featureOf(b,'x')))
     }
-    // function getWidth(poset,descendants) {
-    //   const max = d3.max(filterLayers(poset,descendants).map(layer => layer.length))
-    //   return max === 0 ? unit_w : max * unit_w
-    // }
+
     const setX = (e,direction,sorted) => {
       let idealPositions = []
       let sortedPositions = []
-      let shiftToEnd = []
+      // let shiftToEnd = []
       function shiftPositionsByGroup(group,sortedPositions,w) {
         const ref = group[0]
         const prevGroup = sortedPositions[sortedPositions.length-1]
@@ -447,12 +424,10 @@ function App() {
       e.forEach(node => {
         let x
         const refs = direction === 'up' ? poset.getUpper(node) : poset.getLower(node)
-        // const refs = direction === 'up' ? poset.getUpper(node).filter(n => poset.layers.findIndex(l => l.includes(n)) === poset.layers.findIndex(l => l.includes(node)) + 1) : poset.getLower(node).filter(n => poset.layers.findIndex(l => l.includes(n)) === poset.layers.findIndex(l => l.includes(node)) - 1)
         const values = poset.featureOf(refs, "x").filter(v => v !== undefined)
         const sum = d3.sum(values)
         if (values.length !== 0) x = sum === 0 ? 0 : sum / values.length
         if (x == null) {
-          // if (poset.featureOf(node,'x') == null) shiftToEnd.push(node)
           if (poset.featureOf(node,'x') == null) x = 0
           else x = poset.featureOf(node,'x')
         }
@@ -467,7 +442,6 @@ function App() {
       let groupedByPosition = Array.from(groups.values())
 
       if (!sorted) groupedByPosition = groupedByPosition.sort((a,b) => a[0].x - b[0].x)
-
       groupedByPosition.forEach(groupArray => {
         let group
         let nodes = groupArray.map(d => d.node)
@@ -482,16 +456,16 @@ function App() {
           else sortedPositions = shiftPositionsByGroup(group,sortedPositions,unit_w)
         }
       })
-      if (shiftToEnd.length > 0) {
-        const max = d3.max(sortedPositions.flat().map(d => d.x))
-        shiftToEnd.forEach((node,i) => poset.featureOf(node,'x',max+unit_w+(unit_w*i)))
-      }
+      // if (shiftToEnd.length > 0) {
+      //   const max = d3.max(sortedPositions.flat().map(d => d.x))
+      //   shiftToEnd.forEach((node,i) => poset.featureOf(node,'x',max+unit_w+(unit_w*i)))
+      // }
       sortedPositions.flat().forEach(d => poset.featureOf(d.node,'x',d.x))
     }
 
-    const pos = fullPoset ? fullTree.poset : poset
-    const tree = isTree(poset,nodes,edges.filter(e => nodes.includes(e[0]) && nodes.includes(e[1])),poset.analytics.suprema.filter(n => nodes.includes(n)))
-    const layers = filterLayers(pos,nodes)
+    const nodes = poset.elements 
+    const layers = unFilteredPoset ? unFilteredPoset.layers.map(layer => layer.filter(e => nodes.includes(e))).filter(layer => layer.length > 0) : poset.layers
+    const tree = isTree(poset,nodes,edges,poset.analytics.suprema)
 
     if (layers.length === 0) return
 
@@ -510,22 +484,13 @@ function App() {
       if (!tree) {
         const bb = layers.map((l,n)=>({n:n, l:l, deg:l.length === 0 ? 0 : l.map(node=>poset.featureOf(node,"node_degree")).reduce((acc,el)=>acc+el)})).sort((a,b)=>b.deg-a.deg)[0]
         const midPoint = Math.trunc((layers.length-1)/2)
-        L = bb.n > midPoint ? bb.n : midPoint  
-
-        const i = poset.layers.findIndex(l => layers[L].some(id => l.includes(id)))
-        const scores = tree || layers[L+1].length > 1 ? po.boundScores(poset,i) : po.dominanceScores(poset,i) 
+        L = bb.n > midPoint ? bb.n : midPoint 
+        const i = unFilteredPoset ? unFilteredPoset.layers.findIndex(l => layers[L].some(id => l.includes(id))) : L
+        const pos = unFilteredPoset ? unFilteredPoset : poset
+        const scores = tree || layers[L+1].length > 1 ? po.boundScores(pos,i) : po.dominanceScores(pos,i) 
         const {ids,subspaces} = po.findSubspaces(scores)
-        const idsFiltered = [], subspacesFiltered = []
-
-        ids.forEach((arr,i) => {
-          if (arr.some(id => nodes.includes(id))) {
-            idsFiltered.push(arr)
-            subspacesFiltered.push(subspaces[i])
-          }
-        })
-
-        bbIds = subspacesFiltered.map((ssp,n)=>{
-            const LE = linearEmbedding(ssp,idsFiltered[n])
+        bbIds = subspaces.map((ssp,n)=>{
+            const LE = linearEmbedding(ssp,ids[n])
             if(ssp.length>1){
                 const sets = LE.neurons.flatMap(neu=>neu.bmus)
                 const sspids = LE.neurons.flatMap(neu=>neu.bmusID)
@@ -534,17 +499,11 @@ function App() {
             return LE.neurons.flatMap(neu=>neu.bmusID)
         }).flat().filter(id => nodes.includes(id))
       }
-
       let acc = 0
       bbIds.forEach(id => {
         const x = acc + unit_w/2
         poset.featureOf(id,"x",x)
         acc += unit_w
-        // const descendants = poset.getDownset(id)
-        // const width = getWidth(poset,descendants)
-        // const x = acc + (width/2)
-        // poset.featureOf(id,"x",x)
-        // acc += width  
       })
       propagate(layers,L,setX)
       const sortedLayers = sortLayersByX(layers)
@@ -552,16 +511,16 @@ function App() {
     }
   }
 
-  function spaceSubspaces(poset,subspaces,width) {
+  function spaceSubspaces(posets,width) {
     const unit_w = width
-    subspaces.forEach((nodes,index) => {
-      if (index > 0 && subspaces[index-1].length > 0) {
-          const prevMax = d3.max(poset.featureOf(subspaces[index-1],'x'))
-          const thisMin = d3.min(poset.featureOf(nodes,'x'))  
+    posets.forEach((pos,index) => {
+      if (index > 0 && posets[index-1].elements.length > 0) {
+          const prevMax = d3.max(posets[index-1].featureOf(posets[index-1].elements,'x'))
+          const thisMin = d3.min(pos.featureOf(pos.elements,'x'))  
           const ideal = prevMax + (unit_w*2)
           if (thisMin !== ideal) {
             const adjustment = ideal - thisMin
-            nodes.forEach(node => poset.featureOf(node,'x',poset.featureOf(node,'x') + adjustment))
+            pos.elements.forEach(node => pos.featureOf(node,'x',pos.featureOf(node,'x') + adjustment))
           }  
         }  
     }) 
@@ -600,10 +559,10 @@ function App() {
   // *** optimize this ***
   function createInitialStates(data,filterClass,filterLevel,filteredClassList) {
     console.log('run',data)
-    // set nodes 
+    // create data 
     const subsumesData = data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to")
     const mappingData = data.concept_relationships.filter(d => d.levels === "Mapped from" || d.levels === "Maps to")
-    // what is this doing? 
+    // what is this doing???
     let nodeData = Array.from(
       subsumesData
       .reduce((map, obj) => {
@@ -615,61 +574,69 @@ function App() {
       }, new Map())
       .values()
     )
-    // poset
+
+    // full poset
     let colors = {}
     let distances = {}
+    let positions = {}
     let fullEdges = data.concept_relationships
       .filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to")
       .map(d => d.levels === "-1" ? ({...d,parent_concept_id: d.child_concept_id,child_concept_id: d.parent_concept_id}) : d)
       .map(d => ([d.parent_concept_id.toString(),d.child_concept_id.toString()]))
     if (fullEdges.length > 1) fullEdges = fullEdges.filter(d => d[0] !== d[1])
     const {matrix,nodes} = po.domFromEdges(fullEdges)
-
     const fullPoset = po.createPoset(matrix,nodes)
-    fullPoset.enrich()
-      .setLayers()
-      .color(80,25,90)
-      .feature("lower_bound",(node)=>fullPoset.getLower(node))
-      .feature("upper_bound",(node)=>fullPoset.getUpper(node))
-      .feature("node_degree",(node,f)=>f.lower_bound.length+f.upper_bound.length)
-
-    const subspaces = po.findSubspaces(po.dominanceScores(fullPoset,fullPoset.layers.length-1))
-    subspaces.nodes = subspaces.ids.map(ids => [...ids.map(id => fullPoset.getDownset(id)).flat(),...ids].filter((e,n,l) => l.indexOf(e) === n))
-    subspaces.nodes.forEach(nodes => linearLayout(fullPoset,fullEdges,nodes,150))
-    spaceSubspaces(fullPoset,subspaces.nodes,150)
-
-    // linearLayout(poset,edges,150)
-    // *** consider case if there are no edges and just a single node (missing nodes function from vis) ***
+    // coloring 
+    fullPoset.enrich().setLayers().color(80,25,90)
     const layers = [...fullPoset.layers].reverse()
     const depthScale = d3.scaleLinear(d3.extent(layers.map((l,i)=>i)), [20,70])
     fullPoset.elements.forEach(name => {
-        distances[name] = layers.findIndex(i => i.includes(name))
-        colors[name] = `hsl(${fullPoset.featureOf(name,'pTheta')},${fullPoset.featureOf(name,'pAlpha')*100}%,${depthScale(distances[name])}%)`
+      distances[name] = layers.findIndex(i => i.includes(name))
+      colors[name] = `hsl(${fullPoset.featureOf(name,'pTheta')},${fullPoset.featureOf(name,'pAlpha')*100}%,${depthScale(distances[name])}%)` 
     })
-    
-        nodeData = nodeData.map(e=>({
-        'name': e.child_concept_id, 
-        'levels': e.levels,
-        'relationship': e.levels,
-        'class': e.concept_class_id,
-        // 'color': generateColor(e.child_concept_id),
-        'distance': distances[e.child_concept_id], 
-        'color': colors[e.child_concept_id] ? colors[e.child_concept_id] : generateColor(e.child_concept_id),
-        'x': fullPoset.elements.includes(e.child_concept_id.toString()) ? fullPoset.featureOf(e.child_concept_id,"x") ? fullPoset.featureOf(e.child_concept_id,"x") : 0 : 0,
-        'leaf': !subsumesData.map(d => d.parent_concept_id).includes(e.child_concept_id) ? true : false,
-        'parents': fullPoset.getUpper(e.child_concept_id.toString()).map(d => parseInt(d)),
-        'children': fullPoset.getLower(e.child_concept_id.toString()).map(d => parseInt(d)),
-        // 'descendants': poset.getDownset(e.child_concept_id.toString()).map(d => parseInt(d)),
-        // 'parents': rootArray.includes(e.child_concept_id) ? subsumesData.filter(d => d.parent_concept_id === e.child_concept_id).filter(d => d.levels === '-1').map(d => d.child_concept_id).concat(subsumesData.filter(d => d.child_concept_id === e.child_concept_id).map(d => d.parent_concept_id).filter(p => parseInt(e.levels.split('-')[0]) > parseInt(subsumesData.filter(n => n.child_concept_id === p)[0].levels.split('-')[0])).flat()) : e.levels === "-1" ? [] : subsumesData.filter(d => d.child_concept_id === e.child_concept_id).map(d => d.parent_concept_id).filter(p => parseInt(e.levels.split('-')[0]) > parseInt(subsumesData.filter(n => n.child_concept_id === p)[0].levels.split('-')[0])),
-        // 'children': e.levels === "-1" ? subsumesData.filter(d => d.child_concept_id === e.child_concept_id).map(d => d.parent_concept_id) : subsumesData.filter(d => d.parent_concept_id === e.child_concept_id && d.child_concept_id !== e.child_concept_id).map(d => d.child_concept_id),
-        'connections': [],
-        'total_counts': getCounts(data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),'node_record_counts'),
-        'descendants': [...getAllDescendants(subsumesData,e.child_concept_id,[]),e.child_concept_id],
-        'data': {code_counts: data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id), concept: data.concepts.filter(d => d.concept_id === e.child_concept_id)[0]}
+
+    // subspace posets
+    const posetArray = []
+    const subspaces = po.findSubspaces(po.dominanceScores(fullPoset,fullPoset.layers.length-1))
+    subspaces.nodes = subspaces.ids.map(ids => [...ids.map(id => fullPoset.getDownset(id)).flat(),...ids].filter((e,n,l) => l.indexOf(e) === n))
+    // set x positions
+    subspaces.nodes.forEach(sbsp => {
+      const edges = fullEdges.filter(e => sbsp.includes(e[0]) && sbsp.includes(e[1]))
+      const {matrix,nodes} = po.domFromEdges(edges)
+      const pos = po.createPoset(matrix,nodes)
+      pos.enrich()
+        .setLayers()
+        .feature("lower_bound",(node)=>pos.getLower(node))
+        .feature("upper_bound",(node)=>pos.getUpper(node))
+        .feature("node_degree",(node,f)=>f.lower_bound.length+f.upper_bound.length)
+      linearLayout(pos,edges,150)
+      posetArray.push(pos)
+    })
+    spaceSubspaces(posetArray,150)
+    posetArray.forEach(pos => pos.elements.forEach(e => positions[e] = pos.featureOf(e,'x')))
+
+    // create nodes 
+    nodeData = nodeData.map(e=>({
+      'name': e.child_concept_id, 
+      'levels': e.levels,
+      'relationship': e.levels,
+      'class': e.concept_class_id,
+      'distance': distances[e.child_concept_id], 
+      'color': colors[e.child_concept_id],
+      'x': positions[e.child_concept_id],
+      'leaf': !subsumesData.map(d => d.parent_concept_id).includes(e.child_concept_id) ? true : false,
+      'parents': fullPoset.getUpper(e.child_concept_id.toString()).map(d => parseInt(d)),
+      'children': fullPoset.getLower(e.child_concept_id.toString()).map(d => parseInt(d)),
+      'connections': [],
+      'total_counts': getCounts(data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),'node_record_counts'),
+      'descendants': [...getAllDescendants(subsumesData,e.child_concept_id,[]),e.child_concept_id],
+      'data': {code_counts: data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id), concept: data.concepts.filter(d => d.concept_id === e.child_concept_id)[0]}
     })) 
+
     // set max distance
     const maxD = d3.max(nodeData.map(d => d.distance))
     setMaxDistance(maxD)
+
     // set root line 
     let rootDescendants = []
     rootArray.forEach(root => rootDescendants.push(...nodeData.find(n => n.name === root).descendants))
@@ -684,10 +651,15 @@ function App() {
     rootLineData.sort((a, b) => a[0] - b[0])
     setRootExtent(rootExtentData)
     setRootLine(rootLineData) 
+
     // set cross connections 
     const allNodes = subsumesData
       .filter(d => d.parent_concept_id !== d.child_concept_id)
-      .map(d => d.levels === "-1" ? ({...d, parent_concept_id: d.child_concept_id, child_concept_id: d.parent_concept_id}) : d)
+      .map(d => d.levels === "-1" ? ({
+        ...d, 
+        parent_concept_id: d.child_concept_id, 
+        child_concept_id: d.parent_concept_id
+      }) : d)
     const allChildren = allNodes
       .map(d => d.child_concept_id)
       .filter((e,n,l) => l.indexOf(e) === n)
@@ -695,21 +667,34 @@ function App() {
     allChildren.forEach(child => allNodes.filter(d => d.child_concept_id === child).length > 1 ? connections.push({child:child,parents:allNodes.filter(d => d.child_concept_id === child).map(d => d.parent_concept_id)}) : null)
     connections = connections.filter(d => d.parents.length > 1)
     setCrossConnections(connections)
-    // // update color, position, and distance
-    // nodeData = nodeData.map(d => ({...d,distance:distances[d.name], color: colors[d.name] ? colors[d.name] : d.color,x:poset.featureOf(d.name,"x") ? poset.featureOf(d.name,"x") : 0}))
+
     // set selections
     const inclusionList = rootArray.map(r => getInclusions(rootArray,nodeData,r,excludeList,descendantsFilter,nodeData.find(n => n.name === r).descendants)).flat()
       .filter(i => nodeData.find(n => n.name === i).levels !== '-1')
       .filter(i => nodeData.find(n => n.name === i).total_counts !== 0)
-    // const inclusionList = nodeData.filter(n => n.levels !== '-1').filter(n => n.total_counts !== 0).map(n => n.name)
     setInclusions(inclusionList)
-    nodeData = nodeData.map(e=>({...e,descendant_code_counts: data.stratified_code_counts.filter(d => e.descendants.includes(d.concept_id)),leaf:e.descendants.filter(d => d !== e.name).length > 0 && e.leaf ? true : false}))
+    nodeData = nodeData.map(e=>({
+      ...e,
+      descendant_code_counts: data.stratified_code_counts.filter(d => e.descendants.includes(d.concept_id)),
+      leaf:e.descendants.filter(d => d !== e.name).length > 0 && e.leaf ? true : false
+    }))
     const selectedNodes = nodeData
       .filter(d => !d.leaf ? inclusionList.includes(d.name) : d)
-      .map(d => ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: {...d.data,descendant_code_counts:d.descendant_code_counts}}))
+      .map(d => ({
+        name: d.name, 
+        leaf: d.leaf, 
+        descendants: d.descendants, 
+        distance: d.distance, 
+        data: {...d.data,descendant_code_counts:d.descendant_code_counts}
+      }))
     selectedNodes.sort((a,b) => d3.ascending(a.distance, b.distance))
     setSelectedConcepts(selectedNodes)
-    nodeData = nodeData.map(d => ({...d,included_descendants:d.descendants.filter(e => inclusionList.includes(e)),descendant_counts:getCounts(d.descendant_code_counts,'node_record_counts')}))
+
+    // set mappings
+    nodeData = nodeData.map(d => ({
+      ...d,
+      included_descendants:d.descendants.filter(e => inclusionList.includes(e)),
+      descendant_counts:getCounts(d.descendant_code_counts,'node_record_counts')}))
       .map(node => ({
         ...node,
         mappings: mappingData.filter(d => d.parent_concept_id === node.name).map(e=>({
@@ -718,7 +703,6 @@ function App() {
           'distance': node.distance,
           'source': node,
           'color': node.color,
-          // 'color': colors[e.child_concept_id] ? colors[e.child_concept_id] : generateColor(e.child_concept_id),
           'total_counts': getCounts(data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),'node_record_counts'),
           'descendant_counts': data.concepts.find(c => c.concept_id === e.child_concept_id).descendant_record_counts,
           'data': {code_counts: data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),concept: data.concepts.filter(d => d.concept_id === e.child_concept_id)[0]}
@@ -726,21 +710,23 @@ function App() {
       }))
     nodeData.forEach(node => {node.mappings.forEach(map => colors[map.name] = map.color)})
     setColorList(colors)
+
     // set links
     const nodeNames = nodeData.map(d => d.name)
     const linkData = subsumesData.filter(d => d.parent_concept_id !== d.child_concept_id).map(d=>({...d, source: d.levels === "-1" ? nodeData[nodeNames.indexOf(d.child_concept_id)] : nodeData[nodeNames.indexOf(d.parent_concept_id)], target: d.levels === "-1" ? nodeData[nodeNames.indexOf(d.parent_concept_id)] : nodeData[nodeNames.indexOf(d.child_concept_id)]}))
+    
     // set extent
     let extentData = d3.extent(selectedNodes.map(d => d.data.code_counts).flat().map(d => d.calendar_year))
     if (!extentData[0] || !extentData[1]) extentData = rootExtentData
     setExtent(extentData) 
+
     // set states
     setEdges(edges)
-    setPoset(fullPoset)
-    setSubspaces(subspaces.nodes)
+    setPoset(posetArray)
+    setSubspaces(posetArray)
     setPruned(false)
     setFullTree({relationships:subsumesData,layers:layers,nodes:nodeData,links:linkData,selected:selectedNodes,mappings:mappingData.map(d => d.child_concept_id),edges:fullEdges,poset:fullPoset,maxDistance:maxD})
     if (!filterClass && !filterLevel) {
-      // setCenters(centerArray)
       setNodes(nodeData)
       setLinks(linkData)
     } 
