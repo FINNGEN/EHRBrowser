@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Navigate, Routes, Route, useNavigate, useParams, useLocation } from 'react-router-dom';
 import '@fortawesome/fontawesome-free/css/all.min.css';
-import finngen from './img/finngen_logo_dark.svg'
+import finngen from './img/finnGen_logo.svg'
 import CryptoJS from "crypto-js";
 import Header from './components/header'
 import Visualization from './components/visualization'
 import { faX } from '@fortawesome/free-solid-svg-icons'
 import * as d3 from "d3";
 import po from './po.js';
+import { HLL_COUNT } from './mergeHll.js';
 import { UMAP } from 'umap-js';
 
 function App() {
@@ -47,7 +48,7 @@ function App() {
   const [filteredList, setFilteredList] = useState()
   const [rootLine, setRootLine] = useState()
   const [listIndexes, setListIndexes] = useState()
-  const [treeSelections, setTreeSelections] = useState(['descendants'])
+  const [relationship, setRelationship] = useState('descendants')
   const [openFilters,setOpenFilters] = useState(true)
   const [levelFilter, setLevelFilter] = useState()
   const [classFilter, setClassFilter] = useState(['All'])
@@ -69,24 +70,29 @@ function App() {
   const [hovered,setHovered] = useState([])
   const [colorList,setColorList] = useState([])
   const [fullClassList,setFullClassList] = useState([])
-  const [searchOnly, setSearchOnly] = useState(true)
-  const [searchIsLoaded, setSearchIsLoaded] = useState()
+  // const [searchOnly, setSearchOnly] = useState(true)
+  // const [searchIsLoaded, setSearchIsLoaded] = useState()
   const [version, setVersion] = useState()
   const [allVocabularies, setAllVocabularies] = useState([])
   const [searchFilter, setSearchFilter] = useState([])
   const [rootArray,setRootArray] = useState()
   const [dataArray, setDataArray] = useState([])
-  const [isConceptSet,setIsConceptSet] = useState(true)
-  const [rootLabels, setRootLabels] = useState([])
+  // const [isConceptSet,setIsConceptSet] = useState(true)
+  // const [rootLabels, setRootLabels] = useState([])
   const [refresh,setRefresh] = useState(false)
-  const [centers, setCenters] = useState()
+  // const [centers, setCenters] = useState()
   const [inclusions, setInclusions] = useState([])
   const [expression, setExpression] = useState([])
   const [edges, setEdges] = useState([])
   const [maxDistance, setMaxDistance] = useState()
   const [subspaces, setSubspaces] = useState()
   const [visitTypeNames, setVisitTypeNames] = useState()
+  const [countType,setCountType] = useState()
+  const [stackData, setStackData] = useState([])
+  const [expandedSearch, setExpandedSearch] = useState(true)
+  const [showConfirmation, setShowConfirmation] = useState(false)
   const fetchedRef = useRef(false)
+  const [nWidth,setNWidth] = useState(150)
   const [annotations,setAnnotations] = useState([{key:'PURCH',year:1995},{key:'REIM',year:1964},{key:'PRIM_OUT',year:2011},{key:'INPAT',year:1969},{key:'OUTPAT',year:1998},{key:'CANC',year:1953},{key:'DEATH',year:1969},{key:'OPER_IN',year:1969},{key:'OPER_OUT',year:1969},{key:'BIRTH_MOTHER',year:1953}])
   const [categories, setCategories] = useState([
     {key:'Long.',codes:['INPAT','OPER_IN','OPER_OUT','OUTPAT','PRIM_OUT','REIM','DEATH','PURCH','CANC']},
@@ -109,6 +115,11 @@ function App() {
   const years = useMemo(() => extent ? Array.from({ length: extent[1] - extent[0] + 1 }, (_, i) => extent[0] + i) : null,[extent])
   // let timer = null
 
+  async function runMerge(sketches) {
+    const result = await HLL_COUNT.MERGE(sketches)
+    return result
+  }
+  
   const loadNews = async () => {
     const res = await fetch('/NEWS.md')
     const text = await res.text()
@@ -159,50 +170,84 @@ function App() {
     } else {return allCounts}
   },[allCounts,graphFilter])
 
-  const stackData = useMemo(() => {
-    if (!filteredCounts || filteredCounts.all.length === 0) return []
-    else {
+  useEffect(() => {
+    async function buildStackData() {
+      if (!filteredCounts || filteredCounts.all.length === 0) {
+        setStackData([])
+        return
+      }
+
       const rollupA = new Map()
+
       for (const row of filteredCounts.counts) {
         const year = row.calendar_year
         const id = row.concept_id
         const key = `${year}__${id}`
-        const current = rollupA.get(key) ?? 0
-        const value = row['node_record_counts']
-        rollupA.set(key, current + value)
-      }
-      const rollupB = new Map()
-      for (const item of filteredCounts.descendantCounts) {
-        const id = item.name
-        for (const row of item.counts) {
-          const year = row.calendar_year
-          const value = row.node_record_counts
-          const key = `${year}__${id}`
-          const current = rollupB.get(key) ?? 0
-          rollupB.set(key, current + value)
+
+        const current =
+          countType === 'record'
+            ? rollupA.get(key) ?? 0
+            : rollupA.get(key) ?? []
+
+        const value =
+          countType === 'record'
+            ? row.node_record_counts ?? 0
+            : row.node_hll_person_counts ?? 0
+
+        if (countType === 'record') rollupA.set(key, current + value)
+        else {
+          if (value !== 0) rollupA.set(key, [...current, value])
         }
       }
+
+      const rollupB = new Map()
+
+      for (const item of filteredCounts.descendantCounts) {
+        const id = item.name
+
+        for (const row of item.counts) {
+          const year = row.calendar_year
+          const key = `${year}__${id}`
+
+          const current = rollupB.get(key) ?? 0
+          rollupB.set(key, current + row.node_record_counts)
+        }
+      }
+
       const rollupMap = new Map([...rollupA, ...rollupB])
       const yearConceptMap = new Map()
+
       for (const [key, value] of rollupMap.entries()) {
         const [year, id] = key.split('__')
         const y = +year
-        if (!yearConceptMap.has(y)) yearConceptMap.set(y, {})
-        yearConceptMap.get(y)[id] = value
+
+        if (!yearConceptMap.has(y)) {
+          yearConceptMap.set(y, {})
+        }
+
+        yearConceptMap.get(y)[id] =
+          countType === 'record'
+            ? value
+            : await runMerge(value)
       }
       const conceptNames = selectedConcepts.map(d => d.name)
       const allYears = new Set([...years, ...yearConceptMap.keys()])
+
       const finalData = Array.from(allYears).map(year => {
         const row = yearConceptMap.get(year) || {}
+
         const filled = {}
         for (const name of conceptNames) {
           filled[name] = row[name] ?? 0
         }
+
         return { ...filled, year }
       })
-      return finalData.sort((a, b) => a.year - b.year)  
+
+      setStackData(finalData.sort((a, b) => a.year - b.year))
     }
-  },[filteredCounts,classFilter])
+    buildStackData()
+  }, [filteredCounts,classFilter,countType])
 
   const genderData = useMemo(() => {
     let genderDataVar = []
@@ -256,6 +301,11 @@ function App() {
     return hexToRgb(hexColor)
   }
 
+  function moveSlider(index,w,id) {
+      const buffer = id === 'view' ? 1 : 0
+      d3.select('#slider-'+id).style('transform',`translateX(${index * (w+buffer)}%)`)
+  }
+
   function getCounts(data,col) {
     let sum = 0;
     data.forEach(d => sum += d[col])
@@ -265,7 +315,8 @@ function App() {
   function getAllDescendants(relationships, rootId, descendants) {
     const immediateChildren = relationships
       .filter(r => r.parent_concept_id === rootId && r.child_concept_id !== rootId)
-      .map(r => r.child_concept_id);
+      .filter(r => r.levels !== '-1')
+      .map(r => r.child_concept_id)
 
     for (const child of immediateChildren) {
       if (!descendants.includes(child)) { 
@@ -299,7 +350,6 @@ function App() {
         bmusID: [],
         ref: []
     }));
-      //console.log("N",JSON.parse(JSON.stringify(neurons.map(n=>n.weights))))
             
     // Helper function to update weights
     
@@ -384,13 +434,13 @@ function App() {
   const propagate = (layers,start,f,sorted=false) => {
     const below = layers.slice(0, start).reverse()
     const above = layers.slice(start + 1)
-    below.forEach(l => f(l,'up',sorted))
-    above.forEach(l => f(l,'down',sorted))
+    below.forEach(l => f(l,layers.indexOf(l),'up',sorted))
+    above.forEach(l => f(l,layers.indexOf(l),'down',sorted))
   }
 
   const bottomUp = (layers,f,sorted=false) => {
     for (let i = 1; i <= layers.length-1; i++) {
-        f(layers[i], 'down',sorted)
+        f(layers[i],i,'down',sorted)
     }
   }
 
@@ -430,15 +480,25 @@ function App() {
 
   function linearLayout(poset,edges,width,unFilteredPoset=null) {
     const unit_w = width
+    let bbIds = []
+    const nodes = poset.elements 
+    const layers = unFilteredPoset ? unFilteredPoset.layers.map(layer => layer.filter(e => nodes.includes(e))).filter(layer => layer.length > 0) : poset.layers
+    const tree = isTree(poset,nodes,edges,poset.analytics.suprema)
 
     function sortLayersByX(layers) {
       return layers.map(layer => layer.sort((a,b) => poset.featureOf(a,'x') - poset.featureOf(b,'x')))
     }
+    function getCenter(ids) {
+      return (Math.min(...poset.featureOf(ids,'x')) + Math.max(...poset.featureOf(ids,'x'))) / 2
+    }
 
-    const setX = (e,direction,sorted) => {
+    const setX = (e,l,direction,sorted) => {
       let idealPositions = []
       let sortedPositions = []
-      // let shiftToEnd = []
+      let shiftToEnd = []
+      const lowerLayer = e.map(n => poset.getLower(n).filter(d => d !== n)).flat()
+      const upperLayer = e.map(n => poset.getUpper(n).filter(d => d !== n)).flat().filter((e,n,l) => l.indexOf(e) === n)
+
       function shiftPositionsByGroup(group,sortedPositions,w) {
         const ref = group[0]
         const prevGroup = sortedPositions[sortedPositions.length-1]
@@ -449,17 +509,27 @@ function App() {
         } else sortedPositions = [...sortedPositions,group] 
         return sortedPositions
       }
+
       e.forEach(node => {
         let x
-        const refs = direction === 'up' ? poset.getUpper(node) : poset.getLower(node)
+        const refs = direction === 'up' ? poset.getUpper(node).filter(n => n !== node) : poset.getLower(node).filter(n => n !== node)
         const values = poset.featureOf(refs, "x").filter(v => v !== undefined)
         const sum = d3.sum(values)
         if (values.length !== 0) x = sum === 0 ? 0 : sum / values.length
         if (x == null) {
-          if (poset.featureOf(node,'x') == null) x = 0
-          else x = poset.featureOf(node,'x')
+          if (poset.featureOf(node,'x') == null || !sorted) x = 0
+          else  x = poset.featureOf(node,'x')
         }
-        if (x !== null) idealPositions.push({node:node,x:x})
+        if (x !== null) {
+          // full dangling layer with nothing below and max one shared parent above, spread around center of lowest layer
+          if (sorted && lowerLayer.length === 0 && upperLayer.length <= 1) {
+            x = getCenter(layers[0])
+            idealPositions.push({node:node,x:x}) 
+          }
+          // dangling node in layer
+          else if (sorted && poset.getLower(node).filter(n => n !== node).length === 0 && poset.getUpper(node).filter(n => n !== node).length === 0) shiftToEnd.push(node)
+          else idealPositions.push({node:node,x:x}) 
+        }
       })
 
       const groups = new Map()
@@ -484,16 +554,10 @@ function App() {
           else sortedPositions = shiftPositionsByGroup(group,sortedPositions,unit_w)
         }
       })
-      // if (shiftToEnd.length > 0) {
-      //   const max = d3.max(sortedPositions.flat().map(d => d.x))
-      //   shiftToEnd.forEach((node,i) => poset.featureOf(node,'x',max+unit_w+(unit_w*i)))
-      // }
+      const min = d3.min(sortedPositions.flat().map(d => d.x))
+      shiftToEnd.forEach((node,i) => poset.featureOf(node,'x',min - unit_w - (i*unit_w)))
       sortedPositions.flat().forEach(d => poset.featureOf(d.node,'x',d.x))
     }
-
-    const nodes = poset.elements 
-    const layers = unFilteredPoset ? unFilteredPoset.layers.map(layer => layer.filter(e => nodes.includes(e))).filter(layer => layer.length > 0) : poset.layers
-    const tree = isTree(poset,nodes,edges,poset.analytics.suprema)
 
     if (layers.length === 0) return
 
@@ -508,11 +572,14 @@ function App() {
 
     else {
       let L = layers.length - 1
-      let bbIds = layers[layers.length-1]
+      bbIds = layers[layers.length-1]
       if (!tree) {
+
+        // **** GET BB **** //
         const bb = layers.map((l,n)=>({n:n, l:l, deg:l.length === 0 ? 0 : l.map(node=>poset.featureOf(node,"node_degree")).reduce((acc,el)=>acc+el)})).sort((a,b)=>b.deg-a.deg)[0]
         const midPoint = Math.trunc((layers.length-1)/2)
         L = bb.n > midPoint ? bb.n : midPoint 
+
         const i = unFilteredPoset ? unFilteredPoset.layers.findIndex(l => layers[L].some(id => l.includes(id))) : L
         const pos = unFilteredPoset ? unFilteredPoset : poset
         const scores = tree || layers[L+1].length > 1 ? po.boundScores(pos,i) : po.dominanceScores(pos,i) 
@@ -527,14 +594,16 @@ function App() {
             return LE.neurons.flatMap(neu=>neu.bmusID)
         }).flat().filter(id => nodes.includes(id))
       }
+
       let acc = 0
       bbIds.forEach(id => {
         const x = acc + unit_w/2
         poset.featureOf(id,"x",x)
         acc += unit_w
       })
+
       propagate(layers,L,setX)
-      const sortedLayers = sortLayersByX(layers)
+      let sortedLayers = sortLayersByX(layers)
       bottomUp(sortedLayers,setX,true)
     }
   }
@@ -583,6 +652,91 @@ function App() {
         }
     }
   }
+
+  function updateInclusions(relationship) {
+      let newInclusions = []
+      if (relationship === 'descendants') {
+          newInclusions = sidebarRoot.name.map(r => nodes.map(n => n.name).includes(r) ? getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,nodes.find(n => n.name === r).descendants) : getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)))).flat().filter((e,n,l) => l.indexOf(e) === n)
+              .filter(i => sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts !== 0 && sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts)
+          setMapRoot([])
+          updateWidth([])
+      } else {
+          newInclusions = sidebarRoot.name.map(r => nodes.map(n => n.name).includes(r) ? getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,nodes.find(n => n.name === r).descendants) : getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)))).flat().filter((e,n,l) => l.indexOf(e) === n)
+              .map(i => fullTree.nodes.find(n => n.name === i).mappings.map(m => m.name)).flat()   
+              .filter(i => sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts !== 0)
+          const allMappings = nodes.filter(n => n.mappings.length > 0).map(n => n.name)
+          setMapRoot(allMappings)
+          updateWidth(allMappings)
+      }
+      updateConcepts(newInclusions,nodes,[],[])
+  }
+
+  function updateWidth(openedMappings) {
+    let positions = {}
+    poset.forEach((pos,i) => {
+        const nodeWidth = openedMappings.filter(r => pos.elements.includes(r.toString())).length > 0 ? nWidth*2 : nWidth
+        linearLayout(pos,edges,nodeWidth,subspaces[i]) 
+    })
+    spaceSubspaces(poset,openedMappings.length > 0 ? nWidth*2 : nWidth)
+    poset.forEach(pos => pos.elements.forEach(e => positions[e] = pos.featureOf(e,'x')))
+
+    const nodeList = nodes.map(d => d.name)
+    let nodesArray = nodes
+        .map(d => ({...d,x:positions[d.name]}))
+        .map(e => ({...e,mappings: e.mappings.map(map => ({...map,source: e}))}))
+    nodesArray = nodesArray.map(d => ({...d,connections:d.connections.map(c => ({...c,x:d.x,mid:getMidX(c.parents,nodesArray)}))}))
+    const linksArray = links.map(d=>({source: nodesArray[nodeList.indexOf(d.source.name)], target: nodesArray[nodeList.indexOf(d.target.name)]}))
+    setNodes(nodesArray)
+    setLinks(linksArray)    
+  }
+
+  function getMidX(ids,nodeList) {
+      let xPositions = []
+      ids.forEach(id => xPositions.push(nodeList.filter(d => d.name === id)[0].x))
+      const midX = d3.sum(xPositions)/xPositions.length
+      return midX
+  }
+
+  function updateConcepts(inclusionList,nodeList,toAdd,toRemove) {
+    let newNodes = nodeList
+        .map(e => ({
+            ...e,
+            included_descendants: [...e.descendants.filter(d => inclusionList.includes(d)),...e.descendants.map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => inclusionList.includes(d))]
+        }))
+        .map(e => ({
+            ...e,
+            descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => e.included_descendants.includes(c.concept_id)),
+            // *** use a maxDistance variable instead of levelFilter? ***
+            leaf: e.included_descendants.filter(d => d !== e.name  && !e.mappings.map(m => m.name).includes(d)).length > 0 && ((e.distance === maxDistance && !links.map(d => d.source).map(d => d.name).includes(e.name)) && e.levels !== '-1') ? true : false}
+        ))
+        .map(e => ({...e,descendant_counts:getCounts(e.descendant_code_counts,'node_record_counts')}))
+    let newConnections = crossConnections
+        .filter(c => inclusionList.includes(c.child) || fullTree.nodes.find(n => n.name === c.child).mappings.map(m => m.name).some(item => inclusionList.includes(item)))
+        .map(d => ({...d,parents:d.parents.filter(p => newNodes.map(d => d.name).includes(p)).filter(p => newNodes.filter(d => d.name === p)[0]?.leaf)}))
+    newConnections = newConnections.filter(d => d.parents.length > 1)
+    newNodes = newNodes.map(e => ({...e,connections: newConnections.filter(c => c.parents.includes(e.name)).map(d => ({...d,source:e.name}))}))
+    const updatedSelections = newNodes
+        .filter(d => !d.leaf ? inclusionList.includes(d.name) : d)
+        .map(d => ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: !d.leaf ? d.data : {...d.data,descendant_code_counts:d.descendant_code_counts}})) 
+    const mapSelections = newNodes.map(d => d.mappings).flat()
+        .filter(d => inclusionList.includes(d.name) && !newNodes.find(n => n.name === d.source.name).leaf)
+        .map(d => ({name: d.name, leaf: false, distance: d.distance, data: d.data}))
+    let newSelections = [...updatedSelections,...mapSelections]
+    if (toAdd.length > 0) {
+        toAdd = toAdd.map(d => d.source ? ({name: d.name, leaf: false, distance: d.distance, data: d.data}) : ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: d.data}))
+        newSelections = [...newSelections.filter(d => !toAdd.map(e => e.name).includes(d.name)),...toAdd]
+    }
+    if (toRemove.length > 0) {
+        newSelections = newSelections.filter(d => !toRemove.map(e => e.name).includes(d.name))
+    } 
+    newSelections.sort((a,b) => d3.ascending(a.distance, b.distance))
+    let isPruned = false
+    newNodes.filter(d => d.leaf).forEach(d => d.children.length > 0 ? isPruned = true : null)
+    setPruned(isPruned)
+    setSelectedConcepts(newSelections)
+    setInclusions(inclusionList)
+    setNodes(newNodes)
+  }
   
   // *** optimize this ***
   function createInitialStates(data,filterClass,filterLevel,filteredClassList) {
@@ -590,6 +744,7 @@ function App() {
     // create data 
     const subsumesData = data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to")
     const mappingData = data.concept_relationships.filter(d => d.levels === "Mapped from" || d.levels === "Maps to")
+    
     // what is this doing???
     let nodeData = Array.from(
       subsumesData
@@ -637,10 +792,10 @@ function App() {
         .feature("lower_bound",(node)=>pos.getLower(node))
         .feature("upper_bound",(node)=>pos.getUpper(node))
         .feature("node_degree",(node,f)=>f.lower_bound.length+f.upper_bound.length)
-      linearLayout(pos,edges,150)
+      linearLayout(pos,edges,nWidth)
       posetArray.push(pos)
     })
-    spaceSubspaces(posetArray,150)
+    spaceSubspaces(posetArray,nWidth)
     posetArray.forEach(pos => pos.elements.forEach(e => positions[e] = pos.featureOf(e,'x')))
 
     // create nodes 
@@ -698,7 +853,7 @@ function App() {
 
     // set selections
     const inclusionList = rootArray.map(r => getInclusions(rootArray,nodeData,r,excludeList,descendantsFilter,nodeData.find(n => n.name === r).descendants)).flat()
-      .filter(i => nodeData.find(n => n.name === i).levels !== '-1')
+      .filter(i => nodeData.find(n => n.name === i).levels !== '-1' && nodeData.find(n => n.name === i).levels)
       .filter(i => nodeData.find(n => n.name === i).total_counts !== 0)
     setInclusions(inclusionList)
     nodeData = nodeData.map(e=>({
@@ -730,7 +885,7 @@ function App() {
           'direction': e.levels === "Mapped from" ? -1 : 1,
           'distance': node.distance,
           'source': node,
-          'color': node.color,
+          'color': generateColor(e.child_concept_id),
           'total_counts': getCounts(data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),'node_record_counts'),
           'descendant_counts': data.concepts.find(c => c.concept_id === e.child_concept_id).descendant_record_counts,
           'data': {code_counts: data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),concept: data.concepts.filter(d => d.concept_id === e.child_concept_id)[0]}
@@ -780,12 +935,14 @@ function App() {
   useEffect(()=>{
     console.log('start app')
     const params = new URLSearchParams(window.location.search)
+    // runMerge(['CHAQBBgCIAuCBxIQBBgKIA8yCvs0lwn7kAH0lQU=', 'CHAQBBgCIAuCBxEQBBgKIA8yCdYU/IoB2x/MFQ==', 'CHAQBxgCIAuCBxYQBxgKIA8yDu0EqRv5I50qzCb7Eo8x', 'CHAQCxgCIAuCByAQCxgKIA8yGLUF6jCeML4howyuAawG5EbIGN2RAsDKAg==', 'CHAQBRgCIAuCBxIQBRgKIA8yCrIE5mr/E84I5VQA', 'CHAQBRgCIAuCBxIQBRgKIA8yCrxB4UqoEPZIyREA', 'CHAQARgCIAuCBwsQARgKIA8yA+nTAQ==', 'CHAQAxgCIAuCBw4QAxgKIA8yBtJLPamvAQ==', 'CHAQBRgCIAuCBxIQBRgKIA8yCo8OiTzWCJUE1B8A', 'CHAQCRgCIAuCBxoQCRgKIA8yEtYDlgH3BfBF6BHBXeUE3B3oAg==', 'CHAQDBgCIAuCBx8QDBgKIA8yF5wUxhj7EdYQoBLeS9gS1gyNAYspVa4D', 'CHAQCBgCIAuCBxkQCBgKIA8yEdJBZYEFxBbiJbBq85EDwOMB', 'CHAQBxgCIAuCBxYQBxgKIA8yDuhD9SWfCOEWyC63D8ox', 'CHAQAxgCIAuCBw4QAxgKIA8yBuMK8X2Ndg=='])
+    // runMerge('CHAQBBgCIAuCBxEQBBgKIA8yCdYU/IoB2x/MFQ==')
+    // runMerge(['CHAQBRgCIAuCBxIQBRgKIA8yCrxB4UqoEPZIyREA'])
     setLoaded(true)
     loadNews()
     fetch(`${API_BASE_URL}/getVisitTypeNames`)
       .then(res=> res.json())
       .then(data=>{
-        console.log('visit type names',data)
         setVisitTypeNames(data.map(normalizeVisitTypeName).filter(d => Number.isFinite(d.visitGroupConceptId)))
         // setGraphFilter({gender:-1,age:[-1],source:visitTypeNames.map(obj => obj.visitGroupConceptId)})
       })
@@ -797,47 +954,38 @@ function App() {
     fetch(`${API_BASE_URL}/getListOfConcepts`)
       .then(res=> res.json())
       .then(data=>{
-        // console.log("concept list",data)
         const vocabList = data.map(d => d.vocabulary_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined)
         setConceptList(data)
         setFilteredList(data)
         setAllVocabularies(vocabList)
-        setLoading(true)
-        // setTimeout(() => {
-        //   setSearchIsLoaded(true)
-        //   setLoading(false)
-        // },3000)
+        // setLoading(true)
       })
   }, [])
 
   // on concept list load
-  useEffect(()=>{
-    if (conceptList.length > 0) {
-      setSearchIsLoaded(true)
-      setLoading(false)
-    }
-  },[conceptList])
+  // useEffect(()=>{
+  //   if (conceptList.length > 0) {
+  //     // setSearchIsLoaded(true)
+  //     setLoading(false)
+  //     console.log('concept list',conceptList)
+  //   }
+  // },[conceptList])
 
   // on root load
   useEffect(()=>{
     setLoading(true)
     if (!root) {
       setRootData([])
-      setRootLabels([])
-      setIsConceptSet(false)
-      setSearchOnly(true)
+      // setRootLabels([])
+      // setIsConceptSet(false)
+      // setSearchOnly(true)
+      setLoading(false)
     } else {
-      // setLoading(true)
       fetchedRef.current = true
-      setSearchOnly(false)
+      // setSearchOnly(false)
       setLevelFilter()
       setClassFilter(['All'])
-      // const timer = setTimeout(() => {
-      //     setLoading(true)
-      // }, 300)
       const array = root.split(',').map(Number)
-      // if (array.length > 1) setIsConceptSet(true)
-      // else setIsConceptSet(false)
       setRootArray(array)
       if (expression.length > 0) {
         setDescendantsFilter(expression.filter(e => !e.descendants).map(e => e.name))
@@ -856,15 +1004,12 @@ function App() {
       )
       .then(data => {
         setDataArray(data)
-        // setLoading(false)
-        // clearTimeout(timer)
       })
       .catch(err => {
         console.error("Fetch failed:", err.message)
-        // setLoading(true)
+        setLoading(false)
         d3.select('#error-message').style('display','block')
-        d3.select('#loading-animation').style('visibility','hidden')
-        // clearTimeout(timer)
+        // d3.select('#loading-animation').style('visibility','hidden')
       })  
     }
   },[root])
@@ -896,16 +1041,13 @@ function App() {
         combinedData.concepts = filteredData.map(d => d.concepts).flat().filter((e, i, a) => a.findIndex(x => deepEqual(x, e)) === i)
         combinedData.stratified_code_counts = filteredData.map(d => d.stratified_code_counts).flat()
       } 
+      setCountType('record')
       setRootData(combinedData)
       setSidebarRoot({name:rootArray,data:combinedData}) 
-      setRootLabels(rootArray.map(root => ({id:root,name:combinedData.concepts.find(e=>e.concept_id === root).concept_name,code:combinedData.concepts.find(e=>e.concept_id === root).concept_code,vocabulary:combinedData.concepts.find(e=>e.concept_id === root).vocabulary_id})))
+      // setRootLabels(rootArray.map(root => ({id:root,name:combinedData.concepts.find(e=>e.concept_id === root).concept_name,code:combinedData.concepts.find(e=>e.concept_id === root).concept_code,vocabulary:combinedData.concepts.find(e=>e.concept_id === root).vocabulary_id})))
       if (d3.select('#suggestions-container').style('visibility') === 'hidden') setRefresh(true)
-      setView('Set')
-      // if (rootArray.length > 1) setView('Set')
-      // else setView('Tree')
+      setView('list')
       d3.select("#graph-section").style('width', "60vw")
-      d3.select('#expand').style('display', 'block') 
-      d3.select('#compress').style('display', 'none') 
       setGraphFilter({gender:-1,age:[-1],source:[-1]})
       let filterClass = false
       let classList = combinedData.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined)
@@ -916,13 +1058,10 @@ function App() {
         filteredClassList = classList.filter(d => d !== 'Ingredient' && d !== 'Clinical Drug Comp') 
         setRemovedClasses(classList.filter(d => d === "Ingredient" || d === 'Clinical Drug Comp'))
         filterClass = true
-        // setClassFilter(filteredClassList) 
       } 
-      // else setClassFilter(['All'])
-      setTreeSelections(['descendants'])
+      setRelationship('descendants')
       setOpenFilters(true)
       setHovered([])
-      // setMapRoot([])
       setNodes([])
       setLinks([])
       setVisible(false)
@@ -938,86 +1077,66 @@ function App() {
   },[dataArray])
 
   // search bar labels
-  useEffect(() => {
-    d3.select('#search-root-container').selectAll('.search-root').data(rootLabels, d => d.name)
-      .join(enter => {
-          const div = enter.append('div')
-            .classed('search-root',true)
-            .style('margin-left', (d,i) => (rootLabels.length <= 2 || i == 0) ? '0px' : '-116px')
-            .style('z-index', (d, i) => i == 0 ? 10 : 10 - i)
-          const pContainer = div.append('div')
-            .classed('search-p-container',true)
-            .style("filter", "drop-shadow(0px 3px 5px rgba(0,0,0,0.4))")
-            .style('width', (d,i) => (rootLabels.length <= 2 || i == 0) ? 'auto' : '100px')
-            // .style('border', (d,i) => rootLabels.length > 2 ? '1px solid #342458' : 'none')
-            .style('background-color',color.mediumpurple)
-            .style('height','26px')
-            .style('border-radius','20px')
-            .style('padding-right','14px')
-            .style('padding-left','14px')
-            .style('display','flex')
-            .style('align-items','center')
-            .style('justify-content','center')
-            .style("cursor","text")
-            .on('click',(e,d) => {
-              setRefresh(false)
-              document.getElementById('searchConcept').focus()
-            })
-          pContainer.append('p')
-            .classed('search-root-name',true)
-            .style('padding-bottom','2px')
-            .html((d,i) => (rootLabels.length <= 2 || i == 0) ? d.name.length > 20 ? d.name.substring(0, 20) + '...' : d.name : '')
-          pContainer.append('p')
-            .classed('search-root-code',true)
-            .html((d,i) => (rootLabels.length <= 2 || i == 0) ? d.code : '')
-            // .style('margin-top','1px')
-            .style('margin-left','4px')
-            .style('font-size','10px')
-            .style('font-weight',700)
-            .style('color','white')
-          pContainer.append('p')
-            .classed('search-root-vocab',true)
-            .html((d,i) => (rootLabels.length <= 2 || i == 0) ? d.vocabulary : '')
-            // .style('margin-top','1px')
-            .style('margin-left','4px')
-            .style('font-size','10px')
-            .style('font-weight',400)
-            .style('color','ffffff80')
-          div.append('i')
-            .classed('search-x fa-solid fa-x fa-xs',true)
-            .style('pointer-events','all')
-            .style("display", rootLabels.length <= 2 ? 'block' : 'none')
-            .style('color','white')
-            .style('padding-left','4px')
-            .style('margin-right','2px')
-            .style('cursor','pointer')
-            .on('click',(e,d) => {
-              const array = root.split(',').map(Number)
-              const arrayToString = array.filter(root => root !== d.id).join(",")
-              navigate(`/${arrayToString}`)
-            })
-      },update => {
-        update
-          .style('margin-left', (d,i) => (rootLabels.length <= 2 || i == 0) ? '0px' : '-116px')
-          .style('z-index', (d, i) => i == 0 ? 10 : 10 - i)
-        update.select('.search-p-container')
-          .style('width', (d,i) => (rootLabels.length <= 2 || i == 0) ? 'auto' : '100px')
-          // .style('border', (d,i) => rootLabels.length > 2 ? '1px solid #342458' : 'none')
-        update.select('.search-root-name')
-          .html((d,i) => (rootLabels.length <= 2 || i == 0) ? d.name.length > 20 ? d.name.substring(0, 20) + '...' : d.name : '')
-        update.select('.search-root-code')
-          .html((d,i) => (rootLabels.length <= 2 || i == 0) ? d.code : '')
-        update.select('.search-root-vocab')
-          .html((d,i) => (rootLabels.length <= 2 || i == 0) ? d.vocabulary : '')
-        update.select('.search-x')
-          .style("display", rootLabels.length <= 2 ? 'block' : 'none')
-          .on('click',(e,d) => {
-            const array = root.split(',').map(Number)
-            const arrayToString = array.filter(root => root !== d.id).join(",")
-            navigate(`/${arrayToString}`)
-          })
-      })  
-  }, [rootLabels])
+  // useEffect(() => {
+  //   d3.select('#search-root-container').selectAll('.search-root').data(rootLabels, d => d.name)
+  //     .join(enter => {
+  //         const div = enter.append('div')
+  //           .classed('search-root flex btn',true)
+  //           .style('margin-left', (d,i) => (rootLabels.length <= 3 || i == 0) ? '0px' : '-110px')
+  //           .style('z-index', (d, i) => i == 0 ? 10 : 10 - i)
+  //         const pContainer = div.append('div')
+  //           .classed('search-p-container',true)
+  //           .classed('rootLabel',true)
+  //           .classed('conceptLabel',true)
+  //           .style('width', (d,i) => (rootLabels.length <= 3 || i == 0) ? 'auto' : '100px')
+  //           .on('click',(e,d) => {
+  //             setRefresh(false)
+  //             document.getElementById('searchConcept').focus()
+  //           })
+  //         pContainer.append('p')
+  //           .classed('search-root-name',true)
+  //           .classed('conceptName',true)
+  //           .html((d,i) => (rootLabels.length <= 3 || i == 0) ? d.name.length > 16 ? d.name.substring(0, 16) + '...' : d.name : '')
+  //         pContainer.append('p')
+  //           .classed('search-root-code',true)
+  //           .classed('conceptCode',true)
+  //           .html((d,i) => (rootLabels.length <= 3 || i == 0) ? d.code : '')
+  //         pContainer.append('p')
+  //           .classed('search-root-vocab',true)
+  //           .classed('conceptVocab',true)
+  //           .html((d,i) => (rootLabels.length <= 3 || i == 0) ? d.vocabulary : '')
+  //         div.append('i')
+  //           .classed('search-x fa-solid fa-x icon',true)
+  //           .style('pointer-events','all')
+  //           .style("display", rootLabels.length <= 3 ? 'block' : 'none')
+  //           .style('padding-left','3px')
+  //           .style('margin-right','0px')
+  //           .on('click',(e,d) => {
+  //             const array = root.split(',').map(Number)
+  //             const arrayToString = array.filter(root => root !== d.id).join(",")
+  //             navigate(`/${arrayToString}`)
+  //           })
+  //     },update => {
+  //       update
+  //         .style('margin-left', (d,i) => (rootLabels.length <= 3 || i == 0) ? '0px' : '-110px')
+  //         .style('z-index', (d, i) => i == 0 ? 10 : 10 - i)
+  //       update.select('.search-p-container')
+  //         .style('width', (d,i) => (rootLabels.length <= 3 || i == 0) ? 'auto' : '100px')
+  //       update.select('.search-root-name')
+  //         .html((d,i) => (rootLabels.length <= 3 || i == 0) ? d.name.length > 16 ? d.name.substring(0, 16) + '...' : d.name : '')
+  //       update.select('.search-root-code')
+  //         .html((d,i) => (rootLabels.length <= 3 || i == 0) ? d.code : '')
+  //       update.select('.search-root-vocab')
+  //         .html((d,i) => (rootLabels.length <= 3 || i == 0) ? d.vocabulary : '')
+  //       update.select('.search-x')
+  //         .style("display", rootLabels.length <= 3 ? 'block' : 'none')
+  //         .on('click',(e,d) => {
+  //           const array = root.split(',').map(Number)
+  //           const arrayToString = array.filter(root => root !== d.id).join(",")
+  //           navigate(`/${arrayToString}`)
+  //         })
+  //     })  
+  // }, [rootLabels])
 
   return ( loaded ?
     <div className = "App">
@@ -1034,28 +1153,34 @@ function App() {
         setFilteredList = {setFilteredList}
         listIndexes = {listIndexes}
         apiInfo = {apiInfo}
-        searchIsLoaded = {searchIsLoaded}
+        // searchIsLoaded = {searchIsLoaded}
         version = {version}
         allVocabularies = {allVocabularies}
         searchFilter = {searchFilter}
         setSearchFilter = {setSearchFilter}
-        isConceptSet = {isConceptSet}
-        setIsConceptSet = {setIsConceptSet}
+        // isConceptSet = {isConceptSet}
+        // setIsConceptSet = {setIsConceptSet}
         refresh = {refresh}
         setRefresh = {setRefresh}
         setExpression = {setExpression}
         setLoading = {setLoading}
         loading = {loading}
         API_BASE_URL = {API_BASE_URL}
+        expandedSearch = {expandedSearch}
+        setExpandedSearch = {setExpandedSearch}
+        moveSlider = {moveSlider}
+        relationship = {relationship}
+        setRelationship = {setRelationship}
+        countType = {countType}
+        setCountType = {setCountType}
+        updateInclusions = {updateInclusions}
       />
-      {(searchIsLoaded && searchOnly) && <div className = "loading">
-        <img style = {{width:60,opacity: 0.2}} src={finngen} alt="Finngen logo"/>
-      </div>}
-      {(!searchIsLoaded || initialPrune || loading) && <div className = "loading" style={{ fontSize: '20px' }}>
-        <div style = {{display: 'none',fontSize:16}} id = "error-message">Concept not found</div>
+      {(conceptList.length > 0 && !root) && <div className = "loading"><img style = {{width:60,opacity: 0.2}} src={finngen} alt="Finngen logo"/></div>}
+      {(!conceptList || loading || initialPrune) && <div className = "loading" style={{ fontSize: '20px' }}>
         <div id = "loading-animation" class="lds-grid" style = {{visibility: 'visible'}}><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
       </div>}
-      <div id = "content" style={{ visibility: loading || initialPrune ? 'hidden' : 'visible',opacity: loading || initialPrune ? 0 : 1 }}>
+      <div style = {{display: 'none',fontSize:16}} id = "error-message">Concept not found</div>
+      <div id = "content" style={{ visibility: loading || initialPrune ? 'hidden' : 'visible'}}>
         <Routes>
           <Route path="/" element={<Navigate to="/" replace />} />
           <Route path="/:urlCode" element={
@@ -1087,8 +1212,8 @@ function App() {
               setLinks = {setLinks}
               list = {list}
               rootLine = {rootLine}
-              treeSelections = {treeSelections}
-              setTreeSelections = {setTreeSelections}
+              relationship = {relationship}
+              setRelationship = {setRelationship}
               levelFilter = {levelFilter}
               setLevelFilter = {setLevelFilter}
               maxLevel = {maxLevel}
@@ -1131,8 +1256,8 @@ function App() {
               excludeList = {excludeList}
               setExcludeList = {setExcludeList}
               annotations = {annotations}
-              centers = {centers}
-              setCenters = {setCenters}
+              // centers = {centers}
+              // setCenters = {setCenters}
               inclusions = {inclusions}
               setInclusions = {setInclusions}
               getAllDescendants = {getAllDescendants}
@@ -1146,6 +1271,15 @@ function App() {
               subspaces = {subspaces}
               spaceSubspaces = {spaceSubspaces}
               visitTypeNames = {visitTypeNames}
+              nWidth = {nWidth}
+              countType = {countType}
+              setCountType = {setCountType}
+              moveSlider = {moveSlider}
+              updateConcepts = {updateConcepts}
+              updateWidth = {updateWidth}
+              getMidX = {getMidX}
+              showConfirmation = {showConfirmation}
+              setShowConfirmation = {setShowConfirmation}
             />      
           } />
         </Routes>

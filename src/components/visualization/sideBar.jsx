@@ -2,6 +2,8 @@
     import { useNavigate } from 'react-router-dom';
     import '@fortawesome/fontawesome-free/css/all.min.css';
     import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+    import openedEye from '../../img/opened-eye.svg'
+    import closedEye from '../../img/closed-eye.svg'
     import { faCaretLeft } from '@fortawesome/free-solid-svg-icons'
     import { faCaretRight } from '@fortawesome/free-solid-svg-icons'
     import { faExpand } from '@fortawesome/free-solid-svg-icons'
@@ -15,6 +17,7 @@
     import * as d3 from "d3";
     import po from '../../po.js';
     import textures from 'textures';
+import { hover } from '@testing-library/user-event/dist/hover.js';
 
     function SideBar (props) {
         const navigate = useNavigate()
@@ -34,8 +37,8 @@
         const nodes = props.nodes
         const links = props.links
         const list = props.list
-        const treeSelections = props.treeSelections
-        const setTreeSelections = props.setTreeSelections
+        const relationship = props.relationship
+        const setRelationship = props.setRelationship
         const levelFilter = props.levelFilter
         const setLevelFilter = props.setLevelFilter
         const maxLevel = props.maxLevel
@@ -66,7 +69,7 @@
         const setDescendantsFilter = props.setDescendantsFilter
         const excludeList = props.excludeList
         const setExcludeList = props.setExcludeList
-        const centers = props.centers
+        // const centers = props.centers
         const inclusions = props.inclusions
         const setInclusions = props.setInclusions
         const getInclusions = props.getInclusions
@@ -78,8 +81,15 @@
         const getMidX = props.getMidX
         const subspaces = props.subspaces
         const spaceSubspaces = props.spaceSubspaces
-        // const setRoot = props.setRoot
-        // const [graphSectionWidth, setGraphSectionWidth] = useState()
+        const nWidth = props.nWidth
+        const moveSlider = props.moveSlider
+        const updateWidth = props.updateWidth
+        const showConfirmation = props.showConfirmation
+        const showConfirmationPopup = props.showConfirmationPopup
+        const showActionLabel = props.showActionLabel
+        const formatThousands = props.formatThousands
+        const clearHideTimer = props.clearHideTimer
+        const setShowConfirmation = props.setShowConfirmation
         const margin = 10
         let hoverTimeout = null
         let currentTarget = null
@@ -198,28 +208,9 @@
             }
             const newInclusions = sidebarRoot.name.map(r => nodes.map(n => n.name).includes(r) ? getInclusions(sidebarRoot.name,fullTree.nodes,r,eList,dFilter,nodes.find(n => n.name === r).descendants) : getInclusions(sidebarRoot.name,fullTree.nodes,r,eList,dFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)))).flat().filter((e,n,l) => l.indexOf(e) === n)
                 .filter(i => fullTree.nodes.find(n => n.name === i).levels !== '-1')
-                .map(i => treeSelections.includes('mappings') ? fullTree.nodes.find(n => n.name === i).mappings.map(m => m.name) : i).flat()   
+                .map(i => relationship === 'mappings' ? fullTree.nodes.find(n => n.name === i).mappings.map(m => m.name) : i).flat()   
                 .filter(i => sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts !== 0)
             updateConcepts(newInclusions,nodes,[],[])
-        }
-        // *** fix this, now that edges can be from full tree ***
-        function updateWidth(openedMappings) {
-            
-            const nodeList = nodes.map(d => d.name)
-            const filteredSubspaces = subspaces.map(nodes => nodes.filter(n => poset.elements.includes(n)))
-            filteredSubspaces.filter(nodes => nodes.length > 0).forEach(nodes => { 
-                const nWidth = openedMappings.filter(r => nodes.includes(r.toString())).length > 0 ? 300 : 150
-                linearLayout(poset,edges,nodes,nWidth)
-            })
-            spaceSubspaces(poset,filteredSubspaces,150)
-            // *** need to re-space not in poset nodes ***
-            let nodesArray = nodes
-                .map(d => ({...d,x:poset.elements.includes(d.name.toString()) ? poset.featureOf(d.name,"x") ? poset.featureOf(d.name,"x") : d.x : d.x}))
-                .map(e => ({...e,mappings: e.mappings.map(map => ({...map,source: e}))}))
-            nodesArray = nodesArray.map(d => ({...d,connections:d.connections.map(c => ({...c,x:d.x,mid:getMidX(c.parents,nodesArray)}))}))
-            const linksArray = links.map(d=>({source: nodesArray[nodeList.indexOf(d.source.name)], target: nodesArray[nodeList.indexOf(d.target.name)]}))
-            setNodes(nodesArray)
-            setLinks(linksArray)    
         }
                         
         // DRAWING
@@ -911,7 +902,7 @@
                                 .transition(2000)
                                 .attr('cx', d => getMap(d).x)
                                 .attr('cy', d => mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : getYPosition(d.source, 'z', cy + (genHeight[d.distance]), d))
-                                // .style('pointer-events', d => d.total_counts === 0 || !treeSelections.includes('mappings') ? 'none' : 'all')
+                                // .style('pointer-events', d => d.total_counts === 0 || relationship !== 'mappings' ? 'none' : 'all')
                             update.select('.map-total-counts')
                                 .text(d => d.total_counts)
                                 .style('opacity', d => mapRoot.includes(d.source.name) ? 1 : 0)
@@ -1237,33 +1228,33 @@
                         const label = geometry.append('g')
                             .classed('label', true)
                             .style('pointer-events','all')
-                            .on('mouseover', function (e,d) {
-                                if (d.levels === '-1') {
-                                    d3.select('#subsumes-node-'+d.name).style('opacity',1)
-                                    d3.select('#tree-text-'+d.name).style('opacity',1)
-                                    d3.select('#alt-group-'+d.name).style('opacity',1)
-                                }
-                                d3.select('#tree-text-'+d.name).attr('fill', color.text).attr('font-weight', 700)
-                                d3.select('#label-rect-'+d.name).attr('fill-opacity',1).attr('fill', color.lightpurple)
-                                const el = this
-                                el.__hoverTimeout__ = setTimeout(() => {
-                                    if (d.levels !== "-1") setHovered([d.name])
-                                    tooltipHover(d, "enter", e)  
-                                }, 400)
-                            })
-                            .on('mouseout', function (e,d) {
-                                const el = this
-                                clearTimeout(el.__hoverTimeout__)
-                                if (d.levels === '-1') {
-                                    d3.select('#subsumes-node-'+d.name).style('opacity',0.5)
-                                    d3.select('#tree-text-'+d.name).style('opacity',0.5)
-                                    d3.select('#alt-group-'+d.name).style('opacity',0.5)
-                                }
-                                d3.select('#tree-text-'+d.name).attr('fill', d => conceptNames.includes(d.name) || sidebarRoot.name.includes(d.name) ? color.text : color.textlight).attr('font-weight', d => sidebarRoot.name.includes(d.name) ? 700 : 400)
-                                d3.select('#label-rect-'+d.name).attr('fill-opacity', d => sidebarRoot.name.includes(d.name) ? 1 : 0.7).attr('fill', d => sidebarRoot.name.includes(d.name) ? color.lightpurple : 'white')
-                                if (d.levels !== "-1") setHovered([])
-                                tooltipHover(d, "leave", e)   
-                            })
+                            // .on('mouseover', function (e,d) {
+                            //     if (d.levels === '-1') {
+                            //         d3.select('#subsumes-node-'+d.name).style('opacity',1)
+                            //         d3.select('#tree-text-'+d.name).style('opacity',1)
+                            //         d3.select('#alt-group-'+d.name).style('opacity',1)
+                            //     }
+                            //     d3.select('#tree-text-'+d.name).attr('fill', color.text).attr('font-weight', 700)
+                            //     d3.select('#label-rect-'+d.name).attr('fill-opacity',1).attr('fill', color.lightpurple)
+                            //     const el = this
+                            //     el.__hoverTimeout__ = setTimeout(() => {
+                            //         if (d.levels !== "-1") setHovered([d.name])
+                            //         tooltipHover(d, "enter", e)  
+                            //     }, 400)
+                            // })
+                            // .on('mouseout', function (e,d) {
+                            //     const el = this
+                            //     clearTimeout(el.__hoverTimeout__)
+                            //     if (d.levels === '-1') {
+                            //         d3.select('#subsumes-node-'+d.name).style('opacity',0.5)
+                            //         d3.select('#tree-text-'+d.name).style('opacity',0.5)
+                            //         d3.select('#alt-group-'+d.name).style('opacity',0.5)
+                            //     }
+                            //     d3.select('#tree-text-'+d.name).attr('fill', d => conceptNames.includes(d.name) || sidebarRoot.name.includes(d.name) ? color.text : color.textlight).attr('font-weight', d => sidebarRoot.name.includes(d.name) ? 700 : 400)
+                            //     d3.select('#label-rect-'+d.name).attr('fill-opacity', d => sidebarRoot.name.includes(d.name) ? 1 : 0.7).attr('fill', d => sidebarRoot.name.includes(d.name) ? color.lightpurple : 'white')
+                            //     if (d.levels !== "-1") setHovered([])
+                            //     tooltipHover(d, "leave", e)   
+                            // })
                             .on('click', (e,d) => {
                                 tooltipHover(d, 'leave', e)
                                 setLoading(true)
@@ -1280,7 +1271,7 @@
                                 let concept_info = d.data.concept
                                 nodes.forEach(n => n.distance === d.distance ? genLength++ : null)
                                 let text = concept_info.concept_name || concept_info.concept_id.toString()
-                                if ((treeSelections.includes('mappings') && d.mappings?.length > 0) || mapRoot.includes(d.name)) {
+                                if ((relationship === 'mappings' && d.mappings?.length > 0) || mapRoot.includes(d.name)) {
                                     maxWidth = 18
                                 }
                                 else {
@@ -1743,7 +1734,7 @@
                                 .transition(2000)
                                 .attr('cx', d => getMap(d).x)
                                 .attr('cy', d => mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : getYPosition(d.source, 'z', cy + (genHeight[d.distance]), d))
-                                // .style('pointer-events', d => d.total_counts === 0 || !treeSelections.includes('mappings') ? 'none' : 'all')
+                                // .style('pointer-events', d => d.total_counts === 0 || relationship !== 'mappings' ? 'none' : 'all')
                             update.select('.map-total-counts')
                                 .text(d => d.total_counts)
                                 .style('opacity', d => mapRoot.includes(d.source.name) ? 1 : 0)
@@ -1947,33 +1938,33 @@
                             .attr('x', d => d.x - (d3.select('#alt-text-'+d.name).node().getBBox().width + 6)/2)
                             .attr('y', d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 4)
                         update.select('.label')
-                            .on('mouseover', function (e,d) {
-                                if (d.levels === '-1') {
-                                    d3.select('#subsumes-node-'+d.name).style('opacity',1)
-                                    d3.select('#tree-text-'+d.name).style('opacity',1)
-                                    d3.select('#alt-group-'+d.name).style('opacity',1)
-                                }
-                                d3.select('#tree-text-'+d.name).attr('fill', color.text).attr('font-weight', 700)
-                                d3.select('#label-rect-'+d.name).attr('fill-opacity',1).attr('fill', color.lightpurple)
-                                const el = this
-                                el.__hoverTimeout__ = setTimeout(() => {
-                                    if (d.levels !== "-1") setHovered([d.name])
-                                    tooltipHover(d, "enter", e)  
-                                }, 400)
-                            })
-                            .on('mouseout', function (e,d) {
-                                const el = this
-                                clearTimeout(el.__hoverTimeout__)
-                                if (d.levels === '-1') {
-                                    d3.select('#subsumes-node-'+d.name).style('opacity',0.5)
-                                    d3.select('#tree-text-'+d.name).style('opacity',0.5)
-                                    d3.select('#alt-group-'+d.name).style('opacity',0.5)
-                                }
-                                d3.select('#tree-text-'+d.name).attr('fill', d => conceptNames.includes(d.name) || sidebarRoot.name.includes(d.name) ? color.text : color.textlight).attr('font-weight', d => sidebarRoot.name.includes(d.name) ? 700 : 400)
-                                d3.select('#label-rect-'+d.name).attr('fill-opacity', d => sidebarRoot.name.includes(d.name) ? 1 : 0.7).attr('fill', d => sidebarRoot.name.includes(d.name) ? color.lightpurple : 'white')
-                                if (d.levels !== "-1") setHovered([])
-                                tooltipHover(d, "leave", e)   
-                            })
+                            // .on('mouseover', function (e,d) {
+                            //     if (d.levels === '-1') {
+                            //         d3.select('#subsumes-node-'+d.name).style('opacity',1)
+                            //         d3.select('#tree-text-'+d.name).style('opacity',1)
+                            //         d3.select('#alt-group-'+d.name).style('opacity',1)
+                            //     }
+                            //     d3.select('#tree-text-'+d.name).attr('fill', color.text).attr('font-weight', 700)
+                            //     d3.select('#label-rect-'+d.name).attr('fill-opacity',1).attr('fill', color.lightpurple)
+                            //     const el = this
+                            //     el.__hoverTimeout__ = setTimeout(() => {
+                            //         if (d.levels !== "-1") setHovered([d.name])
+                            //         tooltipHover(d, "enter", e)  
+                            //     }, 400)
+                            // })
+                            // .on('mouseout', function (e,d) {
+                            //     const el = this
+                            //     clearTimeout(el.__hoverTimeout__)
+                            //     if (d.levels === '-1') {
+                            //         d3.select('#subsumes-node-'+d.name).style('opacity',0.5)
+                            //         d3.select('#tree-text-'+d.name).style('opacity',0.5)
+                            //         d3.select('#alt-group-'+d.name).style('opacity',0.5)
+                            //     }
+                            //     d3.select('#tree-text-'+d.name).attr('fill', d => conceptNames.includes(d.name) || sidebarRoot.name.includes(d.name) ? color.text : color.textlight).attr('font-weight', d => sidebarRoot.name.includes(d.name) ? 700 : 400)
+                            //     d3.select('#label-rect-'+d.name).attr('fill-opacity', d => sidebarRoot.name.includes(d.name) ? 1 : 0.7).attr('fill', d => sidebarRoot.name.includes(d.name) ? color.lightpurple : 'white')
+                            //     if (d.levels !== "-1") setHovered([])
+                            //     tooltipHover(d, "leave", e)   
+                            // })
                             .on('click', (e,d) => {
                                 tooltipHover(d, 'leave', e)
                                 setLoading(true)
@@ -1986,7 +1977,7 @@
                                 let concept_info = d.data.concept
                                 nodes.forEach(n => n.distance === d.distance ? genLength++ : null)
                                 let text = concept_info.concept_name || concept_info.concept_id.toString()
-                                if ((treeSelections.includes('mappings') && d.mappings?.length > 0) || mapRoot.includes(d.name)) {
+                                if ((relationship === 'mappings' && d.mappings?.length > 0) || mapRoot.includes(d.name)) {
                                     maxWidth = 18
                                 }
                                 else {
@@ -2178,7 +2169,7 @@
         // list
         function drawList() {
             let sums = []
-            nodes.forEach(node => {
+            nodes.filter(n => n.levels !== '-1').forEach(node => {
                 sums.push(node.total_counts)
                 sums.push(node.descendant_counts)
                 node.mappings.forEach(map => {
@@ -2188,7 +2179,7 @@
             })
             const extent = d3.extent(sums)
             // **** this should not be dynamic ***
-            const scaleWidth = d3.scaleLinear().domain([0, extent[1]]).range(extent[1] === 0 ? [0,0] : [0, 80])
+            const scaleWidth = d3.scaleLinear().domain([0, extent[1]]).range(extent[1] === 0 ? [0,0] : [0, 70])
             let parentsArray = nodes.filter(d => d.relationship === "-1")
             let rootArray = nodes.filter(d => d.relationship === "0")
             let childrenArray = nodes.filter(d => d.relationship.includes('-') && d.relationship !== "-1").sort((x,y) => {
@@ -2203,11 +2194,11 @@
                 return acc
             }, {})
             let sectionData = [
-                {section:'PARENTS',nodes:parentsArray},
-                {section:'ROOT',nodes:rootArray},
+                {section:'Parents',nodes:parentsArray},
+                {section:'Root',nodes:rootArray},
             ]
             let childrenSections = Object.entries(childrenGroups).map(([key, nodes]) => ({
-                section: key,   
+                section: 'Level ' + key,   
                 nodes: nodes    
             }))
             sectionData = [...sectionData,...childrenSections]
@@ -2217,69 +2208,117 @@
             .join(enter => {
                 const section = enter.append('div')  
                     .classed('list-section',true)
-                    .style('padding-bottom', '5px')
                 const title = section.append('div')    
-                    .classed('section-title',true)
-                    .style('border-radius', '16px 16px 0px 0px')
-                    .style('height', '20px')
-                    .style('background-color', 'white')
-                    .style('opacity', d => hovered.length > 0 ? 0.2 : d.section === 'PARENTS' ? 0.4 : 1)
+                    .classed('list-section-title',true)
+                    .style('opacity', d => hovered.length > 0 ? 0.2 : 1)
+                    .style('border-bottom','1px solid color-mix(in srgb, #b2b2b2, white 70%)')
                 title.append('i')
-                    .classed('section-arrow fa-solid fa-arrow-up fa-xs',true)
-                    .style('transform', d => d.section === 'ROOT' ? 'rotate('+90+'deg)' : d.section !== 'PARENTS' ? 'rotate('+180+'deg)' : 'none')
+                    .classed('list-section-arrow fa-solid fa-arrow-up',true)
+                    .style('transform', d => d.section === 'Root' ? 'rotate('+90+'deg)' : d.section !== 'Parents' ? 'rotate('+180+'deg)' : 'none')
                     .style('transform-origin', 'center')
-                title.append('p')
-                    .classed('level-number',true)
-                    .html(d => d.section === 'ROOT' ? 1 : d.section)
                     .style('font-size','10px')
-                    .style('font-weight', 700)
-                    .style('margin-left', '2px')
-                    .style('margin-right', '4px')
+                title.append('p')
+                    .classed('list-level-number selectedText',true)
+                    .html(d => d.section === 'Root' ? 'Level 1' : d.section)
                 // CONCEPT LIST
                 section.selectAll(".list-item-container").data(d => d.nodes, d => d.name)
                 .join(enter => {
                     const itemContainer = enter.append('div')
                         .classed('list-item-container',true)
+                        .style('border-bottom', d => d.levels === '-1' ? '0.5px solid #d6d6d6' : '0.5px solid #e0e0e0')
                     const item = itemContainer.append('div')
                         .classed('list-item',true)
                         .attr('id', d => 'list-item-'+d.name)
-                        .style('margin-bottom', '4px')
-                        .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered.includes(d.name) ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                        .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                        .style('border-radius', '20px')
-                        .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : d.levels === "-1" ? 0.7 : 1)
+                        .style('background-color', d => d.levels === '-1' ? '#f0f0f0' : 'white')
+                        .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
                     const titleSection = item.append('div')
-                        .classed('title-section',true)
-                    const title = titleSection.append('div')
-                        .classed('item-title',true)
-                        .attr('id', d => 'item-title-' + d.name)
-                    const circle = title.append('div')
-                        .classed('title-circle',true)
-                        .attr('id', d => 'title-circle-'+d.name)
-                        .style('flex-shrink',0)
-                        .style('width', '14px')
-                        .style('height', '14px')
-                        .style('cursor','pointer')
-                        .style('pointer-events', d => d.total_counts === 0 && !d.leaf ? 'none' : 'all')
+                        .classed('list-title-section',true)
+                    const conceptCard = titleSection.append('div')
+                        .classed('list-card',true)
+                        .attr('id', d => 'list-card-'+d.name)
+                        .style('display','flex')
+                        .style('flex-direction','column')
+                        .style('box-shadow', d => conceptNames.includes(d.name) || d.leaf ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
+                        .style('background-color', d => d.levels === '-1' ? 'none' : conceptNames.includes(d.name) || d.leaf ? 'white' : '#ebebeb')
+                        .style('border', d => sidebarRoot.name.includes(d.name) ? '1px solid #6a23d6' : 'none')
+                    const title = conceptCard.append('div')
+                        .classed('list-item-title',true)
+                    const title1 = title.append('div')
+                        .style('display','flex')
+                        .style('align-items','center')
+                    title1.append('div')
+                        .classed('list-title-circle',true)
+                        .classed('list-circle-dash', d => d.total_counts === 0 && !d.leaf ? true : false)
+                        .classed('list-circle', d => d.total_counts === 0 && !d.leaf ? false : true)
+                        .classed('btn', d => conceptNames.includes(d.name) || d.leaf ? true : false)
+                        .style("pointer-events", d => conceptNames.includes(d.name) || d.leaf ? 'all' : 'none')
                         .style('background', d => {
-                            if (!conceptNames.includes(d.name)) return "none"
-                            else {
+                            if (d.total_counts === 0 && !d.leaf) return "none"
+                            if (conceptNames.includes(d.name) || d.leaf) {
                                 if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
-                                else {return "none"}    
-                            }    
+                                else {return "none"}
+                            }
+                            else {
+                                if (!d.data.concept.standard_concept) return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, #d6d6d6 0.5px, #d6d6d6 2px)"  
+                                else {return "none"}
+
+                            }      
                         })
                         .style("background-color", d => {
-                            if (!conceptNames.includes(d.name)) return "transparent"
-                            else {
+                            if (d.total_counts === 0 && !d.leaf) return "transparent"
+                            if (conceptNames.includes(d.name) || d.leaf) {
                                 if (d.data.concept.standard_concept) {return d.color} 
                                 else {return "transparent"}
                             }
+                            else return '#d6d6d6'
                         }) 
-                        .style('border', d => (d.total_counts === 0 && !d.leaf) || d.levels === '-1' ? '1px solid var(--textlightest)' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid var(--textlight)')
-                        .style('border-radius', '50%')
-                        .style('margin-right', '5px')
-                        .on('click', (e,d) => {
-                            d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
+                        .style('border', d => d.total_counts === 0 && !d.leaf ? '1px solid #b2b2b2' : conceptNames.includes(d.name) || d.leaf ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                        .style('display',d => d.levels === '-1' ? 'none' : 'block')
+                        .on('mouseover',(e,d) => setHovered([d.name]))
+                        .on('mouseout', (e,d) => setHovered([]))
+                    const titleRight = title1.append('div')
+                        .classed('list-title-right btn',true)
+                        .style('display','flex')
+                        .style('align-items','center')
+                        .on('mouseover',(e,d) => {
+                            d3.select('#list-icons-'+d.name).transition(1000).style('max-width','36px').style('opacity',1)
+                        })
+                        .on('mouseout', (e,d) => {
+                            if (!showConfirmation) d3.select('#list-icons-'+d.name).transition(1000).style('max-width','0px').style('opacity',0)
+                        })
+                    const icons = titleRight.append('div')
+                        .classed('list-icons',true)
+                        .attr('id',d => 'list-icons-'+d.name)
+                        .style('display','flex')
+                        .style('max-width', '0px')
+                        .style('opacity', 0)
+                    icons.append('img')
+                        .classed('list-eye icon marginRight eye',true)
+                        .attr('id', d => 'list-eye-'+d.name)
+                        .attr("src", d => conceptNames.includes(d.name) || d.leaf ? openedEye : closedEye)
+                        .style('opacity', d => conceptNames.includes(d.name) || d.leaf ? 1 : 0.2)
+                        .style('display', d => (d.total_counts === 0 && !d.leaf) || d.levels === '-1' ? 'none' : 'inline-block')
+                        .on('mouseover', (e, d) => {
+                            if (!conceptNames.includes(d.name) && !d.leaf) d3.select('#list-eye-'+d.name).transition().style('opacity',1)
+                            const el = e.currentTarget
+                            el.__hoverTimeout__ = setTimeout(() => {
+                                showActionLabel(
+                                    conceptNames.includes(d.name) || d.leaf
+                                        ? 'Hide concept'
+                                        : 'Show concept',
+                                    'enter',
+                                    e
+                                )
+                            }, 1200)
+                        })
+                        .on('mouseout', (e,d) => {
+                            if (!conceptNames.includes(d.name) && !d.leaf) d3.select('#list-eye-'+d.name).transition().style('opacity',0.2)
+                            clearTimeout(e.currentTarget.__hoverTimeout__)
+                            showActionLabel('','leave',e)
+                        })
+                        .on('click',(e,d) => {
+                            clearTimeout(e.currentTarget.__hoverTimeout__)
+                            showActionLabel('','leave')
                             if (d.total_counts !== 0) {
                                 if (conceptNames.includes(d.name)) {
                                     const newInclusions = inclusions.filter(e => e !== d.name)
@@ -2290,676 +2329,713 @@
                                 }     
                             } 
                         })
-                        .on('mouseover', (e,d) => {
-                            if (!conceptNames.includes(d.name) && d.levels !== '-1') {
-                                d3.select('#plus-'+d.name).transition().style('color', 'white')
-                                d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`) 
-                                d3.select('#title-name-'+d.name).transition().style('color',color.text)   
-                                d3.select('#title-code-'+d.name).transition().style('color',color.text) 
-                                d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
-                                d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
-                                d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
-                            } else d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block') 
-                        })
-                        .on('mouseout', (e,d) => {
-                            if (!conceptNames.includes(d.name) && d.levels !== '-1') {
-                                d3.select('#plus-'+d.name).transition().style('color', color.text)
-                                d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
-                                d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
-                                d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
-                                d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
-                                d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
-                                d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
-                            } else d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                        })
-                    circle.append('i')
-                        .classed('list-plus fa-solid fa-plus fa-2xs',true)
-                        .attr('id',d => 'plus-'+d.name)
-                        .style('color', color.text)
-                        .style('pointer-events','none')
-                        .style('padding-bottom','1px')
-                        .style('display', d => !conceptNames.includes(d.name) && (d.total_counts !== 0 || d.leaf) && d.levels !== '-1' ? 'block' : 'none')
-                    circle.append('i')
-                        .classed('list-x fa-solid fa-x fa-2xs',true)
-                        .style('color', 'white')
-                        .attr('id',d => 'x-'+d.name)
-                        .style('opacity', 0)
-                        .style('display', 'none')
-                        .style('padding-bottom','1px')
-                        .style('pointer-events','none')
-                    const titleP = title.append('p')
-                    titleP.append('span')
-                        .classed('title-name',true)
-                        .attr('id', d => 'title-name-'+d.name)
-                        .style("font-weight", d => sidebarRoot.name.includes(d.name) || hovered.includes(d.name) ? 700 : 400)
-                        .style('color', d => conceptNames.includes(d.name) || hovered.includes(d.name) ? color.text : color.textlight)
-                        .html(d => d.data.concept.concept_name)
-                        .style('padding-right', '4px')
-                        .style('cursor','pointer')
-                        .on('click', (e,d) => {
-                            setLoading(true)
-                                navigate(`/${d.name}`)
-                            //conceptHover(d.name, "leave") 
-                        })
-                        .on('mouseover', function (e,d) {
-                            if (d.levels === '-1') d3.select('#list-item-'+d.name).style('opacity',1)
-                            d3.select('#list-item-'+d.name).style('background-color',color.lightpurple).style('border','1px solid var(--lightpurple)')
-                            d3.select('#title-name-'+d.name).style('font-weight',700)
-                            if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
-                                d3.select('#title-name-'+d.name).transition().style('color',color.text)     
-                            }
-                            const el = this
+                    icons.append('i')
+                        .classed('list-search fa fa-search iconLg marginRight',true)
+                        .attr('id', d => 'list-search-'+d.name)
+                        .style('transform','scaleX(-1)')
+                        .style('display', d => sidebarRoot.name.includes(d.name) ? 'none' : 'inline-block')
+                        .on('mouseover', (e, d) => {
+                            const el = e.currentTarget
                             el.__hoverTimeout__ = setTimeout(() => {
-                                if (d.levels !== "-1") setHovered([d.name])
-                                },400)
+                                showActionLabel('Select concept','enter',e)
+                            }, 1200)
                         })
-                        .on('mouseout', function (e,d) {
-                            const el = this
-                            clearTimeout(el.__hoverTimeout__)
-                            if (!sidebarRoot.name.includes(d.name)) {
-                                if (d.levels === '-1') d3.select('#list-item-'+d.name).style('opacity',0.7)
-                                d3.select('#list-item-'+d.name).style('background-color', d => conceptNames.includes(d.name) ? color.lightbackground : 'transparent').style('border', d => conceptNames.includes(d.name) ? '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                                d3.select('#title-name-'+d.name).style('font-weight',400)
-                                if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
-                                }
-                            } 
-                            if (d.levels !== "-1") setHovered([])
-                        })
-                    titleP.append('span')
-                        .classed('title-code',true)
-                        .attr('id', d => 'title-code-'+d.name)
-                        .style('font-size', '10px')
-                        .style('font-weight',700)
-                        .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
-                        .html(d => d.data.concept.concept_code)
-                        .style('margin-right','5px')
-                    titleP.append('span')
-                        .classed('title-vocab',true)
-                        .attr('id', d => 'title-vocab-'+d.name)
-                        .style('font-size', '10px')
-                        .style('color', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
-                        .html(d => d.data.concept.vocabulary_id)
-                        .style('margin-right','5px')
-                    // titleP.append('span')
-                    //     .classed('title-level',true)
-                    //     .attr('id', d => 'title-level-'+d.name)
-                    //     .style('font-size', '10px')
-                    //     .style('font-weight',700)
-                    //     .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
-                    //     .style('margin-right', '12px')
-                    //     .html(d => d.levels)    
-                    titleP.append('i')
-                        .classed('info-icon fa-solid fa-circle-info',true)  
-                        .attr('id', d => 'info-icon-'+d.name)  
-                        .style('color', color.text)
-                        .style('opacity', 0.2)
-                        .style('cursor','pointer')
-                        .style('margin-right','2px')
-                        .on('mouseover', (e,d) => d3.select('#info-icon-'+d.name).style('opacity',1))
                         .on('mouseout', (e,d) => {
-                            if (d3.select('#info-container-'+d.name).style('display') === 'none') d3.select('#info-icon-'+d.name).style('opacity',0.2)
+                            clearTimeout(e.currentTarget.__hoverTimeout__)
+                            showActionLabel('','leave',e)
                         })
                         .on('click', (e,d) => {
-                            if (d3.select('#info-container-'+d.name).style('display') === 'flex') {
-                                d3.select('#info-icon-'+d.name).style('opacity',0.2)
-                                d3.select('#info-container-'+d.name).transition().style('height','0px').style('display','none')
-                                d3.select('#info-col1-'+d.name).transition().style('opacity',0)
-                                d3.select('#info-col2-'+d.name).transition().style('opacity',0)
-                            } else {
-                                d3.select('#info-icon-'+d.name).style('opacity',1)
-                                d3.select('#info-container-'+d.name).transition().style('height','50px').style('display','flex')
-                                d3.select('#info-col1-'+d.name).transition().style('opacity',1)
-                                d3.select('#info-col2-'+d.name).transition().style('opacity',1)    
-                            }
-                            
+                            clearTimeout(e.currentTarget.__hoverTimeout__)
+                            showActionLabel('','leave')
+                            showConfirmationPopup(d, 'enter', e)
                         })
-                    titleP.append('i')
-                        .classed('title-caret-down fa-solid fa-lg fa-caret-down',true)
-                        .attr('id', d => 'caret-down-'+d.name)
-                        .style('color', color.text)
-                        .style('display', d => !mapRoot.includes(d.name) ? d.mappings.length > 0 ? 'inline-block' : 'none' : 'none')
-                        .style('cursor','pointer')
+                    const titleP = titleRight.append('p')
+                        .classed('list-title-p btn',true)
+                        .style('opacity', d => conceptNames.includes(d.name) || d.leaf ? 1 : 0.6)
+                        .on('mouseover', (e, d) => {
+                            const el = e.currentTarget
+                            el.__hoverTimeout__ = setTimeout(() => {
+                                showActionLabel('Select concept','enter',e)
+                            }, 1200)
+                        })
+                        .on('mouseout', (e,d) => {
+                            clearTimeout(e.currentTarget.__hoverTimeout__)
+                            showActionLabel('','leave',e)
+                        })
+                        .on('click', (e,d) => {
+                            clearTimeout(e.currentTarget.__hoverTimeout__)
+                            showActionLabel('','leave')
+                            if (!sidebarRoot.name.includes(d.name)) showConfirmationPopup(d, 'enter', e)
+                        })
+                    titleP.append('span')
+                        .classed('title-name selectedText marginRight',true)
+                        .html(d => d.data.concept.concept_name)
+                    titleP.append('span')
+                        .classed('title-code marginRight num',true)
+                        .style('font-weight',500)
+                        .html(d => d.data.concept.concept_code ? d.data.concept.concept_code : d.data.concept.concept_id)
+                    titleP.append('span')
+                        .classed('title-vocab marginRight',true)
+                        .html(d => d.data.concept.vocabulary_id)   
+                    title.append('i')
+                        .classed('info-icon fa-solid fa-circle-info icon',true)  
+                        .attr('id', d => 'info-icon-'+d.name)  
                         .style('opacity', 0.2)
-                        .style('margin-right','2px')
+                        .style('display', d => d.levels === '-1' || !d.levels ? 'none' : 'block')
+                        .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name).transition().style('opacity',1))
+                        .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name).style('height') !== '45px') d3.select('#info-icon-'+d.name).transition().style('opacity',0.2)})
                         .on('click', (e,d) => {
-                            if (d3.select('#caret-down-'+d.name).style('display') === 'inline-block') {
-                                d3.select('#caret-down-'+d.name).style('display','none')  
-                                d3.select('#caret-up-'+d.name).style('display','inline-block') 
-                                d3.select('#mappings-container-'+d.name).transition().style('height','auto').style('display','flex')
-                                setMapRoot([...mapRoot,d.name])
-                                updateWidth([...mapRoot,d.name])
+                            if (d3.select('#info-container-'+d.name).style('height') === '45px') {
+                                d3.select('#info-icon-'+d.name).transition().style('opacity',0.2)
+                                d3.select('#info-container-'+d.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
+                                d3.select('#list-card-'+d.name).transition().style('border-radius','20px')
+                            } else {
+                                d3.select('#info-icon-'+d.name).transition().style('opacity',1)
+                                d3.select('#info-container-'+d.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
+                                d3.select('#list-card-'+d.name).transition().style('border-radius','12px')
                             }
                         })
-                        .on('mouseover', (e,d) => d3.select('#caret-down-'+d.name).style('opacity',1))
-                        .on('mouseout', (e,d) => d3.select('#caret-down-'+d.name).style('opacity',0.2))
-                    titleP.append('i')
-                        .classed('title-caret-up fa-solid fa-lg fa-caret-up',true)
-                        .attr('id', d => 'caret-up-'+d.name)
-                        .style('color', color.text)
-                        .style('display', d => mapRoot.includes(d.name) && d.mappings.length > 0 ? 'inline-block' : 'none')
-                        .style('cursor','pointer')
-                        .style('margin-right','2px')
-                        // .style('padding-top','4px')
-                        .on('click', (e,d) => {
-                            if (d3.select('#caret-up-'+d.name).style('display') === 'inline-block') {
-                                d3.select('#caret-up-'+d.name).style('display','none')  
-                                d3.select('#caret-down-'+d.name).style('display','inline-block') 
-                                d3.select('#mappings-container-'+d.name).transition().style('height','0px').style('display','none')
-                                const filteredMapRoot = mapRoot.filter(id => id !== d.name)
-                                setMapRoot(filteredMapRoot)
-                                updateWidth(filteredMapRoot)
-                            }
-                        })
-                    const countsContainer = titleSection.append('div')
-                        .classed('list-counts-container',true)
-                        .attr('id', d => 'counts-container-'+d.name)
-                    const counts1 = countsContainer.append('div')
-                        .classed('list-counts',true)
-                    counts1.append('p')
-                        .classed('counts1-text',true)
-                        .attr('id', d => 'counts1-text-'+d.name)
-                        .style('color', d => conceptNames.includes(d.name) && !d.leaf ? d.total_counts > 0 ? color.text : color.textlight : color.textlight)
-                        .html(d => d.total_counts + ' RC')
-                    counts1.append('div')
-                        .classed('counts1-rect',true)
-                        .attr('id', d => 'counts1-rect-'+d.name)
-                        .style('height', '8px')
-                        .style('width', d => scaleWidth(d.total_counts) + 'px')
-                        .style('background-color', d => conceptNames.includes(d.name) && !d.leaf ? d.color : color.textlightest)
-                        .style('margin-left', '5px')
-                        .style('border-radius', '20px')
-                    const counts2 = countsContainer.append('div')
-                        .classed('list-counts',true)
-                    counts2.append('p')
-                        .classed('counts2-text',true)
-                        .style('color', d => d.leaf && d.descendant_counts !== 0 ? color.text : color.textlight)
-                        .html(d => d.descendant_counts + ' DRC')
-                    counts2.append('div')
-                        .classed('counts2-rect',true)
-                        .style('height', '8px')
-                        .style('width', d => scaleWidth(d.descendant_counts) + 'px')
-                        .style('background-color', d => d.leaf && d.descendant_counts !== 0 ? d.color : color.textlightest)
-                        .style('margin-left', '5px')
-                        .style('border-radius', '20px')
-                    const infoContainer = item.append('div')
+                    const infoContainer = conceptCard.append('div')
                         .classed('info-container',true)
                         .attr('id', d => 'info-container-'+d.name)
+                        .style('display', d => d.levels === '-1' || !d.levels ? 'none' : 'flex')
+                        .style('border-top', d => conceptNames.includes(d.name) || d.leaf ? '1px solid color-mix(in srgb, #36126d, white 90%)' : '1px solid color-mix(in srgb, #36126d, white 78%)')
                     const infoCol1 = infoContainer.append('div')
                         .classed('info-col',true)
-                        .attr('id', d => 'info-col1-'+d.name)
                     infoCol1.append('p')
-                        .html('Id')
-                        .style("font-weight", 700)
+                        .classed('selectedText infoRow',true)
+                        .html('Id:')
                         .append('span')
+                        .classed('infoContent num',true)
                         .html(d => d.name)
-                        .style('margin-left','8px')
-                        .style('font-weight', 400)
                     infoCol1.append('p')
-                        .html('Code')
-                        .style("font-weight", 700)
+                        .classed('selectedText infoRow',true)
+                        .html('Code:')
                         .append('span')
+                        .classed('infoContent num',true)
                         .html(d => d.data.concept.concept_code)
-                        .style('margin-left','8px')
-                        .style('font-weight', 400)
                     infoCol1.append('p')
-                        .html('Type')
-                        .style("font-weight", 700)
+                        .classed('selectedText infoRow',true)
+                        .html('Type:')
                         .append('span')
+                        .classed('infoContent',true)
                         .html(d => d.data.concept.standard_concept ? "Standard" : "Non standard")
-                        .style('margin-left','8px')
-                        .style('font-weight', 400)
-                        .style('padding', '1px 5px 1px 5px')
-                        .style('border', d => d.data.concept.standard_concept ? '1px solid black' : '1px dashed black')
-                        .style('border-radius', '10px')
                     const infoCol2 = infoContainer.append('div')
                         .classed('info-col',true)
                         .attr('id', d => 'info-col2-'+d.name)
                         .style('margin-left', '20px')
                     infoCol2.append('p')
-                        .html('Domain')
-                        .style("font-weight", 700)
+                        .classed('selectedText infoRow',true)
+                        .html('Domain:')
                         .append('span')
+                        .classed('infoContent',true)
                         .html(d => d.data.concept.domain_id)
-                        .style('margin-left','8px')
-                        .style('font-weight', 400)
                     infoCol2.append('p')
-                        .html('Class')
-                        .style("font-weight", 700)
+                        .classed('selectedText infoRow',true)
+                        .html('Class:')
                         .append('span')
+                        .classed('infoContent',true)
                         .html(d => d.data.concept.concept_class_id)
-                        .style('margin-left','8px')
-                        .style('font-weight', 400)
-                    // infoCol2.append('p')
-                    //     .html('Validity')
-                    //     .style("font-weight", 700)
-                    //     .append('span')
-                    //     .html(d => getValidity(d.data.concept.valid_end_date))
-                    //     .style('margin-left','8px')
-                    //     .style('font-weight', 400)
+
+                    const dataSection = titleSection.append('div')
+                        .style('display', d => d.levels === '-1' ? 'none' : 'flex')
+                        .style('align-items','center')
+                        .style('justify-content','flex-start')
+                        .style('width','flex-grow',1)
+                    const countsSection = dataSection.append('div')
+                        .style('display','flex')
+                        .style('flex-direction','column')
+                        .style('height','100%')
+                        .style('justify-content','space-between')
+
+                    const countsRC = countsSection.append('div')
+                        .classed('list-counts',true)
+                    countsRC.append('p')
+                        .classed('counts-RC-p list-counts-p num',true)
+                        .style('color', d => conceptNames.includes(d.name) && !d.leaf ? '#36126d' : '#808080')
+                        .style('font-weight', d => conceptNames.includes(d.name) && !d.leaf ? 500 : 400)
+                        .html(d => formatThousands(d.total_counts))
+                    countsRC.append('p')
+                        .classed('counts-RC-label list-counts-label',true)
+                        .style('color', d => conceptNames.includes(d.name) && !d.leaf ? '#36126d' : '#808080')
+                        .style('font-weight', d => conceptNames.includes(d.name) && !d.leaf ? 500 : 400)
+                        .html('RC')
+                    const countsBarRC = countsRC.append('div')
+                        .classed('list-counts-bar-container',true)
+                    countsBarRC.append('div')
+                        .classed('counts-RC-bar list-counts-bar',true)
+                        .style('width', d => scaleWidth(d.total_counts) + 'px')
+                        .style('background-color', d => conceptNames.includes(d.name) && !d.leaf ? d.color : '#e0e0e0')
+                    
+                    const countsDRC = countsSection.append('div')
+                        .classed('list-counts',true)
+                    countsDRC.append('p')
+                        .classed('counts-DRC-P list-counts-p num',true)
+                        .style('text-align','left')
+                        .style('color', d => conceptNames.includes(d.name) && d.leaf ? '#36126d' : '#808080')
+                        .style('font-weight', d => conceptNames.includes(d.name) && d.leaf ? 500 : 400)
+                        .html(d => formatThousands(d.descendant_counts))
+                    countsDRC.append('p')
+                        .classed('counts-DRC-label list-counts-label',true)
+                        .style('color', d => conceptNames.includes(d.name) && d.leaf ? '#36126d' : '#808080')
+                        .style('font-weight', d => conceptNames.includes(d.name) && d.leaf ? 500 : 400)
+                        .html('DRC')
+                    const countsBarDRC = countsDRC.append('div')
+                        .classed('list-counts-bar-container',true)
+                    countsBarDRC.append('div')
+                        .classed('counts-DRC-bar list-counts-bar',true)
+                        .style('width', d => scaleWidth(d.descendant_counts) + 'px')
+                        .style('background-color', d => conceptNames.includes(d.name) && d.leaf ? d.color : '#e0e0e0')
+
+                    const openMappings = dataSection.append('div')
+                        .classed('list-open-mappings',true)
+                        .style('display','flex')
+                        .style('align-items','center')
+                    openMappings.append('p')
+                        .classed('selectedText marginRight',true)
+                        .html(d => '(' + d.mappings.length + ')')  
+                        .style('opacity',d => d.mappings.length === 0 ? 0.3 : 1)
+                    openMappings.append('i')
+                        .classed('list-caret-down fa-solid fa-caret-down iconLg',true)
+                        .attr('id', d => 'list-caret-down-'+d.name)
+                        .style('display', d => d.mappings.length > 0 ? mapRoot.includes(d.name) || d.mappings.map(m => m.name).some(map => hovered.includes(map)) ? 'none' : 'block' : 'none')
+                        .on('click',(e,d) => {
+                            setMapRoot([...mapRoot,d.name])
+                            d3.select('#mappings-container-'+d.name).classed('hide-after', false).transition(2000).style('opacity',1).style('max-height',d.mappings.length * 100 + 'px')
+                            d3.select('#mappings-title-'+d.name).transition(2000).style('opacity',1).style('max-height','10px')
+                            d3.selectAll(".map-list-item-"+d.name).transition(2000).style('max-height','100px').style('visibility','visible')
+                            d3.select('#list-caret-down-'+d.name).style('display','none')
+                            d3.select('#list-caret-up-'+d.name).style('display','block')
+                        })
+                    openMappings.append('i')
+                        .classed('list-caret-up fa-solid fa-caret-up iconLg',true)
+                        .attr('id', d => 'list-caret-up-'+d.name)
+                        .style('opacity',1)
+                        .style('display', d => mapRoot.includes(d.name) || d.mappings.map(m => m.name).some(map => hovered.includes(map)) ? 'block' : 'none')
+                        .on('click',(e,d) => {
+                            const newMap = mapRoot.filter(name => name !== d.name)
+                            setMapRoot(newMap)
+                            d3.select('#mappings-container-'+d.name).classed('hide-after', true).transition(2000).style('opacity',0).style('max-height','0px')
+                            d3.select('#mappings-title-'+d.name).transition(2000).style('opacity',0).style('max-height','0px')
+                            d3.selectAll(".map-list-item-"+d.name).transition(2000).style('max-height','0px').style('visibility','hidden')
+                            d3.select('#list-caret-down-'+d.name).style('display','block')
+                            d3.select('#list-caret-up-'+d.name).style('display','none')
+                        })
                     const mappingsContainer = itemContainer.append('div')
                         .classed('mappings-container',true)
+                        .classed('hide-after', d => mapRoot.includes(d.name) ? false : true)
+                        .classed('fade-after', () => hovered.length > 0 ? true : false)
                         .attr('id', d => 'mappings-container-'+d.name)
-                        .style('height', d => (mapRoot.includes(d.name) && d.mappings.length > 0) || d.mappings.map(d => d.name).includes(hovered) ? 'auto' : '0px')
-                        .style('display', d => (mapRoot.includes(d.name) && d.mappings.length > 0) || d.mappings.map(d => d.name).includes(hovered) ? 'flex' : 'none')
-                        .style('--after-border', !hovered.length > 0 ? '1px dashed var(--textlight)' : '1px dashed #191a1c15');
+                        .style('max-height', d => mapRoot.includes(d.name) || d.mappings.map(m => m.name).some(map => hovered.includes(map)) ? d.mappings.length * 100 + 'px' : '0px')
+                        .style('opacity', d => mapRoot.includes(d.name) || d.mappings.map(m => m.name).some(map => hovered.includes(map)) ? 1 : 0)
+                        .style('display', d => d.levels === '-1' || d.mappings.length === 0 ? 'none' : 'flex')
+                        .style('border-left', () => hovered.length > 0 ? '1px dashed #36126d20' : '1px dashed #36126d80')
                     mappingsContainer.append('p')
-                        .classed('mappings-type',true)
-                        .style('margin',0)
-                        .style('font-size','10px')
-                        .style('margin-bottom','4px')
-                        .style('margin-left','4px')
-                        .html(d => d.data.concept.standard_concept ? 'MAPPED FROM' : 'MAPS TO')
-                        .style('opacity', () => hovered.length > 0 ? 0.2 : 1)
+                        .classed('mappings-title selectedText',true)
+                        .attr('id', d => 'mappings-title-'+d.name)
+                        .html(d => d.data.concept.standard_concept ? 'Mapped from' : 'Maps to')
+                        .style('max-height', d => mapRoot.includes(d.name) || d.mappings.map(m => m.name).some(map => hovered.includes(map)) ? '10px' : '0px')
+                        .style('opacity', d => mapRoot.includes(d.name) ? hovered.length > 0 ? 0.2 : 1 : 0)
                     // MAPPINGS
                     mappingsContainer.selectAll(".map-list-item-container").data(d => d.mappings, d => d.name)
                     .join(enter => {
                         const mapItemContainer = enter.append('div')
                             .classed('map-list-item-container',true)
+                            .each(function(d) {this.classList.add(`map-list-item-${d.source.name}`)})
+                            .style('max-height', d => mapRoot.includes(d.source.name) ? '100px' : '0px')
+                            .style('visibility', d => mapRoot.includes(d.source.name) ? 'visible' : 'hidden')
                         const mapItem = mapItemContainer.append('div')
                             .classed('map-list-item',true)
-                            .attr('id', d => 'list-item-'+d.name)
-                            .style('margin-bottom', '4px')
-                            .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered.includes(d.name) ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px dashed var(--background)')
-                            .style('border-radius', '20px')
                             .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
                         const mapTitleSection = mapItem.append('div')
-                            .classed('map-title-section',true)
-                        const mapTitle = mapTitleSection.append('div')
-                            .classed('map-item-title',true)
-                            .attr('id', d => 'item-title-' + d.name)
-                        const mapCircle = mapTitle.append('div')
-                            .classed('map-title-circle',true)
-                            .attr('id', d => 'title-circle-'+d.name)
-                            .style('flex-shrink',0)
-                            .style('width', '14px')
-                            .style('height', '14px')
-                            .style('pointer-events', d => d.total_counts === 0 ? 'none' : 'all')
-                            .style('border', d => d.total_counts === 0 ? '1px solid var(--textlightest)' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid var(--textlight)')
-                            .style('cursor','pointer')
+                            .classed('list-title-section',true)
+                        const mapConceptCard = mapTitleSection.append('div')
+                            .classed('map-list-card',true)
+                            .attr('id', d => 'list-card-'+d.name+d.source.name)
+                            .style('display','flex')
+                            .style('flex-direction','column')
+                            .style('box-shadow', d => conceptNames.includes(d.name) ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
+                            .style('background-color', d => conceptNames.includes(d.name) ? 'white' : '#ebebeb')
+                        const mapTitle = mapConceptCard.append('div')
+                            .classed('list-item-title',true)
+                        const mapTitle1 = mapTitle.append('div')
+                            .style('display','flex')
+                            .style('align-items','center')
+                        mapTitle1.append('div')
+                            .classed('map-list-title-circle',true)
+                            .classed('list-circle-dash', d => d.total_counts === 0 ? true : false)
+                            .classed('list-circle', d => d.total_counts === 0 ? false : true)
+                            .classed('btn', d => conceptNames.includes(d.name) ? true : false)
+                            .style('pointer-events', d => conceptNames.includes(d.name) ? 'all' : 'none')
                             .style('background', d => {
-                                if (!conceptNames.includes(d.name)) return "none"
-                                else {
+                                if (d.total_counts === 0) return "none"
+                                if (conceptNames.includes(d.name)) {
                                     if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
-                                    else {return "none"}    
-                                }    
+                                    else {return "none"}
+                                }
+                                else {
+                                    if (!d.data.concept.standard_concept) return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, #d6d6d6 0.5px, #d6d6d6 2px)"    
+                                    else {return "none"}
+
+                                }  
                             })
                             .style("background-color", d => {
-                                if (!conceptNames.includes(d.name)) return "transparent"
-                                else {
+                                if (d.total_counts === 0) return "transparent"
+                                if (conceptNames.includes(d.name)) {
                                     if (d.data.concept.standard_concept) {return d.color} 
                                     else {return "transparent"}
                                 }
+                                else return '#d6d6d6'
                             }) 
-                            .style('border-radius', '50%')
-                            .style('margin-right', '5px')
-                            .on('click', (e,d) => {
-                                d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
+                            .style('border', d => d.total_counts === 0 ? '1px solid #b2b2b2' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                            .on('mouseover',(e,d) => setHovered([d.name]))
+                            .on('mouseout', (e,d) => setHovered([]))
+                        const mapTitleRight = mapTitle1.append('div')
+                            .classed('map-list-title-right btn',true)
+                            .style('display','flex')
+                            .style('align-items','center')
+                            .on('mouseover',(e,d) => {
+                                d3.select('#list-icons-'+d.name).transition(1000).style('max-width','36px').style('opacity',1)
+                            })
+                            .on('mouseout', (e,d) => {
+                                
+                                if (!showConfirmation) d3.select('#list-icons-'+d.name).transition(1000).style('max-width','0px').style('opacity',0)
+                            })
+                        const mapIcons = mapTitleRight.append('div')
+                            .classed('map-list-icons',true)
+                            .attr('id',d => 'list-icons-'+d.name)
+                            .style('display','flex')
+                            .style('max-width', '0px')
+                            .style('opacity', 0)
+                        mapIcons.append('img')
+                            .classed('map-list-eye icon marginRight eye',true)
+                            .attr('id', d => 'list-eye-'+d.name)
+                            .attr("src", d => conceptNames.includes(d.name) ? openedEye : closedEye)
+                            .style('opacity', d => conceptNames.includes(d.name) ? 1 : 0.3)
+                            .style('display', d => d.total_counts === 0 ? 'none' : 'inline-block')
+                            .on('mouseover', (e, d) => {
+                                if (!conceptNames.includes(d.name)) d3.select('#list-eye-'+d.name).transition().style('opacity',1)
+                                const el = e.currentTarget
+                                el.__hoverTimeout__ = setTimeout(() => {
+                                    showActionLabel(
+                                        conceptNames.includes(d.name) 
+                                            ? 'Hide concept'
+                                            : 'Show concept',
+                                        'enter',
+                                        e
+                                    )
+                                }, 1200)
+                            })
+                            .on('mouseout', (e,d) => {
+                                if (!conceptNames.includes(d.name)) d3.select('#list-eye-'+d.name).transition().style('opacity',0.2)
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
+                            })
+                            .on('click',(e,d) => {
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave')
                                 if (d.total_counts !== 0) {
                                     if (conceptNames.includes(d.name)) {
+                                        // if (!nodes.find(n => n.name === d.source.name).mappings.map(m => m.name).filter(map => map !== d.name).some(map => conceptNames.includes(map))) {
+                                        //     const newMap = mapRoot.filter(name => name !== d.source.name)
+                                        //     setMapRoot(newMap)
+                                        // }
                                         const newInclusions = inclusions.filter(e => e !== d.name)
                                         updateConcepts(newInclusions,nodes,[],[d])
                                     } else if (!conceptNames.includes(d.name)){
+                                        // if (!mapRoot.includes(d.source.name)) setMapRoot([...mapRoot,d.source.name])
                                         const newInclusions = [...inclusions,d.name]
                                         updateConcepts(newInclusions,nodes,[d],[])
                                     }     
                                 } 
                             })
-                            .on('mouseover', (e,d) => {
-                                if (!conceptNames.includes(d.name)) {
-                                    d3.select('#plus-'+d.name).transition().style('color', 'white')
-                                    d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`) 
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.text)   
-                                    d3.select('#title-code-'+d.name).transition().style('color',color.text) 
-                                    d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
-                                    d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
-                                } else d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
-                            })
-                            .on('mouseout', (e,d) => {
-                                if (!conceptNames.includes(d.name)) {
-                                    d3.select('#plus-'+d.name).transition().style('color', color.text)
-                                    d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
-                                    d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
-                                } else d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                            })
-                        mapCircle.append('i')
-                            .classed('map-list-plus fa-solid fa-plus fa-2xs',true)
-                            .attr('id',d => 'plus-'+d.name)
-                            .style('color', color.text)
-                            .style('pointer-events','none')
-                            .style('padding-bottom','1px')
-                            .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 ? 'block' : 'none')
-                        mapCircle.append('i')
-                            .classed('map-list-x fa-solid fa-x fa-2xs',true)
-                            .style('color', 'white')
-                            .attr('id',d => 'x-'+d.name)
-                            .style('opacity', 0)
-                            .style('display', 'none')
-                            .style('padding-bottom','1px')
-                            .style('pointer-events','none')
-                        const mapTitleP = mapTitle.append('p')
-                        mapTitleP.append('span')
-                            .classed('map-title-name',true)
-                            .attr('id', d => 'title-name-'+d.name)
-                            .style("font-weight", d => sidebarRoot.name.includes(d.name) || hovered.includes(d.name) ? 700 : 400)
-                            .style('color', d => conceptNames.includes(d.name) || hovered.includes(d.name) ? color.text : color.textlight)
-                            .html(d => d.data.concept.concept_name || d.data.concept.concept_id)
-                            .style('padding-right', '4px')
-                            .style('cursor','pointer')
-                            .on('click', (e,d) => {
-                                setLoading(true)
-                                navigate(`/${d.name}`)
-                                //conceptHover(d.name, "leave") 
-                            })
-                            .on('mouseover', function (e,d) {
-                                d3.select('#list-item-'+d.name).style('background-color',color.lightpurple).style('border','1px solid var(--lightpurple)')
-                                d3.select('#title-name-'+d.name).style('font-weight',700)
-                                if (!conceptNames.includes(d.name) && d.total_counts !== 0) { 
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.text)    
-                                }
-                                const el = this
+                        mapIcons.append('i')
+                            .classed('map-list-search fa fa-search iconLg marginRight',true)
+                            .attr('id', d => 'list-search-'+d.name)
+                            .style('transform','scaleX(-1)')
+                            .on('mouseover', (e, d) => {
+                                const el = e.currentTarget
                                 el.__hoverTimeout__ = setTimeout(() => {
-                                    setHovered([d.name])
-                                },400)
+                                    showActionLabel('Select concept','enter',e)
+                                }, 1200)
                             })
-                            .on('mouseout', function (e,d) {
-                                const el = this
-                                clearTimeout(el.__hoverTimeout__)
-                                if (!sidebarRoot.name.includes(d.name)) {
-                                    d3.select('#list-item-'+d.name).style('background-color', d => conceptNames.includes(d.name) ? color.lightbackground : 'transparent').style('border', d => conceptNames.includes(d.name) ? '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                                    d3.select('#title-name-'+d.name).style('font-weight',400)
-                                    if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
-                                        d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
-                                    }
-                                }  
-                                setHovered([])  
-                            })
-                        mapTitleP.append('span')
-                            .classed('map-title-code',true)
-                            .attr('id', d => 'title-code-'+d.name)
-                            .style('font-size', '10px')
-                            .style('font-weight',700)
-                            .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
-                            .html(d => d.data.concept.concept_code)
-                            .style('margin-right', '5px')     
-                        mapTitleP.append('span')
-                            .classed('map-title-vocab',true)
-                            .attr('id', d => 'title-vocab-'+d.name)
-                            .style('font-size', '10px')
-                            .style('color', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
-                            .html(d => d.data.concept.vocabulary_id)
-                            .style('margin-right', '12px') 
-                        mapTitleP.append('i')
-                            .classed('map-info-icon fa-solid fa-circle-info',true)  
-                            .attr('id', d => 'info-icon-'+d.name)  
-                            .style('color', color.text)
-                            .style('opacity', 0.2)
-                            .style('cursor','pointer')
-                            .style('margin-right','5px')
-                            .on('mouseover', (e,d) => d3.select('#info-icon-'+d.name).style('opacity',1))
                             .on('mouseout', (e,d) => {
-                                if (d3.select('#info-container-'+d.name).style('display') === 'none') d3.select('#info-icon-'+d.name).style('opacity',0.2)
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
                             })
                             .on('click', (e,d) => {
-                                if (d3.select('#info-container-'+d.name).style('display') === 'flex') {
-                                    d3.select('#info-icon-'+d.name).style('opacity',0.2)
-                                    d3.select('#info-container-'+d.name).transition().style('height','0px').style('display','none')
-                                    d3.select('#info-col1-'+d.name).transition().style('opacity',0)
-                                    d3.select('#info-col2-'+d.name).transition().style('opacity',0)
-                                } else {
-                                    d3.select('#info-icon-'+d.name).style('opacity',1)
-                                    d3.select('#info-container-'+d.name).transition().style('height','50px').style('display','flex')
-                                    d3.select('#info-col1-'+d.name).transition().style('opacity',1)
-                                    d3.select('#info-col2-'+d.name).transition().style('opacity',1)    
-                                }
-                                
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave')
+                                showConfirmationPopup(d, 'enter', e)
                             })
-                        const mapCountsContainer = mapTitleSection.append('div')
-                            .classed('map-list-counts-container',true)
-                            .attr('id', d => 'counts-container-'+d.name)
-                        const mapCounts1 = mapCountsContainer.append('div')
-                            .classed('map-list-counts',true)
-                        mapCounts1.append('p')
-                            .classed('map-counts1-text',true)
-                            .attr('id', d => 'counts1-text-'+d.name)
-                            .style('color', d => conceptNames.includes(d.name) ? d.total_counts > 0 ? color.text : color.textlight : color.textlight)
-                            .html(d => d.total_counts + ' RC')
-                        mapCounts1.append('div')
-                            .classed('map-counts1-rect',true)
-                            .attr('id', d => 'counts1-rect-'+d.name)
-                            .style('height', '8px')
-                            .style('width', d => scaleWidth(d.total_counts) + 'px')
-                            .style('background-color', d => conceptNames.includes(d.name) ? d.color : color.textlightest)
-                            .style('margin-left', '5px')
-                            .style('border-radius', '20px')
-                        const mapCounts2 = mapCountsContainer.append('div')
-                            .classed('map-list-counts',true)
-                        mapCounts2.append('p')
-                            .classed('map-counts2-text',true)
-                            .style('color', color.textlight)
-                            .html(d => d.descendant_counts + ' DRC')
-                        mapCounts2.append('div')
-                            .classed('map-counts2-rect',true)
-                            .style('height', '8px')
-                            .style('width', d => scaleWidth(d.descendant_counts) + 'px')
-                            .style('background-color', color.textlightest)
-                            .style('margin-left', '5px')
-                            .style('border-radius', '20px')
-                        const mapInfoContainer = mapItem.append('div')
+                        const mapTitleP = mapTitleRight.append('p')
+                            .classed('map-list-title-p btn',true)
+                            .style('opacity', d => conceptNames.includes(d.name) ? 1 : 0.6)
+                            .on('mouseover', (e, d) => {
+                                const el = e.currentTarget
+                                el.__hoverTimeout__ = setTimeout(() => {
+                                    showActionLabel('Select concept','enter',e)
+                                }, 1200)
+                            })
+                            .on('mouseout', (e,d) => {
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
+                            })
+                            .on('click', (e,d) => {
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave')
+                                if (!sidebarRoot.name.includes(d.name)) showConfirmationPopup(d, 'enter', e)
+                            })
+                        mapTitleP.append('span')
+                            .classed('title-name selectedText marginRight',true)
+                            .html(d => d.data.concept.concept_name)
+                        mapTitleP.append('span')
+                            .classed('title-code marginRight num',true)
+                            .style('font-weight',500)
+                            .html(d => d.data.concept.concept_code ? d.data.concept.concept_code : d.data.concept.concept_id)
+                        mapTitleP.append('span')
+                            .classed('title-vocab marginRight',true)
+                            .html(d => d.data.concept.vocabulary_id)   
+                        mapTitle.append('i')
+                            .classed('map-info-icon fa-solid fa-circle-info icon',true)  
+                            .attr('id', d => 'info-icon-'+d.name+d.source.name)  
+                            .style('opacity', 0.2)
+                            .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1))
+                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)})
+                            .on('click', (e,d) => {
+                                if (d3.select('#info-container-'+d.name+d.source.name).style('height') === '45px') {
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)
+                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
+                                    d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','20px')
+                                } else {
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1)
+                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
+                                    d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','12px')
+                                }
+                            })
+                        const mapInfoContainer = mapConceptCard.append('div')
                             .classed('map-info-container',true)
-                            .attr('id', d => 'info-container-'+d.name)
+                            .attr('id', d => 'info-container-'+d.name+d.source.name)
+                            .style('border-top', d => conceptNames.includes(d.name) ? '1px solid color-mix(in srgb, #36126d, white 90%)' : '1px solid color-mix(in srgb, #36126d, white 78%)')
                         const mapInfoCol1 = mapInfoContainer.append('div')
-                            .classed('map-info-col',true)
-                            .attr('id', d => 'info-col1-'+d.name)
+                            .classed('info-col',true)
                         mapInfoCol1.append('p')
-                            .html('Id')
-                            .style("font-weight", 700)
+                            .classed('selectedText infoRow',true)
+                            .html('Id:')
                             .append('span')
+                            .classed('infoContent num',true)
                             .html(d => d.name)
-                            .style('margin-left','8px')
-                            .style('font-weight', 400)
                         mapInfoCol1.append('p')
-                            .html('Code')
-                            .style("font-weight", 700)
+                            .classed('selectedText infoRow',true)
+                            .html('Code:')
                             .append('span')
+                            .classed('infoContent num',true)
                             .html(d => d.data.concept.concept_code)
-                            .style('margin-left','8px')
-                            .style('font-weight', 400)
                         mapInfoCol1.append('p')
-                            .html('Type')
-                            .style("font-weight", 700)
+                            .classed('selectedText infoRow',true)
+                            .html('Type:')
                             .append('span')
+                            .classed('infoContent',true)
                             .html(d => d.data.concept.standard_concept ? "Standard" : "Non standard")
-                            .style('margin-left','8px')
-                            .style('font-weight', 400)
-                            .style('padding', '2px 5px 2px 5px')
-                            .style('border', d => d.data.concept.standard_concept ? '1px solid black' : '1px dashed black')
-                            .style('border-radius', '10px')
                         const mapInfoCol2 = mapInfoContainer.append('div')
-                            .classed('map-info-col',true)
+                            .classed('info-col',true)
                             .attr('id', d => 'info-col2-'+d.name)
                             .style('margin-left', '20px')
                         mapInfoCol2.append('p')
-                            .html('Domain')
-                            .style("font-weight", 700)
+                            .classed('selectedText infoRow',true)
+                            .html('Domain:')
                             .append('span')
+                            .classed('infoContent',true)
                             .html(d => d.data.concept.domain_id)
-                            .style('margin-left','8px')
-                            .style('font-weight', 400)
                         mapInfoCol2.append('p')
-                            .html('Class')
-                            .style("font-weight", 700)
+                            .classed('selectedText infoRow',true)
+                            .html('Class:')
                             .append('span')
+                            .classed('infoContent',true)
                             .html(d => d.data.concept.concept_class_id)
-                            .style('margin-left','8px')
-                            .style('font-weight', 400)
-                        // mapInfoCol2.append('p')
-                        //     .html('Validity')
-                        //     .style("font-weight", 700)
-                        //     .append('span')
-                        //     .html(d => getValidity(d.data.concept.valid_end_date))
-                        //     .style('margin-left','8px')
-                        //     .style('font-weight', 400)    
-                    }, update => {
+
+                        const mapDataSection = mapTitleSection.append('div')
+                            .style('display','flex')
+                            .style('align-items','center')
+                            .style('justify-content','flex-start')
+                            .style('width','flex-grow',1)
+                        const mapCountsSection = mapDataSection.append('div')
+                            .style('display','flex')
+                            .style('flex-direction','column')
+                            .style('height','100%')
+                            .style('justify-content','space-between')
+
+                        const mapCountsRC = mapCountsSection.append('div')
+                            .classed('list-counts',true)
+                        mapCountsRC.append('p')
+                            .classed('map-counts-RC-p list-counts-p num',true)
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html(d => formatThousands(d.total_counts))
+                        mapCountsRC.append('p')
+                            .classed('map-counts-RC-label list-counts-label',true)
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html('RC')
+                        const mapCountsBarRC = mapCountsRC.append('div')
+                            .classed('list-counts-bar-container',true)
+                        mapCountsBarRC.append('div')
+                            .classed('map-counts-RC-bar list-counts-bar',true)
+                            .style('width', d => scaleWidth(d.total_counts) + 'px')
+                            .style('background-color', d => conceptNames.includes(d.name) ? d.color : '#e0e0e0')
+                        
+                        const mapCountsDRC = mapCountsSection.append('div')
+                            .classed('list-counts',true)
+                        mapCountsDRC.append('p')
+                            .classed('map-counts-DRC-P list-counts-p num',true)
+                            .style('text-align','left')
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html(d => formatThousands(d.descendant_counts))
+                        mapCountsDRC.append('p')
+                            .classed('map-counts-DRC-label list-counts-label',true)
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html('DRC')
+                        const mapCountsBarDRC = mapCountsDRC.append('div')
+                            .classed('list-counts-bar-container',true)
+                        mapCountsBarDRC.append('div')
+                            .classed('map-counts-DRC-bar list-counts-bar',true)
+                            .style('width', d => scaleWidth(d.descendant_counts) + 'px')
+                            .style('background-color', d => conceptNames.includes(d.name) ? d.color : '#e0e0e0')   
+                        
+                        mapDataSection.append('div')
+                            .classed('list-open-mappings',true)
+                    
+                    },update => {
+                        update
+                            .transition()
+                            .style('max-height', d => mapRoot.includes(d.source.name) || (nodes.find(n => n.name === d.source.name).mappings.map(m => m.name).some(map => conceptNames.includes(map))) ? '100px' : '0px')
+                            .style('visibility', d => mapRoot.includes(d.source.name) || (nodes.find(n => n.name === d.source.name).mappings.map(m => m.name).some(map => conceptNames.includes(map))) ? 'visible' : 'hidden')
                         update.select('.map-list-item')
-                            .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered.includes(d.name) ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px dashed var(--background)')
                             .transition()
                             .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
-                        update.select('.map-title-circle')
+                        update.select('.map-list-card')
+                            .style('box-shadow', d => conceptNames.includes(d.name) ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
+                            .style('background-color', d => d.levels === '-1' ? 'none' : conceptNames.includes(d.name) ? 'white' : '#ebebeb')
+                        update.select('.map-list-title-circle')
+                            .classed('list-circle-dash', d => d.total_counts === 0 ? true : false)
+                            .classed('list-circle', d => d.total_counts === 0 ? false : true)
+                            .classed('btn', d => conceptNames.includes(d.name) ? true : false)
+                            .style('pointer-events', d => conceptNames.includes(d.name) ? 'all' : 'none')
                             .style('background', d => {
-                                if (!conceptNames.includes(d.name)) return "none"
-                                else {
+                                if (d.total_counts === 0) return "none"
+                                if (conceptNames.includes(d.name)) {
                                     if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
-                                    else {return "none"}    
-                                }    
+                                    else {return "none"}
+                                }
+                                else {
+                                    if (!d.data.concept.standard_concept) return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, #d6d6d6 0.5px, #d6d6d6 2px)"  
+                                    else {return "none"}
+
+                                }      
                             })
                             .style("background-color", d => {
-                                if (!conceptNames.includes(d.name)) return "transparent"
-                                else {
+                                if (d.total_counts === 0) return "transparent"
+                                if (conceptNames.includes(d.name)) {
                                     if (d.data.concept.standard_concept) {return d.color} 
                                     else {return "transparent"}
                                 }
+                                else return '#d6d6d6'
                             }) 
-                            .style('pointer-events', d => d.total_counts === 0 ? 'none' : 'all')
-                            .style('border', d => d.total_counts === 0 ? '1px solid var(--textlightest)' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid var(--textlight)')
-                            .on('click', (e,d) => {
-                                d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
+                            .style('border', d => d.total_counts === 0 ? '1px solid #b2b2b2' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                            .on('mouseover',(e,d) => setHovered([d.name]))
+                            .on('mouseout', (e,d) => setHovered([]))
+                        update.select('.map-list-title-right')
+                            .on('mouseover',(e,d) => {
+                                    d3.select('#list-icons-'+d.name).transition(1000).style('max-width','36px').style('opacity',1)
+                            })
+                            .on('mouseout', (e,d) => {
+                                
+                                if (!showConfirmation) d3.select('#list-icons-'+d.name).transition(1000).style('max-width','0px').style('opacity',0)
+                            })
+                        update.select('.map-list-eye')
+                            .attr("src", d => conceptNames.includes(d.name) ? openedEye : closedEye)
+                            .style('opacity', d => conceptNames.includes(d.name) ? 1 : 0.3)
+                            .style('display', d => d.total_counts === 0 ? 'none' : 'inline-block')
+                            .on('mouseover', (e, d) => {
+                                if (!conceptNames.includes(d.name)) d3.select('#list-eye-'+d.name).transition().style('opacity',1)
+                                const el = e.currentTarget
+                                el.__hoverTimeout__ = setTimeout(() => {
+                                    showActionLabel(
+                                        conceptNames.includes(d.name) 
+                                            ? 'Hide concept'
+                                            : 'Show concept',
+                                        'enter',
+                                        e
+                                    )
+                                }, 1200)
+                            })
+                            .on('mouseout', (e,d) => {
+                                if (!conceptNames.includes(d.name)) d3.select('#list-eye-'+d.name).transition().style('opacity',0.2)
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
+                            })
+                            .on('click',(e,d) => {
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave')
                                 if (d.total_counts !== 0) {
                                     if (conceptNames.includes(d.name)) {
+                                        // if (!nodes.find(n => n.name === d.source.name).mappings.map(m => m.name).filter(map => map !== d.name).some(map => conceptNames.includes(map))) {
+                                        //     const newMap = mapRoot.filter(name => name !== d.source.name)
+                                        //     setMapRoot(newMap)
+                                        // }
                                         const newInclusions = inclusions.filter(e => e !== d.name)
                                         updateConcepts(newInclusions,nodes,[],[d])
                                     } else if (!conceptNames.includes(d.name)){
+                                        // if (!mapRoot.includes(d.source.name)) setMapRoot([...mapRoot,d.source.name])
                                         const newInclusions = [...inclusions,d.name]
                                         updateConcepts(newInclusions,nodes,[d],[])
                                     }     
                                 } 
                             })
-                            .on('mouseover', (e,d) => {
-                                if (!conceptNames.includes(d.name)) {
-                                    d3.select('#plus-'+d.name).transition().style('color', 'white')
-                                    d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`) 
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.text)  
-                                    d3.select('#title-code-'+d.name).transition().style('color',color.text)  
-                                    d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
-                                    d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
-                                } else  d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
-                            })
-                            .on('mouseout', (e,d) => {
-                                if (!conceptNames.includes(d.name)) {
-                                    d3.select('#plus-'+d.name).transition().style('color', color.text)
-                                    d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
-                                    d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
-                                } else d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                            })
-                        update.select('.map-list-plus')
-                            .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 ? 'block' : 'none')
-                        update.select('.map-title-name')
-                            .style("font-weight", d => sidebarRoot.name.includes(d.name) || hovered.includes(d.name) ? 700 : 400)
-                            .style('color', d => conceptNames.includes(d.name) || hovered.includes(d.name) ? color.text : color.textlight)
-                            .html(d => d.data.concept.concept_name)
-                            .on('click', (e,d) => {
-                                setLoading(true)
-                                navigate(`/${d.name}`)
-                                //conceptHover(d.name, "leave") 
-                            })
-                            .on('mouseover', function (e,d) {
-                                d3.select('#list-item-'+d.name).style('background-color',color.lightpurple).style('border','1px solid var(--lightpurple)')
-                                d3.select('#title-name-'+d.name).style('font-weight',700)
-                                if (!conceptNames.includes(d.name) && d.total_counts !== 0) { 
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.text)    
-                                }
-                                const el = this
+                        update.select('.map-list-search')
+                            .on('mouseover', (e, d) => {
+                                const el = e.currentTarget
                                 el.__hoverTimeout__ = setTimeout(() => {
-                                    setHovered([d.name])
-                                },400)
+                                    showActionLabel('Select concept','enter',e)
+                                }, 1200)
                             })
-                            .on('mouseout', function (e,d) {
-                                const el = this
-                                clearTimeout(el.__hoverTimeout__)
-                                if (!sidebarRoot.name.includes(d.name)) {
-                                    d3.select('#list-item-'+d.name).style('background-color', d => conceptNames.includes(d.name) ? color.lightbackground : 'transparent').style('border', d => conceptNames.includes(d.name) ? '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                                    d3.select('#title-name-'+d.name).style('font-weight',400)
-                                    if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
-                                        d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
-                                    }
-                                }  
-                                setHovered([])  
-                            })
-                        update.select('.map-title-code')
-                            .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
-                            .html(d => d.data.concept.concept_code)
-                        update.select('.map-title-vocab')
-                            .style('color', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
-                            .html(d => d.data.concept.vocabulary_id) 
-                        update.select('.map-info-icon')
-                            .on('mouseover', (e,d) => d3.select('#info-icon-'+d.name).style('opacity',1))
                             .on('mouseout', (e,d) => {
-                                if (d3.select('#info-container-'+d.name).style('display') === 'none') d3.select('#info-icon-'+d.name).style('opacity',0.2)
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
                             })
                             .on('click', (e,d) => {
-                                if (d3.select('#info-container-'+d.name).style('display') === 'flex') {
-                                    d3.select('#info-icon-'+d.name).style('opacity',0.2)
-                                    d3.select('#info-container-'+d.name).transition().style('height','0px').style('display','none')
-                                    d3.select('#info-col1-'+d.name).transition().style('opacity',0)
-                                    d3.select('#info-col2-'+d.name).transition().style('opacity',0)
-                                } else {
-                                    d3.select('#info-icon-'+d.name).style('opacity',1)
-                                    d3.select('#info-container-'+d.name).transition().style('height','50px').style('display','flex')
-                                    d3.select('#info-col1-'+d.name).transition().style('opacity',1)
-                                    d3.select('#info-col2-'+d.name).transition().style('opacity',1)    
-                                }
-                                
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave')
+                                showConfirmationPopup(d, 'enter', e)
                             })
-                        update.select('.map-counts1-text')
-                            .style('color', d => conceptNames.includes(d.name) ? d.total_counts > 0 ? color.text : color.textlight : color.textlight)
-                            .html(d => d.total_counts + ' RC')
-                        update.select('.map-counts1-rect')
+                        update.select('.map-list-title-p')
+                            .on('mouseover', (e, d) => {
+                                const el = e.currentTarget
+                                el.__hoverTimeout__ = setTimeout(() => {
+                                    showActionLabel('Select concept','enter',e)
+                                }, 1200)
+                            })
+                            .on('mouseout', (e,d) => {
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
+                            })
+                            .on('click', (e,d) => {
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave')
+                                if (!sidebarRoot.name.includes(d.name)) showConfirmationPopup(d, 'enter', e)
+                            })
+                            .transition()
+                            .style('opacity', d => conceptNames.includes(d.name) ? 1 : 0.6)
+                        update.select('.map-info-icon')
+                            .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1))
+                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)})
+                            .on('click', (e,d) => {
+                                if (d3.select('#info-container-'+d.name+d.source.name).style('height') === '45px') {
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)
+                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
+                                    d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','20px')
+                                } else {
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1)
+                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
+                                    d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','12px')
+                                }
+                            })
+                        update.select('.map-info-container')
+                            .style('border-top', d => conceptNames.includes(d.name) ? '1px solid color-mix(in srgb, #36126d, white 90%)' : '1px solid color-mix(in srgb, #36126d, white 78%)')
+                        update.select('.map-counts-RC-p')
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html(d => formatThousands(d.total_counts))
+                        update.select('.map-counts-RC-label')
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                        update.select('.map-counts-RC-bar')
                             .transition()
                             .style('width', d => scaleWidth(d.total_counts) + 'px')
-                            .style('background-color', d => conceptNames.includes(d.name) ? d.color : color.textlightest)
-                        update.select('.map-counts2-text')
-                            .html(d => d.descendant_counts + ' DRC')
-                        update.select('.map-counts2-rect')
+                            .style('background-color', d => conceptNames.includes(d.name) ? d.color : '#e0e0e0')
+                        update.select('.map-counts-DRC-p')
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html(d => formatThousands(d.descendant_counts))
+                        update.select('.map-counts-DRC-label')
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                        update.select('.map-counts-DRC-bar')
                             .transition()
-                            .style('width', d => scaleWidth(d.descendant_counts) + 'px')    
+                            .style('width', d => scaleWidth(d.descendant_counts) + 'px')
+                            .style('background-color', d => conceptNames.includes(d.name) ? d.color : '#e0e0e0')
                     })
-                }, update => {
+                },update => {
                     update.select('.list-item')
-                        .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered.includes(d.name) ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                        .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
+                        .style('background-color', d => d.levels === '-1' ? '#f0f0f0' : 'white')
                         .transition()
-                        .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : d.levels === "-1" ? 0.7 : 1)
-                    update.select('.title-circle')
+                        .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
+                    update.select('.list-card')
+                        .style('box-shadow', d => conceptNames.includes(d.name) || d.leaf ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
+                        .style('background-color', d => d.levels === '-1' ? 'none' : conceptNames.includes(d.name) || d.leaf ? 'white' : '#ebebeb')
+                    update.select('.list-title-circle')
+                        .classed('list-circle-dash', d => d.total_counts === 0 && !d.leaf ? true : false)
+                        .classed('list-circle', d => d.total_counts === 0 && !d.leaf ? false : true)
+                        .classed('btn', d => conceptNames.includes(d.name) || d.leaf ? true : false)
+                        .style("pointer-events", d => conceptNames.includes(d.name) || d.leaf ? 'all' : 'none')
                         .style('background', d => {
-                            if (!conceptNames.includes(d.name)) return "none"
-                            else {
+                            if (d.total_counts === 0 && !d.leaf) return "none"
+                            if (conceptNames.includes(d.name) || d.leaf) {
                                 if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
-                                else {return "none"}    
-                            }    
+                                else {return "none"}
+                            }
+                            else {
+                                if (!d.data.concept.standard_concept) return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, #d6d6d6 0.5px, #d6d6d6 2px)"  
+                                else {return "none"}
+
+                            }      
                         })
                         .style("background-color", d => {
-                            if (!conceptNames.includes(d.name)) return "transparent"
-                            else {
+                            if (d.total_counts === 0 && !d.leaf) return "transparent"
+                            if (conceptNames.includes(d.name) || d.leaf) {
                                 if (d.data.concept.standard_concept) {return d.color} 
                                 else {return "transparent"}
                             }
+                            else return '#d6d6d6'
                         }) 
-                        .style('pointer-events', d => d.total_counts === 0 && !d.leaf ? 'none' : 'all')
-                        .style('border', d => (d.total_counts === 0 && !d.leaf) || d.levels === '-1' ? '1px solid var(--textlightest)' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid var(--textlight)')
-                        .on('click', (e,d) => {
-                            d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
+                        .style('border', d => d.total_counts === 0 && !d.leaf ? '1px solid #b2b2b2' : conceptNames.includes(d.name) || d.leaf ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                        .on('mouseover',(e,d) => setHovered([d.name]))
+                        .on('mouseout', (e,d) => setHovered([]))
+                    update.select('.list-title-right')
+                        .on('mouseover',(e,d) => {
+                                d3.select('#list-icons-'+d.name).transition(1000).style('max-width','36px').style('opacity',1)
+                        })
+                        .on('mouseout', (e,d) => {
+                            
+                            if (!showConfirmation) d3.select('#list-icons-'+d.name).transition(1000).style('max-width','0px').style('opacity',0)
+                        })
+                    update.select('.list-eye')
+                        .attr("src", d => conceptNames.includes(d.name) || d.leaf ? openedEye : closedEye)
+                        .style('opacity', d => conceptNames.includes(d.name) || d.leaf ? 1 : 0.2)
+                        .style('display', d => (d.total_counts === 0 && !d.leaf) || d.levels === '-1' ? 'none' : 'inline-block')
+                        .on('mouseover', (e, d) => {
+                            if (!conceptNames.includes(d.name) && !d.leaf) d3.select('#list-eye-'+d.name).transition().style('opacity',1)
+                            const el = e.currentTarget
+                            el.__hoverTimeout__ = setTimeout(() => {
+                                showActionLabel(
+                                    conceptNames.includes(d.name) || d.leaf
+                                        ? 'Hide concept'
+                                        : 'Show concept',
+                                    'enter',
+                                    e
+                                )
+                            }, 1200)
+                        })
+                        .on('mouseout', (e,d) => {
+                            if (!conceptNames.includes(d.name) && !d.leaf) d3.select('#list-eye-'+d.name).transition().style('opacity',0.2)
+                            clearTimeout(e.currentTarget.__hoverTimeout__)
+                            showActionLabel('','leave',e)
+                        })
+                        .on('click',(e,d) => {
+                            clearTimeout(e.currentTarget.__hoverTimeout__)
+                            showActionLabel('','leave')
                             if (d.total_counts !== 0) {
                                 if (conceptNames.includes(d.name)) {
                                     const newInclusions = inclusions.filter(e => e !== d.name)
@@ -2970,519 +3046,541 @@
                                 }     
                             } 
                         })
-                        .on('mouseover', (e,d) => {
-                            if (!conceptNames.includes(d.name) && d.levels !== '-1') {
-                                d3.select('#plus-'+d.name).transition().style('color', 'white')
-                                d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`) 
-                                d3.select('#title-name-'+d.name).transition().style('color',color.text)  
-                                d3.select('#title-code-'+d.name).transition().style('color',color.text)  
-                                d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
-                                d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
-                                d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
-                            } else d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
-                        })
-                        .on('mouseout', (e,d) => {
-                            if (!conceptNames.includes(d.name) && d.levels !== '-1') {
-                                d3.select('#plus-'+d.name).transition().style('color', color.text)
-                                d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
-                                d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
-                                d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
-                                d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
-                                d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
-                                d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
-                            } else d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                        })
-                    update.select('.list-plus')
-                        .style('display', d => !conceptNames.includes(d.name) && (d.total_counts !== 0 || d.leaf) && d.levels !== '-1' ? 'block' : 'none')
-                    update.select('.title-name')
-                        .style("font-weight", d => sidebarRoot.name.includes(d.name) || hovered.includes(d.name) ? 700 : 400)
-                        .style('color', d => conceptNames.includes(d.name) || hovered.includes(d.name) ? color.text : color.textlight)
-                        .html(d => d.data.concept.concept_name || d.data.concept.concept_id)
-                        .on('click', (e,d) => {
-                            navigate(`/${d.name}`)
-                            //conceptHover(d.name, "leave") 
-                        })
-                        .on('mouseover', function (e,d) {
-                            if (d.levels === '-1') d3.select('#list-item-'+d.name).style('opacity',1)
-                            d3.select('#list-item-'+d.name).style('background-color',color.lightpurple).style('border','1px solid var(--lightpurple)')
-                            d3.select('#title-name-'+d.name).style('font-weight',700)
-                            if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
-                                d3.select('#title-name-'+d.name).transition().style('color',color.text)     
-                            }
-                            const el = this
+                    update.select('.list-search')
+                        .on('mouseover', (e, d) => {
+                            const el = e.currentTarget
                             el.__hoverTimeout__ = setTimeout(() => {
-                                if (d.levels !== "-1") setHovered([d.name])
-                                },400)
+                                showActionLabel('Select concept','enter',e)
+                            }, 1200)
                         })
-                        .on('mouseout', function (e,d) {
-                            const el = this
-                            clearTimeout(el.__hoverTimeout__)
-                            if (!sidebarRoot.name.includes(d.name)) {
-                                if (d.levels === '-1') d3.select('#list-item-'+d.name).style('opacity',0.7)
-                                d3.select('#list-item-'+d.name).style('background-color', d => conceptNames.includes(d.name) ? color.lightbackground : 'transparent').style('border', d => conceptNames.includes(d.name) ? '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                                d3.select('#title-name-'+d.name).style('font-weight',400)
-                                if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
-                                }
-                            } 
-                            if (d.levels !== "-1") setHovered([])
-                        })
-                    update.select('.title-code')
-                        .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
-                        .html(d => d.data.concept.concept_code)
-                    update.select('.title-vocab')
-                        .style('color', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
-                        .html(d => d.data.concept.vocabulary_id)
-                    // update.select('.title-level')
-                    //     .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
-                    //     .html(d => d.levels)  
-                    update.select('.info-icon')
-                        .on('mouseover', (e,d) => d3.select('#info-icon-'+d.name).style('opacity',1))
                         .on('mouseout', (e,d) => {
-                            if (d3.select('#info-container-'+d.name).style('display') === 'none') d3.select('#info-icon-'+d.name).style('opacity',0.2)
+                            clearTimeout(e.currentTarget.__hoverTimeout__)
+                            showActionLabel('','leave',e)
                         })
                         .on('click', (e,d) => {
-                            if (d3.select('#info-container-'+d.name).style('display') === 'flex') {
-                                d3.select('#info-icon-'+d.name).style('opacity',0.2)
-                                d3.select('#info-container-'+d.name).transition().style('height','0px').style('display','none')
-                                d3.select('#info-col1-'+d.name).transition().style('opacity',0)
-                                d3.select('#info-col2-'+d.name).transition().style('opacity',0)
+                            clearTimeout(e.currentTarget.__hoverTimeout__)
+                            showActionLabel('','leave')
+                            showConfirmationPopup(d, 'enter', e)
+                        })
+                    update.select('.list-title-p')
+                        .on('mouseover', (e, d) => {
+                            const el = e.currentTarget
+                            el.__hoverTimeout__ = setTimeout(() => {
+                                showActionLabel('Select concept','enter',e)
+                            }, 1200)
+                        })
+                        .on('mouseout', (e,d) => {
+                            clearTimeout(e.currentTarget.__hoverTimeout__)
+                            showActionLabel('','leave',e)
+                        })
+                        .on('click', (e,d) => {
+                            clearTimeout(e.currentTarget.__hoverTimeout__)
+                            showActionLabel('','leave')
+                            if (!sidebarRoot.name.includes(d.name)) showConfirmationPopup(d, 'enter', e)
+                        })
+                        .transition()
+                        .style('opacity', d => conceptNames.includes(d.name) || d.leaf ? 1 : 0.6)
+                    update.select('.info-icon')
+                        .style('display', d => d.levels === '-1' || !d.levels ? 'none' : 'block')
+                        .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name).transition().style('opacity',1))
+                        .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name).style('height') !== '45px') d3.select('#info-icon-'+d.name).transition().style('opacity',0.2)})
+                        .on('click', (e,d) => {
+                            if (d3.select('#info-container-'+d.name).style('height') === '45px') {
+                                d3.select('#info-icon-'+d.name).transition().style('opacity',0.2)
+                                d3.select('#info-container-'+d.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
+                                d3.select('#list-card-'+d.name).transition().style('border-radius','20px')
                             } else {
-                                d3.select('#info-icon-'+d.name).style('opacity',1)
-                                d3.select('#info-container-'+d.name).transition().style('height','50px').style('display','flex')
-                                d3.select('#info-col1-'+d.name).transition().style('opacity',1)
-                                d3.select('#info-col2-'+d.name).transition().style('opacity',1)    
-                            }
-                            
-                        })
-                    update.select('.title-caret-down')
-                        .style('display', d => !mapRoot.includes(d.name) ? d.mappings.length > 0 ? 'inline-block' : 'none' : 'none')
-                        .on('click', (e,d) => {
-                            if (d3.select('#caret-down-'+d.name).style('display') === 'inline-block') {
-                                d3.select('#caret-down-'+d.name).style('display','none')  
-                                d3.select('#caret-up-'+d.name).style('display','inline-block') 
-                                d3.select('#mappings-container-'+d.name).transition().style('height','auto').style('display','flex')
-                                setMapRoot([...mapRoot,d.name])
-                                updateWidth([...mapRoot,d.name])
+                                d3.select('#info-icon-'+d.name).transition().style('opacity',1)
+                                d3.select('#info-container-'+d.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
+                                d3.select('#list-card-'+d.name).transition().style('border-radius','12px')
                             }
                         })
-                        .on('mouseover', (e,d) => d3.select('#caret-down-'+d.name).style('opacity',1))
-                        .on('mouseout', (e,d) => d3.select('#caret-down-'+d.name).style('opacity',0.2))
-                    update.select('.title-caret-up')
-                        .style('display', d => mapRoot.includes(d.name) && d.mappings.length > 0 ? 'inline-block' : 'none')
-                        .on('click', (e,d) => {
-                            if (d3.select('#caret-up-'+d.name).style('display') === 'inline-block') {
-                                d3.select('#caret-up-'+d.name).style('display','none')  
-                                d3.select('#caret-down-'+d.name).style('display','inline-block') 
-                                d3.select('#mappings-container-'+d.name).transition().style('height','0px').style('display','none')
-                                const filteredMapRoot = mapRoot.filter(id => id !== d.name)
-                                setMapRoot(filteredMapRoot)
-                                updateWidth(filteredMapRoot)
-                            }
-                        })
-                    update.select('.counts1-text')
-                        .style('color', d => conceptNames.includes(d.name) && !d.leaf ? d.total_counts > 0 ? color.text : color.textlight : color.textlight)
-                        .html(d => d.total_counts + ' RC')
-                    update.select('.counts1-rect')
+                    update.select('.info-container')
+                        .style('border-top', d => conceptNames.includes(d.name) || d.leaf ? '1px solid color-mix(in srgb, #36126d, white 90%)' : '1px solid color-mix(in srgb, #36126d, white 78%)')
+                    update.select('.counts-RC-p')
+                        .style('color', d => conceptNames.includes(d.name) && !d.leaf ? '#36126d' : '#808080')
+                        .style('font-weight', d => conceptNames.includes(d.name) && !d.leaf ? 500 : 400)
+                        .html(d => formatThousands(d.total_counts))
+                    update.select('.counts-RC-label')
+                        .style('color', d => conceptNames.includes(d.name) && !d.leaf ? '#36126d' : '#808080')
+                        .style('font-weight', d => conceptNames.includes(d.name) && !d.leaf ? 500 : 400)
+                    update.select('.counts-RC-bar')
                         .transition()
                         .style('width', d => scaleWidth(d.total_counts) + 'px')
-                        .style('background-color', d => conceptNames.includes(d.name) && !d.leaf ? d.color : color.textlightest)
-                    update.select('.counts2-text')
-                        .style('color', d => d.leaf && d.descendant_counts !== 0 ? color.text : color.textlight)
-                        .html(d => d.descendant_counts + ' DRC')
-                    update.select('.counts2-rect')
+                        .style('background-color', d => conceptNames.includes(d.name) && !d.leaf ? d.color : '#e0e0e0')
+                    update.select('.counts-DRC-p')
+                        .style('color', d => conceptNames.includes(d.name) && d.leaf ? '#36126d' : '#808080')
+                        .style('font-weight', d => conceptNames.includes(d.name) && d.leaf ? 500 : 400)
+                        .html(d => formatThousands(d.descendant_counts))
+                    update.select('.counts-DRC-label')
+                        .style('color', d => conceptNames.includes(d.name) && d.leaf ? '#36126d' : '#808080')
+                        .style('font-weight', d => conceptNames.includes(d.name) && d.leaf ? 500 : 400)
+                    update.select('.counts-DRC-bar')
                         .transition()
-                        .style('background-color', d => d.leaf && d.descendant_counts !== 0 ? d.color : color.textlightest)
                         .style('width', d => scaleWidth(d.descendant_counts) + 'px')
-                    update.select(".mappings-container")
-                        .style('height', d => (mapRoot.includes(d.name) && d.mappings.length > 0) || d.mappings.map(d => d.name).includes(hovered) ? 'auto' : '0px')
-                        .style('display', d => (mapRoot.includes(d.name) && d.mappings.length > 0) || d.mappings.map(d => d.name).includes(hovered) ? 'flex' : 'none')
-                        .style('--after-border', !hovered.length > 0 ? '1px dashed var(--textlight)' : '1px dashed #191a1c15');
-                    update.select('.mappings-type')
-                        .style('opacity', () => hovered.length > 0 ? 0.2 : 1)
+                        .style('background-color', d => conceptNames.includes(d.name) && d.leaf ? d.color : '#e0e0e0')
+                    update.select('.list-caret-down')
+                        .style('display', d => d.mappings.length > 0 ? mapRoot.includes(d.name) || d.mappings.map(m => m.name).some(map => hovered.includes(map)) ? 'none' : 'block' : 'none')
+                        .on('click',(e,d) => {
+                            setMapRoot([...mapRoot,d.name])
+                            d3.select('#mappings-container-'+d.name).classed('hide-after', false).transition(2000).style('opacity',1).style('max-height',d.mappings.length * 100 + 'px')
+                            d3.select('#mappings-title-'+d.name).transition(2000).style('opacity',1).style('max-height','10px')
+                            d3.selectAll(".map-list-item-"+d.name).transition(2000).style('max-height','100px').style('visibility','visible')
+                            d3.select('#list-caret-down-'+d.name).style('display','none')
+                            d3.select('#list-caret-up-'+d.name).style('display','block')
+                        })
+                    update.select('.list-caret-up')
+                        .style('display', d => mapRoot.includes(d.name) || d.mappings.map(m => m.name).some(map => hovered.includes(map)) ? 'block' : 'none')
+                        .on('click',(e,d) => {
+                            const newMap = mapRoot.filter(name => name !== d.name)
+                            setMapRoot(newMap)
+                            d3.select('#mappings-container-'+d.name).classed('hide-after', true).transition(2000).style('opacity',0).style('max-height','0px')
+                            d3.select('#mappings-title-'+d.name).transition(2000).style('opacity',0).style('max-height','0px')
+                            d3.selectAll(".map-list-item-"+d.name).transition(2000).style('max-height','0px').style('visibility','hidden')
+                            d3.select('#list-caret-down-'+d.name).style('display','block')
+                            d3.select('#list-caret-up-'+d.name).style('display','none')
+                        })
+                    update.select('.mappings-container')
+                        .classed('hide-after', d => mapRoot.includes(d.name) ? false : true)
+                        .classed('fade-after', () => hovered.length > 0 ? true : false)
+                        .transition()
+                        .style('max-height', d => mapRoot.includes(d.name) || d.mappings.map(m => m.name).some(map => hovered.includes(map)) ? d.mappings.length * 100 + 'px' : '0px')
+                        .style('opacity', d => mapRoot.includes(d.name) || d.mappings.map(m => m.name).some(map => hovered.includes(map)) ? 1 : 0)
+                        .style('border-left', () => hovered.length > 0 ? '1px dashed #36126d20' : '1px dashed #36126d80')
+                    update.select('.mappings-title')
+                        .transition()
+                        .style('max-height', d => mapRoot.includes(d.name) || d.mappings.map(m => m.name).some(map => hovered.includes(map)) ? '10px' : '0px')
+                        .style('opacity', d => mapRoot.includes(d.name) ? hovered.length > 0 ? 0.2 : 1 : 0)
                     // MAPPINGS
-                    update.select('.mappings-container').selectAll(".map-list-item-container").data(d => d.mappings, d => d.name)
+                    update.selectAll(".map-list-item-container").data(d => d.mappings, d => d.name)
                     .join(enter => {
                         const mapItemContainer = enter.append('div')
                             .classed('map-list-item-container',true)
+                            .each(function(d) {this.classList.add(`map-list-item-${d.source.name}`)})
+                            .style('max-height', d => mapRoot.includes(d.source.name) ? '100px' : '0px')
+                            .style('visibility', d => mapRoot.includes(d.source.name) ? 'visible' : 'hidden')
                         const mapItem = mapItemContainer.append('div')
                             .classed('map-list-item',true)
-                            .attr('id', d => 'list-item-'+d.name)
-                            .style('margin-bottom', '4px')
-                            .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered.includes(d.name) ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px dashed var(--background)')
-                            .style('border-radius', '20px')
                             .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
                         const mapTitleSection = mapItem.append('div')
-                            .classed('map-title-section',true)
-                        const mapTitle = mapTitleSection.append('div')
-                            .classed('map-item-title',true)
-                            .attr('id', d => 'item-title-' + d.name)
-                        const mapCircle = mapTitle.append('div')
-                            .classed('map-title-circle',true)
-                            .attr('id', d => 'title-circle-'+d.name)
-                            .style('flex-shrink',0)
-                            .style('width', '14px')
-                            .style('height', '14px')
-                            .style('pointer-events', d => d.total_counts === 0 ? 'none' : 'all')
-                            .style('border', d => d.total_counts === 0 ? '1px solid var(--textlightest)' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid var(--textlight)')
-                            .style('cursor','pointer')
+                            .classed('list-title-section',true)
+                        const mapConceptCard = mapTitleSection.append('div')
+                            .classed('map-list-card',true)
+                            .attr('id', d => 'list-card-'+d.name+d.source.name)
+                            .style('display','flex')
+                            .style('flex-direction','column')
+                            .style('box-shadow', d => conceptNames.includes(d.name) ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
+                            .style('background-color', d => conceptNames.includes(d.name) ? 'white' : '#ebebeb')
+                        const mapTitle = mapConceptCard.append('div')
+                            .classed('list-item-title',true)
+                        const mapTitle1 = mapTitle.append('div')
+                            .style('display','flex')
+                            .style('align-items','center')
+                        mapTitle1.append('div')
+                            .classed('map-list-title-circle',true)
+                            .classed('list-circle-dash', d => d.total_counts === 0 ? true : false)
+                            .classed('list-circle', d => d.total_counts === 0 ? false : true)
+                            .classed('btn', d => conceptNames.includes(d.name) ? true : false)
+                            .style('pointer-events', d => conceptNames.includes(d.name) ? 'all' : 'none')
                             .style('background', d => {
-                                if (!conceptNames.includes(d.name)) return "none"
-                                else {
+                                if (d.total_counts === 0) return "none"
+                                if (conceptNames.includes(d.name)) {
                                     if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
-                                    else {return "none"}    
-                                }    
+                                    else {return "none"}
+                                }
+                                else {
+                                    if (!d.data.concept.standard_concept) return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, #d6d6d6 0.5px, #d6d6d6 2px)"    
+                                    else {return "none"}
+
+                                }  
                             })
                             .style("background-color", d => {
-                                if (!conceptNames.includes(d.name)) return "transparent"
-                                else {
+                                if (d.total_counts === 0) return "transparent"
+                                if (conceptNames.includes(d.name)) {
                                     if (d.data.concept.standard_concept) {return d.color} 
                                     else {return "transparent"}
                                 }
+                                else return '#d6d6d6'
                             }) 
-                            .style('border-radius', '50%')
-                            .style('margin-right', '5px')
-                            .on('click', (e,d) => {
-                                d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
+                            .style('border', d => d.total_counts === 0 ? '1px solid #b2b2b2' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                            .on('mouseover',(e,d) => setHovered([d.name]))
+                            .on('mouseout', (e,d) => setHovered([]))
+                        const mapTitleRight = mapTitle1.append('div')
+                            .classed('map-list-title-right btn',true)
+                            .style('display','flex')
+                            .style('align-items','center')
+                            .on('mouseover',(e,d) => {
+                                d3.select('#list-icons-'+d.name).transition(1000).style('max-width','36px').style('opacity',1)
+                            })
+                            .on('mouseout', (e,d) => {
+                                
+                                if (!showConfirmation) d3.select('#list-icons-'+d.name).transition(1000).style('max-width','0px').style('opacity',0)
+                            })
+                        const mapIcons = mapTitleRight.append('div')
+                            .classed('map-list-icons',true)
+                            .attr('id',d => 'list-icons-'+d.name)
+                            .style('display','flex')
+                            .style('max-width', '0px')
+                            .style('opacity', 0)
+                        mapIcons.append('img')
+                            .classed('map-list-eye icon marginRight eye',true)
+                            .attr('id', d => 'list-eye-'+d.name)
+                            .attr("src", d => conceptNames.includes(d.name) ? openedEye : closedEye)
+                            .style('opacity', d => conceptNames.includes(d.name) ? 1 : 0.3)
+                            .style('display', d => d.total_counts === 0 ? 'none' : 'inline-block')
+                            .on('mouseover', (e, d) => {
+                                if (!conceptNames.includes(d.name)) d3.select('#list-eye-'+d.name).transition().style('opacity',1)
+                                const el = e.currentTarget
+                                el.__hoverTimeout__ = setTimeout(() => {
+                                    showActionLabel(
+                                        conceptNames.includes(d.name) 
+                                            ? 'Hide concept'
+                                            : 'Show concept',
+                                        'enter',
+                                        e
+                                    )
+                                }, 1200)
+                            })
+                            .on('mouseout', (e,d) => {
+                                if (!conceptNames.includes(d.name)) d3.select('#list-eye-'+d.name).transition().style('opacity',0.2)
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
+                            })
+                            .on('click',(e,d) => {
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave')
                                 if (d.total_counts !== 0) {
                                     if (conceptNames.includes(d.name)) {
+                                        // if (!nodes.find(n => n.name === d.source.name).mappings.map(m => m.name).filter(map => map !== d.name).some(map => conceptNames.includes(map))) {
+                                        //     const newMap = mapRoot.filter(name => name !== d.source.name)
+                                        //     setMapRoot(newMap)
+                                        // }
                                         const newInclusions = inclusions.filter(e => e !== d.name)
                                         updateConcepts(newInclusions,nodes,[],[d])
                                     } else if (!conceptNames.includes(d.name)){
+                                        // if (!mapRoot.includes(d.source.name)) setMapRoot([...mapRoot,d.source.name])
                                         const newInclusions = [...inclusions,d.name]
                                         updateConcepts(newInclusions,nodes,[d],[])
                                     }     
                                 } 
                             })
-                            .on('mouseover', (e,d) => {
-                                if (!conceptNames.includes(d.name)) {
-                                    d3.select('#plus-'+d.name).transition().style('color', 'white')
-                                    d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`) 
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.text)   
-                                    d3.select('#title-code-'+d.name).transition().style('color',color.text) 
-                                    d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
-                                    d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
-                                } else d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
-                            })
-                            .on('mouseout', (e,d) => {
-                                if (!conceptNames.includes(d.name)) {
-                                    d3.select('#plus-'+d.name).transition().style('color', color.text)
-                                    d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
-                                    d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
-                                } else d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                            })
-                        mapCircle.append('i')
-                            .classed('map-list-plus fa-solid fa-plus fa-2xs',true)
-                            .attr('id',d => 'plus-'+d.name)
-                            .style('color', color.text)
-                            .style('pointer-events','none')
-                            .style('padding-bottom','1px')
-                            .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 ? 'block' : 'none')
-                        mapCircle.append('i')
-                            .classed('map-list-x fa-solid fa-x fa-2xs',true)
-                            .style('color', 'white')
-                            .attr('id',d => 'x-'+d.name)
-                            .style('opacity', 0)
-                            .style('display', 'none')
-                            .style('padding-bottom','1px')
-                            .style('pointer-events','none')
-                        const mapTitleP = mapTitle.append('p')
-                        mapTitleP.append('span')
-                            .classed('map-title-name',true)
-                            .attr('id', d => 'title-name-'+d.name)
-                            .style("font-weight", d => sidebarRoot.name.includes(d.name) || hovered.includes(d.name) ? 700 : 400)
-                            .style('color', d => conceptNames.includes(d.name) || hovered.includes(d.name) ? color.text : color.textlight)
-                            .html(d => d.data.concept.concept_name || d.data.concept.concept_id)
-                            .style('padding-right', '4px')
-                            .style('cursor','pointer')
-                            .on('click', (e,d) => {
-                                setLoading(true)
-                                navigate(`/${d.name}`)
-                                //conceptHover(d.name, "leave") 
-                            })
-                            .on('mouseover', function (e,d) {
-                                d3.select('#list-item-'+d.name).style('background-color',color.lightpurple).style('border','1px solid var(--lightpurple)')
-                                d3.select('#title-name-'+d.name).style('font-weight',700)
-                                if (!conceptNames.includes(d.name) && d.total_counts !== 0) { 
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.text)    
-                                }
-                                const el = this
+                        mapIcons.append('i')
+                            .classed('map-list-search fa fa-search iconLg marginRight',true)
+                            .attr('id', d => 'list-search-'+d.name)
+                            .style('transform','scaleX(-1)')
+                            .on('mouseover', (e, d) => {
+                                const el = e.currentTarget
                                 el.__hoverTimeout__ = setTimeout(() => {
-                                    setHovered([d.name])
-                                },400)
+                                    showActionLabel('Select concept','enter',e)
+                                }, 1200)
                             })
-                            .on('mouseout', function (e,d) {
-                                const el = this
-                                clearTimeout(el.__hoverTimeout__)
-                                if (!sidebarRoot.name.includes(d.name)) {
-                                    d3.select('#list-item-'+d.name).style('background-color', d => conceptNames.includes(d.name) ? color.lightbackground : 'transparent').style('border', d => conceptNames.includes(d.name) ? '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                                    d3.select('#title-name-'+d.name).style('font-weight',400)
-                                    if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
-                                        d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
-                                    }
-                                }  
-                                setHovered([])  
-                            })
-                        mapTitleP.append('span')
-                            .classed('map-title-code',true)
-                            .attr('id', d => 'title-code-'+d.name)
-                            .style('font-size', '10px')
-                            .style('font-weight',700)
-                            .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
-                            .html(d => d.data.concept.concept_code)
-                            .style('margin-right', '5px')     
-                        mapTitleP.append('span')
-                            .classed('map-title-vocab',true)
-                            .attr('id', d => 'title-vocab-'+d.name)
-                            .style('font-size', '10px')
-                            .style('color', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
-                            .html(d => d.data.concept.vocabulary_id)
-                            .style('margin-right', '12px') 
-                        mapTitleP.append('i')
-                            .classed('map-info-icon fa-solid fa-circle-info',true)  
-                            .attr('id', d => 'info-icon-'+d.name)  
-                            .style('color', color.text)
-                            .style('opacity', 0.2)
-                            .style('cursor','pointer')
-                            .style('margin-right','5px')
-                            .on('mouseover', (e,d) => d3.select('#info-icon-'+d.name).style('opacity',1))
                             .on('mouseout', (e,d) => {
-                                if (d3.select('#info-container-'+d.name).style('display') === 'none') d3.select('#info-icon-'+d.name).style('opacity',0.2)
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
                             })
                             .on('click', (e,d) => {
-                                if (d3.select('#info-container-'+d.name).style('display') === 'flex') {
-                                    d3.select('#info-icon-'+d.name).style('opacity',0.2)
-                                    d3.select('#info-container-'+d.name).transition().style('height','0px').style('display','none')
-                                    d3.select('#info-col1-'+d.name).transition().style('opacity',0)
-                                    d3.select('#info-col2-'+d.name).transition().style('opacity',0)
-                                } else {
-                                    d3.select('#info-icon-'+d.name).style('opacity',1)
-                                    d3.select('#info-container-'+d.name).transition().style('height','50px').style('display','flex')
-                                    d3.select('#info-col1-'+d.name).transition().style('opacity',1)
-                                    d3.select('#info-col2-'+d.name).transition().style('opacity',1)    
-                                }
-                                
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave')
+                                showConfirmationPopup(d, 'enter', e)
                             })
-                        const mapCountsContainer = mapTitleSection.append('div')
-                            .classed('map-list-counts-container',true)
-                            .attr('id', d => 'counts-container-'+d.name)
-                        const mapCounts1 = mapCountsContainer.append('div')
-                            .classed('map-list-counts',true)
-                        mapCounts1.append('p')
-                            .classed('map-counts1-text',true)
-                            .attr('id', d => 'counts1-text-'+d.name)
-                            .style('color', d => conceptNames.includes(d.name) ? d.total_counts > 0 ? color.text : color.textlight : color.textlight)
-                            .html(d => d.total_counts + ' RC')
-                        mapCounts1.append('div')
-                            .classed('map-counts1-rect',true)
-                            .attr('id', d => 'counts1-rect-'+d.name)
-                            .style('height', '8px')
-                            .style('width', d => scaleWidth(d.total_counts) + 'px')
-                            .style('background-color', d => conceptNames.includes(d.name) ? d.color : color.textlightest)
-                            .style('margin-left', '5px')
-                            .style('border-radius', '20px')
-                        const mapCounts2 = mapCountsContainer.append('div')
-                            .classed('map-list-counts',true)
-                        mapCounts2.append('p')
-                            .classed('map-counts2-text',true)
-                            .style('color', color.textlight)
-                            .html(d => d.descendant_counts + ' DRC')
-                        mapCounts2.append('div')
-                            .classed('map-counts2-rect',true)
-                            .style('height', '8px')
-                            .style('width', d => scaleWidth(d.descendant_counts) + 'px')
-                            .style('background-color', color.textlightest)
-                            .style('margin-left', '5px')
-                            .style('border-radius', '20px')
-                        const mapInfoContainer = mapItem.append('div')
+                        const mapTitleP = mapTitleRight.append('p')
+                            .classed('map-list-title-p btn',true)
+                            .style('opacity', d => conceptNames.includes(d.name) ? 1 : 0.6)
+                            .on('mouseover', (e, d) => {
+                                const el = e.currentTarget
+                                el.__hoverTimeout__ = setTimeout(() => {
+                                    showActionLabel('Select concept','enter',e)
+                                }, 1200)
+                            })
+                            .on('mouseout', (e,d) => {
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
+                            })
+                            .on('click', (e,d) => {
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave')
+                                if (!sidebarRoot.name.includes(d.name)) showConfirmationPopup(d, 'enter', e)
+                            })
+                        mapTitleP.append('span')
+                            .classed('title-name selectedText marginRight',true)
+                            .html(d => d.data.concept.concept_name)
+                        mapTitleP.append('span')
+                            .classed('title-code marginRight num',true)
+                            .style('font-weight',500)
+                            .html(d => d.data.concept.concept_code ? d.data.concept.concept_code : d.data.concept.concept_id)
+                        mapTitleP.append('span')
+                            .classed('title-vocab marginRight',true)
+                            .html(d => d.data.concept.vocabulary_id)   
+                        mapTitle.append('i')
+                            .classed('map-info-icon fa-solid fa-circle-info icon',true)  
+                            .attr('id', d => 'info-icon-'+d.name+d.source.name)  
+                            .style('opacity', 0.2)
+                            .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1))
+                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)})
+                            .on('click', (e,d) => {
+                                if (d3.select('#info-container-'+d.name+d.source.name).style('height') === '45px') {
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)
+                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
+                                    d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','20px')
+                                } else {
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1)
+                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
+                                    d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','12px')
+                                }
+                            })
+                        const mapInfoContainer = mapConceptCard.append('div')
                             .classed('map-info-container',true)
-                            .attr('id', d => 'info-container-'+d.name)
+                            .attr('id', d => 'info-container-'+d.name+d.source.name)
+                            .style('border-top', d => conceptNames.includes(d.name) ? '1px solid color-mix(in srgb, #36126d, white 90%)' : '1px solid color-mix(in srgb, #36126d, white 78%)')
                         const mapInfoCol1 = mapInfoContainer.append('div')
-                            .classed('map-info-col',true)
-                            .attr('id', d => 'info-col1-'+d.name)
+                            .classed('info-col',true)
                         mapInfoCol1.append('p')
-                            .html('Id')
-                            .style("font-weight", 700)
+                            .classed('selectedText infoRow',true)
+                            .html('Id:')
                             .append('span')
+                            .classed('infoContent num',true)
                             .html(d => d.name)
-                            .style('margin-left','8px')
-                            .style('font-weight', 400)
                         mapInfoCol1.append('p')
-                            .html('Code')
-                            .style("font-weight", 700)
+                            .classed('selectedText infoRow',true)
+                            .html('Code:')
                             .append('span')
+                            .classed('infoContent num',true)
                             .html(d => d.data.concept.concept_code)
-                            .style('margin-left','8px')
-                            .style('font-weight', 400)
                         mapInfoCol1.append('p')
-                            .html('Type')
-                            .style("font-weight", 700)
+                            .classed('selectedText infoRow',true)
+                            .html('Type:')
                             .append('span')
+                            .classed('infoContent',true)
                             .html(d => d.data.concept.standard_concept ? "Standard" : "Non standard")
-                            .style('margin-left','8px')
-                            .style('font-weight', 400)
-                            .style('padding', '2px 5px 2px 5px')
-                            .style('border', d => d.data.concept.standard_concept ? '1px solid black' : '1px dashed black')
-                            .style('border-radius', '10px')
                         const mapInfoCol2 = mapInfoContainer.append('div')
-                            .classed('map-info-col',true)
+                            .classed('info-col',true)
                             .attr('id', d => 'info-col2-'+d.name)
                             .style('margin-left', '20px')
                         mapInfoCol2.append('p')
-                            .html('Domain')
-                            .style("font-weight", 700)
+                            .classed('selectedText infoRow',true)
+                            .html('Domain:')
                             .append('span')
+                            .classed('infoContent',true)
                             .html(d => d.data.concept.domain_id)
-                            .style('margin-left','8px')
-                            .style('font-weight', 400)
                         mapInfoCol2.append('p')
-                            .html('Class')
-                            .style("font-weight", 700)
+                            .classed('selectedText infoRow',true)
+                            .html('Class:')
                             .append('span')
+                            .classed('infoContent',true)
                             .html(d => d.data.concept.concept_class_id)
-                            .style('margin-left','8px')
-                            .style('font-weight', 400)
-                        // mapInfoCol2.append('p')
-                        //     .html('Validity')
-                        //     .style("font-weight", 700)
-                        //     .append('span')
-                        //     .html(d => getValidity(d.data.concept.valid_end_date))
-                        //     .style('margin-left','8px')
-                        //     .style('font-weight', 400)    
-                    }, update => {
+
+                        const mapDataSection = mapTitleSection.append('div')
+                            .style('display','flex')
+                            .style('align-items','center')
+                            .style('justify-content','flex-start')
+                            .style('width','flex-grow',1)
+                        const mapCountsSection = mapDataSection.append('div')
+                            .style('display','flex')
+                            .style('flex-direction','column')
+                            .style('height','100%')
+                            .style('justify-content','space-between')
+
+                        const mapCountsRC = mapCountsSection.append('div')
+                            .classed('list-counts',true)
+                        mapCountsRC.append('p')
+                            .classed('map-counts-RC-p list-counts-p num',true)
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html(d => formatThousands(d.total_counts))
+                        mapCountsRC.append('p')
+                            .classed('map-counts-RC-label list-counts-label',true)
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html('RC')
+                        const mapCountsBarRC = mapCountsRC.append('div')
+                            .classed('list-counts-bar-container',true)
+                        mapCountsBarRC.append('div')
+                            .classed('map-counts-RC-bar list-counts-bar',true)
+                            .style('width', d => scaleWidth(d.total_counts) + 'px')
+                            .style('background-color', d => conceptNames.includes(d.name) ? d.color : '#e0e0e0')
+                        
+                        const mapCountsDRC = mapCountsSection.append('div')
+                            .classed('list-counts',true)
+                        mapCountsDRC.append('p')
+                            .classed('map-counts-DRC-P list-counts-p num',true)
+                            .style('text-align','left')
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html(d => formatThousands(d.descendant_counts))
+                        mapCountsDRC.append('p')
+                            .classed('map-counts-DRC-label list-counts-label',true)
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html('DRC')
+                        const mapCountsBarDRC = mapCountsDRC.append('div')
+                            .classed('list-counts-bar-container',true)
+                        mapCountsBarDRC.append('div')
+                            .classed('map-counts-DRC-bar list-counts-bar',true)
+                            .style('width', d => scaleWidth(d.descendant_counts) + 'px')
+                            .style('background-color', d => conceptNames.includes(d.name) ? d.color : '#e0e0e0')   
+                        
+                        mapDataSection.append('div')
+                            .classed('list-open-mappings',true)
+                    
+                    },update => {
+                        update
+                            .transition()
+                            .style('max-height', d => mapRoot.includes(d.source.name) || (nodes.find(n => n.name === d.source.name).mappings.map(m => m.name).some(map => conceptNames.includes(map))) ? '100px' : '0px')
+                            .style('visibility', d => mapRoot.includes(d.source.name) || (nodes.find(n => n.name === d.source.name).mappings.map(m => m.name).some(map => conceptNames.includes(map))) ? 'visible' : 'hidden')
                         update.select('.map-list-item')
-                            .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered.includes(d.name) ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px dashed var(--background)')
                             .transition()
                             .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
-                        update.select('.map-title-circle')
+                        update.select('.map-list-card')
+                            .style('box-shadow', d => conceptNames.includes(d.name) ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
+                            .style('background-color', d => d.levels === '-1' ? 'none' : conceptNames.includes(d.name) ? 'white' : '#ebebeb')
+                        update.select('.map-list-title-circle')
+                            .classed('list-circle-dash', d => d.total_counts === 0 ? true : false)
+                            .classed('list-circle', d => d.total_counts === 0 ? false : true)
+                            .classed('btn', d => conceptNames.includes(d.name) ? true : false)
+                            .style('pointer-events', d => conceptNames.includes(d.name) ? 'all' : 'none')
                             .style('background', d => {
-                                if (!conceptNames.includes(d.name)) return "none"
-                                else {
+                                if (d.total_counts === 0) return "none"
+                                if (conceptNames.includes(d.name)) {
                                     if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
-                                    else {return "none"}    
-                                }    
+                                    else {return "none"}
+                                }
+                                else {
+                                    if (!d.data.concept.standard_concept) return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, #d6d6d6 0.5px, #d6d6d6 2px)"  
+                                    else {return "none"}
+
+                                }      
                             })
                             .style("background-color", d => {
-                                if (!conceptNames.includes(d.name)) return "transparent"
-                                else {
+                                if (d.total_counts === 0) return "transparent"
+                                if (conceptNames.includes(d.name)) {
                                     if (d.data.concept.standard_concept) {return d.color} 
                                     else {return "transparent"}
                                 }
+                                else return '#d6d6d6'
                             }) 
-                            .style('pointer-events', d => d.total_counts === 0 ? 'none' : 'all')
-                            .style('border', d => d.total_counts === 0 ? '1px solid var(--textlightest)' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid var(--textlight)')
-                            .on('click', (e,d) => {
-                                d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
+                            .style('border', d => d.total_counts === 0 ? '1px solid #b2b2b2' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                            .on('mouseover',(e,d) => setHovered([d.name]))
+                            .on('mouseout', (e,d) => setHovered([]))
+                        update.select('.map-list-title-right')
+                            .on('mouseover',(e,d) => {
+                                    d3.select('#list-icons-'+d.name).transition(1000).style('max-width','36px').style('opacity',1)
+                            })
+                            .on('mouseout', (e,d) => {
+                                
+                                if (!showConfirmation) d3.select('#list-icons-'+d.name).transition(1000).style('max-width','0px').style('opacity',0)
+                            })
+                        update.select('.map-list-eye')
+                            .attr("src", d => conceptNames.includes(d.name) ? openedEye : closedEye)
+                            .style('opacity', d => conceptNames.includes(d.name) ? 1 : 0.3)
+                            .style('display', d => d.total_counts === 0 ? 'none' : 'inline-block')
+                            .on('mouseover', (e, d) => {
+                                if (!conceptNames.includes(d.name)) d3.select('#list-eye-'+d.name).transition().style('opacity',1)
+                                const el = e.currentTarget
+                                el.__hoverTimeout__ = setTimeout(() => {
+                                    showActionLabel(
+                                        conceptNames.includes(d.name) 
+                                            ? 'Hide concept'
+                                            : 'Show concept',
+                                        'enter',
+                                        e
+                                    )
+                                }, 1200)
+                            })
+                            .on('mouseout', (e,d) => {
+                                if (!conceptNames.includes(d.name)) d3.select('#list-eye-'+d.name).transition().style('opacity',0.2)
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
+                            })
+                            .on('click',(e,d) => {
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave')
                                 if (d.total_counts !== 0) {
                                     if (conceptNames.includes(d.name)) {
+                                        // if (!nodes.find(n => n.name === d.source.name).mappings.map(m => m.name).filter(map => map !== d.name).some(map => conceptNames.includes(map))) {
+                                        //     const newMap = mapRoot.filter(name => name !== d.source.name)
+                                        //     setMapRoot(newMap)
+                                        // }
                                         const newInclusions = inclusions.filter(e => e !== d.name)
                                         updateConcepts(newInclusions,nodes,[],[d])
                                     } else if (!conceptNames.includes(d.name)){
+                                        // if (!mapRoot.includes(d.source.name)) setMapRoot([...mapRoot,d.source.name])
                                         const newInclusions = [...inclusions,d.name]
                                         updateConcepts(newInclusions,nodes,[d],[])
                                     }     
                                 } 
                             })
-                            .on('mouseover', (e,d) => {
-                                if (!conceptNames.includes(d.name)) {
-                                    d3.select('#plus-'+d.name).transition().style('color', 'white')
-                                    d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`) 
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.text)  
-                                    d3.select('#title-code-'+d.name).transition().style('color',color.text)  
-                                    d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
-                                    d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
-                                } else  d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
-                            })
-                            .on('mouseout', (e,d) => {
-                                if (!conceptNames.includes(d.name)) {
-                                    d3.select('#plus-'+d.name).transition().style('color', color.text)
-                                    d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
-                                    d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
-                                } else d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                            })
-                        update.select('.map-list-plus')
-                            .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 ? 'block' : 'none')
-                        update.select('.map-title-name')
-                            .style("font-weight", d => sidebarRoot.name.includes(d.name) || hovered.includes(d.name) ? 700 : 400)
-                            .style('color', d => conceptNames.includes(d.name) || hovered.includes(d.name) ? color.text : color.textlight)
-                            .html(d => d.data.concept.concept_name)
-                            .on('click', (e,d) => {
-                                setLoading(true)
-                                navigate(`/${d.name}`)
-                                //conceptHover(d.name, "leave") 
-                            })
-                            .on('mouseover', function (e,d) {
-                                d3.select('#list-item-'+d.name).style('background-color',color.lightpurple).style('border','1px solid var(--lightpurple)')
-                                d3.select('#title-name-'+d.name).style('font-weight',700)
-                                if (!conceptNames.includes(d.name) && d.total_counts !== 0) { 
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.text)    
-                                }
-                                const el = this
+                        update.select('.map-list-search')
+                            .on('mouseover', (e, d) => {
+                                const el = e.currentTarget
                                 el.__hoverTimeout__ = setTimeout(() => {
-                                    setHovered([d.name])
-                                },400)
+                                    showActionLabel('Select concept','enter',e)
+                                }, 1200)
                             })
-                            .on('mouseout', function (e,d) {
-                                const el = this
-                                clearTimeout(el.__hoverTimeout__)
-                                if (!sidebarRoot.name.includes(d.name)) {
-                                    d3.select('#list-item-'+d.name).style('background-color', d => conceptNames.includes(d.name) ? color.lightbackground : 'transparent').style('border', d => conceptNames.includes(d.name) ? '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                                    d3.select('#title-name-'+d.name).style('font-weight',400)
-                                    if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
-                                        d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
-                                    }
-                                }  
-                                setHovered([])  
-                            })
-                        update.select('.map-title-code')
-                            .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
-                            .html(d => d.data.concept.concept_code)
-                        update.select('.map-title-vocab')
-                            .style('color', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
-                            .html(d => d.data.concept.vocabulary_id) 
-                        update.select('.map-info-icon')
-                            .on('mouseover', (e,d) => d3.select('#info-icon-'+d.name).style('opacity',1))
                             .on('mouseout', (e,d) => {
-                                if (d3.select('#info-container-'+d.name).style('display') === 'none') d3.select('#info-icon-'+d.name).style('opacity',0.2)
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
                             })
                             .on('click', (e,d) => {
-                                if (d3.select('#info-container-'+d.name).style('display') === 'flex') {
-                                    d3.select('#info-icon-'+d.name).style('opacity',0.2)
-                                    d3.select('#info-container-'+d.name).transition().style('height','0px').style('display','none')
-                                    d3.select('#info-col1-'+d.name).transition().style('opacity',0)
-                                    d3.select('#info-col2-'+d.name).transition().style('opacity',0)
-                                } else {
-                                    d3.select('#info-icon-'+d.name).style('opacity',1)
-                                    d3.select('#info-container-'+d.name).transition().style('height','50px').style('display','flex')
-                                    d3.select('#info-col1-'+d.name).transition().style('opacity',1)
-                                    d3.select('#info-col2-'+d.name).transition().style('opacity',1)    
-                                }
-                                
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave')
+                                showConfirmationPopup(d, 'enter', e)
                             })
-                        update.select('.map-counts1-text')
-                            .style('color', d => conceptNames.includes(d.name) ? d.total_counts > 0 ? color.text : color.textlight : color.textlight)
-                            .html(d => d.total_counts + ' RC')
-                        update.select('.map-counts1-rect')
+                        update.select('.map-list-title-p')
+                            .on('mouseover', (e, d) => {
+                                const el = e.currentTarget
+                                el.__hoverTimeout__ = setTimeout(() => {
+                                    showActionLabel('Select concept','enter',e)
+                                }, 1200)
+                            })
+                            .on('mouseout', (e,d) => {
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
+                            })
+                            .on('click', (e,d) => {
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave')
+                                if (!sidebarRoot.name.includes(d.name)) showConfirmationPopup(d, 'enter', e)
+                            })
+                            .transition()
+                            .style('opacity', d => conceptNames.includes(d.name) ? 1 : 0.6)
+                        update.select('.map-info-icon')
+                            .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1))
+                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)})
+                            .on('click', (e,d) => {
+                                if (d3.select('#info-container-'+d.name+d.source.name).style('height') === '45px') {
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)
+                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
+                                    d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','20px')
+                                } else {
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1)
+                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
+                                    d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','12px')
+                                }
+                            })
+                        update.select('.map-info-container')
+                            .style('border-top', d => conceptNames.includes(d.name) ? '1px solid color-mix(in srgb, #36126d, white 90%)' : '1px solid color-mix(in srgb, #36126d, white 78%)')
+                        update.select('.map-counts-RC-p')
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html(d => formatThousands(d.total_counts))
+                        update.select('.map-counts-RC-label')
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                        update.select('.map-counts-RC-bar')
                             .transition()
                             .style('width', d => scaleWidth(d.total_counts) + 'px')
-                            .style('background-color', d => conceptNames.includes(d.name) ? d.color : color.textlightest)
-                        update.select('.map-counts2-text')
-                            .html(d => d.descendant_counts + ' DRC')
-                        update.select('.map-counts2-rect')
+                            .style('background-color', d => conceptNames.includes(d.name) ? d.color : '#e0e0e0')
+                        update.select('.map-counts-DRC-p')
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html(d => formatThousands(d.descendant_counts))
+                        update.select('.map-counts-DRC-label')
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                        update.select('.map-counts-DRC-bar')
                             .transition()
-                            .style('width', d => scaleWidth(d.descendant_counts) + 'px')    
+                            .style('width', d => scaleWidth(d.descendant_counts) + 'px')
+                            .style('background-color', d => conceptNames.includes(d.name) ? d.color : '#e0e0e0')
                     })
                 })
             },update => {
@@ -3491,46 +3589,100 @@
                 .join(enter => {
                     const itemContainer = enter.append('div')
                         .classed('list-item-container',true)
+                        .style('border-bottom', d => d.levels === '-1' ? '0.5px solid #d6d6d6' : '0.5px solid #e0e0e0')
                     const item = itemContainer.append('div')
                         .classed('list-item',true)
                         .attr('id', d => 'list-item-'+d.name)
-                        .style('margin-bottom', '4px')
-                        .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered.includes(d.name) ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                        .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                        .style('border-radius', '20px')
-                        .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : d.levels === "-1" ? 0.7 : 1)
+                        .style('background-color', d => d.levels === '-1' ? '#f0f0f0' : 'white')
+                        .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
                     const titleSection = item.append('div')
-                        .classed('title-section',true)
-                    const title = titleSection.append('div')
-                        .classed('item-title',true)
-                        .attr('id', d => 'item-title-' + d.name)
-                    const circle = title.append('div')
-                        .classed('title-circle',true)
-                        .attr('id', d => 'title-circle-'+d.name)
-                        .style('flex-shrink',0)
-                        .style('width', '14px')
-                        .style('height', '14px')
-                        .style('cursor','pointer')
-                        .style('pointer-events', d => d.total_counts === 0 && !d.leaf ? 'none' : 'all')
+                        .classed('list-title-section',true)
+                    const conceptCard = titleSection.append('div')
+                        .classed('list-card',true)
+                        .attr('id', d => 'list-card-'+d.name)
+                        .style('display','flex')
+                        .style('flex-direction','column')
+                        .style('box-shadow', d => conceptNames.includes(d.name) || d.leaf ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
+                        .style('background-color', d => d.levels === '-1' ? 'none' : conceptNames.includes(d.name) || d.leaf ? 'white' : '#ebebeb')
+                        .style('border', d => sidebarRoot.name.includes(d.name) ? '1px solid #6a23d6' : 'none')
+                    const title = conceptCard.append('div')
+                        .classed('list-item-title',true)
+                    const title1 = title.append('div')
+                        .style('display','flex')
+                        .style('align-items','center')
+                    title1.append('div')
+                        .classed('list-title-circle',true)
+                        .classed('list-circle-dash', d => d.total_counts === 0 && !d.leaf ? true : false)
+                        .classed('list-circle', d => d.total_counts === 0 && !d.leaf ? false : true)
+                        .classed('btn', d => conceptNames.includes(d.name) || d.leaf ? true : false)
+                        .style("pointer-events", d => conceptNames.includes(d.name) || d.leaf ? 'all' : 'none')
                         .style('background', d => {
-                            if (!conceptNames.includes(d.name)) return "none"
-                            else {
+                            if (d.total_counts === 0 && !d.leaf) return "none"
+                            if (conceptNames.includes(d.name) || d.leaf) {
                                 if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
-                                else {return "none"}    
-                            }    
+                                else {return "none"}
+                            }
+                            else {
+                                if (!d.data.concept.standard_concept) return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, #d6d6d6 0.5px, #d6d6d6 2px)"  
+                                else {return "none"}
+
+                            }      
                         })
                         .style("background-color", d => {
-                            if (!conceptNames.includes(d.name)) return "transparent"
-                            else {
+                            if (d.total_counts === 0 && !d.leaf) return "transparent"
+                            if (conceptNames.includes(d.name) || d.leaf) {
                                 if (d.data.concept.standard_concept) {return d.color} 
                                 else {return "transparent"}
                             }
+                            else return '#d6d6d6'
                         }) 
-                        .style('border', d => (d.total_counts === 0 && !d.leaf) || d.levels === '-1' ? '1px solid var(--textlightest)' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid var(--textlight)')
-                        .style('border-radius', '50%')
-                        .style('margin-right', '5px')
-                        .on('click', (e,d) => {
-                            d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
+                        .style('border', d => d.total_counts === 0 && !d.leaf ? '1px solid #b2b2b2' : conceptNames.includes(d.name) || d.leaf ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                        .style('display',d => d.levels === '-1' ? 'none' : 'block')
+                        .on('mouseover',(e,d) => setHovered([d.name]))
+                        .on('mouseout', (e,d) => setHovered([]))
+                    const titleRight = title1.append('div')
+                        .classed('list-title-right btn',true)
+                        .style('display','flex')
+                        .style('align-items','center')
+                        .on('mouseover',(e,d) => {
+                            d3.select('#list-icons-'+d.name).transition(1000).style('max-width','36px').style('opacity',1)
+                        })
+                        .on('mouseout', (e,d) => {
+                            if (!showConfirmation) d3.select('#list-icons-'+d.name).transition(1000).style('max-width','0px').style('opacity',0)
+                        })
+                    const icons = titleRight.append('div')
+                        .classed('list-icons',true)
+                        .attr('id',d => 'list-icons-'+d.name)
+                        .style('display','flex')
+                        .style('max-width', '0px')
+                        .style('opacity', 0)
+                    icons.append('img')
+                        .classed('list-eye icon marginRight eye',true)
+                        .attr('id', d => 'list-eye-'+d.name)
+                        .attr("src", d => conceptNames.includes(d.name) || d.leaf ? openedEye : closedEye)
+                        .style('opacity', d => conceptNames.includes(d.name) || d.leaf ? 1 : 0.2)
+                        .style('display', d => (d.total_counts === 0 && !d.leaf) || d.levels === '-1' ? 'none' : 'inline-block')
+                        .on('mouseover', (e, d) => {
+                            if (!conceptNames.includes(d.name) && !d.leaf) d3.select('#list-eye-'+d.name).transition().style('opacity',1)
+                            const el = e.currentTarget
+                            el.__hoverTimeout__ = setTimeout(() => {
+                                showActionLabel(
+                                    conceptNames.includes(d.name) || d.leaf
+                                        ? 'Hide concept'
+                                        : 'Show concept',
+                                    'enter',
+                                    e
+                                )
+                            }, 1200)
+                        })
+                        .on('mouseout', (e,d) => {
+                            if (!conceptNames.includes(d.name) && !d.leaf) d3.select('#list-eye-'+d.name).transition().style('opacity',0.2)
+                            clearTimeout(e.currentTarget.__hoverTimeout__)
+                            showActionLabel('','leave',e)
+                        })
+                        .on('click',(e,d) => {
+                            clearTimeout(e.currentTarget.__hoverTimeout__)
+                            showActionLabel('','leave')
                             if (d.total_counts !== 0) {
                                 if (conceptNames.includes(d.name)) {
                                     const newInclusions = inclusions.filter(e => e !== d.name)
@@ -3541,676 +3693,713 @@
                                 }     
                             } 
                         })
-                        .on('mouseover', (e,d) => {
-                            if (!conceptNames.includes(d.name) && d.levels !== '-1') {
-                                d3.select('#plus-'+d.name).transition().style('color', 'white')
-                                d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`) 
-                                d3.select('#title-name-'+d.name).transition().style('color',color.text)   
-                                d3.select('#title-code-'+d.name).transition().style('color',color.text) 
-                                d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
-                                d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
-                                d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
-                            } else d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block') 
-                        })
-                        .on('mouseout', (e,d) => {
-                            if (!conceptNames.includes(d.name) && d.levels !== '-1') {
-                                d3.select('#plus-'+d.name).transition().style('color', color.text)
-                                d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
-                                d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
-                                d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
-                                d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
-                                d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
-                                d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
-                            } else d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                        })
-                    circle.append('i')
-                        .classed('list-plus fa-solid fa-plus fa-2xs',true)
-                        .attr('id',d => 'plus-'+d.name)
-                        .style('color', color.text)
-                        .style('pointer-events','none')
-                        .style('padding-bottom','1px')
-                        .style('display', d => !conceptNames.includes(d.name) && (d.total_counts !== 0 || d.leaf) && d.levels !== '-1' ? 'block' : 'none')
-                    circle.append('i')
-                        .classed('list-x fa-solid fa-x fa-2xs',true)
-                        .style('color', 'white')
-                        .attr('id',d => 'x-'+d.name)
-                        .style('opacity', 0)
-                        .style('display', 'none')
-                        .style('padding-bottom','1px')
-                        .style('pointer-events','none')
-                    const titleP = title.append('p')
-                    titleP.append('span')
-                        .classed('title-name',true)
-                        .attr('id', d => 'title-name-'+d.name)
-                        .style("font-weight", d => sidebarRoot.name.includes(d.name) || hovered.includes(d.name) ? 700 : 400)
-                        .style('color', d => conceptNames.includes(d.name) || hovered.includes(d.name) ? color.text : color.textlight)
-                        .html(d => d.data.concept.concept_name)
-                        .style('padding-right', '4px')
-                        .style('cursor','pointer')
-                        .on('click', (e,d) => {
-                            setLoading(true)
-                                navigate(`/${d.name}`)
-                            //conceptHover(d.name, "leave") 
-                        })
-                        .on('mouseover', function (e,d) {
-                            if (d.levels === '-1') d3.select('#list-item-'+d.name).style('opacity',1)
-                            d3.select('#list-item-'+d.name).style('background-color',color.lightpurple).style('border','1px solid var(--lightpurple)')
-                            d3.select('#title-name-'+d.name).style('font-weight',700)
-                            if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
-                                d3.select('#title-name-'+d.name).transition().style('color',color.text)     
-                            }
-                            const el = this
+                    icons.append('i')
+                        .classed('list-search fa fa-search iconLg marginRight',true)
+                        .attr('id', d => 'list-search-'+d.name)
+                        .style('transform','scaleX(-1)')
+                        .style('display', d => sidebarRoot.name.includes(d.name) ? 'none' : 'inline-block')
+                        .on('mouseover', (e, d) => {
+                            const el = e.currentTarget
                             el.__hoverTimeout__ = setTimeout(() => {
-                                if (d.levels !== "-1") setHovered([d.name])
-                                },400)
+                                showActionLabel('Select concept','enter',e)
+                            }, 1200)
                         })
-                        .on('mouseout', function (e,d) {
-                            const el = this
-                            clearTimeout(el.__hoverTimeout__)
-                            if (!sidebarRoot.name.includes(d.name)) {
-                                if (d.levels === '-1') d3.select('#list-item-'+d.name).style('opacity',0.7)
-                                d3.select('#list-item-'+d.name).style('background-color', d => conceptNames.includes(d.name) ? color.lightbackground : 'transparent').style('border', d => conceptNames.includes(d.name) ? '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                                d3.select('#title-name-'+d.name).style('font-weight',400)
-                                if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
-                                }
-                            } 
-                            if (d.levels !== "-1") setHovered([])
-                        })
-                    titleP.append('span')
-                        .classed('title-code',true)
-                        .attr('id', d => 'title-code-'+d.name)
-                        .style('font-size', '10px')
-                        .style('font-weight',700)
-                        .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
-                        .html(d => d.data.concept.concept_code)
-                        .style('margin-right','5px')
-                    titleP.append('span')
-                        .classed('title-vocab',true)
-                        .attr('id', d => 'title-vocab-'+d.name)
-                        .style('font-size', '10px')
-                        .style('color', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
-                        .html(d => d.data.concept.vocabulary_id)
-                        .style('margin-right','5px')
-                    // titleP.append('span')
-                    //     .classed('title-level',true)
-                    //     .attr('id', d => 'title-level-'+d.name)
-                    //     .style('font-size', '10px')
-                    //     .style('font-weight',700)
-                    //     .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
-                    //     .style('margin-right', '12px')
-                    //     .html(d => d.levels)    
-                    titleP.append('i')
-                        .classed('info-icon fa-solid fa-circle-info',true)  
-                        .attr('id', d => 'info-icon-'+d.name)  
-                        .style('color', color.text)
-                        .style('opacity', 0.2)
-                        .style('cursor','pointer')
-                        .style('margin-right','2px')
-                        .on('mouseover', (e,d) => d3.select('#info-icon-'+d.name).style('opacity',1))
                         .on('mouseout', (e,d) => {
-                            if (d3.select('#info-container-'+d.name).style('display') === 'none') d3.select('#info-icon-'+d.name).style('opacity',0.2)
+                            clearTimeout(e.currentTarget.__hoverTimeout__)
+                            showActionLabel('','leave',e)
                         })
                         .on('click', (e,d) => {
-                            if (d3.select('#info-container-'+d.name).style('display') === 'flex') {
-                                d3.select('#info-icon-'+d.name).style('opacity',0.2)
-                                d3.select('#info-container-'+d.name).transition().style('height','0px').style('display','none')
-                                d3.select('#info-col1-'+d.name).transition().style('opacity',0)
-                                d3.select('#info-col2-'+d.name).transition().style('opacity',0)
-                            } else {
-                                d3.select('#info-icon-'+d.name).style('opacity',1)
-                                d3.select('#info-container-'+d.name).transition().style('height','50px').style('display','flex')
-                                d3.select('#info-col1-'+d.name).transition().style('opacity',1)
-                                d3.select('#info-col2-'+d.name).transition().style('opacity',1)    
-                            }
-                            
+                            clearTimeout(e.currentTarget.__hoverTimeout__)
+                            showActionLabel('','leave')
+                            showConfirmationPopup(d, 'enter', e)
                         })
-                    titleP.append('i')
-                        .classed('title-caret-down fa-solid fa-lg fa-caret-down',true)
-                        .attr('id', d => 'caret-down-'+d.name)
-                        .style('color', color.text)
-                        .style('display', d => !mapRoot.includes(d.name) ? d.mappings.length > 0 ? 'inline-block' : 'none' : 'none')
-                        .style('cursor','pointer')
+                    const titleP = titleRight.append('p')
+                        .classed('list-title-p btn',true)
+                        .style('opacity', d => conceptNames.includes(d.name) || d.leaf ? 1 : 0.6)
+                        .on('mouseover', (e, d) => {
+                            const el = e.currentTarget
+                            el.__hoverTimeout__ = setTimeout(() => {
+                                showActionLabel('Select concept','enter',e)
+                            }, 1200)
+                        })
+                        .on('mouseout', (e,d) => {
+                            clearTimeout(e.currentTarget.__hoverTimeout__)
+                            showActionLabel('','leave',e)
+                        })
+                        .on('click', (e,d) => {
+                            clearTimeout(e.currentTarget.__hoverTimeout__)
+                            showActionLabel('','leave')
+                            if (!sidebarRoot.name.includes(d.name)) showConfirmationPopup(d, 'enter', e)
+                        })
+                    titleP.append('span')
+                        .classed('title-name selectedText marginRight',true)
+                        .html(d => d.data.concept.concept_name)
+                    titleP.append('span')
+                        .classed('title-code marginRight num',true)
+                        .style('font-weight',500)
+                        .html(d => d.data.concept.concept_code ? d.data.concept.concept_code : d.data.concept.concept_id)
+                    titleP.append('span')
+                        .classed('title-vocab marginRight',true)
+                        .html(d => d.data.concept.vocabulary_id)   
+                    title.append('i')
+                        .classed('info-icon fa-solid fa-circle-info icon',true)  
+                        .attr('id', d => 'info-icon-'+d.name)  
                         .style('opacity', 0.2)
-                        .style('margin-right','2px')
+                        .style('display', d => d.levels === '-1' || !d.levels ? 'none' : 'block')
+                        .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name).transition().style('opacity',1))
+                        .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name).style('height') !== '45px') d3.select('#info-icon-'+d.name).transition().style('opacity',0.2)})
                         .on('click', (e,d) => {
-                            if (d3.select('#caret-down-'+d.name).style('display') === 'inline-block') {
-                                d3.select('#caret-down-'+d.name).style('display','none')  
-                                d3.select('#caret-up-'+d.name).style('display','inline-block') 
-                                d3.select('#mappings-container-'+d.name).transition().style('height','auto').style('display','flex')
-                                setMapRoot([...mapRoot,d.name])
-                                updateWidth([...mapRoot,d.name])
+                            if (d3.select('#info-container-'+d.name).style('height') === '45px') {
+                                d3.select('#info-icon-'+d.name).transition().style('opacity',0.2)
+                                d3.select('#info-container-'+d.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
+                                d3.select('#list-card-'+d.name).transition().style('border-radius','20px')
+                            } else {
+                                d3.select('#info-icon-'+d.name).transition().style('opacity',1)
+                                d3.select('#info-container-'+d.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
+                                d3.select('#list-card-'+d.name).transition().style('border-radius','12px')
                             }
                         })
-                        .on('mouseover', (e,d) => d3.select('#caret-down-'+d.name).style('opacity',1))
-                        .on('mouseout', (e,d) => d3.select('#caret-down-'+d.name).style('opacity',0.2))
-                    titleP.append('i')
-                        .classed('title-caret-up fa-solid fa-lg fa-caret-up',true)
-                        .attr('id', d => 'caret-up-'+d.name)
-                        .style('color', color.text)
-                        .style('display', d => mapRoot.includes(d.name) && d.mappings.length > 0 ? 'inline-block' : 'none')
-                        .style('cursor','pointer')
-                        .style('margin-right','2px')
-                        // .style('padding-top','4px')
-                        .on('click', (e,d) => {
-                            if (d3.select('#caret-up-'+d.name).style('display') === 'inline-block') {
-                                d3.select('#caret-up-'+d.name).style('display','none')  
-                                d3.select('#caret-down-'+d.name).style('display','inline-block') 
-                                d3.select('#mappings-container-'+d.name).transition().style('height','0px').style('display','none')
-                                const filteredMapRoot = mapRoot.filter(id => id !== d.name)
-                                setMapRoot(filteredMapRoot)
-                                updateWidth(filteredMapRoot)
-                            }
-                        })
-                    const countsContainer = titleSection.append('div')
-                        .classed('list-counts-container',true)
-                        .attr('id', d => 'counts-container-'+d.name)
-                    const counts1 = countsContainer.append('div')
-                        .classed('list-counts',true)
-                    counts1.append('p')
-                        .classed('counts1-text',true)
-                        .attr('id', d => 'counts1-text-'+d.name)
-                        .style('color', d => conceptNames.includes(d.name) && !d.leaf ? d.total_counts > 0 ? color.text : color.textlight : color.textlight)
-                        .html(d => d.total_counts + ' RC')
-                    counts1.append('div')
-                        .classed('counts1-rect',true)
-                        .attr('id', d => 'counts1-rect-'+d.name)
-                        .style('height', '8px')
-                        .style('width', d => scaleWidth(d.total_counts) + 'px')
-                        .style('background-color', d => conceptNames.includes(d.name) && !d.leaf ? d.color : color.textlightest)
-                        .style('margin-left', '5px')
-                        .style('border-radius', '20px')
-                    const counts2 = countsContainer.append('div')
-                        .classed('list-counts',true)
-                    counts2.append('p')
-                        .classed('counts2-text',true)
-                        .style('color', d => d.leaf && d.descendant_counts !== 0 ? color.text : color.textlight)
-                        .html(d => d.descendant_counts + ' DRC')
-                    counts2.append('div')
-                        .classed('counts2-rect',true)
-                        .style('height', '8px')
-                        .style('width', d => scaleWidth(d.descendant_counts) + 'px')
-                        .style('background-color', d => d.leaf && d.descendant_counts !== 0 ? d.color : color.textlightest)
-                        .style('margin-left', '5px')
-                        .style('border-radius', '20px')
-                    const infoContainer = item.append('div')
+                    const infoContainer = conceptCard.append('div')
                         .classed('info-container',true)
                         .attr('id', d => 'info-container-'+d.name)
+                        .style('display', d => d.levels === '-1' || !d.levels ? 'none' : 'flex')
+                        .style('border-top', d => conceptNames.includes(d.name) || d.leaf ? '1px solid color-mix(in srgb, #36126d, white 90%)' : '1px solid color-mix(in srgb, #36126d, white 78%)')
                     const infoCol1 = infoContainer.append('div')
                         .classed('info-col',true)
-                        .attr('id', d => 'info-col1-'+d.name)
                     infoCol1.append('p')
-                        .html('Id')
-                        .style("font-weight", 700)
+                        .classed('selectedText infoRow',true)
+                        .html('Id:')
                         .append('span')
+                        .classed('infoContent num',true)
                         .html(d => d.name)
-                        .style('margin-left','8px')
-                        .style('font-weight', 400)
                     infoCol1.append('p')
-                        .html('Code')
-                        .style("font-weight", 700)
+                        .classed('selectedText infoRow',true)
+                        .html('Code:')
                         .append('span')
+                        .classed('infoContent num',true)
                         .html(d => d.data.concept.concept_code)
-                        .style('margin-left','8px')
-                        .style('font-weight', 400)
                     infoCol1.append('p')
-                        .html('Type')
-                        .style("font-weight", 700)
+                        .classed('selectedText infoRow',true)
+                        .html('Type:')
                         .append('span')
+                        .classed('infoContent',true)
                         .html(d => d.data.concept.standard_concept ? "Standard" : "Non standard")
-                        .style('margin-left','8px')
-                        .style('font-weight', 400)
-                        .style('padding', '1px 5px 1px 5px')
-                        .style('border', d => d.data.concept.standard_concept ? '1px solid black' : '1px dashed black')
-                        .style('border-radius', '10px')
                     const infoCol2 = infoContainer.append('div')
                         .classed('info-col',true)
                         .attr('id', d => 'info-col2-'+d.name)
                         .style('margin-left', '20px')
                     infoCol2.append('p')
-                        .html('Domain')
-                        .style("font-weight", 700)
+                        .classed('selectedText infoRow',true)
+                        .html('Domain:')
                         .append('span')
+                        .classed('infoContent',true)
                         .html(d => d.data.concept.domain_id)
-                        .style('margin-left','8px')
-                        .style('font-weight', 400)
                     infoCol2.append('p')
-                        .html('Class')
-                        .style("font-weight", 700)
+                        .classed('selectedText infoRow',true)
+                        .html('Class:')
                         .append('span')
+                        .classed('infoContent',true)
                         .html(d => d.data.concept.concept_class_id)
-                        .style('margin-left','8px')
-                        .style('font-weight', 400)
-                    // infoCol2.append('p')
-                    //     .html('Validity')
-                    //     .style("font-weight", 700)
-                    //     .append('span')
-                    //     .html(d => getValidity(d.data.concept.valid_end_date))
-                    //     .style('margin-left','8px')
-                    //     .style('font-weight', 400)
+
+                    const dataSection = titleSection.append('div')
+                        .style('display', d => d.levels === '-1' ? 'none' : 'flex')
+                        .style('align-items','center')
+                        .style('justify-content','flex-start')
+                        .style('width','flex-grow',1)
+                    const countsSection = dataSection.append('div')
+                        .style('display','flex')
+                        .style('flex-direction','column')
+                        .style('height','100%')
+                        .style('justify-content','space-between')
+
+                    const countsRC = countsSection.append('div')
+                        .classed('list-counts',true)
+                    countsRC.append('p')
+                        .classed('counts-RC-p list-counts-p num',true)
+                        .style('color', d => conceptNames.includes(d.name) && !d.leaf ? '#36126d' : '#808080')
+                        .style('font-weight', d => conceptNames.includes(d.name) && !d.leaf ? 500 : 400)
+                        .html(d => formatThousands(d.total_counts))
+                    countsRC.append('p')
+                        .classed('counts-RC-label list-counts-label',true)
+                        .style('color', d => conceptNames.includes(d.name) && !d.leaf ? '#36126d' : '#808080')
+                        .style('font-weight', d => conceptNames.includes(d.name) && !d.leaf ? 500 : 400)
+                        .html('RC')
+                    const countsBarRC = countsRC.append('div')
+                        .classed('list-counts-bar-container',true)
+                    countsBarRC.append('div')
+                        .classed('counts-RC-bar list-counts-bar',true)
+                        .style('width', d => scaleWidth(d.total_counts) + 'px')
+                        .style('background-color', d => conceptNames.includes(d.name) && !d.leaf ? d.color : '#e0e0e0')
+                    
+                    const countsDRC = countsSection.append('div')
+                        .classed('list-counts',true)
+                    countsDRC.append('p')
+                        .classed('counts-DRC-P list-counts-p num',true)
+                        .style('text-align','left')
+                        .style('color', d => conceptNames.includes(d.name) && d.leaf ? '#36126d' : '#808080')
+                        .style('font-weight', d => conceptNames.includes(d.name) && d.leaf ? 500 : 400)
+                        .html(d => formatThousands(d.descendant_counts))
+                    countsDRC.append('p')
+                        .classed('counts-DRC-label list-counts-label',true)
+                        .style('color', d => conceptNames.includes(d.name) && d.leaf ? '#36126d' : '#808080')
+                        .style('font-weight', d => conceptNames.includes(d.name) && d.leaf ? 500 : 400)
+                        .html('DRC')
+                    const countsBarDRC = countsDRC.append('div')
+                        .classed('list-counts-bar-container',true)
+                    countsBarDRC.append('div')
+                        .classed('counts-DRC-bar list-counts-bar',true)
+                        .style('width', d => scaleWidth(d.descendant_counts) + 'px')
+                        .style('background-color', d => conceptNames.includes(d.name) && d.leaf ? d.color : '#e0e0e0')
+
+                    const openMappings = dataSection.append('div')
+                        .classed('list-open-mappings',true)
+                        .style('display','flex')
+                        .style('align-items','center')
+                    openMappings.append('p')
+                        .classed('selectedText marginRight',true)
+                        .html(d => '(' + d.mappings.length + ')')  
+                        .style('opacity',d => d.mappings.length === 0 ? 0.3 : 1)
+                    openMappings.append('i')
+                        .classed('list-caret-down fa-solid fa-caret-down iconLg',true)
+                        .attr('id', d => 'list-caret-down-'+d.name)
+                        .style('display', d => d.mappings.length > 0 ? mapRoot.includes(d.name) || d.mappings.map(m => m.name).some(map => hovered.includes(map)) ? 'none' : 'block' : 'none')
+                        .on('click',(e,d) => {
+                            setMapRoot([...mapRoot,d.name])
+                            d3.select('#mappings-container-'+d.name).classed('hide-after', false).transition(2000).style('opacity',1).style('max-height',d.mappings.length * 100 + 'px')
+                            d3.select('#mappings-title-'+d.name).transition(2000).style('opacity',1).style('max-height','10px')
+                            d3.selectAll(".map-list-item-"+d.name).transition(2000).style('max-height','100px').style('visibility','visible')
+                            d3.select('#list-caret-down-'+d.name).style('display','none')
+                            d3.select('#list-caret-up-'+d.name).style('display','block')
+                        })
+                    openMappings.append('i')
+                        .classed('list-caret-up fa-solid fa-caret-up iconLg',true)
+                        .attr('id', d => 'list-caret-up-'+d.name)
+                        .style('opacity',1)
+                        .style('display', d => mapRoot.includes(d.name) || d.mappings.map(m => m.name).some(map => hovered.includes(map)) ? 'block' : 'none')
+                        .on('click',(e,d) => {
+                            const newMap = mapRoot.filter(name => name !== d.name)
+                            setMapRoot(newMap)
+                            d3.select('#mappings-container-'+d.name).classed('hide-after', true).transition(2000).style('opacity',0).style('max-height','0px')
+                            d3.select('#mappings-title-'+d.name).transition(2000).style('opacity',0).style('max-height','0px')
+                            d3.selectAll(".map-list-item-"+d.name).transition(2000).style('max-height','0px').style('visibility','hidden')
+                            d3.select('#list-caret-down-'+d.name).style('display','block')
+                            d3.select('#list-caret-up-'+d.name).style('display','none')
+                        })
                     const mappingsContainer = itemContainer.append('div')
                         .classed('mappings-container',true)
+                        .classed('hide-after', d => mapRoot.includes(d.name) ? false : true)
+                        .classed('fade-after', () => hovered.length > 0 ? true : false)
                         .attr('id', d => 'mappings-container-'+d.name)
-                        .style('height', d => (mapRoot.includes(d.name) && d.mappings.length > 0) || d.mappings.map(d => d.name).includes(hovered) ? 'auto' : '0px')
-                        .style('display', d => (mapRoot.includes(d.name) && d.mappings.length > 0) || d.mappings.map(d => d.name).includes(hovered) ? 'flex' : 'none')
-                        .style('--after-border', !hovered.length > 0 ? '1px dashed var(--textlight)' : '1px dashed #191a1c15');
+                        .style('max-height', d => mapRoot.includes(d.name) || d.mappings.map(m => m.name).some(map => hovered.includes(map)) ? d.mappings.length * 100 + 'px' : '0px')
+                        .style('opacity', d => mapRoot.includes(d.name) || d.mappings.map(m => m.name).some(map => hovered.includes(map)) ? 1 : 0)
+                        .style('display', d => d.levels === '-1' || d.mappings.length === 0 ? 'none' : 'flex')
+                        .style('border-left', () => hovered.length > 0 ? '1px dashed #36126d20' : '1px dashed #36126d80')
                     mappingsContainer.append('p')
-                        .classed('mappings-type',true)
-                        .style('margin',0)
-                        .style('font-size','10px')
-                        .style('margin-bottom','4px')
-                        .style('margin-left','4px')
-                        .html(d => d.data.concept.standard_concept ? 'MAPPED FROM' : 'MAPS TO')
-                        .style('opacity', () => hovered.length > 0 ? 0.2 : 1)
+                        .classed('mappings-title selectedText',true)
+                        .attr('id', d => 'mappings-title-'+d.name)
+                        .html(d => d.data.concept.standard_concept ? 'Mapped from' : 'Maps to')
+                        .style('max-height', d => mapRoot.includes(d.name) || d.mappings.map(m => m.name).some(map => hovered.includes(map)) ? '10px' : '0px')
+                        .style('opacity', d => mapRoot.includes(d.name) ? hovered.length > 0 ? 0.2 : 1 : 0)
                     // MAPPINGS
                     mappingsContainer.selectAll(".map-list-item-container").data(d => d.mappings, d => d.name)
                     .join(enter => {
                         const mapItemContainer = enter.append('div')
                             .classed('map-list-item-container',true)
+                            .each(function(d) {this.classList.add(`map-list-item-${d.source.name}`)})
+                            .style('max-height', d => mapRoot.includes(d.source.name) ? '100px' : '0px')
+                            .style('visibility', d => mapRoot.includes(d.source.name) ? 'visible' : 'hidden')
                         const mapItem = mapItemContainer.append('div')
                             .classed('map-list-item',true)
-                            .attr('id', d => 'list-item-'+d.name)
-                            .style('margin-bottom', '4px')
-                            .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered.includes(d.name) ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px dashed var(--background)')
-                            .style('border-radius', '20px')
                             .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
                         const mapTitleSection = mapItem.append('div')
-                            .classed('map-title-section',true)
-                        const mapTitle = mapTitleSection.append('div')
-                            .classed('map-item-title',true)
-                            .attr('id', d => 'item-title-' + d.name)
-                        const mapCircle = mapTitle.append('div')
-                            .classed('map-title-circle',true)
-                            .attr('id', d => 'title-circle-'+d.name)
-                            .style('flex-shrink',0)
-                            .style('width', '14px')
-                            .style('height', '14px')
-                            .style('pointer-events', d => d.total_counts === 0 ? 'none' : 'all')
-                            .style('border', d => d.total_counts === 0 ? '1px solid var(--textlightest)' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid var(--textlight)')
-                            .style('cursor','pointer')
+                            .classed('list-title-section',true)
+                        const mapConceptCard = mapTitleSection.append('div')
+                            .classed('map-list-card',true)
+                            .attr('id', d => 'list-card-'+d.name+d.source.name)
+                            .style('display','flex')
+                            .style('flex-direction','column')
+                            .style('box-shadow', d => conceptNames.includes(d.name) ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
+                            .style('background-color', d => conceptNames.includes(d.name) ? 'white' : '#ebebeb')
+                        const mapTitle = mapConceptCard.append('div')
+                            .classed('list-item-title',true)
+                        const mapTitle1 = mapTitle.append('div')
+                            .style('display','flex')
+                            .style('align-items','center')
+                        mapTitle1.append('div')
+                            .classed('map-list-title-circle',true)
+                            .classed('list-circle-dash', d => d.total_counts === 0 ? true : false)
+                            .classed('list-circle', d => d.total_counts === 0 ? false : true)
+                            .classed('btn', d => conceptNames.includes(d.name) ? true : false)
+                            .style('pointer-events', d => conceptNames.includes(d.name) ? 'all' : 'none')
                             .style('background', d => {
-                                if (!conceptNames.includes(d.name)) return "none"
-                                else {
+                                if (d.total_counts === 0) return "none"
+                                if (conceptNames.includes(d.name)) {
                                     if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
-                                    else {return "none"}    
-                                }    
+                                    else {return "none"}
+                                }
+                                else {
+                                    if (!d.data.concept.standard_concept) return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, #d6d6d6 0.5px, #d6d6d6 2px)"    
+                                    else {return "none"}
+
+                                }  
                             })
                             .style("background-color", d => {
-                                if (!conceptNames.includes(d.name)) return "transparent"
-                                else {
+                                if (d.total_counts === 0) return "transparent"
+                                if (conceptNames.includes(d.name)) {
                                     if (d.data.concept.standard_concept) {return d.color} 
                                     else {return "transparent"}
                                 }
+                                else return '#d6d6d6'
                             }) 
-                            .style('border-radius', '50%')
-                            .style('margin-right', '5px')
-                            .on('click', (e,d) => {
-                                d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
+                            .style('border', d => d.total_counts === 0 ? '1px solid #b2b2b2' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                            .on('mouseover',(e,d) => setHovered([d.name]))
+                            .on('mouseout', (e,d) => setHovered([]))
+                        const mapTitleRight = mapTitle1.append('div')
+                            .classed('map-list-title-right btn',true)
+                            .style('display','flex')
+                            .style('align-items','center')
+                            .on('mouseover',(e,d) => {
+                                d3.select('#list-icons-'+d.name).transition(1000).style('max-width','36px').style('opacity',1)
+                            })
+                            .on('mouseout', (e,d) => {
+                                
+                                if (!showConfirmation) d3.select('#list-icons-'+d.name).transition(1000).style('max-width','0px').style('opacity',0)
+                            })
+                        const mapIcons = mapTitleRight.append('div')
+                            .classed('map-list-icons',true)
+                            .attr('id',d => 'list-icons-'+d.name)
+                            .style('display','flex')
+                            .style('max-width', '0px')
+                            .style('opacity', 0)
+                        mapIcons.append('img')
+                            .classed('map-list-eye icon marginRight eye',true)
+                            .attr('id', d => 'list-eye-'+d.name)
+                            .attr("src", d => conceptNames.includes(d.name) ? openedEye : closedEye)
+                            .style('opacity', d => conceptNames.includes(d.name) ? 1 : 0.3)
+                            .style('display', d => d.total_counts === 0 ? 'none' : 'inline-block')
+                            .on('mouseover', (e, d) => {
+                                if (!conceptNames.includes(d.name)) d3.select('#list-eye-'+d.name).transition().style('opacity',1)
+                                const el = e.currentTarget
+                                el.__hoverTimeout__ = setTimeout(() => {
+                                    showActionLabel(
+                                        conceptNames.includes(d.name) 
+                                            ? 'Hide concept'
+                                            : 'Show concept',
+                                        'enter',
+                                        e
+                                    )
+                                }, 1200)
+                            })
+                            .on('mouseout', (e,d) => {
+                                if (!conceptNames.includes(d.name)) d3.select('#list-eye-'+d.name).transition().style('opacity',0.2)
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
+                            })
+                            .on('click',(e,d) => {
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave')
                                 if (d.total_counts !== 0) {
                                     if (conceptNames.includes(d.name)) {
+                                        // if (!nodes.find(n => n.name === d.source.name).mappings.map(m => m.name).filter(map => map !== d.name).some(map => conceptNames.includes(map))) {
+                                        //     const newMap = mapRoot.filter(name => name !== d.source.name)
+                                        //     setMapRoot(newMap)
+                                        // }
                                         const newInclusions = inclusions.filter(e => e !== d.name)
                                         updateConcepts(newInclusions,nodes,[],[d])
                                     } else if (!conceptNames.includes(d.name)){
+                                        // if (!mapRoot.includes(d.source.name)) setMapRoot([...mapRoot,d.source.name])
                                         const newInclusions = [...inclusions,d.name]
                                         updateConcepts(newInclusions,nodes,[d],[])
                                     }     
                                 } 
                             })
-                            .on('mouseover', (e,d) => {
-                                if (!conceptNames.includes(d.name)) {
-                                    d3.select('#plus-'+d.name).transition().style('color', 'white')
-                                    d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`) 
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.text)   
-                                    d3.select('#title-code-'+d.name).transition().style('color',color.text) 
-                                    d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
-                                    d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
-                                } else d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
-                            })
-                            .on('mouseout', (e,d) => {
-                                if (!conceptNames.includes(d.name)) {
-                                    d3.select('#plus-'+d.name).transition().style('color', color.text)
-                                    d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
-                                    d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
-                                } else d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                            })
-                        mapCircle.append('i')
-                            .classed('map-list-plus fa-solid fa-plus fa-2xs',true)
-                            .attr('id',d => 'plus-'+d.name)
-                            .style('color', color.text)
-                            .style('pointer-events','none')
-                            .style('padding-bottom','1px')
-                            .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 ? 'block' : 'none')
-                        mapCircle.append('i')
-                            .classed('map-list-x fa-solid fa-x fa-2xs',true)
-                            .style('color', 'white')
-                            .attr('id',d => 'x-'+d.name)
-                            .style('opacity', 0)
-                            .style('display', 'none')
-                            .style('padding-bottom','1px')
-                            .style('pointer-events','none')
-                        const mapTitleP = mapTitle.append('p')
-                        mapTitleP.append('span')
-                            .classed('map-title-name',true)
-                            .attr('id', d => 'title-name-'+d.name)
-                            .style("font-weight", d => sidebarRoot.name.includes(d.name) || hovered.includes(d.name) ? 700 : 400)
-                            .style('color', d => conceptNames.includes(d.name) || hovered.includes(d.name) ? color.text : color.textlight)
-                            .html(d => d.data.concept.concept_name || d.data.concept.concept_id)
-                            .style('padding-right', '4px')
-                            .style('cursor','pointer')
-                            .on('click', (e,d) => {
-                                setLoading(true)
-                                navigate(`/${d.name}`)
-                                //conceptHover(d.name, "leave") 
-                            })
-                            .on('mouseover', function (e,d) {
-                                d3.select('#list-item-'+d.name).style('background-color',color.lightpurple).style('border','1px solid var(--lightpurple)')
-                                d3.select('#title-name-'+d.name).style('font-weight',700)
-                                if (!conceptNames.includes(d.name) && d.total_counts !== 0) { 
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.text)    
-                                }
-                                const el = this
+                        mapIcons.append('i')
+                            .classed('map-list-search fa fa-search iconLg marginRight',true)
+                            .attr('id', d => 'list-search-'+d.name)
+                            .style('transform','scaleX(-1)')
+                            .on('mouseover', (e, d) => {
+                                const el = e.currentTarget
                                 el.__hoverTimeout__ = setTimeout(() => {
-                                    setHovered([d.name])
-                                },400)
+                                    showActionLabel('Select concept','enter',e)
+                                }, 1200)
                             })
-                            .on('mouseout', function (e,d) {
-                                const el = this
-                                clearTimeout(el.__hoverTimeout__)
-                                if (!sidebarRoot.name.includes(d.name)) {
-                                    d3.select('#list-item-'+d.name).style('background-color', d => conceptNames.includes(d.name) ? color.lightbackground : 'transparent').style('border', d => conceptNames.includes(d.name) ? '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                                    d3.select('#title-name-'+d.name).style('font-weight',400)
-                                    if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
-                                        d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
-                                    }
-                                }  
-                                setHovered([])  
-                            })
-                        mapTitleP.append('span')
-                            .classed('map-title-code',true)
-                            .attr('id', d => 'title-code-'+d.name)
-                            .style('font-size', '10px')
-                            .style('font-weight',700)
-                            .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
-                            .html(d => d.data.concept.concept_code)
-                            .style('margin-right', '5px')     
-                        mapTitleP.append('span')
-                            .classed('map-title-vocab',true)
-                            .attr('id', d => 'title-vocab-'+d.name)
-                            .style('font-size', '10px')
-                            .style('color', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
-                            .html(d => d.data.concept.vocabulary_id)
-                            .style('margin-right', '12px') 
-                        mapTitleP.append('i')
-                            .classed('map-info-icon fa-solid fa-circle-info',true)  
-                            .attr('id', d => 'info-icon-'+d.name)  
-                            .style('color', color.text)
-                            .style('opacity', 0.2)
-                            .style('cursor','pointer')
-                            .style('margin-right','5px')
-                            .on('mouseover', (e,d) => d3.select('#info-icon-'+d.name).style('opacity',1))
                             .on('mouseout', (e,d) => {
-                                if (d3.select('#info-container-'+d.name).style('display') === 'none') d3.select('#info-icon-'+d.name).style('opacity',0.2)
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
                             })
                             .on('click', (e,d) => {
-                                if (d3.select('#info-container-'+d.name).style('display') === 'flex') {
-                                    d3.select('#info-icon-'+d.name).style('opacity',0.2)
-                                    d3.select('#info-container-'+d.name).transition().style('height','0px').style('display','none')
-                                    d3.select('#info-col1-'+d.name).transition().style('opacity',0)
-                                    d3.select('#info-col2-'+d.name).transition().style('opacity',0)
-                                } else {
-                                    d3.select('#info-icon-'+d.name).style('opacity',1)
-                                    d3.select('#info-container-'+d.name).transition().style('height','50px').style('display','flex')
-                                    d3.select('#info-col1-'+d.name).transition().style('opacity',1)
-                                    d3.select('#info-col2-'+d.name).transition().style('opacity',1)    
-                                }
-                                
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave')
+                                showConfirmationPopup(d, 'enter', e)
                             })
-                        const mapCountsContainer = mapTitleSection.append('div')
-                            .classed('map-list-counts-container',true)
-                            .attr('id', d => 'counts-container-'+d.name)
-                        const mapCounts1 = mapCountsContainer.append('div')
-                            .classed('map-list-counts',true)
-                        mapCounts1.append('p')
-                            .classed('map-counts1-text',true)
-                            .attr('id', d => 'counts1-text-'+d.name)
-                            .style('color', d => conceptNames.includes(d.name) ? d.total_counts > 0 ? color.text : color.textlight : color.textlight)
-                            .html(d => d.total_counts + ' RC')
-                        mapCounts1.append('div')
-                            .classed('map-counts1-rect',true)
-                            .attr('id', d => 'counts1-rect-'+d.name)
-                            .style('height', '8px')
-                            .style('width', d => scaleWidth(d.total_counts) + 'px')
-                            .style('background-color', d => conceptNames.includes(d.name) ? d.color : color.textlightest)
-                            .style('margin-left', '5px')
-                            .style('border-radius', '20px')
-                        const mapCounts2 = mapCountsContainer.append('div')
-                            .classed('map-list-counts',true)
-                        mapCounts2.append('p')
-                            .classed('map-counts2-text',true)
-                            .style('color', color.textlight)
-                            .html(d => d.descendant_counts + ' DRC')
-                        mapCounts2.append('div')
-                            .classed('map-counts2-rect',true)
-                            .style('height', '8px')
-                            .style('width', d => scaleWidth(d.descendant_counts) + 'px')
-                            .style('background-color', color.textlightest)
-                            .style('margin-left', '5px')
-                            .style('border-radius', '20px')
-                        const mapInfoContainer = mapItem.append('div')
+                        const mapTitleP = mapTitleRight.append('p')
+                            .classed('map-list-title-p btn',true)
+                            .style('opacity', d => conceptNames.includes(d.name) ? 1 : 0.6)
+                            .on('mouseover', (e, d) => {
+                                const el = e.currentTarget
+                                el.__hoverTimeout__ = setTimeout(() => {
+                                    showActionLabel('Select concept','enter',e)
+                                }, 1200)
+                            })
+                            .on('mouseout', (e,d) => {
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
+                            })
+                            .on('click', (e,d) => {
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave')
+                                if (!sidebarRoot.name.includes(d.name)) showConfirmationPopup(d, 'enter', e)
+                            })
+                        mapTitleP.append('span')
+                            .classed('title-name selectedText marginRight',true)
+                            .html(d => d.data.concept.concept_name)
+                        mapTitleP.append('span')
+                            .classed('title-code marginRight num',true)
+                            .style('font-weight',500)
+                            .html(d => d.data.concept.concept_code ? d.data.concept.concept_code : d.data.concept.concept_id)
+                        mapTitleP.append('span')
+                            .classed('title-vocab marginRight',true)
+                            .html(d => d.data.concept.vocabulary_id)   
+                        mapTitle.append('i')
+                            .classed('map-info-icon fa-solid fa-circle-info icon',true)  
+                            .attr('id', d => 'info-icon-'+d.name+d.source.name)  
+                            .style('opacity', 0.2)
+                            .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1))
+                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)})
+                            .on('click', (e,d) => {
+                                if (d3.select('#info-container-'+d.name+d.source.name).style('height') === '45px') {
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)
+                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
+                                    d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','20px')
+                                } else {
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1)
+                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
+                                    d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','12px')
+                                }
+                            })
+                        const mapInfoContainer = mapConceptCard.append('div')
                             .classed('map-info-container',true)
-                            .attr('id', d => 'info-container-'+d.name)
+                            .attr('id', d => 'info-container-'+d.name+d.source.name)
+                            .style('border-top', d => conceptNames.includes(d.name) ? '1px solid color-mix(in srgb, #36126d, white 90%)' : '1px solid color-mix(in srgb, #36126d, white 78%)')
                         const mapInfoCol1 = mapInfoContainer.append('div')
-                            .classed('map-info-col',true)
-                            .attr('id', d => 'info-col1-'+d.name)
+                            .classed('info-col',true)
                         mapInfoCol1.append('p')
-                            .html('Id')
-                            .style("font-weight", 700)
+                            .classed('selectedText infoRow',true)
+                            .html('Id:')
                             .append('span')
+                            .classed('infoContent num',true)
                             .html(d => d.name)
-                            .style('margin-left','8px')
-                            .style('font-weight', 400)
                         mapInfoCol1.append('p')
-                            .html('Code')
-                            .style("font-weight", 700)
+                            .classed('selectedText infoRow',true)
+                            .html('Code:')
                             .append('span')
+                            .classed('infoContent num',true)
                             .html(d => d.data.concept.concept_code)
-                            .style('margin-left','8px')
-                            .style('font-weight', 400)
                         mapInfoCol1.append('p')
-                            .html('Type')
-                            .style("font-weight", 700)
+                            .classed('selectedText infoRow',true)
+                            .html('Type:')
                             .append('span')
+                            .classed('infoContent',true)
                             .html(d => d.data.concept.standard_concept ? "Standard" : "Non standard")
-                            .style('margin-left','8px')
-                            .style('font-weight', 400)
-                            .style('padding', '2px 5px 2px 5px')
-                            .style('border', d => d.data.concept.standard_concept ? '1px solid black' : '1px dashed black')
-                            .style('border-radius', '10px')
                         const mapInfoCol2 = mapInfoContainer.append('div')
-                            .classed('map-info-col',true)
+                            .classed('info-col',true)
                             .attr('id', d => 'info-col2-'+d.name)
                             .style('margin-left', '20px')
                         mapInfoCol2.append('p')
-                            .html('Domain')
-                            .style("font-weight", 700)
+                            .classed('selectedText infoRow',true)
+                            .html('Domain:')
                             .append('span')
+                            .classed('infoContent',true)
                             .html(d => d.data.concept.domain_id)
-                            .style('margin-left','8px')
-                            .style('font-weight', 400)
                         mapInfoCol2.append('p')
-                            .html('Class')
-                            .style("font-weight", 700)
+                            .classed('selectedText infoRow',true)
+                            .html('Class:')
                             .append('span')
+                            .classed('infoContent',true)
                             .html(d => d.data.concept.concept_class_id)
-                            .style('margin-left','8px')
-                            .style('font-weight', 400)
-                        // mapInfoCol2.append('p')
-                        //     .html('Validity')
-                        //     .style("font-weight", 700)
-                        //     .append('span')
-                        //     .html(d => getValidity(d.data.concept.valid_end_date))
-                        //     .style('margin-left','8px')
-                        //     .style('font-weight', 400)    
-                    }, update => {
+
+                        const mapDataSection = mapTitleSection.append('div')
+                            .style('display','flex')
+                            .style('align-items','center')
+                            .style('justify-content','flex-start')
+                            .style('width','flex-grow',1)
+                        const mapCountsSection = mapDataSection.append('div')
+                            .style('display','flex')
+                            .style('flex-direction','column')
+                            .style('height','100%')
+                            .style('justify-content','space-between')
+
+                        const mapCountsRC = mapCountsSection.append('div')
+                            .classed('list-counts',true)
+                        mapCountsRC.append('p')
+                            .classed('map-counts-RC-p list-counts-p num',true)
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html(d => formatThousands(d.total_counts))
+                        mapCountsRC.append('p')
+                            .classed('map-counts-RC-label list-counts-label',true)
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html('RC')
+                        const mapCountsBarRC = mapCountsRC.append('div')
+                            .classed('list-counts-bar-container',true)
+                        mapCountsBarRC.append('div')
+                            .classed('map-counts-RC-bar list-counts-bar',true)
+                            .style('width', d => scaleWidth(d.total_counts) + 'px')
+                            .style('background-color', d => conceptNames.includes(d.name) ? d.color : '#e0e0e0')
+                        
+                        const mapCountsDRC = mapCountsSection.append('div')
+                            .classed('list-counts',true)
+                        mapCountsDRC.append('p')
+                            .classed('map-counts-DRC-P list-counts-p num',true)
+                            .style('text-align','left')
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html(d => formatThousands(d.descendant_counts))
+                        mapCountsDRC.append('p')
+                            .classed('map-counts-DRC-label list-counts-label',true)
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html('DRC')
+                        const mapCountsBarDRC = mapCountsDRC.append('div')
+                            .classed('list-counts-bar-container',true)
+                        mapCountsBarDRC.append('div')
+                            .classed('map-counts-DRC-bar list-counts-bar',true)
+                            .style('width', d => scaleWidth(d.descendant_counts) + 'px')
+                            .style('background-color', d => conceptNames.includes(d.name) ? d.color : '#e0e0e0')   
+                        
+                        mapDataSection.append('div')
+                            .classed('list-open-mappings',true)
+                    
+                    },update => {
+                        update
+                            .transition()
+                            .style('max-height', d => mapRoot.includes(d.source.name) || (nodes.find(n => n.name === d.source.name).mappings.map(m => m.name).some(map => conceptNames.includes(map))) ? '100px' : '0px')
+                            .style('visibility', d => mapRoot.includes(d.source.name) || (nodes.find(n => n.name === d.source.name).mappings.map(m => m.name).some(map => conceptNames.includes(map))) ? 'visible' : 'hidden')
                         update.select('.map-list-item')
-                            .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered.includes(d.name) ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px dashed var(--background)')
                             .transition()
                             .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
-                        update.select('.map-title-circle')
+                        update.select('.map-list-card')
+                            .style('box-shadow', d => conceptNames.includes(d.name) ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
+                            .style('background-color', d => d.levels === '-1' ? 'none' : conceptNames.includes(d.name) ? 'white' : '#ebebeb')
+                        update.select('.map-list-title-circle')
+                            .classed('list-circle-dash', d => d.total_counts === 0 ? true : false)
+                            .classed('list-circle', d => d.total_counts === 0 ? false : true)
+                            .classed('btn', d => conceptNames.includes(d.name) ? true : false)
+                            .style('pointer-events', d => conceptNames.includes(d.name) ? 'all' : 'none')
                             .style('background', d => {
-                                if (!conceptNames.includes(d.name)) return "none"
-                                else {
+                                if (d.total_counts === 0) return "none"
+                                if (conceptNames.includes(d.name)) {
                                     if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
-                                    else {return "none"}    
-                                }    
+                                    else {return "none"}
+                                }
+                                else {
+                                    if (!d.data.concept.standard_concept) return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, #d6d6d6 0.5px, #d6d6d6 2px)"  
+                                    else {return "none"}
+
+                                }      
                             })
                             .style("background-color", d => {
-                                if (!conceptNames.includes(d.name)) return "transparent"
-                                else {
+                                if (d.total_counts === 0) return "transparent"
+                                if (conceptNames.includes(d.name)) {
                                     if (d.data.concept.standard_concept) {return d.color} 
                                     else {return "transparent"}
                                 }
+                                else return '#d6d6d6'
                             }) 
-                            .style('pointer-events', d => d.total_counts === 0 ? 'none' : 'all')
-                            .style('border', d => d.total_counts === 0 ? '1px solid var(--textlightest)' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid var(--textlight)')
-                            .on('click', (e,d) => {
-                                d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
+                            .style('border', d => d.total_counts === 0 ? '1px solid #b2b2b2' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                            .on('mouseover',(e,d) => setHovered([d.name]))
+                            .on('mouseout', (e,d) => setHovered([]))
+                        update.select('.map-list-title-right')
+                            .on('mouseover',(e,d) => {
+                                    d3.select('#list-icons-'+d.name).transition(1000).style('max-width','36px').style('opacity',1)
+                            })
+                            .on('mouseout', (e,d) => {
+                                
+                                if (!showConfirmation) d3.select('#list-icons-'+d.name).transition(1000).style('max-width','0px').style('opacity',0)
+                            })
+                        update.select('.map-list-eye')
+                            .attr("src", d => conceptNames.includes(d.name) ? openedEye : closedEye)
+                            .style('opacity', d => conceptNames.includes(d.name) ? 1 : 0.3)
+                            .style('display', d => d.total_counts === 0 ? 'none' : 'inline-block')
+                            .on('mouseover', (e, d) => {
+                                if (!conceptNames.includes(d.name)) d3.select('#list-eye-'+d.name).transition().style('opacity',1)
+                                const el = e.currentTarget
+                                el.__hoverTimeout__ = setTimeout(() => {
+                                    showActionLabel(
+                                        conceptNames.includes(d.name) 
+                                            ? 'Hide concept'
+                                            : 'Show concept',
+                                        'enter',
+                                        e
+                                    )
+                                }, 1200)
+                            })
+                            .on('mouseout', (e,d) => {
+                                if (!conceptNames.includes(d.name)) d3.select('#list-eye-'+d.name).transition().style('opacity',0.2)
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
+                            })
+                            .on('click',(e,d) => {
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave')
                                 if (d.total_counts !== 0) {
                                     if (conceptNames.includes(d.name)) {
+                                        // if (!nodes.find(n => n.name === d.source.name).mappings.map(m => m.name).filter(map => map !== d.name).some(map => conceptNames.includes(map))) {
+                                        //     const newMap = mapRoot.filter(name => name !== d.source.name)
+                                        //     setMapRoot(newMap)
+                                        // }
                                         const newInclusions = inclusions.filter(e => e !== d.name)
                                         updateConcepts(newInclusions,nodes,[],[d])
                                     } else if (!conceptNames.includes(d.name)){
+                                        // if (!mapRoot.includes(d.source.name)) setMapRoot([...mapRoot,d.source.name])
                                         const newInclusions = [...inclusions,d.name]
                                         updateConcepts(newInclusions,nodes,[d],[])
                                     }     
                                 } 
                             })
-                            .on('mouseover', (e,d) => {
-                                if (!conceptNames.includes(d.name)) {
-                                    d3.select('#plus-'+d.name).transition().style('color', 'white')
-                                    d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`) 
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.text)  
-                                    d3.select('#title-code-'+d.name).transition().style('color',color.text)  
-                                    d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
-                                    d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
-                                } else  d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
-                            })
-                            .on('mouseout', (e,d) => {
-                                if (!conceptNames.includes(d.name)) {
-                                    d3.select('#plus-'+d.name).transition().style('color', color.text)
-                                    d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
-                                    d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
-                                } else d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                            })
-                        update.select('.map-list-plus')
-                            .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 ? 'block' : 'none')
-                        update.select('.map-title-name')
-                            .style("font-weight", d => sidebarRoot.name.includes(d.name) || hovered.includes(d.name) ? 700 : 400)
-                            .style('color', d => conceptNames.includes(d.name) || hovered.includes(d.name) ? color.text : color.textlight)
-                            .html(d => d.data.concept.concept_name)
-                            .on('click', (e,d) => {
-                                setLoading(true)
-                                navigate(`/${d.name}`)
-                                //conceptHover(d.name, "leave") 
-                            })
-                            .on('mouseover', function (e,d) {
-                                d3.select('#list-item-'+d.name).style('background-color',color.lightpurple).style('border','1px solid var(--lightpurple)')
-                                d3.select('#title-name-'+d.name).style('font-weight',700)
-                                if (!conceptNames.includes(d.name) && d.total_counts !== 0) { 
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.text)    
-                                }
-                                const el = this
+                        update.select('.map-list-search')
+                            .on('mouseover', (e, d) => {
+                                const el = e.currentTarget
                                 el.__hoverTimeout__ = setTimeout(() => {
-                                    setHovered([d.name])
-                                },400)
+                                    showActionLabel('Select concept','enter',e)
+                                }, 1200)
                             })
-                            .on('mouseout', function (e,d) {
-                                const el = this
-                                clearTimeout(el.__hoverTimeout__)
-                                if (!sidebarRoot.name.includes(d.name)) {
-                                    d3.select('#list-item-'+d.name).style('background-color', d => conceptNames.includes(d.name) ? color.lightbackground : 'transparent').style('border', d => conceptNames.includes(d.name) ? '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                                    d3.select('#title-name-'+d.name).style('font-weight',400)
-                                    if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
-                                        d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
-                                    }
-                                }  
-                                setHovered([])  
-                            })
-                        update.select('.map-title-code')
-                            .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
-                            .html(d => d.data.concept.concept_code)
-                        update.select('.map-title-vocab')
-                            .style('color', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
-                            .html(d => d.data.concept.vocabulary_id) 
-                        update.select('.map-info-icon')
-                            .on('mouseover', (e,d) => d3.select('#info-icon-'+d.name).style('opacity',1))
                             .on('mouseout', (e,d) => {
-                                if (d3.select('#info-container-'+d.name).style('display') === 'none') d3.select('#info-icon-'+d.name).style('opacity',0.2)
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
                             })
                             .on('click', (e,d) => {
-                                if (d3.select('#info-container-'+d.name).style('display') === 'flex') {
-                                    d3.select('#info-icon-'+d.name).style('opacity',0.2)
-                                    d3.select('#info-container-'+d.name).transition().style('height','0px').style('display','none')
-                                    d3.select('#info-col1-'+d.name).transition().style('opacity',0)
-                                    d3.select('#info-col2-'+d.name).transition().style('opacity',0)
-                                } else {
-                                    d3.select('#info-icon-'+d.name).style('opacity',1)
-                                    d3.select('#info-container-'+d.name).transition().style('height','50px').style('display','flex')
-                                    d3.select('#info-col1-'+d.name).transition().style('opacity',1)
-                                    d3.select('#info-col2-'+d.name).transition().style('opacity',1)    
-                                }
-                                
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave')
+                                showConfirmationPopup(d, 'enter', e)
                             })
-                        update.select('.map-counts1-text')
-                            .style('color', d => conceptNames.includes(d.name) ? d.total_counts > 0 ? color.text : color.textlight : color.textlight)
-                            .html(d => d.total_counts + ' RC')
-                        update.select('.map-counts1-rect')
+                        update.select('.map-list-title-p')
+                            .on('mouseover', (e, d) => {
+                                const el = e.currentTarget
+                                el.__hoverTimeout__ = setTimeout(() => {
+                                    showActionLabel('Select concept','enter',e)
+                                }, 1200)
+                            })
+                            .on('mouseout', (e,d) => {
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
+                            })
+                            .on('click', (e,d) => {
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave')
+                                if (!sidebarRoot.name.includes(d.name)) showConfirmationPopup(d, 'enter', e)
+                            })
+                            .transition()
+                            .style('opacity', d => conceptNames.includes(d.name) ? 1 : 0.6)
+                        update.select('.map-info-icon')
+                            .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1))
+                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)})
+                            .on('click', (e,d) => {
+                                if (d3.select('#info-container-'+d.name+d.source.name).style('height') === '45px') {
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)
+                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
+                                    d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','20px')
+                                } else {
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1)
+                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
+                                    d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','12px')
+                                }
+                            })
+                        update.select('.map-info-container')
+                            .style('border-top', d => conceptNames.includes(d.name) ? '1px solid color-mix(in srgb, #36126d, white 90%)' : '1px solid color-mix(in srgb, #36126d, white 78%)')
+                        update.select('.map-counts-RC-p')
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html(d => formatThousands(d.total_counts))
+                        update.select('.map-counts-RC-label')
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                        update.select('.map-counts-RC-bar')
                             .transition()
                             .style('width', d => scaleWidth(d.total_counts) + 'px')
-                            .style('background-color', d => conceptNames.includes(d.name) ? d.color : color.textlightest)
-                        update.select('.map-counts2-text')
-                            .html(d => d.descendant_counts + ' DRC')
-                        update.select('.map-counts2-rect')
+                            .style('background-color', d => conceptNames.includes(d.name) ? d.color : '#e0e0e0')
+                        update.select('.map-counts-DRC-p')
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html(d => formatThousands(d.descendant_counts))
+                        update.select('.map-counts-DRC-label')
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                        update.select('.map-counts-DRC-bar')
                             .transition()
-                            .style('width', d => scaleWidth(d.descendant_counts) + 'px')    
+                            .style('width', d => scaleWidth(d.descendant_counts) + 'px')
+                            .style('background-color', d => conceptNames.includes(d.name) ? d.color : '#e0e0e0')
                     })
-                }, update => {
+                },update => {
                     update.select('.list-item')
-                        .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered.includes(d.name) ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                        .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px solid var(--background)')
+                        .style('background-color', d => d.levels === '-1' ? '#f0f0f0' : 'white')
                         .transition()
-                        .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : d.levels === "-1" ? 0.7 : 1)
-                    update.select('.title-circle')
+                        .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
+                    update.select('.list-card')
+                        .style('box-shadow', d => conceptNames.includes(d.name) || d.leaf ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
+                        .style('background-color', d => d.levels === '-1' ? 'none' : conceptNames.includes(d.name) || d.leaf ? 'white' : '#ebebeb')
+                    update.select('.list-title-circle')
+                        .classed('list-circle-dash', d => d.total_counts === 0 && !d.leaf ? true : false)
+                        .classed('list-circle', d => d.total_counts === 0 && !d.leaf ? false : true)
+                        .classed('btn', d => conceptNames.includes(d.name) || d.leaf ? true : false)
+                        .style("pointer-events", d => conceptNames.includes(d.name) || d.leaf ? 'all' : 'none')
                         .style('background', d => {
-                            if (!conceptNames.includes(d.name)) return "none"
-                            else {
+                            if (d.total_counts === 0 && !d.leaf) return "none"
+                            if (conceptNames.includes(d.name) || d.leaf) {
                                 if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
-                                else {return "none"}    
-                            }    
+                                else {return "none"}
+                            }
+                            else {
+                                if (!d.data.concept.standard_concept) return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, #d6d6d6 0.5px, #d6d6d6 2px)"  
+                                else {return "none"}
+
+                            }      
                         })
                         .style("background-color", d => {
-                            if (!conceptNames.includes(d.name)) return "transparent"
-                            else {
+                            if (d.total_counts === 0 && !d.leaf) return "transparent"
+                            if (conceptNames.includes(d.name) || d.leaf) {
                                 if (d.data.concept.standard_concept) {return d.color} 
                                 else {return "transparent"}
                             }
+                            else return '#d6d6d6'
                         }) 
-                        .style('pointer-events', d => d.total_counts === 0 && !d.leaf ? 'none' : 'all')
-                        .style('border', d => (d.total_counts === 0 && !d.leaf) || d.levels === '-1' ? '1px solid var(--textlightest)' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid var(--textlight)')
-                        .on('click', (e,d) => {
-                            d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
+                        .style('border', d => d.total_counts === 0 && !d.leaf ? '1px solid #b2b2b2' : conceptNames.includes(d.name) || d.leaf ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                        .on('mouseover',(e,d) => setHovered([d.name]))
+                        .on('mouseout', (e,d) => setHovered([]))
+                    update.select('.list-title-right')
+                        .on('mouseover',(e,d) => {
+                                d3.select('#list-icons-'+d.name).transition(1000).style('max-width','36px').style('opacity',1)
+                        })
+                        .on('mouseout', (e,d) => {
+                            
+                            if (!showConfirmation) d3.select('#list-icons-'+d.name).transition(1000).style('max-width','0px').style('opacity',0)
+                        })
+                    update.select('.list-eye')
+                        .attr("src", d => conceptNames.includes(d.name) || d.leaf ? openedEye : closedEye)
+                        .style('opacity', d => conceptNames.includes(d.name) || d.leaf ? 1 : 0.2)
+                        .style('display', d => (d.total_counts === 0 && !d.leaf) || d.levels === '-1' ? 'none' : 'inline-block')
+                        .on('mouseover', (e, d) => {
+                            if (!conceptNames.includes(d.name) && !d.leaf) d3.select('#list-eye-'+d.name).transition().style('opacity',1)
+                            const el = e.currentTarget
+                            el.__hoverTimeout__ = setTimeout(() => {
+                                showActionLabel(
+                                    conceptNames.includes(d.name) || d.leaf
+                                        ? 'Hide concept'
+                                        : 'Show concept',
+                                    'enter',
+                                    e
+                                )
+                            }, 1200)
+                        })
+                        .on('mouseout', (e,d) => {
+                            if (!conceptNames.includes(d.name) && !d.leaf) d3.select('#list-eye-'+d.name).transition().style('opacity',0.2)
+                            clearTimeout(e.currentTarget.__hoverTimeout__)
+                            showActionLabel('','leave',e)
+                        })
+                        .on('click',(e,d) => {
+                            clearTimeout(e.currentTarget.__hoverTimeout__)
+                            showActionLabel('','leave')
                             if (d.total_counts !== 0) {
                                 if (conceptNames.includes(d.name)) {
                                     const newInclusions = inclusions.filter(e => e !== d.name)
@@ -4221,528 +4410,550 @@
                                 }     
                             } 
                         })
-                        .on('mouseover', (e,d) => {
-                            if (!conceptNames.includes(d.name) && d.levels !== '-1') {
-                                d3.select('#plus-'+d.name).transition().style('color', 'white')
-                                d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`) 
-                                d3.select('#title-name-'+d.name).transition().style('color',color.text)  
-                                d3.select('#title-code-'+d.name).transition().style('color',color.text)  
-                                d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
-                                d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
-                                d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
-                            } else d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
-                        })
-                        .on('mouseout', (e,d) => {
-                            if (!conceptNames.includes(d.name) && d.levels !== '-1') {
-                                d3.select('#plus-'+d.name).transition().style('color', color.text)
-                                d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
-                                d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
-                                d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
-                                d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
-                                d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
-                                d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
-                            } else d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                        })
-                    update.select('.list-plus')
-                        .style('display', d => !conceptNames.includes(d.name) && (d.total_counts !== 0 || d.leaf) && d.levels !== '-1' ? 'block' : 'none')
-                    update.select('.title-name')
-                        .style("font-weight", d => sidebarRoot.name.includes(d.name) || hovered.includes(d.name) ? 700 : 400)
-                        .style('color', d => conceptNames.includes(d.name) || hovered.includes(d.name) ? color.text : color.textlight)
-                        .html(d => d.data.concept.concept_name || d.data.concept.concept_id)
-                        .on('click', (e,d) => {
-                            navigate(`/${d.name}`)
-                            //conceptHover(d.name, "leave") 
-                        })
-                        .on('mouseover', function (e,d) {
-                            if (d.levels === '-1') d3.select('#list-item-'+d.name).style('opacity',1)
-                            d3.select('#list-item-'+d.name).style('background-color',color.lightpurple).style('border','1px solid var(--lightpurple)')
-                            d3.select('#title-name-'+d.name).style('font-weight',700)
-                            if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
-                                d3.select('#title-name-'+d.name).transition().style('color',color.text)     
-                            }
-                            const el = this
+                    update.select('.list-search')
+                        .on('mouseover', (e, d) => {
+                            const el = e.currentTarget
                             el.__hoverTimeout__ = setTimeout(() => {
-                                if (d.levels !== "-1") setHovered([d.name])
-                                },400)
+                                showActionLabel('Select concept','enter',e)
+                            }, 1200)
                         })
-                        .on('mouseout', function (e,d) {
-                            const el = this
-                            clearTimeout(el.__hoverTimeout__)
-                            if (!sidebarRoot.name.includes(d.name)) {
-                                if (d.levels === '-1') d3.select('#list-item-'+d.name).style('opacity',0.7)
-                                d3.select('#list-item-'+d.name).style('background-color', d => conceptNames.includes(d.name) ? color.lightbackground : 'transparent').style('border', d => conceptNames.includes(d.name) ? '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                                d3.select('#title-name-'+d.name).style('font-weight',400)
-                                if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
-                                }
-                            } 
-                            if (d.levels !== "-1") setHovered([])
-                        })
-                    update.select('.title-code')
-                        .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
-                        .html(d => d.data.concept.concept_code)
-                    update.select('.title-vocab')
-                        .style('color', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
-                        .html(d => d.data.concept.vocabulary_id)
-                    // update.select('.title-level')
-                    //     .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
-                    //     .html(d => d.levels)  
-                    update.select('.info-icon')
-                        .on('mouseover', (e,d) => d3.select('#info-icon-'+d.name).style('opacity',1))
                         .on('mouseout', (e,d) => {
-                            if (d3.select('#info-container-'+d.name).style('display') === 'none') d3.select('#info-icon-'+d.name).style('opacity',0.2)
+                            clearTimeout(e.currentTarget.__hoverTimeout__)
+                            showActionLabel('','leave',e)
                         })
                         .on('click', (e,d) => {
-                            if (d3.select('#info-container-'+d.name).style('display') === 'flex') {
-                                d3.select('#info-icon-'+d.name).style('opacity',0.2)
-                                d3.select('#info-container-'+d.name).transition().style('height','0px').style('display','none')
-                                d3.select('#info-col1-'+d.name).transition().style('opacity',0)
-                                d3.select('#info-col2-'+d.name).transition().style('opacity',0)
+                            clearTimeout(e.currentTarget.__hoverTimeout__)
+                            showActionLabel('','leave')
+                            showConfirmationPopup(d, 'enter', e)
+                        })
+                    update.select('.list-title-p')
+                        .on('mouseover', (e, d) => {
+                            const el = e.currentTarget
+                            el.__hoverTimeout__ = setTimeout(() => {
+                                showActionLabel('Select concept','enter',e)
+                            }, 1200)
+                        })
+                        .on('mouseout', (e,d) => {
+                            clearTimeout(e.currentTarget.__hoverTimeout__)
+                            showActionLabel('','leave',e)
+                        })
+                        .on('click', (e,d) => {
+                            clearTimeout(e.currentTarget.__hoverTimeout__)
+                            showActionLabel('','leave')
+                            if (!sidebarRoot.name.includes(d.name)) showConfirmationPopup(d, 'enter', e)
+                        })
+                        .transition()
+                        .style('opacity', d => conceptNames.includes(d.name) || d.leaf ? 1 : 0.6)
+                    update.select('.info-icon')
+                        .style('display', d => d.levels === '-1' || !d.levels ? 'none' : 'block')
+                        .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name).transition().style('opacity',1))
+                        .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name).style('height') !== '45px') d3.select('#info-icon-'+d.name).transition().style('opacity',0.2)})
+                        .on('click', (e,d) => {
+                            if (d3.select('#info-container-'+d.name).style('height') === '45px') {
+                                d3.select('#info-icon-'+d.name).transition().style('opacity',0.2)
+                                d3.select('#info-container-'+d.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
+                                d3.select('#list-card-'+d.name).transition().style('border-radius','20px')
                             } else {
-                                d3.select('#info-icon-'+d.name).style('opacity',1)
-                                d3.select('#info-container-'+d.name).transition().style('height','50px').style('display','flex')
-                                d3.select('#info-col1-'+d.name).transition().style('opacity',1)
-                                d3.select('#info-col2-'+d.name).transition().style('opacity',1)    
-                            }
-                            
-                        })
-                    update.select('.title-caret-down')
-                        .style('display', d => !mapRoot.includes(d.name) ? d.mappings.length > 0 ? 'inline-block' : 'none' : 'none')
-                        .on('click', (e,d) => {
-                            if (d3.select('#caret-down-'+d.name).style('display') === 'inline-block') {
-                                d3.select('#caret-down-'+d.name).style('display','none')  
-                                d3.select('#caret-up-'+d.name).style('display','inline-block') 
-                                d3.select('#mappings-container-'+d.name).transition().style('height','auto').style('display','flex')
-                                setMapRoot([...mapRoot,d.name])
-                                updateWidth([...mapRoot,d.name])
+                                d3.select('#info-icon-'+d.name).transition().style('opacity',1)
+                                d3.select('#info-container-'+d.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
+                                d3.select('#list-card-'+d.name).transition().style('border-radius','12px')
                             }
                         })
-                        .on('mouseover', (e,d) => d3.select('#caret-down-'+d.name).style('opacity',1))
-                        .on('mouseout', (e,d) => d3.select('#caret-down-'+d.name).style('opacity',0.2))
-                    update.select('.title-caret-up')
-                        .style('display', d => mapRoot.includes(d.name) && d.mappings.length > 0 ? 'inline-block' : 'none')
-                        .on('click', (e,d) => {
-                            if (d3.select('#caret-up-'+d.name).style('display') === 'inline-block') {
-                                d3.select('#caret-up-'+d.name).style('display','none')  
-                                d3.select('#caret-down-'+d.name).style('display','inline-block') 
-                                d3.select('#mappings-container-'+d.name).transition().style('height','0px').style('display','none')
-                                const filteredMapRoot = mapRoot.filter(id => id !== d.name)
-                                setMapRoot(filteredMapRoot)
-                                updateWidth(filteredMapRoot)
-                            }
-                        })
-                    update.select('.counts1-text')
-                        .style('color', d => conceptNames.includes(d.name) && !d.leaf ? d.total_counts > 0 ? color.text : color.textlight : color.textlight)
-                        .html(d => d.total_counts + ' RC')
-                    update.select('.counts1-rect')
+                    update.select('.info-container')
+                        .style('border-top', d => conceptNames.includes(d.name) || d.leaf ? '1px solid color-mix(in srgb, #36126d, white 90%)' : '1px solid color-mix(in srgb, #36126d, white 78%)')
+                    update.select('.counts-RC-p')
+                        .style('color', d => conceptNames.includes(d.name) && !d.leaf ? '#36126d' : '#808080')
+                        .style('font-weight', d => conceptNames.includes(d.name) && !d.leaf ? 500 : 400)
+                        .html(d => formatThousands(d.total_counts))
+                    update.select('.counts-RC-label')
+                        .style('color', d => conceptNames.includes(d.name) && !d.leaf ? '#36126d' : '#808080')
+                        .style('font-weight', d => conceptNames.includes(d.name) && !d.leaf ? 500 : 400)
+                    update.select('.counts-RC-bar')
                         .transition()
                         .style('width', d => scaleWidth(d.total_counts) + 'px')
-                        .style('background-color', d => conceptNames.includes(d.name) && !d.leaf ? d.color : color.textlightest)
-                    update.select('.counts2-text')
-                        .style('color', d => d.leaf && d.descendant_counts !== 0 ? color.text : color.textlight)
-                        .html(d => d.descendant_counts + ' DRC')
-                    update.select('.counts2-rect')
+                        .style('background-color', d => conceptNames.includes(d.name) && !d.leaf ? d.color : '#e0e0e0')
+                    update.select('.counts-DRC-p')
+                        .style('color', d => conceptNames.includes(d.name) && d.leaf ? '#36126d' : '#808080')
+                        .style('font-weight', d => conceptNames.includes(d.name) && d.leaf ? 500 : 400)
+                        .html(d => formatThousands(d.descendant_counts))
+                    update.select('.counts-DRC-label')
+                        .style('color', d => conceptNames.includes(d.name) && d.leaf ? '#36126d' : '#808080')
+                        .style('font-weight', d => conceptNames.includes(d.name) && d.leaf ? 500 : 400)
+                    update.select('.counts-DRC-bar')
                         .transition()
-                        .style('background-color', d => d.leaf && d.descendant_counts !== 0 ? d.color : color.textlightest)
                         .style('width', d => scaleWidth(d.descendant_counts) + 'px')
-                    update.select(".mappings-container")
-                        .style('height', d => (mapRoot.includes(d.name) && d.mappings.length > 0) || d.mappings.map(d => d.name).includes(hovered) ? 'auto' : '0px')
-                        .style('display', d => (mapRoot.includes(d.name) && d.mappings.length > 0) || d.mappings.map(d => d.name).includes(hovered) ? 'flex' : 'none')
-                        .style('--after-border', !hovered.length > 0 ? '1px dashed var(--textlight)' : '1px dashed #191a1c15');
-                    update.select('.mappings-type')
-                        .style('opacity', () => hovered.length > 0 ? 0.2 : 1)
+                        .style('background-color', d => conceptNames.includes(d.name) && d.leaf ? d.color : '#e0e0e0')
+                    update.select('.list-caret-down')
+                        .style('display', d => d.mappings.length > 0 ? mapRoot.includes(d.name) || d.mappings.map(m => m.name).some(map => hovered.includes(map)) ? 'none' : 'block' : 'none')
+                        .on('click',(e,d) => {
+                            setMapRoot([...mapRoot,d.name])
+                            d3.select('#mappings-container-'+d.name).classed('hide-after', false).transition(2000).style('opacity',1).style('max-height',d.mappings.length * 100 + 'px')
+                            d3.select('#mappings-title-'+d.name).transition(2000).style('opacity',1).style('max-height','10px')
+                            d3.selectAll(".map-list-item-"+d.name).transition(2000).style('max-height','100px').style('visibility','visible')
+                            d3.select('#list-caret-down-'+d.name).style('display','none')
+                            d3.select('#list-caret-up-'+d.name).style('display','block')
+                        })
+                    update.select('.list-caret-up')
+                        .style('display', d => mapRoot.includes(d.name) || d.mappings.map(m => m.name).some(map => hovered.includes(map)) ? 'block' : 'none')
+                        .on('click',(e,d) => {
+                            const newMap = mapRoot.filter(name => name !== d.name)
+                            setMapRoot(newMap)
+                            d3.select('#mappings-container-'+d.name).classed('hide-after', true).transition(2000).style('opacity',0).style('max-height','0px')
+                            d3.select('#mappings-title-'+d.name).transition(2000).style('opacity',0).style('max-height','0px')
+                            d3.selectAll(".map-list-item-"+d.name).transition(2000).style('max-height','0px').style('visibility','hidden')
+                            d3.select('#list-caret-down-'+d.name).style('display','block')
+                            d3.select('#list-caret-up-'+d.name).style('display','none')
+                        })
+                    update.select('.mappings-container')
+                        .classed('hide-after', d => mapRoot.includes(d.name) ? false : true)
+                        .classed('fade-after', () => hovered.length > 0 ? true : false)
+                        .transition()
+                        .style('max-height', d => mapRoot.includes(d.name) || d.mappings.map(m => m.name).some(map => hovered.includes(map)) ? d.mappings.length * 100 + 'px' : '0px')
+                        .style('opacity', d => mapRoot.includes(d.name) || d.mappings.map(m => m.name).some(map => hovered.includes(map)) ? 1 : 0)
+                        .style('border-left', () => hovered.length > 0 ? '1px dashed #36126d20' : '1px dashed #36126d80')
+                    update.select('.mappings-title')
+                        .transition()
+                        .style('max-height', d => mapRoot.includes(d.name) || d.mappings.map(m => m.name).some(map => hovered.includes(map)) ? '10px' : '0px')
+                        .style('opacity', d => mapRoot.includes(d.name) ? hovered.length > 0 ? 0.2 : 1 : 0)
                     // MAPPINGS
-                    update.select('.mappings-container').selectAll(".map-list-item-container").data(d => d.mappings, d => d.name)
+                    update.selectAll(".map-list-item-container").data(d => d.mappings, d => d.name)
                     .join(enter => {
                         const mapItemContainer = enter.append('div')
                             .classed('map-list-item-container',true)
+                            .each(function(d) {this.classList.add(`map-list-item-${d.source.name}`)})
+                            .style('max-height', d => mapRoot.includes(d.source.name) ? '100px' : '0px')
+                            .style('visibility', d => mapRoot.includes(d.source.name) ? 'visible' : 'hidden')
                         const mapItem = mapItemContainer.append('div')
                             .classed('map-list-item',true)
-                            .attr('id', d => 'list-item-'+d.name)
-                            .style('margin-bottom', '4px')
-                            .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered.includes(d.name) ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px dashed var(--background)')
-                            .style('border-radius', '20px')
                             .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
                         const mapTitleSection = mapItem.append('div')
-                            .classed('map-title-section',true)
-                        const mapTitle = mapTitleSection.append('div')
-                            .classed('map-item-title',true)
-                            .attr('id', d => 'item-title-' + d.name)
-                        const mapCircle = mapTitle.append('div')
-                            .classed('map-title-circle',true)
-                            .attr('id', d => 'title-circle-'+d.name)
-                            .style('flex-shrink',0)
-                            .style('width', '14px')
-                            .style('height', '14px')
-                            .style('pointer-events', d => d.total_counts === 0 ? 'none' : 'all')
-                            .style('border', d => d.total_counts === 0 ? '1px solid var(--textlightest)' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid var(--textlight)')
-                            .style('cursor','pointer')
+                            .classed('list-title-section',true)
+                        const mapConceptCard = mapTitleSection.append('div')
+                            .classed('map-list-card',true)
+                            .attr('id', d => 'list-card-'+d.name+d.source.name)
+                            .style('display','flex')
+                            .style('flex-direction','column')
+                            .style('box-shadow', d => conceptNames.includes(d.name) ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
+                            .style('background-color', d => conceptNames.includes(d.name) ? 'white' : '#ebebeb')
+                        const mapTitle = mapConceptCard.append('div')
+                            .classed('list-item-title',true)
+                        const mapTitle1 = mapTitle.append('div')
+                            .style('display','flex')
+                            .style('align-items','center')
+                        mapTitle1.append('div')
+                            .classed('map-list-title-circle',true)
+                            .classed('list-circle-dash', d => d.total_counts === 0 ? true : false)
+                            .classed('list-circle', d => d.total_counts === 0 ? false : true)
+                            .classed('btn', d => conceptNames.includes(d.name) ? true : false)
+                            .style('pointer-events', d => conceptNames.includes(d.name) ? 'all' : 'none')
                             .style('background', d => {
-                                if (!conceptNames.includes(d.name)) return "none"
-                                else {
+                                if (d.total_counts === 0) return "none"
+                                if (conceptNames.includes(d.name)) {
                                     if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
-                                    else {return "none"}    
-                                }    
+                                    else {return "none"}
+                                }
+                                else {
+                                    if (!d.data.concept.standard_concept) return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, #d6d6d6 0.5px, #d6d6d6 2px)"    
+                                    else {return "none"}
+
+                                }  
                             })
                             .style("background-color", d => {
-                                if (!conceptNames.includes(d.name)) return "transparent"
-                                else {
+                                if (d.total_counts === 0) return "transparent"
+                                if (conceptNames.includes(d.name)) {
                                     if (d.data.concept.standard_concept) {return d.color} 
                                     else {return "transparent"}
                                 }
+                                else return '#d6d6d6'
                             }) 
-                            .style('border-radius', '50%')
-                            .style('margin-right', '5px')
-                            .on('click', (e,d) => {
-                                d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
+                            .style('border', d => d.total_counts === 0 ? '1px solid #b2b2b2' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                            .on('mouseover',(e,d) => setHovered([d.name]))
+                            .on('mouseout', (e,d) => setHovered([]))
+                        const mapTitleRight = mapTitle1.append('div')
+                            .classed('map-list-title-right btn',true)
+                            .style('display','flex')
+                            .style('align-items','center')
+                            .on('mouseover',(e,d) => {
+                                d3.select('#list-icons-'+d.name).transition(1000).style('max-width','36px').style('opacity',1)
+                            })
+                            .on('mouseout', (e,d) => {
+                                
+                                if (!showConfirmation) d3.select('#list-icons-'+d.name).transition(1000).style('max-width','0px').style('opacity',0)
+                            })
+                        const mapIcons = mapTitleRight.append('div')
+                            .classed('map-list-icons',true)
+                            .attr('id',d => 'list-icons-'+d.name)
+                            .style('display','flex')
+                            .style('max-width', '0px')
+                            .style('opacity', 0)
+                        mapIcons.append('img')
+                            .classed('map-list-eye icon marginRight eye',true)
+                            .attr('id', d => 'list-eye-'+d.name)
+                            .attr("src", d => conceptNames.includes(d.name) ? openedEye : closedEye)
+                            .style('opacity', d => conceptNames.includes(d.name) ? 1 : 0.3)
+                            .style('display', d => d.total_counts === 0 ? 'none' : 'inline-block')
+                            .on('mouseover', (e, d) => {
+                                if (!conceptNames.includes(d.name)) d3.select('#list-eye-'+d.name).transition().style('opacity',1)
+                                const el = e.currentTarget
+                                el.__hoverTimeout__ = setTimeout(() => {
+                                    showActionLabel(
+                                        conceptNames.includes(d.name) 
+                                            ? 'Hide concept'
+                                            : 'Show concept',
+                                        'enter',
+                                        e
+                                    )
+                                }, 1200)
+                            })
+                            .on('mouseout', (e,d) => {
+                                if (!conceptNames.includes(d.name)) d3.select('#list-eye-'+d.name).transition().style('opacity',0.2)
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
+                            })
+                            .on('click',(e,d) => {
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave')
                                 if (d.total_counts !== 0) {
                                     if (conceptNames.includes(d.name)) {
+                                        // if (!nodes.find(n => n.name === d.source.name).mappings.map(m => m.name).filter(map => map !== d.name).some(map => conceptNames.includes(map))) {
+                                        //     const newMap = mapRoot.filter(name => name !== d.source.name)
+                                        //     setMapRoot(newMap)
+                                        // }
                                         const newInclusions = inclusions.filter(e => e !== d.name)
                                         updateConcepts(newInclusions,nodes,[],[d])
                                     } else if (!conceptNames.includes(d.name)){
+                                        // if (!mapRoot.includes(d.source.name)) setMapRoot([...mapRoot,d.source.name])
                                         const newInclusions = [...inclusions,d.name]
                                         updateConcepts(newInclusions,nodes,[d],[])
                                     }     
                                 } 
                             })
-                            .on('mouseover', (e,d) => {
-                                if (!conceptNames.includes(d.name)) {
-                                    d3.select('#plus-'+d.name).transition().style('color', 'white')
-                                    d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`) 
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.text)   
-                                    d3.select('#title-code-'+d.name).transition().style('color',color.text) 
-                                    d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
-                                    d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
-                                } else d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
-                            })
-                            .on('mouseout', (e,d) => {
-                                if (!conceptNames.includes(d.name)) {
-                                    d3.select('#plus-'+d.name).transition().style('color', color.text)
-                                    d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
-                                    d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
-                                } else d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                            })
-                        mapCircle.append('i')
-                            .classed('map-list-plus fa-solid fa-plus fa-2xs',true)
-                            .attr('id',d => 'plus-'+d.name)
-                            .style('color', color.text)
-                            .style('pointer-events','none')
-                            .style('padding-bottom','1px')
-                            .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 ? 'block' : 'none')
-                        mapCircle.append('i')
-                            .classed('map-list-x fa-solid fa-x fa-2xs',true)
-                            .style('color', 'white')
-                            .attr('id',d => 'x-'+d.name)
-                            .style('opacity', 0)
-                            .style('display', 'none')
-                            .style('padding-bottom','1px')
-                            .style('pointer-events','none')
-                        const mapTitleP = mapTitle.append('p')
-                        mapTitleP.append('span')
-                            .classed('map-title-name',true)
-                            .attr('id', d => 'title-name-'+d.name)
-                            .style("font-weight", d => sidebarRoot.name.includes(d.name) || hovered.includes(d.name) ? 700 : 400)
-                            .style('color', d => conceptNames.includes(d.name) || hovered.includes(d.name) ? color.text : color.textlight)
-                            .html(d => d.data.concept.concept_name || d.data.concept.concept_id)
-                            .style('padding-right', '4px')
-                            .style('cursor','pointer')
-                            .on('click', (e,d) => {
-                                setLoading(true)
-                                navigate(`/${d.name}`)
-                                //conceptHover(d.name, "leave") 
-                            })
-                            .on('mouseover', function (e,d) {
-                                d3.select('#list-item-'+d.name).style('background-color',color.lightpurple).style('border','1px solid var(--lightpurple)')
-                                d3.select('#title-name-'+d.name).style('font-weight',700)
-                                if (!conceptNames.includes(d.name) && d.total_counts !== 0) { 
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.text)    
-                                }
-                                const el = this
+                        mapIcons.append('i')
+                            .classed('map-list-search fa fa-search iconLg marginRight',true)
+                            .attr('id', d => 'list-search-'+d.name)
+                            .style('transform','scaleX(-1)')
+                            .on('mouseover', (e, d) => {
+                                const el = e.currentTarget
                                 el.__hoverTimeout__ = setTimeout(() => {
-                                    setHovered([d.name])
-                                },400)
+                                    showActionLabel('Select concept','enter',e)
+                                }, 1200)
                             })
-                            .on('mouseout', function (e,d) {
-                                const el = this
-                                clearTimeout(el.__hoverTimeout__)
-                                if (!sidebarRoot.name.includes(d.name)) {
-                                    d3.select('#list-item-'+d.name).style('background-color', d => conceptNames.includes(d.name) ? color.lightbackground : 'transparent').style('border', d => conceptNames.includes(d.name) ? '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                                    d3.select('#title-name-'+d.name).style('font-weight',400)
-                                    if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
-                                        d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
-                                    }
-                                }  
-                                setHovered([])  
-                            })
-                        mapTitleP.append('span')
-                            .classed('map-title-code',true)
-                            .attr('id', d => 'title-code-'+d.name)
-                            .style('font-size', '10px')
-                            .style('font-weight',700)
-                            .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
-                            .html(d => d.data.concept.concept_code)
-                            .style('margin-right', '5px')     
-                        mapTitleP.append('span')
-                            .classed('map-title-vocab',true)
-                            .attr('id', d => 'title-vocab-'+d.name)
-                            .style('font-size', '10px')
-                            .style('color', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
-                            .html(d => d.data.concept.vocabulary_id)
-                            .style('margin-right', '12px') 
-                        mapTitleP.append('i')
-                            .classed('map-info-icon fa-solid fa-circle-info',true)  
-                            .attr('id', d => 'info-icon-'+d.name)  
-                            .style('color', color.text)
-                            .style('opacity', 0.2)
-                            .style('cursor','pointer')
-                            .style('margin-right','5px')
-                            .on('mouseover', (e,d) => d3.select('#info-icon-'+d.name).style('opacity',1))
                             .on('mouseout', (e,d) => {
-                                if (d3.select('#info-container-'+d.name).style('display') === 'none') d3.select('#info-icon-'+d.name).style('opacity',0.2)
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
                             })
                             .on('click', (e,d) => {
-                                if (d3.select('#info-container-'+d.name).style('display') === 'flex') {
-                                    d3.select('#info-icon-'+d.name).style('opacity',0.2)
-                                    d3.select('#info-container-'+d.name).transition().style('height','0px').style('display','none')
-                                    d3.select('#info-col1-'+d.name).transition().style('opacity',0)
-                                    d3.select('#info-col2-'+d.name).transition().style('opacity',0)
-                                } else {
-                                    d3.select('#info-icon-'+d.name).style('opacity',1)
-                                    d3.select('#info-container-'+d.name).transition().style('height','50px').style('display','flex')
-                                    d3.select('#info-col1-'+d.name).transition().style('opacity',1)
-                                    d3.select('#info-col2-'+d.name).transition().style('opacity',1)    
-                                }
-                                
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave')
+                                showConfirmationPopup(d, 'enter', e)
                             })
-                        const mapCountsContainer = mapTitleSection.append('div')
-                            .classed('map-list-counts-container',true)
-                            .attr('id', d => 'counts-container-'+d.name)
-                        const mapCounts1 = mapCountsContainer.append('div')
-                            .classed('map-list-counts',true)
-                        mapCounts1.append('p')
-                            .classed('map-counts1-text',true)
-                            .attr('id', d => 'counts1-text-'+d.name)
-                            .style('color', d => conceptNames.includes(d.name) ? d.total_counts > 0 ? color.text : color.textlight : color.textlight)
-                            .html(d => d.total_counts + ' RC')
-                        mapCounts1.append('div')
-                            .classed('map-counts1-rect',true)
-                            .attr('id', d => 'counts1-rect-'+d.name)
-                            .style('height', '8px')
-                            .style('width', d => scaleWidth(d.total_counts) + 'px')
-                            .style('background-color', d => conceptNames.includes(d.name) ? d.color : color.textlightest)
-                            .style('margin-left', '5px')
-                            .style('border-radius', '20px')
-                        const mapCounts2 = mapCountsContainer.append('div')
-                            .classed('map-list-counts',true)
-                        mapCounts2.append('p')
-                            .classed('map-counts2-text',true)
-                            .style('color', color.textlight)
-                            .html(d => d.descendant_counts + ' DRC')
-                        mapCounts2.append('div')
-                            .classed('map-counts2-rect',true)
-                            .style('height', '8px')
-                            .style('width', d => scaleWidth(d.descendant_counts) + 'px')
-                            .style('background-color', color.textlightest)
-                            .style('margin-left', '5px')
-                            .style('border-radius', '20px')
-                        const mapInfoContainer = mapItem.append('div')
+                        const mapTitleP = mapTitleRight.append('p')
+                            .classed('map-list-title-p btn',true)
+                            .style('opacity', d => conceptNames.includes(d.name) ? 1 : 0.6)
+                            .on('mouseover', (e, d) => {
+                                const el = e.currentTarget
+                                el.__hoverTimeout__ = setTimeout(() => {
+                                    showActionLabel('Select concept','enter',e)
+                                }, 1200)
+                            })
+                            .on('mouseout', (e,d) => {
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
+                            })
+                            .on('click', (e,d) => {
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave')
+                                if (!sidebarRoot.name.includes(d.name)) showConfirmationPopup(d, 'enter', e)
+                            })
+                        mapTitleP.append('span')
+                            .classed('title-name selectedText marginRight',true)
+                            .html(d => d.data.concept.concept_name)
+                        mapTitleP.append('span')
+                            .classed('title-code marginRight num',true)
+                            .style('font-weight',500)
+                            .html(d => d.data.concept.concept_code ? d.data.concept.concept_code : d.data.concept.concept_id)
+                        mapTitleP.append('span')
+                            .classed('title-vocab marginRight',true)
+                            .html(d => d.data.concept.vocabulary_id)   
+                        mapTitle.append('i')
+                            .classed('map-info-icon fa-solid fa-circle-info icon',true)  
+                            .attr('id', d => 'info-icon-'+d.name+d.source.name)  
+                            .style('opacity', 0.2)
+                            .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1))
+                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)})
+                            .on('click', (e,d) => {
+                                if (d3.select('#info-container-'+d.name+d.source.name).style('height') === '45px') {
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)
+                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
+                                    d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','20px')
+                                } else {
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1)
+                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
+                                    d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','12px')
+                                }
+                            })
+                        const mapInfoContainer = mapConceptCard.append('div')
                             .classed('map-info-container',true)
-                            .attr('id', d => 'info-container-'+d.name)
+                            .attr('id', d => 'info-container-'+d.name+d.source.name)
+                            .style('border-top', d => conceptNames.includes(d.name) ? '1px solid color-mix(in srgb, #36126d, white 90%)' : '1px solid color-mix(in srgb, #36126d, white 78%)')
                         const mapInfoCol1 = mapInfoContainer.append('div')
-                            .classed('map-info-col',true)
-                            .attr('id', d => 'info-col1-'+d.name)
+                            .classed('info-col',true)
                         mapInfoCol1.append('p')
-                            .html('Id')
-                            .style("font-weight", 700)
+                            .classed('selectedText infoRow',true)
+                            .html('Id:')
                             .append('span')
+                            .classed('infoContent num',true)
                             .html(d => d.name)
-                            .style('margin-left','8px')
-                            .style('font-weight', 400)
                         mapInfoCol1.append('p')
-                            .html('Code')
-                            .style("font-weight", 700)
+                            .classed('selectedText infoRow',true)
+                            .html('Code:')
                             .append('span')
+                            .classed('infoContent num',true)
                             .html(d => d.data.concept.concept_code)
-                            .style('margin-left','8px')
-                            .style('font-weight', 400)
                         mapInfoCol1.append('p')
-                            .html('Type')
-                            .style("font-weight", 700)
+                            .classed('selectedText infoRow',true)
+                            .html('Type:')
                             .append('span')
+                            .classed('infoContent',true)
                             .html(d => d.data.concept.standard_concept ? "Standard" : "Non standard")
-                            .style('margin-left','8px')
-                            .style('font-weight', 400)
-                            .style('padding', '2px 5px 2px 5px')
-                            .style('border', d => d.data.concept.standard_concept ? '1px solid black' : '1px dashed black')
-                            .style('border-radius', '10px')
                         const mapInfoCol2 = mapInfoContainer.append('div')
-                            .classed('map-info-col',true)
+                            .classed('info-col',true)
                             .attr('id', d => 'info-col2-'+d.name)
                             .style('margin-left', '20px')
                         mapInfoCol2.append('p')
-                            .html('Domain')
-                            .style("font-weight", 700)
+                            .classed('selectedText infoRow',true)
+                            .html('Domain:')
                             .append('span')
+                            .classed('infoContent',true)
                             .html(d => d.data.concept.domain_id)
-                            .style('margin-left','8px')
-                            .style('font-weight', 400)
                         mapInfoCol2.append('p')
-                            .html('Class')
-                            .style("font-weight", 700)
+                            .classed('selectedText infoRow',true)
+                            .html('Class:')
                             .append('span')
+                            .classed('infoContent',true)
                             .html(d => d.data.concept.concept_class_id)
-                            .style('margin-left','8px')
-                            .style('font-weight', 400)
-                        // mapInfoCol2.append('p')
-                        //     .html('Validity')
-                        //     .style("font-weight", 700)
-                        //     .append('span')
-                        //     .html(d => getValidity(d.data.concept.valid_end_date))
-                        //     .style('margin-left','8px')
-                        //     .style('font-weight', 400)    
-                    }, update => {
+
+                        const mapDataSection = mapTitleSection.append('div')
+                            .style('display','flex')
+                            .style('align-items','center')
+                            .style('justify-content','flex-start')
+                            .style('width','flex-grow',1)
+                        const mapCountsSection = mapDataSection.append('div')
+                            .style('display','flex')
+                            .style('flex-direction','column')
+                            .style('height','100%')
+                            .style('justify-content','space-between')
+
+                        const mapCountsRC = mapCountsSection.append('div')
+                            .classed('list-counts',true)
+                        mapCountsRC.append('p')
+                            .classed('map-counts-RC-p list-counts-p num',true)
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html(d => formatThousands(d.total_counts))
+                        mapCountsRC.append('p')
+                            .classed('map-counts-RC-label list-counts-label',true)
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html('RC')
+                        const mapCountsBarRC = mapCountsRC.append('div')
+                            .classed('list-counts-bar-container',true)
+                        mapCountsBarRC.append('div')
+                            .classed('map-counts-RC-bar list-counts-bar',true)
+                            .style('width', d => scaleWidth(d.total_counts) + 'px')
+                            .style('background-color', d => conceptNames.includes(d.name) ? d.color : '#e0e0e0')
+                        
+                        const mapCountsDRC = mapCountsSection.append('div')
+                            .classed('list-counts',true)
+                        mapCountsDRC.append('p')
+                            .classed('map-counts-DRC-P list-counts-p num',true)
+                            .style('text-align','left')
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html(d => formatThousands(d.descendant_counts))
+                        mapCountsDRC.append('p')
+                            .classed('map-counts-DRC-label list-counts-label',true)
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html('DRC')
+                        const mapCountsBarDRC = mapCountsDRC.append('div')
+                            .classed('list-counts-bar-container',true)
+                        mapCountsBarDRC.append('div')
+                            .classed('map-counts-DRC-bar list-counts-bar',true)
+                            .style('width', d => scaleWidth(d.descendant_counts) + 'px')
+                            .style('background-color', d => conceptNames.includes(d.name) ? d.color : '#e0e0e0')   
+                        
+                        mapDataSection.append('div')
+                            .classed('list-open-mappings',true)
+                    
+                    },update => {
+                        update
+                            .transition()
+                            .style('max-height', d => mapRoot.includes(d.source.name) || (nodes.find(n => n.name === d.source.name).mappings.map(m => m.name).some(map => conceptNames.includes(map))) ? '100px' : '0px')
+                            .style('visibility', d => mapRoot.includes(d.source.name) || (nodes.find(n => n.name === d.source.name).mappings.map(m => m.name).some(map => conceptNames.includes(map))) ? 'visible' : 'hidden')
                         update.select('.map-list-item')
-                            .style('background-color', d => sidebarRoot.name.includes(d.name) || hovered.includes(d.name) ? color.lightpurple : conceptNames.includes(d.name) ? color.lightbackground : 'transparent')
-                            .style('border', d => conceptNames.includes(d.name) ? sidebarRoot.name.includes(d.name) ? '1px solid var(--lightpurple)' : '1px solid var(--lightbackground)' : '1px dashed var(--background)')
                             .transition()
                             .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
-                        update.select('.map-title-circle')
+                        update.select('.map-list-card')
+                            .style('box-shadow', d => conceptNames.includes(d.name) ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
+                            .style('background-color', d => d.levels === '-1' ? 'none' : conceptNames.includes(d.name) ? 'white' : '#ebebeb')
+                        update.select('.map-list-title-circle')
+                            .classed('list-circle-dash', d => d.total_counts === 0 ? true : false)
+                            .classed('list-circle', d => d.total_counts === 0 ? false : true)
+                            .classed('btn', d => conceptNames.includes(d.name) ? true : false)
+                            .style('pointer-events', d => conceptNames.includes(d.name) ? 'all' : 'none')
                             .style('background', d => {
-                                if (!conceptNames.includes(d.name)) return "none"
-                                else {
+                                if (d.total_counts === 0) return "none"
+                                if (conceptNames.includes(d.name)) {
                                     if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
-                                    else {return "none"}    
-                                }    
+                                    else {return "none"}
+                                }
+                                else {
+                                    if (!d.data.concept.standard_concept) return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, #d6d6d6 0.5px, #d6d6d6 2px)"  
+                                    else {return "none"}
+
+                                }      
                             })
                             .style("background-color", d => {
-                                if (!conceptNames.includes(d.name)) return "transparent"
-                                else {
+                                if (d.total_counts === 0) return "transparent"
+                                if (conceptNames.includes(d.name)) {
                                     if (d.data.concept.standard_concept) {return d.color} 
                                     else {return "transparent"}
                                 }
+                                else return '#d6d6d6'
                             }) 
-                            .style('pointer-events', d => d.total_counts === 0 ? 'none' : 'all')
-                            .style('border', d => d.total_counts === 0 ? '1px solid var(--textlightest)' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid var(--textlight)')
-                            .on('click', (e,d) => {
-                                d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
+                            .style('border', d => d.total_counts === 0 ? '1px solid #b2b2b2' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                            .on('mouseover',(e,d) => setHovered([d.name]))
+                            .on('mouseout', (e,d) => setHovered([]))
+                        update.select('.map-list-title-right')
+                            .on('mouseover',(e,d) => {
+                                    d3.select('#list-icons-'+d.name).transition(1000).style('max-width','36px').style('opacity',1)
+                            })
+                            .on('mouseout', (e,d) => {
+                                
+                                if (!showConfirmation) d3.select('#list-icons-'+d.name).transition(1000).style('max-width','0px').style('opacity',0)
+                            })
+                        update.select('.map-list-eye')
+                            .attr("src", d => conceptNames.includes(d.name) ? openedEye : closedEye)
+                            .style('opacity', d => conceptNames.includes(d.name) ? 1 : 0.3)
+                            .style('display', d => d.total_counts === 0 ? 'none' : 'inline-block')
+                            .on('mouseover', (e, d) => {
+                                if (!conceptNames.includes(d.name)) d3.select('#list-eye-'+d.name).transition().style('opacity',1)
+                                const el = e.currentTarget
+                                el.__hoverTimeout__ = setTimeout(() => {
+                                    showActionLabel(
+                                        conceptNames.includes(d.name) 
+                                            ? 'Hide concept'
+                                            : 'Show concept',
+                                        'enter',
+                                        e
+                                    )
+                                }, 1200)
+                            })
+                            .on('mouseout', (e,d) => {
+                                if (!conceptNames.includes(d.name)) d3.select('#list-eye-'+d.name).transition().style('opacity',0.2)
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
+                            })
+                            .on('click',(e,d) => {
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave')
                                 if (d.total_counts !== 0) {
                                     if (conceptNames.includes(d.name)) {
+                                        // if (!nodes.find(n => n.name === d.source.name).mappings.map(m => m.name).filter(map => map !== d.name).some(map => conceptNames.includes(map))) {
+                                        //     const newMap = mapRoot.filter(name => name !== d.source.name)
+                                        //     setMapRoot(newMap)
+                                        // }
                                         const newInclusions = inclusions.filter(e => e !== d.name)
                                         updateConcepts(newInclusions,nodes,[],[d])
                                     } else if (!conceptNames.includes(d.name)){
+                                        // if (!mapRoot.includes(d.source.name)) setMapRoot([...mapRoot,d.source.name])
                                         const newInclusions = [...inclusions,d.name]
                                         updateConcepts(newInclusions,nodes,[d],[])
                                     }     
                                 } 
                             })
-                            .on('mouseover', (e,d) => {
-                                if (!conceptNames.includes(d.name)) {
-                                    d3.select('#plus-'+d.name).transition().style('color', 'white')
-                                    d3.select('#title-circle-'+d.name).transition().style('background-color', d => d.color).style('border',`1px solid ${d.color}`) 
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.text)  
-                                    d3.select('#title-code-'+d.name).transition().style('color',color.text)  
-                                    d3.select('#title-vocab-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#counts1-text-'+d.name).transition().style('color',color.text) 
-                                    d3.select('#counts1-rect-'+d.name).transition().style('background-color',d.color) 
-                                } else  d3.select('#x-'+d.name).transition().style('opacity',1).style('display','block')
-                            })
-                            .on('mouseout', (e,d) => {
-                                if (!conceptNames.includes(d.name)) {
-                                    d3.select('#plus-'+d.name).transition().style('color', color.text)
-                                    d3.select('#title-circle-'+d.name).transition().style('background-color', 'transparent').style('border','1px solid var(--textlight)')
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#title-code-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#title-vocab-'+d.name).transition().style('color',color.textlightest)  
-                                    d3.select('#counts1-text-'+d.name).transition().style('color',color.textlight) 
-                                    d3.select('#counts1-rect-'+d.name).transition().style('background-color',color.textlightest)   
-                                } else d3.select('#x-'+d.name).transition().style('opacity',0).style('display','none')
-                            })
-                        update.select('.map-list-plus')
-                            .style('display', d => !conceptNames.includes(d.name) && d.total_counts !== 0 ? 'block' : 'none')
-                        update.select('.map-title-name')
-                            .style("font-weight", d => sidebarRoot.name.includes(d.name) || hovered.includes(d.name) ? 700 : 400)
-                            .style('color', d => conceptNames.includes(d.name) || hovered.includes(d.name) ? color.text : color.textlight)
-                            .html(d => d.data.concept.concept_name)
-                            .on('click', (e,d) => {
-                                setLoading(true)
-                                navigate(`/${d.name}`)
-                                //conceptHover(d.name, "leave") 
-                            })
-                            .on('mouseover', function (e,d) {
-                                d3.select('#list-item-'+d.name).style('background-color',color.lightpurple).style('border','1px solid var(--lightpurple)')
-                                d3.select('#title-name-'+d.name).style('font-weight',700)
-                                if (!conceptNames.includes(d.name) && d.total_counts !== 0) { 
-                                    d3.select('#title-name-'+d.name).transition().style('color',color.text)    
-                                }
-                                const el = this
+                        update.select('.map-list-search')
+                            .on('mouseover', (e, d) => {
+                                const el = e.currentTarget
                                 el.__hoverTimeout__ = setTimeout(() => {
-                                    setHovered([d.name])
-                                },400)
+                                    showActionLabel('Select concept','enter',e)
+                                }, 1200)
                             })
-                            .on('mouseout', function (e,d) {
-                                const el = this
-                                clearTimeout(el.__hoverTimeout__)
-                                if (!sidebarRoot.name.includes(d.name)) {
-                                    d3.select('#list-item-'+d.name).style('background-color', d => conceptNames.includes(d.name) ? color.lightbackground : 'transparent').style('border', d => conceptNames.includes(d.name) ? '1px solid var(--lightbackground)' : '1px solid var(--background)')
-                                    d3.select('#title-name-'+d.name).style('font-weight',400)
-                                    if (!conceptNames.includes(d.name) && d.total_counts !== 0) {
-                                        d3.select('#title-name-'+d.name).transition().style('color',color.textlight) 
-                                    }
-                                }  
-                                setHovered([])  
-                            })
-                        update.select('.map-title-code')
-                            .style('color', d => conceptNames.includes(d.name) ? color.text : color.textlight)
-                            .html(d => d.data.concept.concept_code)
-                        update.select('.map-title-vocab')
-                            .style('color', d => conceptNames.includes(d.name) ? color.textlight : color.textlightest)
-                            .html(d => d.data.concept.vocabulary_id) 
-                        update.select('.map-info-icon')
-                            .on('mouseover', (e,d) => d3.select('#info-icon-'+d.name).style('opacity',1))
                             .on('mouseout', (e,d) => {
-                                if (d3.select('#info-container-'+d.name).style('display') === 'none') d3.select('#info-icon-'+d.name).style('opacity',0.2)
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
                             })
                             .on('click', (e,d) => {
-                                if (d3.select('#info-container-'+d.name).style('display') === 'flex') {
-                                    d3.select('#info-icon-'+d.name).style('opacity',0.2)
-                                    d3.select('#info-container-'+d.name).transition().style('height','0px').style('display','none')
-                                    d3.select('#info-col1-'+d.name).transition().style('opacity',0)
-                                    d3.select('#info-col2-'+d.name).transition().style('opacity',0)
-                                } else {
-                                    d3.select('#info-icon-'+d.name).style('opacity',1)
-                                    d3.select('#info-container-'+d.name).transition().style('height','50px').style('display','flex')
-                                    d3.select('#info-col1-'+d.name).transition().style('opacity',1)
-                                    d3.select('#info-col2-'+d.name).transition().style('opacity',1)    
-                                }
-                                
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave')
+                                showConfirmationPopup(d, 'enter', e)
                             })
-                        update.select('.map-counts1-text')
-                            .style('color', d => conceptNames.includes(d.name) ? d.total_counts > 0 ? color.text : color.textlight : color.textlight)
-                            .html(d => d.total_counts + ' RC')
-                        update.select('.map-counts1-rect')
+                        update.select('.map-list-title-p')
+                            .on('mouseover', (e, d) => {
+                                const el = e.currentTarget
+                                el.__hoverTimeout__ = setTimeout(() => {
+                                    showActionLabel('Select concept','enter',e)
+                                }, 1200)
+                            })
+                            .on('mouseout', (e,d) => {
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
+                            })
+                            .on('click', (e,d) => {
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave')
+                                if (!sidebarRoot.name.includes(d.name)) showConfirmationPopup(d, 'enter', e)
+                            })
+                            .transition()
+                            .style('opacity', d => conceptNames.includes(d.name) ? 1 : 0.6)
+                        update.select('.map-info-icon')
+                            .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1))
+                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)})
+                            .on('click', (e,d) => {
+                                if (d3.select('#info-container-'+d.name+d.source.name).style('height') === '45px') {
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)
+                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
+                                    d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','20px')
+                                } else {
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1)
+                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
+                                    d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','12px')
+                                }
+                            })
+                        update.select('.map-info-container')
+                            .style('border-top', d => conceptNames.includes(d.name) ? '1px solid color-mix(in srgb, #36126d, white 90%)' : '1px solid color-mix(in srgb, #36126d, white 78%)')
+                        update.select('.map-counts-RC-p')
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html(d => formatThousands(d.total_counts))
+                        update.select('.map-counts-RC-label')
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                        update.select('.map-counts-RC-bar')
                             .transition()
                             .style('width', d => scaleWidth(d.total_counts) + 'px')
-                            .style('background-color', d => conceptNames.includes(d.name) ? d.color : color.textlightest)
-                        update.select('.map-counts2-text')
-                            .html(d => d.descendant_counts + ' DRC')
-                        update.select('.map-counts2-rect')
+                            .style('background-color', d => conceptNames.includes(d.name) ? d.color : '#e0e0e0')
+                        update.select('.map-counts-DRC-p')
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html(d => formatThousands(d.descendant_counts))
+                        update.select('.map-counts-DRC-label')
+                            .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
+                            .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                        update.select('.map-counts-DRC-bar')
                             .transition()
-                            .style('width', d => scaleWidth(d.descendant_counts) + 'px')    
+                            .style('width', d => scaleWidth(d.descendant_counts) + 'px')
+                            .style('background-color', d => conceptNames.includes(d.name) ? d.color : '#e0e0e0')
                     })
                 })
-                update.select('.section-title')
+                update.select('.list-section-title')
                     .transition()
-                    .style('opacity', d => hovered.length > 0 ? 0.2 : d.section === 'PARENTS' ? 0.4 : 1)
-                update.select('.section-arrow')
-                    .style('transform', d => d.section === 'ROOT' ? 'rotate('+90+'deg)' : d.section !== 'PARENTS' ? 'rotate('+180+'deg)' : 'none')
-                update.select('.level-number')
-                    .html(d => d.section === 'ROOT' ? 1 : d.section)
+                    .style('opacity', d => hovered.length > 0 ? 0.2 : 1)
+                update.select('.list-section-arrow')
+                    .style('transform', d => d.section === 'Root' ? 'rotate('+90+'deg)' : d.section !== 'Parents' ? 'rotate('+180+'deg)' : 'none')
+                update.select('.list-level-number')
+                    .html(d => d.section === 'Root' ? 'Level 1' : d.section)
             })
         }
         // expand and collapse tree
@@ -4812,173 +5023,187 @@
         // filter dropdowns 
         useEffect(()=>{
             if (nodes.length > 0) {
-                document.getElementById("classes-header").style.maxWidth = document.getElementById("tree-selections-container").clientWidth - 440 + 'px'
+                // levels
                 const levels = Array.from({ length: fullTreeMax }, (_, i) => i + 1)
-                d3.select('#levels-dropdown').selectAll('.level').data(levels, d => d)
-                .join(enter => {
-                    enter.append('p')
-                        .classed('level',true)
-                        .attr('id', d => 'level-'+d)
-                        .style('font-weight', d => maxLevel === d ? 700 : 400)
-                        .style('cursor','pointer')
-                        .style('width','100%')
-                        .style('text-align','center')
-                        .style('color', d => maxLevel === d  ? color.text : color.textlight)
-                        .on('mouseover', (e,d) => d3.select('#level-'+d).style('color', color.text).style('font-weight',700))
-                        .on('mouseout', (e,d) => d3.select('#level-'+d).style('color', d => maxLevel === d ? color.text : color.textlight).style('font-weight',() => maxLevel === d ? 700 : 400))
-                        .on('click',(e,d) => {
-                            const level = d
-                            if (levelFilter !== level) {
-                                if (initialPrune) setInitialPrune(false)
-                                // if (level > levelFilter && !classFilter.includes('All')) {
-                                //     const newAllClasses = sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").filter(d => d.levels === '-1' || parseInt(d.levels.split('-')[0]) <= level).map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined)
-                                //     const notIncluded = newAllClasses.filter(d => !allClasses.includes(d)).filter(d => !classFilter.includes(d)).filter(d => !removedClasses.includes(d))
-                                //     console.log('not included',notIncluded,'removed',removedClasses)
-                                //     setClassFilter(prev => [...prev, ...notIncluded])
-                                // }
-                                setLevelFilter(level)
-                                d3.select('#open-levels-btn').style('display', 'block')
-                                d3.select('#close-levels-btn').style('display', 'none')  
-                                d3.select('#levels-dropdown').style('visibility','hidden')     
-                            } 
-                        })
-                        .html(d => d)
-                },update =>{
-                    update
-                        .style('font-weight', d => maxLevel === d ? 700 : 400)
-                        .style('color', d => maxLevel === d ? color.text : color.textlight)
-                        .on('mouseover', (e,d) => d3.select('#level-'+d).style('color', color.text).style('font-weight',700))
-                        .on('mouseout', (e,d) => d3.select('#level-'+d).style('color', d => maxLevel === d ? color.text : color.textlight).style('font-weight',() => maxLevel === d ? 700 : 400))
-                        .on('click',(e,d) => {
-                            const level = d
-                            if (levelFilter !== level) {
-                                if (initialPrune) setInitialPrune(false)
-                                // if (level > levelFilter && !classFilter.includes('All')) {
-                                //     const newAllClasses = sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").filter(d => d.levels === '-1' || parseInt(d.levels.split('-')[0]) <= level).map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined)
-                                //     const notIncluded = newAllClasses.filter(d => !allClasses.includes(d)).filter(d => !classFilter.includes(d)).filter(d => !removedClasses.includes(d))
-                                //     console.log('not included',notIncluded,'removed',removedClasses)
-                                //     setClassFilter(prev => [...prev, ...notIncluded])
-                                // }
-                                setLevelFilter(level)
-                                d3.select('#open-levels-btn').style('display', 'block')
-                                d3.select('#close-levels-btn').style('display', 'none')  
-                                d3.select('#levels-dropdown').style('visibility','hidden')     
-                            } 
-                        })
-                        .html(d => d)
-                })
-                d3.select('#classes-dropdown').selectAll('.class').data(fullClassList, d => d)
-                .join(enter => {
-                    const container = enter.append('div')
-                        .classed('class',true)  
-                        .style('opacity', d => allClasses.includes(d) ? 1 : 0.2) 
-                        // .style('pointer-events', d => allClasses.includes(d) ? 'all' : 'none')
-                    const checkBox = container.append('div') 
-                        .classed('check-box',true)
-                        .style('cursor','pointer')
-                        .attr('id', d => 'check-box-'+d.replace(/\s+/g, ""))
-                        .style('background-color', d => classFilter.includes(d) || classFilter.includes('All') ? color.text : 'transparent')
-                        .style('border', d => classFilter.includes(d) || classFilter.includes('All') ? '1px solid var(--text)' : '1px solid var(--textlightest)')
-                        .on('click', (e,d) => {
-                            if (classFilter.includes('All')) {
-                                if (allClasses.length > 1) {
-                                    let newFilter = allClasses.filter(c => c !== d)
-                                    let newRemoved = removedClasses
-                                    newRemoved.push(d)
+                d3.select('#dropdown-levels').selectAll('.level').data(levels, d => d)
+                    .join(enter => {
+                        enter.append('p')
+                            .classed('level btn',true)
+                            .attr('id', d => 'level-'+d)
+                            .style('font-weight', d => maxLevel === d ? 500 : 400)
+                            .style('width','100%')
+                            .style('text-align','center')
+                            .style('color', d => maxLevel === d  ? '#36126d' : '#b2b2b2')
+                            .on('mouseover', (e,d) => d3.select('#level-'+d).style('color', '#36126d').style('font-weight',500))
+                            .on('mouseout', (e,d) => d3.select('#level-'+d).style('color', d => maxLevel === d ? '#36126d' : '#b2b2b2').style('font-weight',() => maxLevel === d ? 500 : 400))
+                            .on('click',(e,d) => {
+                                if (levelFilter !== d) {
+                                    if (initialPrune) setInitialPrune(false)
+                                    setLevelFilter(d)
+                                    d3.select('#open-levels').style('display', 'block')
+                                    d3.select('#close-levels').style('display', 'none')  
+                                    d3.select('#dropdown-levels').style('visibility','hidden') 
+                                    d3.select('#header-levels').classed('filterActive', d < fullTreeMax ? true : false)
+                                } 
+                            })
+                            .html(d => d)
+                    },update =>{
+                        update
+                            .style('font-weight', d => maxLevel === d ? 500 : 400)
+                            .style('color', d => maxLevel === d  ? '#36126d' : '#b2b2b2')
+                            .on('mouseover', (e,d) => d3.select('#level-'+d).style('color', '#36126d').style('font-weight',500))
+                            .on('mouseout', (e,d) => d3.select('#level-'+d).style('color', d => maxLevel === d ? '#36126d' : '#b2b2b2').style('font-weight',() => maxLevel === d ? 500 : 400))
+                            .on('click',(e,d) => {
+                                if (levelFilter !== d) {
+                                    if (initialPrune) setInitialPrune(false)
+                                    setLevelFilter(d)
+                                    d3.select('#open-levels').style('display', 'block')
+                                    d3.select('#close-levels').style('display', 'none')  
+                                    d3.select('#dropdown-levels').style('visibility','hidden') 
+                                    d3.select('#header-levels').classed('filterActive', d < fullTreeMax ? true : false)  
+                                } 
+                            })
+                            .html(d => d)
+                    })
+
+                // classes
+                document.getElementById("header-classes").style.maxWidth = document.getElementById("sidebar-filters").clientWidth - document.getElementById('levels-container').clientWidth - document.getElementById('classes-label-container').clientWidth - 50 + 'px'
+                d3.select('#dropdown-classes').selectAll('.class').data(fullClassList, d => d)
+                    .join(enter => {
+                        const container = enter.append('div')
+                            .classed('class flex',true)  
+                            .style('opacity', d => allClasses.includes(d) ? 1 : 0.2) 
+                        container.append('div') 
+                            .classed('class-check-box checkBox',true)
+                            .attr('id', d => 'check-box-'+d.replace(/\s+/g, ""))
+                            .style('background-color', d => classFilter.includes(d) || classFilter.includes('All') ? '#36125d' : 'transparent')
+                            .style('border', d => classFilter.includes(d) || classFilter.includes('All') ? '1px solid #36125d' : '1px solid #d6d6d6')
+                            .on('click', (e,d) => {
+                                let newFilter = []
+                                if (classFilter.includes('All')) {
+                                    if (allClasses.length > 1) {
+                                        newFilter = allClasses.filter(c => c !== d)
+                                        let newRemoved = removedClasses
+                                        newRemoved.push(d)
+                                        setRemovedClasses(newRemoved)
+                                        setClassFilter(newFilter)
+                                    } 
+                                }
+                                else if (!classFilter.includes(d)) {
+                                    newFilter = [...classFilter,d]
+                                    const newRemoved = removedClasses.filter(c => c !== d)
                                     setRemovedClasses(newRemoved)
                                     setClassFilter(newFilter)
-                                } 
-                            }
-                            else if (!classFilter.includes(d)) {
-                                let newRemoved = removedClasses.filter(c => c !== d)
-                                setRemovedClasses(newRemoved)
-                                setClassFilter(prev => [...prev, d])
-                            }
-                            else {
-                                if (classFilter.length > 1) {
-                                    let newFilter = classFilter.filter(c => c !== d)  
-                                    let newRemoved = removedClasses
-                                    newRemoved.push(d)
+                                }
+                                else {
+                                    if (classFilter.length > 1) {
+                                        newFilter = classFilter.filter(c => c !== d)  
+                                        let newRemoved = removedClasses
+                                        newRemoved.push(d)
+                                        setRemovedClasses(newRemoved)
+                                        setClassFilter(newFilter)
+                                        if (newFilter.length === 0) {
+                                            d3.select('#open-classes').style('display', 'block')
+                                            d3.select('#close-classes').style('display', 'none') 
+                                            d3.select('#dropdown-classes').style('visibility','hidden')    
+                                        }    
+                                    } 
+                                }
+                            })
+                        container.append('p')
+                            .classed('class-p',true)
+                            .attr('id', d => 'class-'+d.replace(/\s+/g, ""))
+                            .style('font-weight', d => classFilter.includes(d) || classFilter.includes('All') ? 500 : 400)
+                            .style('color', d => classFilter.includes(d) || classFilter.includes('All') ? '#36125d' : '#b2b2b2')
+                            .html(d => d)
+                    },update =>{
+                        update 
+                            .style('opacity', d => allClasses.includes(d) ? 1 : 0.2) 
+                        update.select('.class-check-box')
+                            .style('background-color', d => classFilter.includes(d) || classFilter.includes('All') ? '#36125d' : 'transparent')
+                            .style('border', d => classFilter.includes(d) || classFilter.includes('All') ? '1px solid #36125d' : '1px solid #d6d6d6')
+                            .on('click', (e,d) => {
+                                let newFilter = []
+                                if (classFilter.includes('All')) {
+                                    if (allClasses.length > 1) {
+                                        newFilter = allClasses.filter(c => c !== d)
+                                        let newRemoved = removedClasses
+                                        newRemoved.push(d)
+                                        setRemovedClasses(newRemoved)
+                                        setClassFilter(newFilter)
+                                    } 
+                                }
+                                else if (!classFilter.includes(d)) {
+                                    newFilter = [...classFilter,d]
+                                    const newRemoved = removedClasses.filter(c => c !== d)
                                     setRemovedClasses(newRemoved)
                                     setClassFilter(newFilter)
-                                    if (newFilter.length === 0) {
-                                        d3.select('#open-classes-btn').style('display', 'block')
-                                        d3.select('#close-classes-btn').style('display', 'none') 
-                                        d3.select('#classes-dropdown').style('visibility','hidden')    
-                                    }    
-                                } 
-                            }
-                        })
-                    checkBox.append('i')
-                        .classed('check-mark fa-solid fa-check fa-xs',true)
-                        .style('color','white')
-                        .style('display', d => classFilter.includes(d) || classFilter.includes('All') ? 'block' : 'none')
-                    container.append('p')
-                        .classed('class-p',true)
-                        .attr('id', d => 'class-'+d.replace(/\s+/g, ""))
-                        .style('font-weight', d => classFilter.includes(d) || classFilter.includes('All') ? 700 : 400)
-                        .style('width','100%')
-                        .style('color', d => classFilter.includes(d) || classFilter.includes('All') ? color.text : color.textlight)
-                        .html(d => d)
-                },update =>{
-                    update 
-                        .style('opacity', d => allClasses.includes(d) ? 1 : 0.2) 
-                        // .style('pointer-events', d => allClasses.includes(d) ? 'all' : 'none')
-                    update.select('.check-box')
-                        .style('background-color', d => classFilter.includes(d) || classFilter.includes('All') ? color.text : 'transparent')
-                        .style('border', d => classFilter.includes(d) || classFilter.includes('All') ? '1px solid var(--text)' : '1px solid var(--textlightest)')
-                        .on('click', (e,d) => {
-                            if (classFilter.includes('All')) {
-                                if (allClasses.length > 1) {
-                                    let newFilter = allClasses.filter(c => c !== d)
-                                    let newRemoved = removedClasses
-                                    newRemoved.push(d)
-                                    setRemovedClasses(newRemoved)
-                                    setClassFilter(newFilter)
-                                } 
-                            }
-                            else if (!classFilter.includes(d)) {
-                                let newRemoved = removedClasses.filter(c => c !== d)
-                                setRemovedClasses(newRemoved)
-                                setClassFilter(prev => [...prev, d])
-                            }
-                            else {
-                                if (classFilter.length > 1) {
-                                    let newFilter = classFilter.filter(c => c !== d)  
-                                    let newRemoved = removedClasses
-                                    newRemoved.push(d)
-                                    setRemovedClasses(newRemoved)
-                                    setClassFilter(newFilter)
-                                    if (newFilter.length === 0) {
-                                        d3.select('#open-classes-btn').style('display', 'block')
-                                        d3.select('#close-classes-btn').style('display', 'none') 
-                                        d3.select('#classes-dropdown').style('visibility','hidden')    
-                                    }    
-                                } 
-                            }
-                        })
-                    update.select('.check-mark')
-                        .style('display', d => classFilter.includes(d) || classFilter.includes('All') ? 'block' : 'none')
-                    update.select('.class-p')
-                        .style('font-weight', d => classFilter.includes(d) || classFilter.includes('All') ? 700 : 400)
-                        .style('color', d => classFilter.includes(d) || classFilter.includes('All') ? color.text : color.textlight)
-                        .html(d => d)
-                })
+                                }
+                                else {
+                                    if (classFilter.length > 1) {
+                                        newFilter = classFilter.filter(c => c !== d)  
+                                        let newRemoved = removedClasses
+                                        newRemoved.push(d)
+                                        setRemovedClasses(newRemoved)
+                                        setClassFilter(newFilter)
+                                        if (newFilter.length === 0) {
+                                            d3.select('#open-classes').style('display', 'block')
+                                            d3.select('#close-classes').style('display', 'none') 
+                                            d3.select('#dropdown-classes').style('visibility','hidden')    
+                                        }    
+                                    } 
+                                }
+                            })
+                        update.select('.class-p')
+                            .style('font-weight', d => classFilter.includes(d) || classFilter.includes('All') ? 500 : 400)
+                            .style('color', d => classFilter.includes(d) || classFilter.includes('All') ? '#36125d' : '#b2b2b2')
+                            .html(d => d)
+                    })
                 let classSelections = classFilter
                 if (fullClassList.every(c => classSelections.includes(c))) classSelections = ['All']
-                d3.select('#class-selections').selectAll('.class-selection').data(classSelections, d => d)
-                .join(enter => {
-                    enter.append('p')
-                        .classed('class-selection',true)
-                        .html(d => d)
-                })
+                d3.select('#header-classes').classed('dropdownHeader-flexPadding',!classSelections.includes('All') ? true : false)
+                const selections = d3.select('#class-selections')
+                    .selectAll('.class-selection')
+                    .data(classSelections, d => d)
+                const merged = selections.join(
+                    enter => {
+                        const div = enter.append('div')
+                            .classed('class-selection flex',true)
+                            .classed('dropdownTitleEl', () => !classSelections.includes('All') ? true : false)
+                            .classed('filterActive', () => !classSelections.includes('All') ? true : false)
+                            .style('pointer-events', () => !classSelections.includes('All') ? 'all' : 'none')
+                        div.append('p')
+                            .html(d => d)
+                        div.append('i')
+                            .classed('fa-solid fa-x icon',true)
+                            .style('display', () => !classSelections.includes('All') ? 'block' : 'none')
+                        return div
+                    },
+                    update => update,
+                    exit => exit.remove()
+                )
+                merged
+                    .on('click', (e, d) => {
+                        let classes = classFilter.filter(c => c !== d) 
+                        if (classes.length === 0) classes = ['All']
+                        let newRemoved = removedClasses
+                        newRemoved.push(d)
+                        setRemovedClasses(newRemoved)
+                        setClassFilter(classes)
+                        // if (newFilter.length === 0) {
+                        //     d3.select('#open-classes').style('display', 'block')
+                        //     d3.select('#close-classes').style('display', 'none') 
+                        //     d3.select('#dropdown-classes').style('visibility','hidden')    
+                        // }    
+                    })
+                document.getElementById("header-classes").style.minWidth =  document.getElementById('dropdown-classes').clientWidth - 12 + 'px'
             }
         },[maxLevel,classFilter,allClasses,graphSectionWidth])
 
         // call draw functions
         useEffect(()=>{
             if (nodes && nodes.length > 0) {
-                if (view === 'Tree') {
+                if (view === 'tree') {
                     let width = d3.select("#tree-container").node().getBoundingClientRect().width + margin*2;
                     let height = d3.select("#tree-container").node().getBoundingClientRect().height + margin*2;
                     d3.select("#tree")
@@ -4991,20 +5216,20 @@
                     d3.select('#list-container').style('display','none')
                     drawTree()
                 }
-                if (view === 'List') {
+                if (view === 'list') {
                     d3.select('#list-container').style('display','block')
                     d3.select('#set-container').style('display','none')
                     d3.select('#tree-container').style('display','none')
                     drawList()    
                 }
-                if (view === 'Set') {
+                if (view === 'set') {
                     d3.select('#set-container').style('display','block')
                     d3.select('#tree-container').style('display','none')
                     d3.select('#list-container').style('display','none')
                     drawSet()     
                 }    
             }
-        },[nodes,conceptNames,view,hovered])
+        },[nodes,conceptNames,view,hovered,mapRoot])
         //,conceptNames.length < 50 ? hovered : null
 
         // reset zoom 
@@ -5012,7 +5237,7 @@
             setTimeout(() => {
                 zoomToFit()
             }, 500)
-        },[nodes,treeSelections,graphSectionWidth])
+        },[nodes,relationship,graphSectionWidth])
 
         useEffect(() => {
             const sum = getCounts(sidebarRoot.data.stratified_code_counts.filter(c => inclusions.includes(c.concept_id)),'node_record_counts')
@@ -5022,157 +5247,106 @@
         return (
             <div id = "sidebar">
                 <div id = "drag-bar"></div>
-                <div id = "sidebar-heading">
-                    <div id = "view-selections">
-                        <div id = "view-set" className="view-btn" style = {{display: 'flex'}} onClick={() => setView('Set')} onMouseOver={() => {if (view !== 'Set') d3.select('#view-title-set').style("font-weight",700)}} onMouseOut={() => {if (view !== 'Set') d3.select('#view-title-set').style("font-weight",400)}}>
-                            <div id = "view-title-set" className = "view-title" style = {{zIndex: 3000,fontWeight: view === 'Set' ? 700 : 400, color: view === 'Set' ? color.slate : color.mediumslate}}>Concept set</div>
-                            <div className = "selection-bar" style = {{opacity: view === 'Set' ? 1 : 0}}></div>
-                        </div>
-                        <div id = "view-tree" className="view-btn" onClick={() => {
-                            setView('Tree')
-                            setTimeout(() => {
-                                zoomToFit()
-                            }, 500)
-                            }} onMouseOver={() => {if (view !== 'Tree') d3.select('#view-title-tree').style("font-weight",700)}} onMouseOut={() => {if (view !== 'Tree') d3.select('#view-title-tree').style("font-weight",400)}}>
-                            <div id = "view-title-tree" className = "view-title" style = {{zIndex: 3000,fontWeight: view === 'Tree' ? 700 : 400, color: view === 'Tree' ? color.slate : color.mediumslate}}>Tree</div>
-                            <div className = "selection-bar" style = {{opacity: view === 'Tree' ? 1 : 0}}></div>
-                        </div>
-                        <div id = "view-list" className="view-btn" onClick={() => setView('List')} onMouseOver={() => {if (view !== 'List') d3.select('#view-title-list').style("font-weight",700)}} onMouseOut={() => {if (view !== 'List') d3.select('#view-title-list').style("font-weight",400)}}>
-                            <div id = "view-title-list" className = "view-title" style = {{zIndex: 3000,fontWeight: view === 'List' ? 700 : 400, color: view === 'List' ? color.slate : color.mediumslate}}>List</div>
-                            <div className = "selection-bar" style = {{opacity: view === 'List' ? 1 : 0}}></div>
-                        </div>
-                    </div> 
-                    <div className = "selection-bar" style = {{opacity:1,marginTop:-6,backgroundColor:color.darkbackground}}></div>
-                    <div id = "tree-selections-container">
-                        <div id = "concept-selections">
-                            <div className = "concept-selection-btn" id = "add-descendants" style = {{marginRight:2,border:treeSelections.includes('descendants') ? '1px solid var(--text)' : '1px solid var(--greylight)', backgroundColor:treeSelections.includes('descendants') ? color.text : color.greylight,color:treeSelections.includes('descendants') ? 'white' : color.text,fontWeight:treeSelections.includes('descendants') ? 700 : 400}} 
-                                onMouseOver={() => d3.select('#add-descendants').style('font-weight', 700)}
-                                onMouseOut={() => d3.select('#add-descendants').style('font-weight', () => !treeSelections.includes('descendants') ? 400 : 700)}
-                                onClick = {() => {
-                                    if (!treeSelections.includes('descendants')) {
-                                        d3.select('#add-descendants').style('background-color', color.text).style('color','white').style('font-weight',700)
-                                        const newInclusions = sidebarRoot.name.map(r => nodes.map(n => n.name).includes(r) ? getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,nodes.find(n => n.name === r).descendants) : getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)))).flat().filter((e,n,l) => l.indexOf(e) === n)
-                                            .filter(i => sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts !== 0)
-                                        updateConcepts(newInclusions,nodes,[],[])
-                                        setTreeSelections(['descendants'])
-                                        setMapRoot([])
-                                        updateWidth([])
-                                    } else {
-                                        d3.select('#add-descendants').style('background-color', 'transparent').style('color',color.text).style('font-weight',400)
-                                        setSelectedConcepts([]) 
-                                        setTreeSelections([])
-                                        setMapRoot([])
-                                        updateWidth([])
-                                    }
-                                    
-                                }}>
-                                Descendants
-                            </div>
-                            <div className = "concept-selection-btn" id = "add-mappings" style = {{opacity: nodes.filter(d => d.levels !== '-1').flatMap(d => d.mappings).length === 0 ? 0.3 : 1, pointerEvents: nodes.filter(d => d.levels !== '-1').flatMap(d => d.mappings).length === 0 ? 'none' : 'all',border:treeSelections.includes('mappings') ? '1px solid var(--text)' : '1px solid var(--greylight)',  backgroundColor:treeSelections.includes('mappings') ? color.text : color.greylight,color:treeSelections.includes('mappings') ? 'white' : color.text,fontWeight:treeSelections.includes('mappings') ? 700 : 400}}
-                                onMouseOver={() => d3.select('#add-mappings').style('font-weight', 700)}
-                                onMouseOut={() => d3.select('#add-mappings').style('font-weight', () => !treeSelections.includes('mappings') ? 400 : 700)}
-                                onClick = {() => {
-                                    if (!treeSelections.includes('mappings')) {
-                                        const newInclusions = sidebarRoot.name.map(r => nodes.map(n => n.name).includes(r) ? getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,nodes.find(n => n.name === r).descendants) : getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)))).flat().filter((e,n,l) => l.indexOf(e) === n)
-                                            .map(i => fullTree.nodes.find(n => n.name === i).mappings.map(m => m.name)).flat()   
-                                            .filter(i => sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts !== 0)
-                                        updateConcepts(newInclusions,nodes,[],[])
-                                        setMapRoot(nodes.filter(n => n.mappings.length > 0).map(n => n.name))
-                                        updateWidth(nodes.filter(n => n.mappings.length > 0).map(n => n.name))
-                                        setTreeSelections(['mappings'])
-                                    } else {
-                                        d3.select('#add-mappings').style('background-color', 'transparent').style('color',color.text).style('font-weight',400)
-                                        setMapRoot([])
-                                        updateWidth([])
-                                        setSelectedConcepts([])   
-                                        setTreeSelections([])
-                                    }
-                                }}>
-                                Mappings
-                            </div>  
-                        </div>    
-                        <div id = "filter-container">
-                            <div style = {{display:'flex',width:'auto',marginRight:10}}>
-                                <div className="dropdown-container" id = "level-dropdown">
-                                    <p style = {{whiteSpace:'nowrap',fontWeight: levelFilter < fullTreeMax ? 700: 400, paddingRight:5}}>Max level</p>
-                                    <FontAwesomeIcon style = {{marginRight:5,display: levelFilter < fullTreeMax ? 'block' : 'none'}} className = "reset-filter fa-solid fa-2xs" id = "reset-level" icon={faX} 
-                                        onClick = {() => {
-                                            setLevelFilter(fullTreeMax)
-                                            d3.select('#open-levels-btn').style('display', 'block')
-                                            d3.select('#close-levels-btn').style('display', 'none') 
-                                            d3.select('#levels-dropdown').style('visibility','hidden')
-                                        }}
-                                    />
-                                    <div className = "dropdown-header" id = "levels-header" style = {{border:levelFilter < fullTreeMax ? '0.5px solid var(--text)' : '0.5px solid var(--greylight)', color: levelFilter < fullTreeMax ? 'white' : 'var(--text)', backgroundColor: levelFilter < fullTreeMax ? 'var(--text)' : 'var(--greylight)',overflow:'hidden'}}
-                                        onMouseOver={() => d3.select('#open-levels-btn').style('opacity', 1)}
-                                        onMouseOut={() => d3.select('#open-levels-btn').style('opacity', 0.3)}
-                                        onClick = {() => {
-                                            if (d3.select('#open-levels-btn').style('display') === 'block') {
-                                                d3.select('#open-levels-btn').style('display', 'none')
-                                                d3.select('#close-levels-btn').style('display', 'block') 
-                                                d3.select('#levels-dropdown').style('visibility','visible')
-                                            } else {
-                                                d3.select('#open-levels-btn').style('display', 'block')
-                                                d3.select('#close-levels-btn').style('display', 'none')  
-                                                d3.select('#levels-dropdown').style('visibility','hidden')
-                                            }
-                                        }}>
-                                        <p id = "max-level" style = {{fontWeight:700,padding:'1px 3px 1px 3px',margin:0}}>{maxLevel}</p>
-                                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'open-levels-btn' icon={faCaretDown} style = {{display:'block',opacity: 0.3,padding:'1px 3px 1px 5px',color: levelFilter < fullTreeMax ? 'white' : 'var(--text)'}}/>
-                                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'close-levels-btn' icon={faCaretUp} style = {{display:'none',opacity: 1,padding:'2px 3px 1px 5px',color: levelFilter < fullTreeMax ? 'white' : 'var(--text)'}}/>     
-                                    </div>   
-                                    <div className = "selections-dropdown-content" id = "levels-dropdown" style = {{right:10}}></div>  
-                                </div>     
-                            </div>
-                            <div id = "class-dropdown-container" style = {{display:'flex',alignItems:'center',flexGrow:1}}>
-                                <div className="dropdown-container" id = "class-dropdown">
-                                    <p style = {{whiteSpace:'nowrap',paddingRight:5}}>Classes</p>
-                                    <FontAwesomeIcon style = {{paddingRight:5,display: classFilter && (classFilter.includes('All') || fullClassList.every(c => classFilter.includes(c))) ? 'none' : 'block'}} className = "reset-filter fa-2xs" id = "reset-class" icon={faX} 
-                                        onClick = {() => {
-                                            setClassFilter(fullClassList)
-                                            d3.select('#open-classes-btn').style('display', 'block')
-                                            d3.select('#close-classes-btn').style('display', 'none') 
-                                            d3.select('#classes-dropdown').style('visibility','hidden')
-                                        }}
-                                    />
-                                    <div className = "dropdown-header" id = "classes-header" style = {{border:classFilter && !classFilter.includes('All') && !fullClassList.every(c => classFilter.includes(c)) ? '0.5px solid var(--text)' : '0.5px solid var(--greylight)', color: classFilter && !classFilter.includes('All') && !fullClassList.every(c => classFilter.includes(c)) ? 'white' : 'var(--text)', backgroundColor: classFilter && !classFilter.includes('All') && !fullClassList.every(c => classFilter.includes(c)) ? 'var(--text)' : 'var(--greylight)',overflow:'hidden'}}
-                                        onMouseOver={() => d3.select('#open-classes-btn').style('opacity', 1)}
-                                        onMouseOut={() => d3.select('#open-classes-btn').style('opacity', 0.3)}
-                                        onClick = {() => {
-                                            if (d3.select('#open-classes-btn').style('display') === 'block') {
-                                                d3.select('#open-classes-btn').style('display', 'none')
-                                                d3.select('#close-classes-btn').style('display', 'block') 
-                                                d3.select('#classes-dropdown').style('visibility','visible')
-                                            } else {
-                                                d3.select('#open-classes-btn').style('display', 'block')
-                                                d3.select('#close-classes-btn').style('display', 'none')  
-                                                d3.select('#classes-dropdown').style('visibility','hidden')
-                                            }
-                                        }}>
-                                        <div id = "class-selections"></div>
-                                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'open-classes-btn' icon={faCaretDown} style = {{color: classFilter && !classFilter.includes('All') && !fullClassList.every(c => classFilter.includes(c)) ? 'white' : 'var(--text)', display:'block',opacity: 0.3,padding:'1px 3px 1px 5px'}}/>
-                                        <FontAwesomeIcon className = "dropBtn fa-lg" id = 'close-classes-btn' icon={faCaretUp} style = {{color: classFilter && !classFilter.includes('All') && !fullClassList.every(c => classFilter.includes(c)) ? 'white' : 'var(--text)', display:'none',opacity: 1,padding:'2px 3px 1px 5px'}}/>     
-                                    </div>
-                                    {/* </div>    */}
-                                <div className = "selections-dropdown-content" id = "classes-dropdown" style = {{right:-15,alignItems:'flex-start'}}></div>  
-                                </div>     
-                            </div>
-                        </div>
-                    </div>             
+                <div id = "confirmation-popup" className = 'toolTip dropShadow' style = {{opacity: showConfirmation ? 1 : 0, pointerEvents: showConfirmation ? 'all' : 'none'}}
+                    onMouseEnter={() => {clearHideTimer()}}
+                    onMouseLeave={() => {setShowConfirmation(false)}}>
+                    <div className = 'selectedText' style = {{paddingBottom:6}}>Select concept</div>
+                    <div className = 'btn greyBtn' id = "confirmation-btn">Confirm</div>  
                 </div>
-                <div className = "box-shadow" id = "sidebar-content">
-                    <FontAwesomeIcon style = {{display:'block'}} icon={faExpand} id = "expand" className = "fa-thin fa-lg expand-compress" onClick={handleExpand} />
-                    <FontAwesomeIcon style = {{display:'none'}} icon={faCompress} id = "compress" className = "fa-thin fa-lg expand-compress" onClick={handleExpand} /> 
-                    <div id = "set-container" style = {{display: view === 'Set' ? 'block' : 'none'}}>
+                <div className = "selectionsContainer">
+                    <div className = "filters" id = "sidebar-filters">
+                        <div className="filterContainer" id = 'levels-container'>
+                            <p className = 'filterLabel' style = {{fontWeight: levelFilter < fullTreeMax ? 500 : 400}}>Max Level</p>
+                            <FontAwesomeIcon style = {{display: levelFilter < fullTreeMax ? 'block' : 'none'}} className = "resetFilter fa-solid icon" id = "reset-levels" icon={faX} 
+                                onClick = {() => {
+                                    setLevelFilter(fullTreeMax)
+                                    d3.select('#open-levels').style('display', 'block')
+                                    d3.select('#close-levels').style('display', 'none') 
+                                    d3.select('#dropdown-levels').style('visibility','hidden')
+                                    d3.select('#header-levels').classed('filterActive', false) 
+                                }}
+                            />
+                            <div className = 'dropdownContainer'>
+                                <div className = "dropdownHeader btn filterMargin" id = "header-levels" style = {{overflow:'hidden'}}
+                                    onClick = {() => {
+                                        if (d3.select('#open-levels').style('display') === 'block') {
+                                            d3.select('#open-levels').style('display', 'none')
+                                            d3.select('#close-levels').style('display', 'block') 
+                                            d3.select('#dropdown-levels').style('visibility','visible')
+                                        } else {
+                                            d3.select('#open-levels').style('display', 'block')
+                                            d3.select('#close-levels').style('display', 'none')  
+                                            d3.select('#dropdown-levels').style('visibility','hidden')
+                                        }
+                                    }}>
+                                    <p className = 'dropdownTitle'>{maxLevel}</p>
+                                    <FontAwesomeIcon className = "dropBtn icon" id = 'open-levels' icon={faCaretDown} style = {{display:'block'}}/>
+                                    <FontAwesomeIcon className = "dropBtn icon" id = 'close-levels' icon={faCaretUp} style = {{display:'none'}}/>     
+                                </div>   
+                                <div className = "dropdownContent dropShadow" id = "dropdown-levels" style = {{width:12}}></div> 
+                            </div>
+                                
+                        </div>
+                        <div className="filterContainer" id = 'classes-container' style = {{borderRight:'none'}}>
+                            <div className='flex' id = 'classes-label-container'>
+                                <p className = 'filterLabel' style = {{fontWeight: classFilter && (classFilter.includes('All') || fullClassList.every(c => classFilter.includes(c))) ? 400 : 500}}>Classes</p>
+                                <FontAwesomeIcon style = {{display: classFilter && (classFilter.includes('All') || fullClassList.every(c => classFilter.includes(c))) ? 'none' : 'block'}} className = "resetFilter fa-solid icon" id = "reset-classes" icon={faX} 
+                                    onClick = {() => {
+                                        setClassFilter(fullClassList)
+                                        d3.select('#open-classes').style('display', 'block')
+                                        d3.select('#close-classes').style('display', 'none') 
+                                        d3.select('#dropdown-classes').style('visibility','hidden')
+                                        d3.select('#header-classes').classed('filterActive', false) 
+                                    }}
+                                />    
+                            </div>
+                            <div className = 'dropdownContainer'>
+                                <div className = "dropdownHeader btn filterMargin" id = "header-classes" 
+                                    onClick = {() => {
+                                        if (d3.select('#open-classes').style('display') === 'block') {
+                                            d3.select('#open-classes').style('display', 'none')
+                                            d3.select('#close-classes').style('display', 'block') 
+                                            d3.select('#dropdown-classes').style('visibility','visible')
+                                        } else {
+                                            d3.select('#open-classes').style('display', 'block')
+                                            d3.select('#close-classes').style('display', 'none')  
+                                            d3.select('#dropdown-classes').style('visibility','hidden')
+                                        }
+                                    }}>
+                                    <div className = "dropdownTitle dropdownTitleScrollable" id = 'class-selections'></div>
+                                    <FontAwesomeIcon className = "dropBtn icon" id = 'open-classes' icon={faCaretDown} style = {{display:'block'}}/>
+                                    <FontAwesomeIcon className = "dropBtn icon" id = 'close-classes' icon={faCaretUp} style = {{display:'none'}}/>     
+                                </div>   
+                                <div className = "dropdownContent dropShadow" id = "dropdown-classes"></div> 
+                            </div>   
+                        </div>
+                    </div>           
+                </div>
+                <div id = "sidebar-content">
+                    <div className='flex margin' style = {{width:'calc(100% - 0.75em - 0.75em)',justifyContent:'space-between'}}>
+                        <div className = 'toggle' id = "view-toggle">
+                            <div className = 'mainBtn slider' id='slider-view' style = {{left:5}}>''</div>
+
+                            <div className = 'btn toggle-itm' id = "list-toggle" onClick={() => {setView('list');moveSlider(0,100,'view')}} style = {{fontWeight:view === 'list' ? 500 : 400,color:view === 'list' ? '#6a23d6' : '#b2b2b2'}}>List</div>
+                            <div className = 'btn toggle-itm' id = "set-toggle" onClick={() => {setView('set');moveSlider(1,100,'view')}} style = {{fontWeight:view === 'set' ? 500 : 400,color:view === 'set' ? '#6a23d6' : '#b2b2b2'}}>Concept Set</div>
+                            <div className = 'btn toggle-itm' id = "tree-toggle" onClick={() => {setView('tree');moveSlider(2,100,'view')}} style = {{fontWeight:view === 'tree' ? 500 : 400,color:view === 'tree' ? '#6a23d6' : '#b2b2b2'}}>Hierarchy</div>
+                        </div> 
+                        <div>
+                            <FontAwesomeIcon style = {{display:'block'}} icon={faExpand} id = "expand" className = "fa-thin icon expand-compress" onClick={handleExpand} />
+                            <FontAwesomeIcon style = {{display:'none'}} icon={faCompress} id = "compress" className = "fa-thin icon expand-compress" onClick={handleExpand} /> 
+                        </div>  
+                    </div>
+                    
+                    <div className = 'sidebarContainer' id = "list-container" style = {{display: view === 'List' ? 'block' : 'none'}}></div>
+                    <div className = 'sidebarContainer margin' id = "set-container" style = {{display: view === 'Set' ? 'block' : 'none'}}>
                         <div id = "set-header">
                             <p style = {{marginLeft:13}}>CONCEPT</p>
                             <p style = {{position:'absolute',right:212}}>SELECTIONS</p>
                             <p style = {{marginRight:10}}>COUNTS</p>
                         </div>
-                        {/* <div id = "set-total"></div> */}
                     </div>
                     <div id = "set-total" style = {{display: view === 'Set' ? 'flex' : 'none'}}>
-                        <p style = {{fontWeight:700,marginLeft:20}}>Total counts</p>
+                        <p style = {{fontWeight:500,marginLeft:20}}>Total counts</p>
                         <p id = "set-total-counts" style = {{marginRight:20}}></p>
                     </div>
                     <div id = "tree-container" style = {{display: view === 'Tree' ? 'block' : 'none'}}>  
@@ -5184,7 +5358,6 @@
                             </g>
                         </svg>    
                     </div>
-                    <div id = "list-container" style = {{display: view === 'List' ? 'block' : 'none'}}></div>
                 </div>
             </div>     
         )

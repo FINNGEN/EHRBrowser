@@ -12,6 +12,7 @@
     "@testing-library/user-event": "^13.5.0",
     "crypto-js": "^4.2.0",
     "d3": "^7.9.0",
+    "protobufjs": "^8.6.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.5.2",
@@ -30,7 +31,10 @@
     "extends": [
       "react-app",
       "react-app/jest"
-    ]
+    ],
+    "parserOptions": {
+      "ecmaVersion": 2020
+    }
   },
   "browserslist": {
     "production": [
