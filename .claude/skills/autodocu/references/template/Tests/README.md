@@ -1,0 +1,65 @@
+# AUTODOCU / Tests
+
+Generated Playwright tests that capture the annotated screenshots the
+documentation pages in `AUTODOCU/Documentation/` embed. The tests are produced
+by the `autodocu` skill from the specs in `AUTODOCU/Outline/`.
+
+## Layout
+
+This folder holds only three kinds of thing:
+
+```
+Tests/
+  README.md                         # this file
+  playwright/                        # the self-contained Playwright workspace (all infra lives here)
+  <n.section_slug>/                  # one folder per documentation section...
+    <slug>.spec.ts                   #   ...containing that section's generated test
+```
+
+- **`<n.section_slug>/`** — one folder per section, named identically to the
+  matching `Outline/` and `Documentation/` folder. Each holds a single
+  generated `.spec.ts` that mirrors the section's Outline steps.
+- **`playwright/`** — everything Playwright-related, kept out of the way so the
+  Tests folder stays readable (see below).
+
+## The `playwright/` workspace
+
+`playwright/` is a **self-contained npm project**, deliberately isolated from
+the main application — installing Playwright here never adds anything to the
+app's root `package.json` / `package-lock.json`, and all of Playwright's
+scratch stays inside this folder.
+
+Committed sources:
+
+| File | Meaning |
+|------|---------|
+| `playwright/package.json` | The isolated npm project. Only dependency: `@playwright/test`. Its `test` script sets `NODE_PATH` so the specs one level up can resolve `@playwright/test`. |
+| `playwright/package-lock.json` | Locked dependency versions. |
+| `playwright/playwright.config.ts` | Runner config. `baseURL` + `viewport` come from `Outline/README.md`'s `# Run`. `testDir` is `..` (the Tests folder), so it finds `<section>/*.spec.ts`. |
+| `playwright/_helpers.ts` | Shared helpers: `highlight` (red box), `clearHighlights`, `shot` (writes a screenshot into `../../Documentation/<section>/screenshots/`). |
+| `playwright/.gitignore` | Ignores everything installed/generated below. |
+
+Ignored (installed / regenerated — never committed):
+
+| Path | Meaning |
+|------|---------|
+| `playwright/node_modules/` | Installed dependencies. Recreate with `npm install`. |
+| `playwright/.pw-artifacts/` | Playwright's `outputDir` scratch (e.g. `.last-run.json`). |
+| `playwright/.playwright-cli/` | Dumps from the interactive `playwright-cli` selector tool. |
+| `playwright/.playwright/`, `test-results/`, `playwright-report/` | Other Playwright scratch/report output. |
+
+## Running the tests manually
+
+```bash
+cd AUTODOCU/Tests/playwright
+npm install                       # first time only — creates node_modules/ here
+npm run install-browsers          # first time only — downloads chromium
+# (start the app first, per Outline/README.md '# Run')
+npm test                          # all sections
+npm test -- 1.some_section        # a single section
+```
+
+`npm test` sets `NODE_PATH` for you. If you invoke `npx playwright test`
+directly instead, prefix it: `NODE_PATH="$PWD/node_modules" npx playwright test`
+— the specs live one level up, so Node needs to be told where this folder's
+`node_modules` is.
