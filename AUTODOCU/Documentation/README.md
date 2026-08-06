@@ -4,4 +4,4 @@ EHR Browser connects to an OMOP-CDM instance and lets you browse the vocabulary 
 
 ## Use cases
 
-- [**Exploring a single Standard Concept**](./1.Exploring_a_single_standard_concept/README.md): How to search for a concept, navigate the List / Concept Set / Hierarchy views, and interpret the Record Counts charts across the hierarchy, sex, age, visit type, and time.
+- [Exploring a single Standard Concept](./1.Exploring_a_single_standard_concept/README.md): How to search for a concept, read the concept view, switch between the List/Concept Set/Hierarchy views, and interpret the record-count time chart.

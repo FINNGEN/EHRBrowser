@@ -4,34 +4,36 @@ The EHR Browser lets you load any standard concept from the vocabulary and immed
 
 ## Searching for a concept
 
-Type into the **Search concept** field at the top of the page to look up a concept by name. As you type "Asthma", the browser shows a live list of matching concepts, each with its vocabulary, code, and id. The highlighted row below is **Asthma — SNOMED** (`Code: 195967001`, `Id: 317009`), the standard concept we want to explore. Each result also offers a **Concept set** shortcut on the right.
+Type a search string into the **Search concept** field at the top of the page. As you type, the browser lists every matching concept across the available vocabularies — here searching for *Asthma* returns matches in ICPC, ICD9fi, ICD10 and SNOMED. Each row shows the concept name, its vocabulary, its source **Code**, and its concept **Id**, along with a **Concept set** button for adding it to a set.
 
-![Searching for the Asthma concept](screenshots/01-searching-for-a-concept.png)
+To load the standard SNOMED concept, hover over **Asthma — SNOMED** (Code `195967001`, Id `317009`, highlighted below) and click it.
 
-Clicking **Asthma SNOMED** loads that concept's page.
+![Searching for the Asthma SNOMED concept](screenshots/01-searching-for-a-concept.png)
 
 ## The concept view
 
+Clicking the concept opens its full view, which is organized into three areas:
+
 ![The Asthma concept view](screenshots/02-the-concept-view.png)
 
-The concept page is organized into three areas:
-
-- **Top bar** — controls that affect the whole page. **Descendants / Mappings** switches between showing the concept's descendant hierarchy and its non-standard mappings, and **Record Counts / Person Counts** switches which count is displayed throughout the page.
-- **Left area** — the counts distribution across the vocabulary hierarchy. Each descendant is listed under its level with its Record Count (RC) and Descendant Record Count (DRC).
-- **Right area** — the counts distribution across **Sex**, **Age**, **Visit Type**, and **Time**.
+- **Top bar** — controls that affect the whole page. From here you can change the current concept (the search icon and **Paste Concept Set**), toggle between **Descendants** and **Mappings** to switch between the standard descendant hierarchy and non-standard mapped source concepts, and toggle between **Record Counts** and **Person Counts** to change what the counts measure.
+- **Left area** — the concept hierarchy. Each descendant is listed with its record-count distribution across the hierarchy, its RC/DRC values, a small inline bar, and the number of children.
+- **Right area** — the count distributions broken down across **Sex** (a Male/Female pie), **Age** (a histogram over 10-year age bands), **Visit Type**, and **Time** (a stacked area chart of counts by year).
 
 ### Hierarchy view
 
-The left area offers three ways to view the hierarchy, selected with the toggle highlighted below:
+The left area offers three ways to view the concept's relatives, selected with the toggle at the top:
 
-- **List** — a flat, level-by-level list of the descendant concepts.
-- **Concept Set** — the concepts framed as an editable concept set.
-- **Hierarchy** — the graph/tree structure of the descendants.
+- **List** — a flat list of the concept and its descendants, grouped by hierarchy level (Parents, Level 1, Level 2, …), each row showing its counts.
+- **Concept Set** — the concepts currently collected into a set.
+- **Hierarchy** — the concepts arranged as their graph hierarchy.
 
-![The List / Concept Set / Hierarchy selector](screenshots/03-hierarchy-view.png)
+The **List** selector is highlighted below.
+
+![The List selector in the hierarchy view](screenshots/03-hierarchy-view.png)
 
 ### Time view
 
-The right area's time plot shows how the record counts accumulate over the years. The legend above the chart lists the colored concepts included in the plot, and each colored band in the stacked area chart corresponds to one of those concepts, so you can read both the total trend and each descendant's contribution over time.
+The time chart plots the selected concepts' **Record Counts** over the years (roughly 1990–2020 here) as a stacked area chart, so you can see both the overall trend and how each descendant contributes. Above it, the legend lists the colored concepts included in the plot — Asthma, Allergic asthma, Mixed asthma, Intrinsic asthma, IgE-mediated allergic asthma, and Acute severe refractory exacerbation of asthma — each color matching its band in the chart. The chart and its legend are highlighted below.
 
-![The time plot with its colored-concept legend](screenshots/04-time-view.png)
+![The time chart with its concept legend](screenshots/04-time-view.png)
