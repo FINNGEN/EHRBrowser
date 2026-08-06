@@ -1,8 +1,12 @@
 import { Page, Locator } from '@playwright/test';
 import * as path from 'path';
 
-// _helpers.ts lives in AUTODOCU/Tests/playwright, so Documentation is two levels up.
-const DOC_ROOT = path.resolve(__dirname, '..', '..', 'Documentation');
+// Where `shot` writes. Normally Documentation/ (two levels up from this file).
+// run_test.sh sets AUTODOCU_SHOT_ROOT to a temp folder so it can diff the fresh
+// captures against the committed images before deciding to replace them.
+const DOC_ROOT = process.env.AUTODOCU_SHOT_ROOT
+  ? path.resolve(process.env.AUTODOCU_SHOT_ROOT)
+  : path.resolve(__dirname, '..', '..', 'Documentation');
 
 // Draw a red box around an element (the `highlight` keyword).
 // Override style via the `style` arg when the Outline's
