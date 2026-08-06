@@ -40,6 +40,8 @@ Every documentation chapter is a subfolder that appears in **all three** trees w
 ```
 AUTODOCU/Tests/
   README.md
+  run_test.sh                     # runs ALL sections' tests + prints a summary (generic, from template)
+  app_control.sh                  # app-specific start/stop + URL (build generates from Outline # Run)
   playwright/                     # the self-contained npm workspace (ALL infra)
     package.json                  # only dependency: @playwright/test
     package-lock.json
@@ -60,9 +62,18 @@ Key facts that make this work:
 - `playwright.config.ts` uses `testDir: '..'` so it discovers `AUTODOCU/Tests/<section>/*.spec.ts`, and `outputDir: './.pw-artifacts'` so scratch stays inside `playwright/`.
 - Because the specs sit one level **above** `node_modules`, Node can't find `@playwright/test` by the normal walk. The `playwright/package.json` `test` script sets `NODE_PATH="$PWD/node_modules"` to fix this — so **run tests with `npm test`** (or, if calling the binary directly, prefix `NODE_PATH="$PWD/node_modules" npx playwright test`).
 - **Always run npm/Playwright/`playwright-cli` from inside `AUTODOCU/Tests/playwright`.** Running from there keeps every artifact — `node_modules/`, `.pw-artifacts/`, the `playwright-cli` tool's `.playwright-cli/` dumps — inside `playwright/`, where `playwright/.gitignore` ignores them.
-- Committed sources: `Tests/README.md`, each `Tests/<section>/<slug>.spec.ts`, and under `Tests/playwright/`: `package.json`, `package-lock.json`, `playwright.config.ts`, `_helpers.ts`, `.gitignore`. Everything else is ignored.
+- Committed sources: `Tests/README.md`, `Tests/run_test.sh`, `Tests/app_control.sh`, each `Tests/<section>/<slug>.spec.ts`, and under `Tests/playwright/`: `package.json`, `package-lock.json`, `playwright.config.ts`, `_helpers.ts`, `.gitignore`. Everything else is ignored.
 
 `Tests/README.md` documents this layout for humans — the template ships it.
+
+### The one-command test runner: `run_test.sh` + `app_control.sh`
+
+`Tests/run_test.sh` runs **every** section's spec in one shot (it does not filter to a single section): it starts the app, waits for it, runs all specs — which **regenerates every screenshot** under `Documentation/<section>/screenshots/` — stops the app, and prints a summary. It works from any directory and always tears the app down, even on failure. It accepts an optional passthrough filter (`./run_test.sh 1.some_section`).
+
+The runner is split so the generic and app-specific parts stay separate:
+
+- **`run_test.sh` is generic** — identical for every app. The template ships it and `init` copies it. It never hardcodes anything app-specific; it `source`s `app_control.sh`.
+- **`app_control.sh` is app-specific** — it defines `APP_URL` and the `start_app` / `stop_app` shell functions. `init` lays down a placeholder; **`build` generates it from the Outline `# Run`** (run command, URL, port), so it always matches the Outline. For a `docker run`, `start_app` injects `-d --name autodocu_app` (keeping `--rm`) and `stop_app` runs `docker stop autodocu_app`; for a plain process, `start_app` backgrounds it and captures the PID for `stop_app`.
 
 ## Outline file formats
 
@@ -107,6 +118,8 @@ references/template/
     2.Section_template_2/README.md  # second example section
   Tests/
     README.md                       # explains the Tests layout + playwright/ workspace
+    run_test.sh                     # generic: runs all sections + prints a summary
+    app_control.sh                  # placeholder start/stop + URL (build fills from # Run)
     playwright/
       package.json                  # the isolated npm project (test script sets NODE_PATH)
       playwright.config.ts          # baseURL/viewport are placeholders build fills in
@@ -145,7 +158,8 @@ Everything here happens inside `AUTODOCU/Tests/playwright` — never the repo ro
 
 1. If `AUTODOCU/Tests/playwright/package.json` is missing (e.g. the user never ran `init`), copy the Tests template into place: `cp -R references/template/Tests/. AUTODOCU/Tests/`.
 2. Update `AUTODOCU/Tests/playwright/playwright.config.ts`: set `use.baseURL` from the Run URL/port and `use.viewport` from the Run window size (default `1280x800`). Leave `testDir` (`..`), `testIgnore`, and `outputDir` as the template has them.
-3. Install into the isolated project if needed:
+3. **Generate `AUTODOCU/Tests/app_control.sh` from the Outline `# Run`** (overwrite the placeholder). Set `APP_URL` to the Run URL, and write `start_app` / `stop_app` to launch and tear down the app the same deterministic way Phase 2 does: for a `docker run`, `start_app` runs it detached with a fixed `--name autodocu_app` (keeping `--rm`) and `stop_app` runs `docker stop autodocu_app`; for a plain process, `start_app` backgrounds it and records the PID for `stop_app`. Never edit `run_test.sh` — it is generic and stays exactly as the template ships it. Keep `app_control.sh` executable.
+4. Install into the isolated project if needed:
    ```bash
    cd AUTODOCU/Tests/playwright && npm install && npm run install-browsers
    ```
