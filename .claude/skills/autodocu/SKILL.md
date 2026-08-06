@@ -89,6 +89,8 @@ Markdown `#` sections:
 
 A step may contain both (e.g. "`highlight` the List selector and `take-screenshot`"), and steps without keywords are just navigation or describe-the-area notes that inform the prose you write later.
 
+**Match keywords loosely, but warn.** The Outline is hand-written and may misspell a keyword (`higlight`, `highligth`, `take screenshot`). Recognize the intent and act on it anyway — never silently drop a highlight or screenshot over a typo. Record every such fuzzy match, together with anything else confusing, ambiguous, or wrong in the Outline, so `build` can report it back to the user (see **Phase 5 — Build report**). Never edit `Outline/` to fix it yourself.
+
 ---
 
 # Command: `init`
@@ -114,7 +116,11 @@ references/template/
 
 Steps:
 
-1. **Refuse to clobber.** If `AUTODOCU/Outline/` already exists, stop and tell the user — `init` is for first-time scaffolding and must never overwrite hand-written Outline content. (Re-scaffolding a single missing infra file is fine; overwriting an Outline is not.)
+1. **Refuse to clobber — detect, then stop and ask.** `init` is for first-time scaffolding only. It must never overwrite existing Outline content, and it must **never try to recover, restore, or `git checkout` anything itself** — if something is already there, that is the user's call. Before copying, check for an existing `AUTODOCU/` in **both** places:
+   - on disk — `AUTODOCU/Outline/` present, **or**
+   - in git history even if absent from the working tree — `git cat-file -e HEAD:AUTODOCU/Outline/README.md 2>/dev/null` succeeds (or `git ls-files --error-unmatch AUTODOCU` finds tracked files).
+
+   If either is true, **stop and ask the user how they want to proceed** — they may want to keep what's there, or deliberately start over — and do nothing else. The user may want to start over themselves; do not restore or merge on their behalf. Only when neither exists is it safe to scaffold. (Re-scaffolding a single genuinely-missing infra file is fine; touching an Outline is not.)
 2. **Copy the template.** `cp -R references/template/. AUTODOCU/` — this copies the dotfiles (`.gitignore`) too. This creates `AUTODOCU/Outline` and `AUTODOCU/Tests`.
 3. Do **not** create `AUTODOCU/Documentation` yet — `build` creates it per section.
 4. Tell the user what to do next: edit `AUTODOCU/Outline/README.md` (fill in Name/Description/Index/Run) and the section folders (rename `1.Section_template_1` → `number.your_section`, write the `# Sections` steps), then run **build**.
@@ -125,13 +131,13 @@ Do not install dependencies or run anything during `init` — it is pure scaffol
 
 # Command: `build [section]`
 
-Read the Outline and produce tests + documentation. Process **one section folder at a time**, fully (tests → screenshots → doc page), before moving to the next. If a `section` argument is given, build **only** that section (still refresh the config and, at the end, the root index). `references/test-template.md` has the exact spec-file skeleton and the `highlight`/`shot` helpers — read it before generating tests.
+Read the Outline and produce tests + documentation. Each target section is a **full rebuild** — its previous Tests/Documentation output is wiped and regenerated (`build` never patches prior output; that's a future `update` command). Process **one section folder at a time**, fully (tests → screenshots → doc page), before moving to the next, then finish with a **build report** flagging Outline improvements. If a `section` argument is given, build **only** that section (still refresh the config, the root index, and the build report). `references/test-template.md` has the exact spec-file skeleton and the `highlight`/`shot` helpers — read it before generating tests.
 
 ### Phase 0 — Read the Outline
 
 1. Read `AUTODOCU/Outline/README.md`. Extract Name, Description, Index rules, Run command + URL + port + viewport, and Documentation instruction (if present).
 2. `Glob` `AUTODOCU/Outline/*/README.md` to list section folders. Sort by leading number. If a `section` argument was given, keep only that folder (error if it doesn't exist).
-3. For each section to build, create the matching `AUTODOCU/Tests/<section>/` and `AUTODOCU/Documentation/<section>/screenshots/` folders (identical names).
+3. For each section to build, **wipe and recreate** the matching `AUTODOCU/Tests/<section>/` and `AUTODOCU/Documentation/<section>/` folders (identical names): delete any previous spec, screenshots, and rendered `README.md` first, then recreate `Documentation/<section>/screenshots/` empty. `build` is a **full rebuild** from the Outline — it never reuses or patches prior specs, locators, screenshots, or prose. (An `update` command that preserves prior work may come later; `build` does not.) Never touch `Tests/playwright/` (the shared workspace) or `Outline/`.
 
 ### Phase 1 — Ensure the isolated Tests workspace
 
@@ -157,14 +163,14 @@ For each section, in order:
    - `take-screenshot` → call `shot(page, section, name)` which writes to `AUTODOCU/Documentation/<section>/screenshots/`. Name screenshots deterministically by their `##`/`###` heading slug + a running index, e.g. `01-searching-for-a-concept.png`, so the doc-writing phase can find them.
    - After each screenshot, call `clearHighlights(page)` so a highlight doesn't bleed into later shots.
    - `SECTION` in the spec must equal the folder name exactly.
-2. **Launch the app** per the Run section: run the command in the background, then poll the URL with `curl` until it responds (or a sensible timeout).
+2. **Launch the app** per the Run section: run the command in the background, then poll the URL with `curl` until it responds (or a sensible timeout). Make teardown deterministic — if the Run command is a `docker run`, inject a fixed `--name autodocu_app` into it (keep the user's `--rm`) so step 5 can stop exactly that container; for a plain process, capture its PID. Never identify the app by image name or port, and never stop/kill anything you did not launch.
 3. **Run the tests** for this section, **from inside the workspace**:
    ```bash
    cd AUTODOCU/Tests/playwright && npm test -- <section>
    ```
    (`npm test` sets `NODE_PATH` so the specs one level up resolve `@playwright/test`; no `--config` needed — the config is in the current dir.)
 4. **Verify** the expected `.png` files landed in `Documentation/<section>/screenshots/`. If a locator failed, fix the spec and re-run. To resolve a locator described in words, run `playwright-cli` **from inside `AUTODOCU/Tests/playwright`** against the running app so its `.playwright-cli/` dumps stay inside the workspace (see the playwright-cli skill and `references/test-template.md`).
-5. **Stop the app**: tear down whatever the Run command started (e.g. `docker stop` the container, or kill the background process). The skill launches and stops the app automatically.
+5. **Stop the app**: tear down exactly what you launched — `docker stop autodocu_app` for the named container (its `--rm` removes it), or `kill` the captured PID. Always stop it, even if the test run failed. The skill launches and stops the app automatically.
 
 Do not hand-fabricate screenshots — they must come from a passing test run against the live app.
 
@@ -183,11 +189,22 @@ Write `AUTODOCU/Documentation/README.md` (always refresh it, even for a single-s
 - `#` Name and Description from the Outline root.
 - Build the index exactly as the `# Index` section dictates (e.g. a heading "Use cases" followed by a list of `**<section name>**: <brief description>`), linking each entry to its section page (`./<section>/README.md`).
 
+### Phase 5 — Build report
+
+After the requested sections are built, write `AUTODOCU/build_report.md` (overwrite it every run) summarizing what would make the Outline clearer for future builds. It is advisory only — **never edit `Outline/` yourself**, just report. Group findings by file (`Outline/README.md`, each `Outline/<section>/README.md`) as short, actionable bullets, each with a quote and a suggested fix. Cover at least:
+
+- **Fuzzy-matched keywords** — every misspelled/loose keyword you accepted (e.g. `highligth` → `highlight`) and where it was.
+- **Ambiguous or contradictory instructions** — steps whose target you had to guess, or that contradict the screenshots (e.g. Outline says "left side" but the element is on the right).
+- **Missing `# Run` fields** — a port or window size you had to infer or default.
+- **Typos and wrong labels** — concept or UI-label names in the Outline that didn't match the app's real text.
+
+If nothing needs improving, still write the file and state that the Outline was clean.
+
 ## Rules
 
 - **App-agnostic**: never hardcode anything about a specific app — read the Run command, URL, port, and viewport from `Outline/README.md`. This skill must work for any web app that has an AUTODOCU/Outline.
 - **Isolation**: Playwright and all its scratch stay inside `AUTODOCU/Tests/playwright`. Never add Playwright to the app's root `package.json`; never run `npm`/`npx`/`playwright-cli` from the repo root for autodocu work — always `cd AUTODOCU/Tests/playwright` first, and run tests via `npm test` (which sets `NODE_PATH`).
 - **Names stay identical** across the three trees. Create Tests/Documentation folders to exactly match the Outline folder names.
 - **Screenshots are the source of truth** for the docs — generate them by running tests, then describe only what they show.
-- **Idempotent**: re-running `build` regenerates Tests specs and Documentation; overwrite generated files, never touch `Outline/`. `init` refuses to overwrite an existing Outline.
+- **Full rebuild, not merge**: re-running `build` deletes each target section's previous `Tests/<section>/` and `Documentation/<section>/` and regenerates them from scratch — it never reuses prior specs, locators, screenshots, or prose. (A future `update` command will preserve prior work; `build` does not.) It never touches `Tests/playwright/` or `Outline/`. `init` never overwrites an existing Outline — it stops and asks.
 - If a section's Outline is ambiguous (a locator you can't resolve, a missing Run command), stop and ask rather than guessing selectors.
