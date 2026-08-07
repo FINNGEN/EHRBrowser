@@ -44,7 +44,7 @@ function App() {
   const [nodes, setNodes] = useState([])
   const [links, setLinks] = useState([])
   const [list, setList] = useState([])
-  const [view, setView] = useState('')
+  const [view, setView] = useState('set')
   const [filteredList, setFilteredList] = useState()
   const [rootLine, setRootLine] = useState()
   const [listIndexes, setListIndexes] = useState()
@@ -92,7 +92,7 @@ function App() {
   const [expandedSearch, setExpandedSearch] = useState(true)
   const [showConfirmation, setShowConfirmation] = useState(false)
   const fetchedRef = useRef(false)
-  const [nWidth,setNWidth] = useState(150)
+  const [nWidth,setNWidth] = useState(200)
   const [annotations,setAnnotations] = useState([{key:'PURCH',year:1995},{key:'REIM',year:1964},{key:'PRIM_OUT',year:2011},{key:'INPAT',year:1969},{key:'OUTPAT',year:1998},{key:'CANC',year:1953},{key:'DEATH',year:1969},{key:'OPER_IN',year:1969},{key:'OPER_OUT',year:1969},{key:'BIRTH_MOTHER',year:1953}])
   const [categories, setCategories] = useState([
     {key:'Long.',codes:['INPAT','OPER_IN','OPER_OUT','OUTPAT','PRIM_OUT','REIM','DEATH','PURCH','CANC']},
@@ -492,7 +492,7 @@ function App() {
       return (Math.min(...poset.featureOf(ids,'x')) + Math.max(...poset.featureOf(ids,'x'))) / 2
     }
 
-    const setX = (e,l,direction,sorted) => {
+    const setX = (e,l,direction,sorted=false) => {
       let idealPositions = []
       let sortedPositions = []
       let shiftToEnd = []
@@ -655,23 +655,25 @@ function App() {
 
   function updateInclusions(relationship) {
       let newInclusions = []
+      let mappings = []
       if (relationship === 'descendants') {
           newInclusions = sidebarRoot.name.map(r => nodes.map(n => n.name).includes(r) ? getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,nodes.find(n => n.name === r).descendants) : getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)))).flat().filter((e,n,l) => l.indexOf(e) === n)
               .filter(i => sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts !== 0 && sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts)
           setMapRoot([])
-          updateWidth([])
       } else {
           newInclusions = sidebarRoot.name.map(r => nodes.map(n => n.name).includes(r) ? getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,nodes.find(n => n.name === r).descendants) : getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)))).flat().filter((e,n,l) => l.indexOf(e) === n)
               .map(i => fullTree.nodes.find(n => n.name === i).mappings.map(m => m.name)).flat()   
               .filter(i => sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts !== 0)
           const allMappings = nodes.filter(n => n.mappings.length > 0).map(n => n.name)
           setMapRoot(allMappings)
-          updateWidth(allMappings)
+          mappings = allMappings
       }
-      updateConcepts(newInclusions,nodes,[],[])
+      updateConcepts(newInclusions,nodes,[],[],true,mappings)
   }
 
-  function updateWidth(openedMappings) {
+  function updateWidth(openedMappings,nList=false) {
+    let n = nodes
+    if (nList) n = nList
     let positions = {}
     poset.forEach((pos,i) => {
         const nodeWidth = openedMappings.filter(r => pos.elements.includes(r.toString())).length > 0 ? nWidth*2 : nWidth
@@ -680,14 +682,17 @@ function App() {
     spaceSubspaces(poset,openedMappings.length > 0 ? nWidth*2 : nWidth)
     poset.forEach(pos => pos.elements.forEach(e => positions[e] = pos.featureOf(e,'x')))
 
-    const nodeList = nodes.map(d => d.name)
-    let nodesArray = nodes
+    const nodeList = n.map(d => d.name)
+    let nodesArray = n
         .map(d => ({...d,x:positions[d.name]}))
         .map(e => ({...e,mappings: e.mappings.map(map => ({...map,source: e}))}))
     nodesArray = nodesArray.map(d => ({...d,connections:d.connections.map(c => ({...c,x:d.x,mid:getMidX(c.parents,nodesArray)}))}))
     const linksArray = links.map(d=>({source: nodesArray[nodeList.indexOf(d.source.name)], target: nodesArray[nodeList.indexOf(d.target.name)]}))
-    setNodes(nodesArray)
-    setLinks(linksArray)    
+    // setTimeout(() => {
+    console.log(n.map(n => n.x),nodesArray.map(n => n.x))
+      setNodes(nodesArray)
+      setLinks(linksArray)
+    // }, 2000)     
   }
 
   function getMidX(ids,nodeList) {
@@ -697,7 +702,7 @@ function App() {
       return midX
   }
 
-  function updateConcepts(inclusionList,nodeList,toAdd,toRemove) {
+  function updateConcepts(inclusionList,nodeList,toAdd,toRemove,updateW=false,mappings=null) {
     let newNodes = nodeList
         .map(e => ({
             ...e,
@@ -735,7 +740,8 @@ function App() {
     setPruned(isPruned)
     setSelectedConcepts(newSelections)
     setInclusions(inclusionList)
-    setNodes(newNodes)
+    if (!updateW) setNodes(newNodes)
+    else updateWidth(mappings,newNodes)
   }
   
   // *** optimize this ***
@@ -935,16 +941,12 @@ function App() {
   useEffect(()=>{
     console.log('start app')
     const params = new URLSearchParams(window.location.search)
-    // runMerge(['CHAQBBgCIAuCBxIQBBgKIA8yCvs0lwn7kAH0lQU=', 'CHAQBBgCIAuCBxEQBBgKIA8yCdYU/IoB2x/MFQ==', 'CHAQBxgCIAuCBxYQBxgKIA8yDu0EqRv5I50qzCb7Eo8x', 'CHAQCxgCIAuCByAQCxgKIA8yGLUF6jCeML4howyuAawG5EbIGN2RAsDKAg==', 'CHAQBRgCIAuCBxIQBRgKIA8yCrIE5mr/E84I5VQA', 'CHAQBRgCIAuCBxIQBRgKIA8yCrxB4UqoEPZIyREA', 'CHAQARgCIAuCBwsQARgKIA8yA+nTAQ==', 'CHAQAxgCIAuCBw4QAxgKIA8yBtJLPamvAQ==', 'CHAQBRgCIAuCBxIQBRgKIA8yCo8OiTzWCJUE1B8A', 'CHAQCRgCIAuCBxoQCRgKIA8yEtYDlgH3BfBF6BHBXeUE3B3oAg==', 'CHAQDBgCIAuCBx8QDBgKIA8yF5wUxhj7EdYQoBLeS9gS1gyNAYspVa4D', 'CHAQCBgCIAuCBxkQCBgKIA8yEdJBZYEFxBbiJbBq85EDwOMB', 'CHAQBxgCIAuCBxYQBxgKIA8yDuhD9SWfCOEWyC63D8ox', 'CHAQAxgCIAuCBw4QAxgKIA8yBuMK8X2Ndg=='])
-    // runMerge('CHAQBBgCIAuCBxEQBBgKIA8yCdYU/IoB2x/MFQ==')
-    // runMerge(['CHAQBRgCIAuCBxIQBRgKIA8yCrxB4UqoEPZIyREA'])
     setLoaded(true)
     loadNews()
     fetch(`${API_BASE_URL}/getVisitTypeNames`)
       .then(res=> res.json())
       .then(data=>{
         setVisitTypeNames(data.map(normalizeVisitTypeName).filter(d => Number.isFinite(d.visitGroupConceptId)))
-        // setGraphFilter({gender:-1,age:[-1],source:visitTypeNames.map(obj => obj.visitGroupConceptId)})
       })
     fetch(`${API_BASE_URL}/getAPIInfo`)
       .then(res=> res.json())
@@ -958,7 +960,6 @@ function App() {
         setConceptList(data)
         setFilteredList(data)
         setAllVocabularies(vocabList)
-        // setLoading(true)
       })
   }, [])
 
@@ -974,15 +975,14 @@ function App() {
   // on root load
   useEffect(()=>{
     setLoading(true)
+    moveSlider(0,0,'relationship')
+    moveSlider(0,0,'view')
+    moveSlider(0,0,'counts')
     if (!root) {
       setRootData([])
-      // setRootLabels([])
-      // setIsConceptSet(false)
-      // setSearchOnly(true)
       setLoading(false)
     } else {
       fetchedRef.current = true
-      // setSearchOnly(false)
       setLevelFilter()
       setClassFilter(['All'])
       const array = root.split(',').map(Number)
@@ -1046,7 +1046,7 @@ function App() {
       setSidebarRoot({name:rootArray,data:combinedData}) 
       // setRootLabels(rootArray.map(root => ({id:root,name:combinedData.concepts.find(e=>e.concept_id === root).concept_name,code:combinedData.concepts.find(e=>e.concept_id === root).concept_code,vocabulary:combinedData.concepts.find(e=>e.concept_id === root).vocabulary_id})))
       if (d3.select('#suggestions-container').style('visibility') === 'hidden') setRefresh(true)
-      setView('list')
+      setView('set')
       d3.select("#graph-section").style('width', "60vw")
       setGraphFilter({gender:-1,age:[-1],source:[-1]})
       let filterClass = false
@@ -1059,6 +1059,7 @@ function App() {
         setRemovedClasses(classList.filter(d => d === "Ingredient" || d === 'Clinical Drug Comp'))
         filterClass = true
       } 
+      if (classList.length === 1) setClassFilter(classList)
       setRelationship('descendants')
       setOpenFilters(true)
       setHovered([])
@@ -1174,6 +1175,7 @@ function App() {
         countType = {countType}
         setCountType = {setCountType}
         updateInclusions = {updateInclusions}
+        nodes = {nodes}
       />
       {(conceptList.length > 0 && !root) && <div className = "loading"><img style = {{width:60,opacity: 0.2}} src={finngen} alt="Finngen logo"/></div>}
       {(!conceptList || loading || initialPrune) && <div className = "loading" style={{ fontSize: '20px' }}>

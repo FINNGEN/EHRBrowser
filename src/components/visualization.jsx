@@ -4,10 +4,12 @@ import '@fortawesome/fontawesome-free/css/all.min.css';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import GraphSection from './visualization/graphSection';
 import SideBar from './visualization/sideBar'
-import graphIconWhite from '../img/graph-icon-white.svg'
 import { faPlus } from '@fortawesome/free-solid-svg-icons'
- import { faX } from '@fortawesome/free-solid-svg-icons'
-import rootIcon from '../img/root-icon.svg'
+import { faX } from '@fortawesome/free-solid-svg-icons'
+import { faSearch } from '@fortawesome/free-solid-svg-icons'
+import openedEye from '../img/opened-eye.svg'
+import openedEyeWhite from '../img/opened-eye-white.svg'
+import closedEye from '../img/closed-eye.svg'
 import * as d3 from "d3";
 import po from '../po.js';
 
@@ -118,102 +120,92 @@ function Visualization (props) {
         if (mode === "enter") {
             clearHideTimer()
             setVisible(true)
-            scheduleHide('tooltip')
             d3.select("#tooltip")
                 .style('left', function() {
-                    if (event.x + 270 > window.innerWidth) {
-                        return (event.x - 270 + 'px')
-                    }   
-                    else return (event.x + 10 + 'px')    
+                    const w = document.getElementById('tooltip').clientWidth
+                    if (event.x + w > window.innerWidth) return (event.x - w + 'px')
+                    else return (event.x + 'px')    
                 })
                 .style('top', function() {
-                    if (event.y + 150 > window.innerHeight) return (event.y - 110 + 'px')    
-                    else return (event.y + 10 + 'px')
+                    const h = document.getElementById('tooltip').clientHeight
+                    if (event.y + h > window.innerHeight) return (event.y - h + 'px')  
+                    else return (event.y + 'px')
                 })
-            d3.select('#tooltip-root')  
-                .style('display', () => sidebarRoot.name.includes(d.name) ? 'none' : 'block') 
-                .on('mouseover', () => d3.select('#tooltip-root').style('opacity',1))
-                .on('mouseout', () => d3.select('#tooltip-root').style('opacity',0.5))
+            
+            d3.select('#tooltip-search')
+                .style('display', () => sidebarRoot.name.includes(d.name) ? 'none' : 'inline-block') 
+                .on('mouseover', (e,i) => {
+                    const el = e.currentTarget
+                    el.__hoverTimeout__ = setTimeout(() => {
+                        showActionLabel('Select concept','enter',e)
+                    }, 1200)
+                })
+                .on('mouseout', (e,i) => {
+                    clearTimeout(e.currentTarget.__hoverTimeout__)
+                    showActionLabel('','leave',e)
+                })
+                .on('click', (e,i) => {
+                    clearTimeout(e.currentTarget.__hoverTimeout__)
+                    showActionLabel('','leave')
+                    showConfirmationPopup(d, 'enter', e)
+                })
+            d3.select('#tooltip-eye-closed')
+                .style('display', () => !conceptNames.includes(d.name) && (d.total_counts !== 0 || d.leaf) ? 'inline-block' : 'none')
+                .on('mouseover', (e,i) => {
+                    const el = e.currentTarget
+                    el.__hoverTimeout__ = setTimeout(() => {
+                        showActionLabel('Show concept','enter',e)
+                    }, 1200)
+                }) 
+                .on('mouseout', (e,i) => {
+                    clearTimeout(e.currentTarget.__hoverTimeout__)
+                    showActionLabel('','leave',e)
+                })
                 .on('click', () => {
-                    if (!sidebarRoot.name.includes(d.name)) { 
-                        setLoading(true) 
-                        navigate(`/${d.name}`)
-                        setHovered([])
-                        setVisible(false) 
-                    }
-                })   
-            d3.select('#tooltip-RC').html(concept_info.record_counts + ' RC')
-            d3.select('#tooltip-DRC').html(concept_info.descendant_record_counts + ' DRC')
-            d3.select('#counts-btn-circle')
-                .style('display', (concept_info.record_counts === 0 && !d.leaf) || d.levels === "-1" ? 'none' : 'flex')
-                .on('mouseover', () => {
-                    if (!conceptNames.includes(d.name)) {
-                        d3.select("#tooltip-plus").style('color', 'white')
-                        d3.select('#counts-btn-circle').style('border', '1px solid '+colorList[d.name]).style('background-color', () => colorList[d.name])
-                    }
-                    else {
-                        d3.select("#tooltip-x").style('display', 'block').style('opacity',1)
-                        d3.select("#graph-icon-white").style('display', 'none').style('opacity',0) 
-                    }    
-                })
-                .on('mouseout', () => {
-                    d3.select("#tooltip-x").style('display', 'none').style('opacity',0) 
-                    d3.select("#graph-icon-white").style('display', () => conceptNames.includes(d.name) ? 'block' : 'none').style('opacity', () => conceptNames.includes(d.name) ? 1 : 0)
-                    d3.select('#tooltip-plus').style('color',color.text).style('display', () => conceptNames.includes(d.name) ? 'none' : 'block').style('opacity', () => conceptNames.includes(d.name) ? 0 : 1)
-                    d3.select('#counts-btn-circle').style('background-color', () => conceptNames.includes(d.name) ? colorList[d.name] : 'transparent').style('border', () => conceptNames.includes(d.name) ? '1px solid '+colorList[d.name] : '1px solid var(--textlight)')
-                })
-                .on('click', () => {
-                    if (d.total_counts !== 0 || d.leaf) {
-                        if (conceptNames.includes(d.name)) {
-                            const newInclusions = inclusions.filter(e => e !== d.name)
-                            updateConcepts(newInclusions,nodes,[],[d])
-                        } else if (!conceptNames.includes(d.name)){
-                            const newInclusions = [...inclusions,d.name]
-                            updateConcepts(newInclusions,nodes,[d],[])
-                        }     
-                    }
+                    const newInclusions = [...inclusions,d.name]
+                    updateConcepts(newInclusions,nodes,[d],[])
                     setVisible(false)
+                })     
+            d3.select('#tooltip-eye-opened')
+                .style('display', () => conceptNames.includes(d.name) ? 'inline-block' : 'none')
+                .on('mouseover', (e,i) => {
+                    const el = e.currentTarget
+                    el.__hoverTimeout__ = setTimeout(() => {
+                        showActionLabel('Hide concept','enter',e)
+                    }, 1200)
+                }) 
+                .on('mouseout', (e,i) => {
+                    clearTimeout(e.currentTarget.__hoverTimeout__)
+                    showActionLabel('','leave',e)
                 })
-                .style('background-color', () => conceptNames.includes(d.name) ? colorList[d.name] : 'transparent')
-                .style('border', () => conceptNames.includes(d.name) ? '1px solid '+colorList[d.name] : '1px solid var(--textlight)')
-            d3.select("#graph-icon-white")
-                .style('display', () => conceptNames.includes(d.name) ? 'block' : 'none')
-                .style('opacity', () => conceptNames.includes(d.name) ? 1 : 0)
-            d3.select("#tooltip-plus")
-                .style('display', () => conceptNames.includes(d.name) ? 'none' : 'block')
-                .style('opacity', () => conceptNames.includes(d.name) ? 0 : 1)
-            d3.select("#tooltip-title")
-                .html(concept_info.concept_name)
-                .style('display', 'block')
-            d3.select("#tooltip-content").select("#tooltip-id")
-                .selectAll("span")
-                .html(d.name)
-            d3.select("#tooltip-content").select("#tooltip-code")
-                .selectAll("span")
-                .html(concept_info.concept_code)
-            d3.select("#tooltip-content").select("#tooltip-type")
-                .selectAll("span")
-                .html(concept_info.standard_concept ? "Standard" : "Non standard")
-            d3.select("#concept-type-tooltip")
-                .style("border-style", () => concept_info.standard_concept ? 'solid' : 'dashed')
-                .style("color", 'black')
-            d3.select("#tooltip-content").select("#tooltip-vocabulary")
-                .selectAll("span")
-                .html(concept_info.vocabulary_id)
-            d3.select("#tooltip-content").select("#tooltip-domain")
-                .selectAll("span")
-                .html(concept_info.domain_id)
-            d3.select("#tooltip-content").select("#tooltip-class")
-                .selectAll("span")
-                .html(concept_info.concept_class_id)
-        } 
+                .on('click', () => {
+                    const newInclusions = inclusions.filter(e => e !== d.name)
+                    updateConcepts(newInclusions,nodes,[],[d])
+                    setVisible(false)
+                }) 
+            
+            d3.select('#tooltip-counts').style('opacity', () => d.leaf ? 0.2 : 1)
+            d3.select('#tooltip-desc-counts').style('opacity', () => d.leaf ? 1 : 0.2)
+            d3.select('#tooltip-counts-num').html(concept_info.record_counts)
+            d3.select('#tooltip-counts-label').html(() => countType === 'record' ? ' RC' : ' PC')
+            d3.select('#tooltip-desc-counts-num').html(concept_info.descendant_record_counts)
+            d3.select('#tooltip-desc-counts-label').html(() => countType === 'record' ? ' DRC' : ' DPC')
+            
+            d3.select("#tooltip-title").html(concept_info.concept_name)
+
+            d3.select("#tooltip-id").html(d.name)
+            d3.select("#tooltip-code").html(concept_info.concept_code)
+            d3.select("#tooltip-type").html(concept_info.standard_concept ? "Standard" : "Non Standard")
+            d3.select("#tooltip-vocabulary").html(concept_info.vocabulary_id)
+            d3.select("#tooltip-domain").html(concept_info.domain_id)
+            d3.select("#tooltip-class").html(concept_info.concept_class_id)
+        } else scheduleHide('tooltip')
     }
 
     function showConfirmationPopup(d, mode, event = null) {
         if (mode === 'enter') {
             clearHideTimer()
             setShowConfirmation(true)
-            scheduleHide('confirmation')
             d3.select('#confirmation-btn')
                 .on('click', (e,i) => {
                     setShowConfirmation(false)
@@ -227,12 +219,12 @@ function Visualization (props) {
                     else return (event.x + 20 + 'px')    
                 })
                 .style('top', function() {
-                    const h = 80
+                    const h = document.getElementById('confirmation-popup').clientHeight
                     if (event.y - h < 0) return (event.y + 10 + 'px')  
                     else return (event.y - h + 'px')
                 })
                 .transition()
-        } 
+        } else scheduleHide('confirmation')
     }
 
     function showActionLabel(label,mode,event) {
@@ -275,7 +267,7 @@ function Visualization (props) {
         hideTimer.current = setTimeout(() => { 
             if (id === 'tooltip') setVisible(false)
             if (id === 'confirmation') setShowConfirmation(false)
-        }, 1300)    
+        }, 800)    
     }
     
     // filter tree data
@@ -433,38 +425,41 @@ function Visualization (props) {
     return ( sidebarRoot !== undefined ? 
         <div id = "visualization-container">
             <div className = "toolTip dropShadow" id = "tooltip" style = {{opacity: visible ? 1 : 0, pointerEvents: visible ? 'all' : 'none'}} 
-            onMouseEnter={() => {clearHideTimer()}}
-            onMouseLeave={() => {setVisible(false)}}>
+                onMouseEnter={() => {clearHideTimer()}}
+                onMouseLeave={() => {setVisible(false)}}>
                 <div id = "tooltip-header">
                     <div id = "tooltip-btn-container">
-                        <div className = "tooltip-btn" id = 'tooltip-root' style = {{opacity: 0.5}}><img style = {{width:18}} src={rootIcon} alt="root icon"/></div>
-                        <div className = "tooltip-btn" id = "counts-btn-circle">
-                            <FontAwesomeIcon style = {{opacity:0,display:'none',color:'var(--text)'}} className = 'tooltip-icon fa-solid fa-plus fa-sm' id = "tooltip-plus" icon={faPlus} />
-                            <FontAwesomeIcon style = {{opacity:0,display:'none',color:'white'}} className = 'tooltip-icon fa-solid fa-x fa-xs' id = "tooltip-x" icon={faX} />
-                            <img style = {{paddingBottom:1,width:10,opacity:1,display:'block'}} className = 'tooltip-icon' id = "graph-icon-white" src={graphIconWhite} alt="graph icon"/>
-                        </div>
+                        <FontAwesomeIcon className = 'fa fa-search iconLg marginRight' id = "tooltip-search" icon={faSearch} alt = "select-concept" />
+                        <img className = "icon eye" id = "tooltip-eye-closed" src={closedEye} alt="show concept"/>
+                        <img className = "icon eye" style = {{opacity:1}} id = "tooltip-eye-opened" src={openedEye} alt="hide concept"/>
                     </div>
-                    <div style = {{display:'flex',margin:0}}>
-                        <p style = {{fontWeight:700}} id = "tooltip-RC"></p>
-                        <p style = {{marginRight:2,marginLeft:2,opacity:0.5}}>|</p>
-                        <p style = {{fontWeight:700}} id = "tooltip-DRC"></p>   
+                    <div className = 'flex'>
+                        <p className = 'marginRight' id = "tooltip-counts"><span id = "tooltip-counts-num" className='num'></span><span id = 'tooltip-counts-label'></span></p>
+                        <p className = 'marginRight' style = {{opacity:0.2}}>|</p>
+                        <p id = "tooltip-desc-counts"><span id = "tooltip-desc-counts-num" className='num'></span><span id = 'tooltip-desc-counts-label'></span></p>  
                     </div> 
                 </div>
-                <div id = "tooltip-title"></div>
-                <div id = "tooltip-content">
-                    <div className='tooltip-content-col'>
-                        <p className = "tooltip-content-row" id = "tooltip-id">Id<span></span></p>
-                        <p className = "tooltip-content-row" id = "tooltip-code">Code<span></span></p>
-                        <p className = "tooltip-content-row" id = "tooltip-type">Type<span className = "concept-type" id = "concept-type-tooltip"></span></p>
+                <div className = "selectedText" id = "tooltip-title"></div>
+                <div id = 'tooltip-info-container'>
+                    <div className='info-col' style = {{marginRight:20}}>
+                        <p className = "selectedText infoRow">Id:<span id = "tooltip-id" className='infoContent num'></span></p>
+                        <p className = "selectedText infoRow">Code:<span id = "tooltip-code" className='infoContent num'></span></p>
+                        <p className = "selectedText infoRow">Type:<span id = "tooltip-type" className='infoContent'></span></p>
                     </div>
-                    <div className='tooltip-content-col'>
-                        <p className = "tooltip-content-row" id = "tooltip-vocabulary">Vocabulary<span></span></p>
-                        <p className = "tooltip-content-row" id = "tooltip-domain">Domain<span></span></p>
-                        <p className = "tooltip-content-row" id = "tooltip-class">Class<span></span></p>    
+                    <div className='info-col'>
+                        <p className = "selectedText infoRow">Vocabulary:<span id = "tooltip-vocabulary" className='infoContent'></span></p>
+                        <p className = "selectedText infoRow">Domain:<span id = "tooltip-domain" className='infoContent'></span></p>
+                        <p className = "selectedText infoRow">Class:<span id = "tooltip-class" className='infoContent'></span></p>    
                     </div>
                 </div>
             </div>  
-            <div className = 'actionLabel dropShadow' id = "action-label"></div>  
+            <div className = 'actionLabel dropShadow' id = "action-label"></div> 
+            <div id = "confirmation-popup" className = 'toolTip dropShadow' style = {{opacity: showConfirmation ? 1 : 0, pointerEvents: showConfirmation ? 'all' : 'none'}}
+                onMouseEnter={() => {clearHideTimer()}}
+                onMouseLeave={() => {setShowConfirmation(false)}}>
+                <div className = 'selectedText' style = {{paddingBottom:6}}>Select concept</div>
+                <div className = 'btn greyBtn' id = "confirmation-btn">Confirm</div>  
+            </div> 
             <SideBar
                 color = {color}
                 selectedConcepts = {selectedConcepts}
@@ -536,6 +531,8 @@ function Visualization (props) {
                 formatThousands = {formatThousands}
                 clearHideTimer = {clearHideTimer}
                 setShowConfirmation = {setShowConfirmation}
+                countType = {countType}
+                setVisible = {setVisible}
             ></SideBar> 
             <GraphSection
                 color = {color}

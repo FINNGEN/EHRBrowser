@@ -41,6 +41,7 @@ function Header (props) {
     const relationship = props.relationship
     const setRelationship = props.setRelationship
     const updateInclusions = props.updateInclusions
+    const nodes = props.nodes
     // const listIndexes = props.listIndexes
     const codes = conceptList.map(d => d.concept_id.toString())
     const names = conceptList.map(d => d.concept_name.toLowerCase())
@@ -325,7 +326,7 @@ function Header (props) {
                     .on('mouseout',(e,d)=>{
                         d3.select('#cs-btn-container-'+d.concept_id).style('background-color','#f0f0f0')
                         d3.select('#cs-btn-i-'+d.concept_id).style('color','#36126d')
-                        d3.select('#cs-btn-label-'+d.concept_id).style('font-weight',400).style('color','#4c4c4c')
+                        d3.select('#cs-btn-label-'+d.concept_id).style('font-weight',400).style('color','#4c4c4c9')
                     })
                     .on('click',(e,d)=>{
                         setRefresh(false)
@@ -378,7 +379,7 @@ function Header (props) {
                             d3.select('#suggestion-'+d.concept_id).style('background-color','transparent')
                             d3.select('#cs-btn-container-'+d.concept_id).style('background-color','#e0e0e0')
                             d3.select('#cs-btn-i-'+d.concept_id).style('color','#36126d')
-                            d3.select('#cs-btn-label-'+d.concept_id).style('font-weight',400).style('color','#4c4c4c')    
+                            d3.select('#cs-btn-label-'+d.concept_id).style('font-weight',400).style('color','#4c4c4c9')    
                         }
                     })
                     .on('click', (e,d) => {
@@ -404,7 +405,7 @@ function Header (props) {
                     .on('mouseout',(e,d)=>{
                         d3.select('#cs-btn-container-'+d.concept_id).style('background-color','#f0f0f0')
                         d3.select('#cs-btn-i-'+d.concept_id).style('color','#36126d')
-                        d3.select('#cs-btn-label-'+d.concept_id).style('font-weight',400).style('color','#4c4c4c')
+                        d3.select('#cs-btn-label-'+d.concept_id).style('font-weight',400).style('color','#4c4c4c9')
                     })
                     .on('click',(e,d)=>{
                         setRefresh(false)
@@ -503,11 +504,11 @@ function Header (props) {
     },[allVocabularies,searchFilter])
 
     useEffect(() => {
-        if (expandedSearch) {
+        if (expandedSearch && d3.select('#search-container')) {
             d3.select('#input-container').transition().style('width','550px')
             d3.select('#searchConcept').transition().style('display','block')
         }
-        else { 
+        else {
             d3.select('#input-container').transition().style('width','42px')
             d3.select('#searchConcept').transition().style('display','none')
             d3.select('#searchBtn').style('opacity',0.7)
@@ -516,7 +517,7 @@ function Header (props) {
     },[expandedSearch])
 
     return (
-        <div className = "dropShadow" id = "header">
+        <div id = "header">
             <div id = 'header-title'><img id = 'finnGen-logo' src={finngen} alt="FinnGen logo"/></div>
             
             <div id = 'search-container'>
@@ -553,27 +554,27 @@ function Header (props) {
                     <div className = "btn textBtn" onClick = {() => setSearchFilter([])} style = {{display: searchFilter.length > 0 ? 'block' : 'none'}}>Clear</div> 
                 </div>
                 <div style = {{display:'flex',flexWrap:'wrap',maxWidth:'100%'}} id = "search-filters"></div>
-                <div className = "btn greyBtn" onClick = {() => setShowFilter(false)} style = {{backgroundColor:searchFilter.length > 0 ? '#e0e0e0' : 'transparent',color:searchFilter.length > 0 ? '#36126d' : '#4c4c4c',alignSelf:'flex-end'}}>Confirm</div>
+                <div className = "btn greyBtn" onClick = {() => setShowFilter(false)} style = {{backgroundColor:searchFilter.length > 0 ? '#e0e0e0' : 'transparent',color:searchFilter.length > 0 ? '#36126d' : '#4c4c4c9',alignSelf:'flex-end'}}>Confirm</div>
             </div> 
 
             {/* <div id = "search-info" style = {{display: root.split(',').map(Number).length === 1 && !loading ? rootData.stratified_code_counts?.length > 0 ? 'flex' : 'none' : 'none'}}>
-                <div><span style = {{color:'#4c4c4c',fontWeight:400,marginRight:4}}>Record Counts:</span>{rootData.stratified_code_counts?.length > 0 ? getCounts(rootData.stratified_code_counts.filter(d => d.concept_id === parseInt(root)),"node_record_counts") : null}</div>
+                <div><span style = {{color:'#4c4c4c9',fontWeight:400,marginRight:4}}>Record Counts:</span>{rootData.stratified_code_counts?.length > 0 ? getCounts(rootData.stratified_code_counts.filter(d => d.concept_id === parseInt(root)),"node_record_counts") : null}</div>
                 <div className = "search-info-line"></div>
-                <div style = {{marginRight:10}}><span style = {{color:'#4c4c4c',fontWeight:400,marginRight:4}}>Descendant Record Counts:</span>{rootData.stratified_code_counts?.length > 0 ? getCounts(rootData.stratified_code_counts.filter(d => d.concept_id === parseInt(root)),"node_descendant_record_counts") : null}</div>
+                <div style = {{marginRight:10}}><span style = {{color:'#4c4c4c9',fontWeight:400,marginRight:4}}>Descendant Record Counts:</span>{rootData.stratified_code_counts?.length > 0 ? getCounts(rootData.stratified_code_counts.filter(d => d.concept_id === parseInt(root)),"node_descendant_record_counts") : null}</div>
             </div>  */}
 
-            <div id = 'app-controls' style = {{display: root ? 'flex' : 'none'}}>
+            <div id = 'app-controls' style = {{left: expandedSearch && 800 > window.innerWidth/2 - 215 ? '810px' : '50%',transform:expandedSearch && 800 > window.innerWidth/2 - 215 ? 'translateX(0)' : 'translateX(-50%)',display: root && nodes.length > 0 ? 'flex' : 'none'}}>
                 <div className = 'toggle' id = "relationship-toggle">
                     <div className = 'mainBtn slider' id='slider-relationship'>''</div>
 
-                    <div className = 'btn toggle-itm' id = 'descendants-toggle' onClick={() => {setRelationship('descendants');moveSlider(0,100,'relationship');updateInclusions('descendants')}} style = {{fontWeight:relationship === 'descendants' ? 500 : 400,color:relationship === 'descendants' ? '#36126d' : '#808080'}}>Descendants</div>
-                    <div className = 'btn toggle-itm' id = 'mappings-toggle' onClick={() => {setRelationship('mappings');moveSlider(1,100,'relationship');updateInclusions('mappings')}} style = {{fontWeight:relationship === 'dappings' ? 500 : 400,color:relationship === 'mappings' ? '#36126d' : '#808080'}}>Mappings</div>
+                    <div className = 'btn toggle-itm' id = 'descendants-toggle' onClick={() => {setRelationship('descendants');moveSlider(0,100,'relationship');updateInclusions('descendants')}} style = {{fontWeight:relationship === 'descendants' ? 500 : 400,color:relationship === 'descendants' ? '#36126d' : '#999999'}}>Descendants</div>
+                    <div className = 'btn toggle-itm' id = 'mappings-toggle' onClick={() => {setRelationship('mappings');moveSlider(1,100,'relationship');updateInclusions('mappings')}} style = {{fontWeight:relationship === 'dappings' ? 500 : 400,color:relationship === 'mappings' ? '#36126d' : '#999999'}}>Mappings</div>
                 </div>
                 <div className = 'toggle' id = "counts-toggle">
                     <div className = 'mainBtn slider' id='slider-counts'>''</div>
 
-                    <div className = 'btn toggle-itm' id = 'record-toggle' onClick={() => {setCountType('record');moveSlider(0,100,'counts')}} style = {{fontWeight:countType === 'record' ? 500 : 400,color:countType === 'record' ? '#36126d' : '#808080'}}>Record Counts</div>
-                    <div className = 'btn toggle-itm' id = 'person-toggle' onClick={() => {setCountType('person');moveSlider(1,100,'counts')}} style = {{fontWeight:countType === 'person' ? 500 : 400,color:countType === 'person' ? '#36126d' : '#808080'}}>Person Counts</div>
+                    <div className = 'btn toggle-itm' id = 'record-toggle' onClick={() => {setCountType('record');moveSlider(0,100,'counts')}} style = {{fontWeight:countType === 'record' ? 500 : 400,color:countType === 'record' ? '#36126d' : '#999999'}}>Record Counts</div>
+                    <div className = 'btn toggle-itm' id = 'person-toggle' onClick={() => {setCountType('person');moveSlider(1,100,'counts')}} style = {{fontWeight:countType === 'person' ? 500 : 400,color:countType === 'person' ? '#36126d' : '#999999'}}>Person Counts</div>
                 </div>
             </div>
 
