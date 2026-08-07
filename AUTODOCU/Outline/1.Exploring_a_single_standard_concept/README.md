@@ -11,20 +11,20 @@ The EHR Browser lets you load any standard concept from the vocabulary and immed
 ## Searching for a concept
 
 - Use the 'Search concept' field to search for 'Asthma' string. 
-- Hover over 'Astma SNOMED', `higlight` the 'Astma SNOMED' concept in the list, `take-screenshot` 
-- Click 'Astma SNOMED', wait for the page to load
+- Hover over 'Asthma SNOMED', `highlight` the 'Asthma SNOMED' concept in the list, `take-screenshot` 
+- Click 'Asthma SNOMED', wait for the page to load
 
 ## The concept view
 
 - `take-screenshot` 
-- Descrive the different sections of the concept page. The top area is for changing the current concept or swithc views that affect the whole page, showing mapped concepts or switch between record and person counts. The left are show diffeent counts distributions across hierarachy. The right view show the counts distributions acrost, Sex, Age, Visit Type, and Time. 
+- Describe the different sections of the concept page. The top area is for changing the current concept or switch views that affect the whole page, showing mapped concepts or switch between record and person counts. The left area shows different counts distributions across hierarchy. The right view shows the counts distributions across Sex, Age, Visit Type, and Time. 
 
 ### Hierarchy view
 
-- Descrive breafly the 3 options for hierarchy view: List, ConceptSet, Hierarchy
-- `highligth` the 'List' selector in the left area and `take-screenshot`
+- Describe briefly the 3 options for hierarchy view: List, Concept Set, Hierarchy
+- `highlight` the 'List' selector in the left area and `take-screenshot`
 
 
 ### Time view
 
-- `highligth` the plot in the left side including the legend with the colored concepts, `take-screenshot`.
+- `highlight` the plot in the right side including the legend with the colored concepts, `take-screenshot`.

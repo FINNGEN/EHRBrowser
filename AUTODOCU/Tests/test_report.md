@@ -2,7 +2,9 @@
 
 Sections show the Playwright test result; the screenshot rows below each
 show whether the newly captured image stayed within 1% of the committed one
-(over threshold = the image changed and was replaced = FAIL).
+(over threshold = the image changed = FAIL). By default a changed image is **kept**
+and its before/after is saved below for review; `./run_test.sh --accept-changes`
+adopts the new captures as the baseline for future runs.
 
 | Test name | Result |
 |-----------|--------|

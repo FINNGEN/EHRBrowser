@@ -28,3 +28,5 @@ docker run --rm -p 8563:8563  ehr_browser
 Navegate to 
 
 http://localhost:8563/
+
+Window size: 1280 × 800
