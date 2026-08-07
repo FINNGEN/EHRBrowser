@@ -10,22 +10,29 @@
 //   * New screenshots were written to a TEMP root (AUTODOCU_SHOT_ROOT) instead of
 //     Documentation/, so the committed images are untouched until we decide.
 //   * For every screenshot it computes the % of changed pixels vs the committed one.
-//       - diff  > THRESHOLD %  -> committed image REPLACED with the new one, FAIL (a real change).
+//       - diff  > THRESHOLD %  -> a real, visible CHANGE, FAIL. By default the committed
+//         image is KEPT (not overwritten) and the before/after pair is saved for review;
+//         with ACCEPT=1 the committed image is REPLACED with the new one (marked PASS).
 //       - diff <= THRESHOLD %  -> committed image KEPT, PASS (sub-threshold render noise).
 //       - no committed baseline -> new image adopted as baseline, PASS (new).
 //       - baseline exists but no new image (test crashed before capturing) -> FAIL.
 //   * Writes test_report.md (in the Tests folder): one bold row per section (its
 //     Playwright pass/fail) followed by one row per screenshot (its diff pass/fail),
-//     and a final **Total** row counting PASS/total.
+//     and a final **Total** row counting PASS/total. When screenshots changed and were
+//     NOT accepted, it appends a "Visual changes to review" section: per section, per
+//     screenshot, the BEFORE and AFTER images shown side by side. The images backing that
+//     section are copied next to the report into a test_report/ folder (stable snapshots,
+//     since the fresh captures live in a temp dir that is deleted after the run).
 //
 // PNG decoding is manual (zlib.inflate + filter reversal): handles 8-bit, non-interlaced
 // PNGs (colour types 0/2/4/6) — what Chromium/Playwright emit.
 //
 // Usage:
-//   node compare_report.mjs TEMP_ROOT DOC_ROOT TESTS_DIR JSON_FILE THRESHOLD_PCT REPORT_FILE
+//   node compare_report.mjs TEMP_ROOT DOC_ROOT TESTS_DIR JSON_FILE THRESHOLD_PCT REPORT_FILE [ACCEPT]
+// ACCEPT: "1" to adopt changed screenshots as the new baseline; omitted/"0" to review only.
 // Exit code: 0 if every row PASSed, 1 otherwise.
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync, readdirSync, statSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, copyFileSync, readdirSync, statSync } from 'fs';
 import zlib from 'zlib';
 import path from 'path';
 
@@ -189,18 +196,27 @@ function collectPlaywright(jsonFile, sections) {
 
 function main() {
   const argv = process.argv.slice(2);
-  if (argv.length !== 6) {
-    process.stderr.write('usage: node compare_report.mjs TEMP_ROOT DOC_ROOT TESTS_DIR JSON_FILE THRESHOLD_PCT REPORT_FILE\n');
+  if (argv.length !== 6 && argv.length !== 7) {
+    process.stderr.write('usage: node compare_report.mjs TEMP_ROOT DOC_ROOT TESTS_DIR JSON_FILE THRESHOLD_PCT REPORT_FILE [ACCEPT]\n');
     return 2;
   }
-  const [tempRoot, docRoot, , jsonFile, thresholdS, reportFile] = argv; // TESTS_DIR unused
+  const [tempRoot, docRoot, , jsonFile, thresholdS, reportFile, acceptS] = argv; // TESTS_DIR unused
   const threshold = parseFloat(thresholdS);
+  const accept = acceptS === '1' || acceptS === 'true';
+
+  // Where the before/after images for the "Visual changes" section are copied so the
+  // report can embed them (the fresh captures live in a temp dir that is deleted after
+  // the run). Cleared each run so stale pairs from a previous run never linger.
+  const reportDir = path.join(path.dirname(reportFile), 'test_report');
+  const reportRel = path.basename(reportDir); // relative link prefix used in the md
+  rmSync(reportDir, { recursive: true, force: true });
 
   const sections = listSections(docRoot, tempRoot);
   const pwPass = collectPlaywright(jsonFile, sections);
 
-  const rows = [];   // { name, isSection, result }
-  const detail = []; // human lines for stdout
+  const rows = [];    // { name, isSection, result }
+  const detail = [];  // human lines for stdout
+  const changes = []; // { sec, label, pct, before, after } — populated only in review mode
 
   for (const sec of sections) {
     const pwOk = pwPass.get(sec);
@@ -233,9 +249,21 @@ function main() {
           pct = 100; note = ` (${e.message})`;
         }
         if (pct > threshold) {
-          copyFileSync(newPng, basePng);
-          rows.push({ name: label, isSection: false, result: 'FAIL' });
-          detail.push(`       FAIL ${sec}/${label}  ${pct.toFixed(2)}% > ${threshold}% -> replaced${note}`);
+          if (accept) { // adopt the fresh capture as the new baseline
+            copyFileSync(newPng, basePng);
+            rows.push({ name: label, isSection: false, result: 'PASS' });
+            detail.push(`       PASS ${sec}/${label}  ${pct.toFixed(2)}% > ${threshold}% -> accepted (baseline replaced)${note}`);
+          } else { // keep the baseline; stash before/after for a visual review
+            mkdirSync(reportDir, { recursive: true });
+            const stem = `${sec}__${label}`.replace(/[\\/]+/g, '_');
+            const before = `${stem}__before.png`;
+            const after = `${stem}__after.png`;
+            copyFileSync(basePng, path.join(reportDir, before));
+            copyFileSync(newPng, path.join(reportDir, after));
+            changes.push({ sec, label, pct, before, after });
+            rows.push({ name: label, isSection: false, result: 'FAIL' });
+            detail.push(`       FAIL ${sec}/${label}  ${pct.toFixed(2)}% > ${threshold}% -> changed (review; run --accept-changes to adopt)${note}`);
+          }
         } else {
           rows.push({ name: label, isSection: false, result: 'PASS' });
           detail.push(`       PASS ${sec}/${label}  ${pct.toFixed(2)}% <= ${threshold}% -> kept`);
@@ -252,7 +280,9 @@ function main() {
     '',
     'Sections show the Playwright test result; the screenshot rows below each',
     `show whether the newly captured image stayed within ${threshold}% of the committed one`,
-    '(over threshold = the image changed and was replaced = FAIL).',
+    '(over threshold = the image changed = FAIL). By default a changed image is **kept**',
+    'and its before/after is saved below for review; `./run_test.sh --accept-changes`',
+    'adopts the new captures as the baseline for future runs.',
     '',
     '| Test name | Result |',
     '|-----------|--------|',
@@ -262,6 +292,30 @@ function main() {
   }
   lines.push(`| **Total** | ${passed}/${total} |`);
   lines.push('');
+
+  if (changes.length) {
+    lines.push('## Visual changes to review');
+    lines.push('');
+    lines.push(`These screenshots changed by more than ${threshold}%. Compare BEFORE (the`);
+    lines.push('committed baseline) with AFTER (the fresh capture). To adopt the new images');
+    lines.push('as the baseline for future runs, re-run `./run_test.sh --accept-changes`.');
+    lines.push('');
+    let currentSec = null;
+    for (const c of changes) {
+      if (c.sec !== currentSec) {
+        lines.push(`### ${c.sec}`);
+        lines.push('');
+        currentSec = c.sec;
+      }
+      lines.push(`#### ${c.label} — ${c.pct.toFixed(2)}% changed`);
+      lines.push('');
+      lines.push('| BEFORE (committed) | AFTER (new) |');
+      lines.push('|:---:|:---:|');
+      lines.push(`| ![${c.label} before](${reportRel}/${c.before}) | ![${c.label} after](${reportRel}/${c.after}) |`);
+      lines.push('');
+    }
+  }
+
   writeFileSync(reportFile, lines.join('\n'));
 
   process.stdout.write(detail.join('\n') + '\n');

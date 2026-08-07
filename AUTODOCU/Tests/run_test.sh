@@ -7,7 +7,11 @@
 # Screenshots are NOT written straight into Documentation/. They go to a TEMP folder
 # first (via AUTODOCU_SHOT_ROOT, honoured by Scripts/playwright/_helpers.ts). Then each fresh
 # capture is compared, pixel by pixel, against the committed image:
-#   * changed pixels  > 1%  -> the committed image is replaced, screenshot marked FAIL
+#   * changed pixels  > 1%  -> a real change, screenshot marked FAIL. By DEFAULT the
+#                              committed image is KEPT and the before/after pair is saved
+#                              under AUTODOCU/Tests/test_report/ so the report can show a
+#                              visual comparison. Pass --accept-changes to instead REPLACE
+#                              the committed images with the fresh captures (future baseline).
 #   * changed pixels <= 1%  -> the committed image is kept, screenshot marked PASS
 # The section rows carry the plain Playwright pass/fail. All of this lands in
 # AUTODOCU/Tests/test_report.md (compare_report.mjs writes it).
@@ -20,9 +24,11 @@
 # the diff threshold) come from the .env next to this file.
 #
 # Usage:
-#   ./run_test.sh              # run all sections
-#   ./run_test.sh 1.Some_sec   # optional: pass a Playwright filter through to npm test
+#   ./run_test.sh                     # run all sections (changed screenshots -> review)
+#   ./run_test.sh 1.Some_sec          # optional: pass a Playwright filter through to npm test
+#   ./run_test.sh --accept-changes    # adopt changed screenshots as the new baseline
 #
+# The flag and a filter can be combined, e.g. ./run_test.sh --accept-changes 1.Some_sec
 # Works from any directory. Exit code is 0 only if every report row PASSes.
 set -uo pipefail
 
@@ -42,6 +48,16 @@ if [ -f "$HERE/.env" ]; then
   set +a
 fi
 THRESHOLD="${AUTODOCU_DIFF_THRESHOLD:-1}"   # % changed pixels above which a screenshot counts as changed
+
+# --- parse args: pull out --accept-changes; the rest is a passthrough Playwright filter
+ACCEPT=0
+PW_ARGS=()
+for arg in "$@"; do
+  case "$arg" in
+    --accept-changes) ACCEPT=1 ;;
+    *) PW_ARGS+=("$arg") ;;
+  esac
+done
 
 if [ ! -f "$SCRIPTS/app_control.sh" ]; then
   echo "ERROR: $SCRIPTS/app_control.sh not found (run 'autodocu build' to generate it)." >&2
@@ -98,18 +114,20 @@ export PLAYWRIGHT_JSON_OUTPUT_NAME="$JSON_REPORT"
 cd "$WORKSPACE"
 # testDir is '../..', so with no filter this runs every section's spec.
 # list reporter -> console (via tee); json reporter -> $JSON_REPORT (for the report).
-npm test -- --reporter=list,json "$@" 2>&1 | tee "$LOG"
+npm test -- --reporter=list,json ${PW_ARGS[@]+"${PW_ARGS[@]}"} 2>&1 | tee "$LOG"
 status=${PIPESTATUS[0]}
 echo
 
 # --- diff screenshots + write test_report.md ---------------------------------
-echo "==> Comparing screenshots (threshold ${THRESHOLD}%) and writing report"
+MODE_NOTE="review — changed images kept, before/after saved for comparison"
+[ "$ACCEPT" = "1" ] && MODE_NOTE="accept — changed images become the new baseline"
+echo "==> Comparing screenshots (threshold ${THRESHOLD}%, ${MODE_NOTE}) and writing report"
 if [ ! -s "$JSON_REPORT" ]; then
   echo "ERROR: Playwright produced no JSON report; cannot build $REPORT." >&2
   echo "       (test run exit code was $status)" >&2
   exit "${status:-1}"
 fi
-node "$SCRIPTS/compare_report.mjs" "$TMP_SHOTS" "$DOC_ROOT" "$HERE" "$JSON_REPORT" "$THRESHOLD" "$REPORT"
+node "$SCRIPTS/compare_report.mjs" "$TMP_SHOTS" "$DOC_ROOT" "$HERE" "$JSON_REPORT" "$THRESHOLD" "$REPORT" "$ACCEPT"
 overall=$?
 echo
 
