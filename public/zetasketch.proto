@@ -1,0 +1,27 @@
+syntax = "proto2";
+package zetasketch;
+
+// Outer aggregator state. Field 112 is the HLL++ extension; we declare it as
+// bytes here (rather than as a proto2 extension) because protobufjs handles
+// extensions imperfectly. We re-decode the bytes as HyperLogLogPlusUniqueStateProto.
+message AggregatorStateProto {
+  optional int32 type = 1;
+  optional int64 num_values = 2;
+  optional int32 encoding_version = 3;
+  optional int32 value_type = 4;
+  optional bytes hll_ext = 112;
+}
+
+// IMPORTANT: ZetaSketch proto field naming is misleading. Verified empirically
+// against BigQuery HLL_COUNT.INIT(x, 10) output: field 3 carries the NORMAL
+// precision (p) and field 4 carries the SPARSE precision (p'). The names
+// "sparse_precision_or_num_buckets" / "precision_or_num_buckets" reflect
+// legacy v1 encoding where the alternate meaning applied; in v2 (the only
+// version BQ emits) the interpretation is swapped.
+message HyperLogLogPlusUniqueStateProto {
+  optional int32 sparse_size = 2;
+  optional int32 precision = 3;          // normal precision p
+  optional int32 sparse_precision = 4;   // sparse precision p' (>= p)
+  optional bytes data = 5;
+  optional bytes sparse_data = 6;
+}

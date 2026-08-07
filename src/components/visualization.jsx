@@ -4,10 +4,12 @@ import '@fortawesome/fontawesome-free/css/all.min.css';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import GraphSection from './visualization/graphSection';
 import SideBar from './visualization/sideBar'
-import graphIconWhite from '../img/graph-icon-white.svg'
 import { faPlus } from '@fortawesome/free-solid-svg-icons'
- import { faX } from '@fortawesome/free-solid-svg-icons'
-import rootIcon from '../img/root-icon.svg'
+import { faX } from '@fortawesome/free-solid-svg-icons'
+import { faSearch } from '@fortawesome/free-solid-svg-icons'
+import openedEye from '../img/opened-eye.svg'
+import openedEyeWhite from '../img/opened-eye-white.svg'
+import closedEye from '../img/closed-eye.svg'
 import * as d3 from "d3";
 import po from '../po.js';
 
@@ -39,8 +41,8 @@ function Visualization (props) {
     const setLinks = props.setLinks
     const list = props.list
     const rootLine = props.rootLine
-    const treeSelections = props.treeSelections
-    const setTreeSelections = props.setTreeSelections
+    const relationship = props.relationship
+    const setRelationship = props.setRelationship
     const levelFilter = props.levelFilter
     const setLevelFilter = props.setLevelFilter
     const maxLevel = props.maxLevel
@@ -65,7 +67,6 @@ function Visualization (props) {
     const filteredCounts = props.filteredCounts
     const drawingComplete = props.drawingComplete
     const setDrawingComplete = props.setDrawingComplete
-    const sendFeedback = props.sendFeedback
     const initialPrune = props.initialPrune
     const setInitialPrune = props.setInitialPrune
     const visible = props.visible
@@ -81,210 +82,253 @@ function Visualization (props) {
     const excludeList = props.excludeList
     const setExcludeList = props.setExcludeList
     const annotations = props.annotations
-    const centers = props.centers
-    const setCenters = props.setCenters
+    // const centers = props.centers
+    // const setCenters = props.setCenters
     const inclusions = props.inclusions
     const setInclusions = props.setInclusions
     const getAllDescendants = props.getAllDescendants
     const linearLayout = props.linearLayout
+    // const linearLayoutTree = props.linearLayoutTree
     const getInclusions = props.getInclusions
+    const maxDistance = props.maxDistance
+    const setMaxDistance = props.setMaxDistance
+    const subspaces = props.subspaces
+    const spaceSubspaces = props.spaceSubspaces
+    const sourceData = props.sourceData
+    const nWidth = props.nWidth
+    const countType = props.countType
+    const setCountType = props.setCountType
+    const moveSlider = props.moveSlider
+    const getMidX = props.getMidX
+    const showConfirmation = props.showConfirmation
+    const setShowConfirmation = props.setShowConfirmation
     const [showRootLine, setShowRootLine] = useState(true)
     const [zoomed, setZoomed] = useState(false)
     const [biDirectional, setBiDirectional] = useState()
-    const [text,setText] = useState('')
     const [graphSectionWidth, setGraphSectionWidth] = useState('60vw')
     const edges = props.edges
     const setEdges = props.setEdges
+    const updateConcepts = props.updateConcepts
+    const updateWidth = props.updateWidth
     const hoverTimeout = useRef(null)
     const hideTimeout = useRef(null)
+    const hideTimer = useRef(null)
 
     // tooltip
     function tooltipHover(d, mode, event) {
         let concept_info = d.data.concept
         if (mode === "enter") {
-            showTooltip()
+            clearHideTimer()
+            setVisible(true)
             d3.select("#tooltip")
                 .style('left', function() {
-                    if (event.x + 270 > window.innerWidth) {
-                        return (event.x - 270 + 'px')
-                    }   
-                    else return (event.x + 10 + 'px')    
+                    const w = document.getElementById('tooltip').clientWidth
+                    if (event.x + w > window.innerWidth) return (event.x - w + 'px')
+                    else return (event.x + 'px')    
                 })
                 .style('top', function() {
-                    if (event.y + 150 > window.innerHeight) return (event.y - 110 + 'px')    
-                    else return (event.y + 10 + 'px')
+                    const h = document.getElementById('tooltip').clientHeight
+                    if (event.y + h > window.innerHeight) return (event.y - h + 'px')  
+                    else return (event.y + 'px')
                 })
-            d3.select('#tooltip-root')  
-                .style('display', () => sidebarRoot.name.includes(d.name) ? 'none' : 'block') 
-                .on('mouseover', () => d3.select('#tooltip-root').style('opacity',1))
-                .on('mouseout', () => d3.select('#tooltip-root').style('opacity',0.5))
-                .on('click', () => {
-                    if (!sidebarRoot.name.includes(d.name)) {  
-                        navigate(`/${d.name}`)
-                        setHovered([])
-                        setVisible(false) 
-                    }
-                })   
-            d3.select('#tooltip-RC').html(concept_info.record_counts + ' RC')
-            // .style('font-weight', () => !d.leaf || sidebarRoot.name.includes(d.name) ? 700 : 400)
-            d3.select('#tooltip-DRC').html(concept_info.descendant_record_counts + ' DRC')
-            // .style('font-weight', () => d.leaf || sidebarRoot.name.includes(d.name) ? 700 : 400)
-            d3.select('#counts-btn-circle')
-                .style('display', (concept_info.record_counts === 0 && !d.leaf) || d.levels === "-1" ? 'none' : 'flex')
-                .on('mouseover', () => {
-                    if (!conceptNames.includes(d.name)) {
-                        d3.select("#tooltip-plus").style('color', 'white')
-                        d3.select('#counts-btn-circle').style('border', '1px solid '+colorList[d.name]).style('background-color', () => colorList[d.name])
-                    }
-                    else {
-                        d3.select("#tooltip-x").style('display', 'block').style('opacity',1)
-                        d3.select("#graph-icon-white").style('display', 'none').style('opacity',0) 
-                    }    
+            
+            d3.select('#tooltip-search')
+                .style('display', () => sidebarRoot.name.includes(d.name) ? 'none' : 'inline-block') 
+                .on('mouseover', (e,i) => {
+                    const el = e.currentTarget
+                    el.__hoverTimeout__ = setTimeout(() => {
+                        showActionLabel('Select concept','enter',e)
+                    }, 1200)
                 })
-                .on('mouseout', () => {
-                    d3.select("#tooltip-x").style('display', 'none').style('opacity',0) 
-                    d3.select("#graph-icon-white").style('display', () => conceptNames.includes(d.name) ? 'block' : 'none').style('opacity', () => conceptNames.includes(d.name) ? 1 : 0)
-                    d3.select('#tooltip-plus').style('color',color.text).style('display', () => conceptNames.includes(d.name) ? 'none' : 'block').style('opacity', () => conceptNames.includes(d.name) ? 0 : 1)
-                    d3.select('#counts-btn-circle').style('background-color', () => conceptNames.includes(d.name) ? colorList[d.name] : 'transparent').style('border', () => conceptNames.includes(d.name) ? '1px solid '+colorList[d.name] : '1px solid var(--textlight)')
+                .on('mouseout', (e,i) => {
+                    clearTimeout(e.currentTarget.__hoverTimeout__)
+                    showActionLabel('','leave',e)
+                })
+                .on('click', (e,i) => {
+                    clearTimeout(e.currentTarget.__hoverTimeout__)
+                    showActionLabel('','leave')
+                    showConfirmationPopup(d, 'enter', e)
+                })
+            d3.select('#tooltip-eye-closed')
+                .style('display', () => !conceptNames.includes(d.name) && (d.total_counts !== 0 || d.leaf) ? 'inline-block' : 'none')
+                .on('mouseover', (e,i) => {
+                    const el = e.currentTarget
+                    el.__hoverTimeout__ = setTimeout(() => {
+                        showActionLabel('Show concept','enter',e)
+                    }, 1200)
+                }) 
+                .on('mouseout', (e,i) => {
+                    clearTimeout(e.currentTarget.__hoverTimeout__)
+                    showActionLabel('','leave',e)
                 })
                 .on('click', () => {
-                    if (d.total_counts !== 0 || d.leaf) {
-                        if (conceptNames.includes(d.name)) {
-                            const newInclusions = inclusions.filter(e => e !== d.name)
-                            updateConcepts(newInclusions,nodes,[],[d])
-                        } else if (!conceptNames.includes(d.name)){
-                            const newInclusions = [...inclusions,d.name]
-                            updateConcepts(newInclusions,nodes,[d],[])
-                        }     
-                    }
+                    const newInclusions = [...inclusions,d.name]
+                    updateConcepts(newInclusions,nodes,[d],[])
                     setVisible(false)
+                })     
+            d3.select('#tooltip-eye-opened')
+                .style('display', () => conceptNames.includes(d.name) ? 'inline-block' : 'none')
+                .on('mouseover', (e,i) => {
+                    const el = e.currentTarget
+                    el.__hoverTimeout__ = setTimeout(() => {
+                        showActionLabel('Hide concept','enter',e)
+                    }, 1200)
+                }) 
+                .on('mouseout', (e,i) => {
+                    clearTimeout(e.currentTarget.__hoverTimeout__)
+                    showActionLabel('','leave',e)
                 })
-                .style('background-color', () => conceptNames.includes(d.name) ? colorList[d.name] : 'transparent')
-                .style('border', () => conceptNames.includes(d.name) ? '1px solid '+colorList[d.name] : '1px solid var(--textlight)')
-            d3.select("#graph-icon-white")
-                .style('display', () => conceptNames.includes(d.name) ? 'block' : 'none')
-                .style('opacity', () => conceptNames.includes(d.name) ? 1 : 0)
-            d3.select("#tooltip-plus")
-                .style('display', () => conceptNames.includes(d.name) ? 'none' : 'block')
-                .style('opacity', () => conceptNames.includes(d.name) ? 0 : 1)
-            d3.select("#tooltip-title")
-                .html(concept_info.concept_name)
-                .style('display', 'block')
-            d3.select("#tooltip-content").select("#tooltip-id")
-                .selectAll("span")
-                .html(d.name)
-            d3.select("#tooltip-content").select("#tooltip-code")
-                .selectAll("span")
-                .html(concept_info.concept_code)
-            d3.select("#tooltip-content").select("#tooltip-type")
-                .selectAll("span")
-                .html(concept_info.standard_concept ? "Standard" : "Non standard")
-            d3.select("#concept-type-tooltip")
-                .style("border-style", () => concept_info.standard_concept ? 'solid' : 'dashed')
-                .style("color", 'black')
-            d3.select("#tooltip-content").select("#tooltip-vocabulary")
-                .selectAll("span")
-                .html(concept_info.vocabulary_id)
-            d3.select("#tooltip-content").select("#tooltip-domain")
-                .selectAll("span")
-                .html(concept_info.domain_id)
-            d3.select("#tooltip-content").select("#tooltip-class")
-                .selectAll("span")
-                .html(concept_info.concept_class_id)
-            // d3.select("#tooltip-content").select("#tooltip-validity")
-            //     .selectAll("p")
-            //     .html(() => {
-            //         let validEndDate = concept_info.valid_end_date
-            //         return getValidity(validEndDate)
-            //     })
-        } else {
-            if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
-            hideTooltip()
-        }
+                .on('click', () => {
+                    const newInclusions = inclusions.filter(e => e !== d.name)
+                    updateConcepts(newInclusions,nodes,[],[d])
+                    setVisible(false)
+                }) 
+            
+            d3.select('#tooltip-counts').style('opacity', () => d.leaf ? 0.2 : 1)
+            d3.select('#tooltip-desc-counts').style('opacity', () => d.leaf ? 1 : 0.2)
+            d3.select('#tooltip-counts-num').html(concept_info.record_counts)
+            d3.select('#tooltip-counts-label').html(() => countType === 'record' ? ' RC' : ' PC')
+            d3.select('#tooltip-desc-counts-num').html(concept_info.descendant_record_counts)
+            d3.select('#tooltip-desc-counts-label').html(() => countType === 'record' ? ' DRC' : ' DPC')
+            
+            d3.select("#tooltip-title").html(concept_info.concept_name)
+
+            d3.select("#tooltip-id").html(d.name)
+            d3.select("#tooltip-code").html(concept_info.concept_code)
+            d3.select("#tooltip-type").html(concept_info.standard_concept ? "Standard" : "Non Standard")
+            d3.select("#tooltip-vocabulary").html(concept_info.vocabulary_id)
+            d3.select("#tooltip-domain").html(concept_info.domain_id)
+            d3.select("#tooltip-class").html(concept_info.concept_class_id)
+        } else scheduleHide('tooltip')
     }
-    // add concepts to graph 
-    function updateConcepts(inclusionList,nodeList,toAdd,toRemove) {
-        let newNodes = nodeList
-            .map(e => ({
-                ...e,
-                included_descendants: [...e.descendants.filter(d => inclusionList.includes(d)),...e.descendants.map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => inclusionList.includes(d))]
-            }))
-            .map(e => ({
-                ...e,
-                descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => e.included_descendants.includes(c.concept_id)),
-                leaf: e.included_descendants.filter(d => d !== e.name  && !e.mappings.map(m => m.name).includes(d)).length > 0 && ((e.distance === levelFilter+1 && !links.map(d => d.source).map(d => d.name).includes(e.name)) && e.levels !== '-1') ? true : false}
-            ))
-            .map(e => ({...e,descendant_counts:getCounts(e.descendant_code_counts,'node_record_counts')}))
-        console.log('new inclusions', inclusionList, 'new nodes',newNodes)
-        let newConnections = crossConnections
-            .filter(c => inclusionList.includes(c.child) || fullTree.nodes.find(n => n.name === c.child).mappings.map(m => m.name).some(item => inclusionList.includes(item)))
-            .map(d => ({...d,parents:d.parents.filter(p => newNodes.map(d => d.name).includes(p)).filter(p => newNodes.filter(d => d.name === p)[0]?.leaf)}))
-        newConnections = newConnections.filter(d => d.parents.length > 1)
-        newNodes = newNodes.map(e => ({...e,connections: newConnections.filter(c => c.parents.includes(e.name)).map(d => ({...d,source:e.name}))}))
-        const updatedSelections = newNodes
-            .filter(d => !d.leaf ? inclusionList.includes(d.name) : d)
-            .map(d => ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: !d.leaf ? d.data : {...d.data,descendant_code_counts:d.descendant_code_counts}})) 
-        const mapSelections = newNodes.map(d => d.mappings).flat()
-            .filter(d => inclusionList.includes(d.name) && !newNodes.find(n => n.name === d.source.name).leaf)
-            .map(d => ({name: d.name, leaf: false, distance: d.distance, data: d.data}))
-        let newSelections = [...updatedSelections,...mapSelections]
-        if (toAdd.length > 0) {
-            toAdd = toAdd.map(d => d.source ? ({name: d.name, leaf: false, distance: d.distance, data: d.data}) : ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: d.data}))
-            newSelections = [...newSelections.filter(d => !toAdd.map(e => e.name).includes(d.name)),...toAdd]
-        }
-        if (toRemove.length > 0) {
-            newSelections = newSelections.filter(d => !toRemove.map(e => e.name).includes(d.name))
-        } 
-        newSelections.sort((a,b) => d3.ascending(a.distance, b.distance))
-        let isPruned = false
-        newNodes.filter(d => d.leaf).forEach(d => d.children.length > 0 ? isPruned = true : null)
-        setPruned(isPruned)
-        setSelectedConcepts(newSelections)
-        setInclusions(inclusionList)
-        setNodes(newNodes)
+
+    function showConfirmationPopup(d, mode, event = null) {
+        if (mode === 'enter') {
+            clearHideTimer()
+            setShowConfirmation(true)
+            d3.select('#confirmation-btn')
+                .on('click', (e,i) => {
+                    setShowConfirmation(false)
+                    setLoading(true)
+                    navigate(`/${d.name}`)
+                })
+            d3.select('#confirmation-popup')
+                .style('left', function() {
+                    const w = document.getElementById('confirmation-popup').clientWidth
+                    if (event.x + w > window.innerWidth) return (event.x - w - 5 + 'px')
+                    else return (event.x + 20 + 'px')    
+                })
+                .style('top', function() {
+                    const h = document.getElementById('confirmation-popup').clientHeight
+                    if (event.y - h < 0) return (event.y + 10 + 'px')  
+                    else return (event.y - h + 'px')
+                })
+                .transition()
+        } else scheduleHide('confirmation')
     }
+
+    function showActionLabel(label,mode,event) {
+        if (mode === 'enter') {
+            d3.select('#action-label')
+                .html(label)
+                .style('left', function() {
+                    const w = document.getElementById('action-label').clientWidth
+                    if (event.x + w > window.innerWidth) return (event.x - w - 5 + 'px')
+                    else return (event.x + 2 + 'px')    
+                })
+                .style('top', function() {
+                    const h = 22
+                    if (event.y - h < 0) return (event.y + 10 + 'px')    
+                    else return (event.y - h + 'px')
+                })
+                .transition().style('opacity',1)
+        }
+        else d3.select('#action-label').transition().style('opacity',0)
+    }
+
     function getConceptInfo(id) {
         return sidebarRoot.data.concepts.filter(d => d.concept_id === id)[0]
     }
-    // tooltip interaction
-    const showTooltip = () => {
-        if (hideTimeout.current) clearTimeout(hideTimeout.current)
-        hoverTimeout.current = setTimeout(() => { 
-            setVisible(true)
-        }, 400)    
-    }
-    const hideTooltip = () => {
-        hideTimeout.current = setTimeout(() => {  
-            setVisible(false)
-        }, 200)
+
+    function formatThousands(num) {
+        return Number(num).toLocaleString('de-DE')
     }
 
-    const handleChange = (e) => {setText(e.target.value)}
+    // tooltip interaction
+    function clearHideTimer() {
+        if (hideTimer.current) {
+            clearTimeout(hideTimer.current)
+            hideTimer.current = null
+        }
+    }
+
+    const scheduleHide = (id) => {
+        clearHideTimer()
+        hideTimer.current = setTimeout(() => { 
+            if (id === 'tooltip') setVisible(false)
+            if (id === 'confirmation') setShowConfirmation(false)
+        }, 800)    
+    }
     
     // filter tree data
+    // *** optimize this *** 
     useEffect(()=>{
         if (fullTree.nodes) {
-            console.log('filter')
             // filter nodes and links
             let filteredNodes = fullTree.nodes
-                .filter(d => levelFilter === undefined || d.distance <= levelFilter+1)
+                .filter(d => levelFilter === undefined || d.distance <= levelFilter)
                 .filter(d => classFilter.includes('All') ? d : d.class ? classFilter.includes(d.class) : d)
             let filteredLinks = fullTree.links
                 .filter(d => filteredNodes.map(d => d.name).includes(d.source.name) && filteredNodes.map(d => d.name).includes(d.target.name))
-            // **** filter parent and children by class
+            const nodeNames = filteredNodes.map(d => d.name)
+            const stringNames = nodeNames.map(n => n.toString())
+
+            // new posets
+            let positions = {}
+            let newPosetArray = []
+
+            subspaces.forEach(fullPos => {
+                const names = fullPos.elements.filter(e => stringNames.includes(e))
+                let newEdges = fullTree.edges.filter(d => names.includes(d[0]) && names.includes(d[1]))
+                if (newEdges.length > 1) newEdges = newEdges.filter(d => d[0] !== d[1])
+                if (newEdges.length === 0) newEdges = stringNames.map(n => [n,n])
+                const includedInEdges = newEdges.flat().filter((e,n,l) => l.indexOf(e) === n)
+                if (names.length > includedInEdges.length) {
+                    const missingNodes = names.filter(n => !includedInEdges.includes(n))
+                    const missingEdges = missingNodes.map(n => [n,n])
+                    newEdges = [...newEdges,...missingEdges]
+                }
+                const {matrix,nodes} = po.domFromEdges(newEdges)
+                const newPos = po.createPoset(matrix,nodes)
+                newPos.enrich()
+                    .setLayers()
+                    .feature("node_degree",(node)=>fullPos.featureOf(node,'node_degree'))
+                    .print()
+                const nodeWidth = mapRoot.filter(r => newPos.elements.includes(r.toString())).length > 0 ? nWidth*2 : nWidth
+                linearLayout(newPos,newEdges,nodeWidth,fullPos)  
+                newPos.elements.forEach(e => positions[e] = newPos.featureOf(e,'x'))
+                newPosetArray.push(newPos)
+            })
+            spaceSubspaces(newPosetArray,mapRoot.length > 0 ? nWidth*2 : nWidth)
+            newPosetArray.forEach(pos => pos.elements.forEach(e => positions[e] = pos.featureOf(e,'x')))
+
+            // set updates nodes etc
+            const nodeDistances = filteredNodes.map(d => fullTree.nodes.find(n => n.name === d.name).distance).filter((e,n,l) => l.indexOf(e) === n).sort((a,b)=>a-b)
+            // *** maxD should be by tree not for all nodes ***
+            const maxD = nodeDistances[nodeDistances.length-1]
+            setMaxDistance(maxD)
             filteredNodes = filteredNodes
                 .map(e => ({
                     ...e,
-                    leaf: (e.distance === levelFilter+1 && !filteredLinks.map(d => d.source).map(d => d.name).includes(e.name)) && e.levels !== '-1' ? true : false,
+                    leaf: (e.distance === maxD && !filteredLinks.map(d => d.source).map(d => d.name).includes(e.name)) && e.levels !== '-1' ? true : false,
                     parents: fullTree.nodes.find(n => n.name === e.name).parents.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)),
-                    descendants: [...getAllDescendants(fullTree.relationships.filter(r => classFilter.includes('All') ? r : classFilter.includes(r.concept_class_id)),e.name,[]),e.name],
                     children: fullTree.nodes.find(n => n.name === e.name).children.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)),
-                    // *** fix this ***
-                    // x: nodes ? nodes.map(n => n.name).includes(e.name) ? nodes.find(n => n.name === e.name).x : e.x : e.x
+                    descendants: fullTree.nodes.find(n => n.name === e.name).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)),
+                    x: positions[e.name] 
                 }))
             const newInclusions = sidebarRoot.name.map(r => filteredNodes.map(n => n.name).includes(r) ? getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,filteredNodes.find(n => n.name === r).descendants) : getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)))).flat().filter((e,n,l) => l.indexOf(e) === n)
-                .filter(i => fullTree.nodes.find(n => n.name === i).levels !== '-1')
-                .map(i => treeSelections.includes('mappings') ? fullTree.nodes.find(n => n.name === i).mappings.map(m => m.name) : i).flat()   
+                .filter(i => fullTree.nodes.find(n => n.name === i).levels !== '-1' && fullTree.nodes.find(n => n.name === i).levels)
+                .map(i => relationship.includes('mappings') ? fullTree.nodes.find(n => n.name === i).mappings.map(m => m.name) : i).flat()   
                 .filter(i => sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts !== 0)
             filteredNodes = filteredNodes
                 .map(e => ({
@@ -300,103 +344,57 @@ function Visualization (props) {
             let filteredConnections = crossConnections
                 .filter(c => !filteredNodes.map(d => d.name).includes(c.child))
                 .filter(c => classFilter.includes('All') ? c : classFilter.includes(fullTree.nodes.find(n => n.name === c.child).class))
-                // .filter(c => newInclusions.includes(c.child) || fullTree.nodes.find(n => n.name === c.child).mappings.map(m => m.name).some(item => newInclusions.includes(item)))
-                .map(d => ({...d,parents:d.parents.filter(p => filteredNodes.map(d => d.name).includes(p)).filter(p => filteredNodes.filter(d => d.name === p)[0]?.leaf)}))
+                .map(d => ({
+                    ...d,
+                    parents:d.parents.filter(p => filteredNodes.map(d => d.name).includes(p)).filter(p => filteredNodes.filter(d => d.name === p)[0]?.leaf)
+                }))
             filteredConnections = filteredConnections.filter(d => d.parents.length > 1)
-            filteredNodes = filteredNodes.map(e => ({...e,connections: filteredConnections.filter(c => c.parents.includes(e.name)).map(d => ({...d,source:e.name}))}))
             const updatedSelections = filteredNodes
                 .filter(d => !d.leaf ? newInclusions.includes(d.name) : d)
-                .map(d => ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: !d.leaf ? d.data : {...d.data,descendant_code_counts:d.descendant_code_counts}})) 
+                .map(d => ({
+                    name: d.name, 
+                    leaf: d.leaf, 
+                    descendants: d.descendants, 
+                    distance: d.distance, 
+                    data: !d.leaf ? d.data : {...d.data,descendant_code_counts:d.descendant_code_counts}
+                })) 
             const mapSelections = filteredNodes.map(d => d.mappings).flat()
                 .filter(d => newInclusions.includes(d.name) && !filteredNodes.find(n => n.name === d.source.name).leaf)
-                .map(d => ({name: d.name, leaf: false, distance: d.distance, data: d.data}))
+                .map(d => ({
+                    name: d.name, 
+                    leaf: false, 
+                    distance: d.distance, 
+                    data: d.data
+                }))
             const filteredSelected = [...updatedSelections,...mapSelections]
             filteredSelected.sort((a,b) => d3.ascending(a.distance, b.distance))
             setSelectedConcepts(filteredSelected)
             setInclusions(newInclusions)
-            if (treeSelections.includes('mappings')) setMapRoot(filteredNodes.filter(n => n.mappings.length > 0).map(n => n.name))
-            // updated poset
-            // let positions = {}
-            const nodeNames = filteredNodes.map(d => d.name)
-            const trees = fullTree.trees
-            // const width = d3.select("#tree").node().getBoundingClientRect().width
-            // const mappingDirections = filteredNodes.map(d => d.mappings).flat().map(d => d.direction)
-            // const biDirectionalMapping = mappingDirections.includes(1) && mappingDirections.includes(-1)
-            // setBiDirectional(biDirectionalMapping)
-            // let centerArray = []
-            // // iterate through trees
-            // trees.forEach((tree,index) => {
-            //     const allElements = [...new Set(tree.map(d => ([d.parent_concept_id,d.child_concept_id])).flat())]
-            //     const elements = allElements.filter(e => nodeNames.includes(e))
-            //     let layers = poset[index].layers
-            //     layers = layers.map(layer => layer.filter(e => elements.includes(parseInt(e))))
-            //     const maxLength = d3.max(layers, d => d.length)
-            //     const maxIndex = layers.findIndex(a => a.length === maxLength)
-            //     const spacingUnit = biDirectional ? 200 : 180
-            //     const thisWidth = maxLength*(layers[maxIndex].some(e => mapRoot.includes(parseInt(e))) ? spacingUnit*2 : spacingUnit)
-            //     centerArray.push(thisWidth)
-            //     let center = d3.sum(centerArray) - thisWidth/2
-            //     // console.log(index,centerArray,buffer)
-            //     layers.forEach((layer,i) => {
-            //         const layerInt = layer.map(d => parseInt(d))
-            //         const mapArrays = filteredNodes.filter(d => mapRoot.includes(d.name)).map(d => d.mappings)
-            //         const multiBiDirectional = mapArrays.map(array => array.map(d => d.direction)).filter(arr => arr.includes(1) && arr.includes(-1)).length >= 2
-            //         const nodeWidth = mapRoot.some(element => layerInt.includes(element)) ? multiBiDirectional ? 320 : 280 : biDirectional ? 160 : 140
-            //         // const nodeWidth = mapRoot.some(element => layerInt.includes(element)) ? multiBiDirectional ? 320 : 280 : biDirectional ? 160 : 140
-            //         // const center = (width/poset.length)/2 + center
-            //         // const center = buffer
-            //         if (i === 0) {
-            //             // let unit = (width/poset.length)/layer.length
-            //             let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
-            //             let median = Math.floor(layer.length/2) 
-            //             layer.forEach((node,i) => positions[parseInt(node)] = i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
-            //             // layer.forEach((node,i) => positions[parseInt(node)] = unit >= nodeWidth ? unit*i + unit/2 + center : i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
-            //         } else {
-            //             let missingParent = false
-            //             layer.forEach(node => filteredNodes.find(n => n.name === parseInt(node)).parents.length === 0 ? missingParent = true : null)
-            //             let xPositions = []
-            //             // let unit = (width/poset.length)/layer.length
-            //             let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
-            //             let median = Math.floor(layer.length/2) 
-            //             if (missingParent) xPositions = fullTree.nodes.filter(d => layer.includes(d.name.toString())).map(d => ({id:d.name.toString(),x:d.x}))
-            //             else layer.forEach(node => xPositions.push({id:node,x:d3.sum(filteredNodes.find(n => n.name === parseInt(node)).parents.map(parent => positions[parent]))/filteredNodes.find(n => n.name === parseInt(node)).parents.length})) 
-            //             xPositions.sort((a, b) => d3.ascending(a.x, b.x))
-            //             let minDistance = d3.min(d3.pairs(xPositions, (a, b) => b.x - a.x))
-            //             if ((minDistance < nodeWidth && layer.length > 1) || missingParent) {
-            //                 layer.forEach(node => positions[parseInt(node)] = xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
-            //                 // layer.forEach(node => positions[parseInt(node)] = unit >= nodeWidth ? unit*xPositions.findIndex(d => d.id === node) + unit/2 + center : xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
-            //             } else layer.forEach(node => positions[parseInt(node)] = xPositions.find(d => d.id === node)?.x)
-            //         }
-            //     })
-            // })
-            // setCenters(centerArray)
-            const combinedEdges = trees.flat()
-            let edges = combinedEdges 
-                .filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to")
-                .filter(d => filteredNodes.map(n => n.name).includes(d.parent_concept_id) && filteredNodes.map(n => n.name).includes(d.child_concept_id))
-                .map(d => d.levels === "-1" ? ({...d,parent_concept_id: d.child_concept_id,child_concept_id: d.parent_concept_id}) : d)
-                .map(d => ([d.parent_concept_id.toString(),d.child_concept_id.toString()]))
-            if (edges.length > 1) edges = edges.filter(d => d[0] !== d[1])
-            const {matrix,nodes} = po.domFromEdges(edges)
-            const poset = po.createPoset(matrix,nodes)
-            poset.enrich()
-                .setLayers()
-                .feature("lower_bound",(node)=>poset.getLower(node))
-                .feature("upper_bound",(node)=>poset.getUpper(node))
-                .feature("node_degree",(node,f)=>f.lower_bound.length+f.upper_bound.length)
-            if (mapRoot.length > 0 ) linearLayout(poset,300)   
-            else linearLayout(poset,150)  
+            if (relationship.includes('mappings')) setMapRoot(filteredNodes.filter(n => n.mappings.length > 0).map(n => n.name))
             // update nodes and links
             filteredNodes = filteredNodes
-                .map(d => ({...d,descendant_counts:getCounts(d.descendant_code_counts,'node_record_counts'),x:poset.elements.includes(d.name.toString()) ? poset.featureOf(d.name,"x") : d.x}))
-                .map(d => ({...d,mappings:d.mappings.map(m => ({...m,source:d}))}))
-            filteredLinks = filteredLinks.map(d => ({...d,source:filteredNodes[nodeNames.indexOf(d.source.name)],target:filteredNodes[nodeNames.indexOf(d.target.name)]}))
+                .map(d => ({
+                    ...d,
+                    descendant_counts: getCounts(d.descendant_code_counts,'node_record_counts')
+                }))
+                .map(d => ({...d,
+                    mappings:d.mappings.map(m => ({...m,source:d}))
+                }))
+            filteredNodes = filteredNodes.map(d => ({
+                ...d,
+                connections:filteredConnections.filter(c => c.parents.includes(d.name)).map(e => ({...e,source:d.name,x:d.x,mid:getMidX(e.parents,filteredNodes)}))
+            }))
+            filteredLinks = filteredLinks.map(d => ({
+                ...d,
+                source:filteredNodes[nodeNames.indexOf(d.source.name)],
+                target:filteredNodes[nodeNames.indexOf(d.target.name)]
+            }))
             // pruned
             let isPruned = false
             filteredNodes.filter(d => d.leaf).forEach(d => d.children.length > 0 ? isPruned = true : null)
             // set states
             setEdges(edges)
-            setPoset(poset)
+            setPoset(newPosetArray)
             setPruned(isPruned)
             setNodes(filteredNodes)
             setLinks(filteredLinks)  
@@ -407,103 +405,6 @@ function Visualization (props) {
             }
         }    
     }, [classFilter,levelFilter])
-
-    // useEffect(()=> {
-    //     if (fullTree.nodes) {
-    //         console.log('filter level')
-    //         // filter nodes and links
-    //         let filteredNodes = fullTree.nodes
-    //             .filter(d => levelFilter === undefined || d.distance <= levelFilter+1)
-    //             .filter(d => classFilter.includes('All') ? d : d.class ? classFilter.includes(d.class) : d)
-    //         let filteredLinks = fullTree.links
-    //             .filter(d => filteredNodes.map(d => d.name).includes(d.source.name) && filteredNodes.map(d => d.name).includes(d.target.name))
-    //         filteredNodes = filteredNodes.map(e => ({...e,leaf: (e.distance === levelFilter+1 && !filteredLinks.map(d => d.source).map(d => d.name).includes(e.name)) && e.levels !== '-1' && e.included_descendants.filter(d => d !== e.name).length > 0 ? true : false}))
-    //         let filteredConnections = crossConnections
-    //             .filter(c => !filteredNodes.map(d => d.name).includes(c.child))
-    //             .filter(c => classFilter.includes('All') ? c : classFilter.includes(fullTree.nodes.find(n => n.name === c.child).class))
-    //             // .filter(c => inclusions.includes(c.child) || fullTree.nodes.find(n => n.name === c.child).mappings.map(m => m.name).some(item => inclusions.includes(item)))
-    //             .map(d => ({...d,parents:d.parents.filter(p => filteredNodes.map(d => d.name).includes(p)).filter(p => filteredNodes.filter(d => d.name === p)[0]?.leaf)}))
-    //         filteredConnections = filteredConnections.filter(d => d.parents.length > 1)
-    //         filteredNodes = filteredNodes.map(e => ({...e,connections:filteredConnections.filter(c => c.parents.includes(e.name)).map(d => ({...d,source:e.name}))}))
-    //         const updatedSelections = filteredNodes
-    //             .filter(d => !d.leaf ? inclusions.includes(d.name) : d)
-    //             .map(d => ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: !d.leaf ? d.data : {...d.data,descendant_code_counts:d.descendant_code_counts}})) 
-    //         const mapSelections = filteredNodes.map(d => d.mappings).flat()
-    //             .filter(d => inclusions.includes(d.name) && !filteredNodes.find(n => n.name === d.source.name).leaf)
-    //             .map(d => ({name: d.name, leaf: false, distance: d.distance, data: d.data}))
-    //         const filteredSelected = [...updatedSelections,...mapSelections]
-    //         filteredSelected.sort((a,b) => d3.ascending(a.distance, b.distance))
-    //         setSelectedConcepts(filteredSelected)
-    //         if (treeSelections.includes('mappings')) setMapRoot(filteredNodes.filter(n => n.mappings.length > 0).map(n => n.name))
-    //         const nodeNames = filteredNodes.map(d => d.name)
-    //         // updated poset
-    //         let positions = {}
-    //         const trees = fullTree.trees
-    //         const width = d3.select("#tree").node().getBoundingClientRect().width
-    //         const mappingDirections = filteredNodes.map(d => d.mappings).flat().map(d => d.direction)
-    //         const biDirectionalMapping = mappingDirections.includes(1) && mappingDirections.includes(-1)
-    //         setBiDirectional(biDirectionalMapping)
-    //         const nodeWidth = biDirectional ? 160 : 140
-    //         let centerArray = [0]
-    //         // iterate through trees
-    //         trees.forEach((tree,index) => {
-    //             const allElements = [...new Set(tree.map(d => ([d.parent_concept_id,d.child_concept_id])).flat())]
-    //             const elements = allElements.filter(e => nodeNames.includes(e))
-    //             let layers = poset[index].layers
-    //             layers = layers.map(layer => layer.filter(e => elements.includes(parseInt(e))))
-    //             // *** set based on width of biggest layer
-    //             const maxLength = d3.max(layers, d => d.length)
-    //             const maxIndex = layers.findIndex(a => a.length === maxLength)
-    //             const multiplier = 1.2 + Math.min(maxLength * 0.01, 1)
-    //             const thisWidth = layers[maxIndex].some(e => mapRoot.includes(parseInt(e))) ? (maxLength/2)*(nodeWidth*multiplier) : (maxLength/2)*nodeWidth
-    //             centerArray.push(thisWidth)
-    //             let buffer = index === 0 ? centers[index] : centers[index] + thisWidth 
-    //             layers.forEach((layer,i) => {
-    //                 const layerInt = layer.map(d => parseInt(d))
-    //                 const mapArrays = filteredNodes.filter(d => mapRoot.includes(d.name)).map(d => d.mappings)
-    //                 const multiBiDirectional = mapArrays.map(array => array.map(d => d.direction)).filter(arr => arr.includes(1) && arr.includes(-1)).length >= 2
-    //                 const nodeWidth = mapRoot.some(element => layerInt.includes(element)) ? multiBiDirectional ? 320 : 240 : biDirectional ? 160 : 140
-    //                 const center = (width/poset.length)/2 + center
-    //                 if (i === 0) {
-    //                     let unit = (width/poset.length)/layer.length
-    //                     let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
-    //                     let median = Math.floor(layer.length/2) 
-    //                     layer.forEach((node,i) => positions[parseInt(node)] = unit >= nodeWidth ? unit*i + unit/2 + center : i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
-    //                 } else {
-    //                     let missingParent = false
-    //                     layer.forEach(node => filteredNodes.find(n => n.name === parseInt(node)).parents.length === 0 ? missingParent = true : null)
-    //                     let xPositions = []
-    //                     let unit = (width/poset.length)/layer.length
-    //                     let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
-    //                     let median = Math.floor(layer.length/2) 
-    //                     if (missingParent) xPositions = fullTree.nodes.filter(d => layer.includes(d.name.toString())).map(d => ({id:d.name.toString(),x:d.x}))
-    //                     else layer.forEach(node => xPositions.push({id:node,x:d3.sum(filteredNodes.find(n => n.name === parseInt(node)).parents.map(parent => positions[parent]))/filteredNodes.find(n => n.name === parseInt(node)).parents.length})) 
-    //                     xPositions.sort((a, b) => d3.ascending(a.x, b.x))
-    //                     let minDistance = d3.min(d3.pairs(xPositions, (a, b) => b.x - a.x))
-    //                     if ((minDistance < nodeWidth && layer.length > 1) || missingParent) {
-    //                         layer.forEach(node => positions[parseInt(node)] = unit >= nodeWidth ? unit*xPositions.findIndex(d => d.id === node) + unit/2 + center : xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
-    //                     } else layer.forEach(node => positions[parseInt(node)] = xPositions.find(d => d.id === node)?.x)
-    //                 }
-    //             })
-    //         })
-    //         setCenters(centerArray)
-    //         // update nodes and links
-    //         filteredNodes = filteredNodes
-    //             .map(d => ({...d,x:positions[d.name] ? positions[d.name] : d.x}))
-    //             .map(d => ({...d,mappings:d.mappings.map(m => ({...m,source:d}))}))
-    //         filteredLinks = filteredLinks.map(d => ({...d,source:filteredNodes[nodeNames.indexOf(d.source.name)],target:filteredNodes[nodeNames.indexOf(d.target.name)]}))
-    //         let isPruned = false
-    //         filteredNodes.filter(d => d.leaf).forEach(d => d.children.length > 0 ? isPruned = true : null)
-    //         setPruned(isPruned)
-    //         setNodes(filteredNodes)
-    //         setLinks(filteredLinks)  
-    //         if (initialPrune) {
-    //             setTimeout(() => {
-    //                 setInitialPrune(false)
-    //             }, 1000)    
-    //         }
-    //     }    
-    // },[levelFilter])
 
     // update extent
     useEffect(()=>{
@@ -523,71 +424,42 @@ function Visualization (props) {
 
     return ( sidebarRoot !== undefined ? 
         <div id = "visualization-container">
-            <div id="overlay">
-                <div id="popup">
-                    <FontAwesomeIcon className = 'fa-lg' id = "close-feedback" icon={faX} 
-                        onClick={() => {
-                            d3.select('#overlay').style('display','none')
-                            document.getElementById('feedback').value = ''
-                        }}
-                    />
-                    <h2 id = "popup-title">Send Feedback</h2>
-                    <h2 id = "feedback-sent" style = {{display:'none'}}>Feedback sent!</h2>
-                    <textarea id="feedback" placeholder="Write your feedback..." onChange={handleChange}></textarea>
-                    <button id="send-feedback" style = {{border: text.length > 0 ? '1px solid var(--textlight)' : 'none'}}
-                        onClick={ async () => {
-                            const text = document.getElementById('feedback').value.trim()
-                            if (!text) return
-                            try {
-                                await sendFeedback(text)
-                                d3.select('#feedback').style('display','none')
-                                d3.select('#send-feedback').style('display','none')
-                                d3.select('#close-feedback').style('display','none')
-                                d3.select('#popup-title').style('display','none')
-                                d3.select('#feedback-sent').style('display','block')
-                                setTimeout(() => {
-                                    d3.select('#overlay').style('display','none')
-                                    document.getElementById('feedback').value = ''
-                                }, 1000)
-                            } catch (err) {
-                                console.error(err)
-                            } 
-                        }}
-                    >Send</button>  
-                </div>
-            </div>
-            <div className = "box-shadow" id = "tooltip" style = {{opacity: visible ? 1 : 0, pointerEvents: visible ? 'all' : 'none'}} 
-            onMouseEnter={() => {showTooltip()}}
-            onMouseLeave={() => {hideTooltip()}}>
+            <div className = "toolTip dropShadow" id = "tooltip" style = {{opacity: visible ? 1 : 0, pointerEvents: visible ? 'all' : 'none'}} 
+                onMouseEnter={() => {clearHideTimer()}}
+                onMouseLeave={() => {setVisible(false)}}>
                 <div id = "tooltip-header">
                     <div id = "tooltip-btn-container">
-                        <div className = "tooltip-btn" id = 'tooltip-root' style = {{opacity: 0.5}}><img style = {{width:18}} src={rootIcon} alt="root icon"/></div>
-                        <div className = "tooltip-btn" id = "counts-btn-circle">
-                            <FontAwesomeIcon style = {{opacity:0,display:'none',color:'var(--text)'}} className = 'tooltip-icon fa-solid fa-plus fa-sm' id = "tooltip-plus" icon={faPlus} />
-                            <FontAwesomeIcon style = {{opacity:0,display:'none',color:'white'}} className = 'tooltip-icon fa-solid fa-x fa-xs' id = "tooltip-x" icon={faX} />
-                            <img style = {{paddingBottom:1,width:10,opacity:1,display:'block'}} className = 'tooltip-icon' id = "graph-icon-white" src={graphIconWhite} alt="graph icon"/>
-                        </div>
+                        <FontAwesomeIcon className = 'fa fa-search iconLg marginRight' id = "tooltip-search" icon={faSearch} alt = "select-concept" />
+                        <img className = "icon eye" id = "tooltip-eye-closed" src={closedEye} alt="show concept"/>
+                        <img className = "icon eye" style = {{opacity:1}} id = "tooltip-eye-opened" src={openedEye} alt="hide concept"/>
                     </div>
-                    <div style = {{display:'flex',margin:0}}>
-                        <p style = {{fontWeight:700}} id = "tooltip-RC"></p>
-                        <p style = {{marginRight:2,marginLeft:2,opacity:0.5}}>|</p>
-                        <p style = {{fontWeight:700}} id = "tooltip-DRC"></p>   
+                    <div className = 'flex'>
+                        <p className = 'marginRight' id = "tooltip-counts"><span id = "tooltip-counts-num" className='num'></span><span id = 'tooltip-counts-label'></span></p>
+                        <p className = 'marginRight' style = {{opacity:0.2}}>|</p>
+                        <p id = "tooltip-desc-counts"><span id = "tooltip-desc-counts-num" className='num'></span><span id = 'tooltip-desc-counts-label'></span></p>  
                     </div> 
                 </div>
-                <div id = "tooltip-title"></div>
-                <div id = "tooltip-content">
-                    <div className='tooltip-content-col'>
-                        <p className = "tooltip-content-row" id = "tooltip-id">Id<span></span></p>
-                        <p className = "tooltip-content-row" id = "tooltip-code">Code<span></span></p>
-                        <p className = "tooltip-content-row" id = "tooltip-type">Type<span className = "concept-type" id = "concept-type-tooltip"></span></p>
+                <div className = "selectedText" id = "tooltip-title"></div>
+                <div id = 'tooltip-info-container'>
+                    <div className='info-col' style = {{marginRight:20}}>
+                        <p className = "selectedText infoRow">Id:<span id = "tooltip-id" className='infoContent num'></span></p>
+                        <p className = "selectedText infoRow">Code:<span id = "tooltip-code" className='infoContent num'></span></p>
+                        <p className = "selectedText infoRow">Type:<span id = "tooltip-type" className='infoContent'></span></p>
                     </div>
-                    <div className='tooltip-content-col'>
-                        <p className = "tooltip-content-row" id = "tooltip-vocabulary">Vocabulary<span></span></p>
-                        <p className = "tooltip-content-row" id = "tooltip-domain">Domain<span></span></p>
-                        <p className = "tooltip-content-row" id = "tooltip-class">Class<span></span></p>    
+                    <div className='info-col'>
+                        <p className = "selectedText infoRow">Vocabulary:<span id = "tooltip-vocabulary" className='infoContent'></span></p>
+                        <p className = "selectedText infoRow">Domain:<span id = "tooltip-domain" className='infoContent'></span></p>
+                        <p className = "selectedText infoRow">Class:<span id = "tooltip-class" className='infoContent'></span></p>    
                     </div>
                 </div>
-            </div>    
+            </div>  
+            <div className = 'actionLabel dropShadow' id = "action-label"></div> 
+            <div id = "confirmation-popup" className = 'toolTip dropShadow' style = {{opacity: showConfirmation ? 1 : 0, pointerEvents: showConfirmation ? 'all' : 'none'}}
+                onMouseEnter={() => {clearHideTimer()}}
+                onMouseLeave={() => {setShowConfirmation(false)}}>
+                <div className = 'selectedText' style = {{paddingBottom:6}}>Select concept</div>
+                <div className = 'btn greyBtn' id = "confirmation-btn">Confirm</div>  
+            </div> 
             <SideBar
                 color = {color}
                 selectedConcepts = {selectedConcepts}
@@ -605,8 +477,8 @@ function Visualization (props) {
                 nodes = {nodes}
                 links = {links}
                 list = {list}
-                treeSelections = {treeSelections}
-                setTreeSelections = {setTreeSelections}
+                relationship = {relationship}
+                setRelationship = {setRelationship}
                 levelFilter = {levelFilter}
                 setLevelFilter = {setLevelFilter}
                 maxLevel = {maxLevel}
@@ -637,7 +509,7 @@ function Visualization (props) {
                 setDescendantsFilter = {setDescendantsFilter}
                 excludeList = {excludeList}
                 setExcludeList = {setExcludeList}
-                centers = {centers}
+                // centers = {centers}
                 inclusions = {inclusions}
                 setInclusions = {setInclusions}
                 getInclusions = {getInclusions}
@@ -645,6 +517,22 @@ function Visualization (props) {
                 setPruned = {setPruned}
                 edges = {edges}
                 linearLayout = {linearLayout}
+                setLoading = {setLoading}
+                getMidX = {getMidX}
+                maxDistance = {maxDistance}
+                subspaces = {subspaces}
+                spaceSubspaces = {spaceSubspaces}
+                nWidth = {nWidth}
+                moveSlider = {moveSlider}
+                updateWidth = {updateWidth}
+                showConfirmation = {showConfirmation}
+                showConfirmationPopup = {showConfirmationPopup}
+                showActionLabel = {showActionLabel}
+                formatThousands = {formatThousands}
+                clearHideTimer = {clearHideTimer}
+                setShowConfirmation = {setShowConfirmation}
+                countType = {countType}
+                setVisible = {setVisible}
             ></SideBar> 
             <GraphSection
                 color = {color}
@@ -666,6 +554,7 @@ function Visualization (props) {
                 // setRoot = {setRoot}
                 ageData = {ageData}
                 genderData = {genderData}
+                sourceData = {sourceData}
                 maxGender = {maxGender}
                 getConceptInfo = {getConceptInfo}
                 zoomed = {zoomed}
@@ -675,9 +564,12 @@ function Visualization (props) {
                 graphSectionWidth = {graphSectionWidth}
                 colorList = {colorList}
                 annotations = {annotations}
-                treeSelections = {treeSelections}
+                relationship = {relationship}
                 showRootLine = {showRootLine}
                 setShowRootLine = {setShowRootLine}
+                countType = {countType}
+                setCountType = {setCountType}
+                moveSlider = {moveSlider}
             />  
         </div> : null
     )

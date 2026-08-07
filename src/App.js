@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Navigate, Routes, Route, useNavigate, useParams, useLocation } from 'react-router-dom';
 import '@fortawesome/fontawesome-free/css/all.min.css';
-import finngen from './img/finngen_logo_dark.svg'
+import finngen from './img/finnGen_logo.svg'
 import CryptoJS from "crypto-js";
 import Header from './components/header'
 import Visualization from './components/visualization'
 import { faX } from '@fortawesome/free-solid-svg-icons'
 import * as d3 from "d3";
 import po from './po.js';
+import { HLL_COUNT } from './mergeHll.js';
 import { UMAP } from 'umap-js';
 
 function App() {
@@ -35,7 +36,7 @@ function App() {
   const [loaded,setLoaded] = useState(false)
   const [selectedConcepts,setSelectedConcepts] = useState([])
   const [sidebarRoot,setSidebarRoot] = useState()
-  const [graphFilter, setGraphFilter] = useState({gender:-1,age:[-1]})
+  const [graphFilter, setGraphFilter] = useState({gender:-1,age:[-1],source:[-1]})
   const [extent,setExtent] = useState()
   const [rootData,setRootData] = useState([])
   const [mapRoot,setMapRoot] = useState([])
@@ -43,11 +44,11 @@ function App() {
   const [nodes, setNodes] = useState([])
   const [links, setLinks] = useState([])
   const [list, setList] = useState([])
-  const [view, setView] = useState('')
+  const [view, setView] = useState('set')
   const [filteredList, setFilteredList] = useState()
   const [rootLine, setRootLine] = useState()
   const [listIndexes, setListIndexes] = useState()
-  const [treeSelections, setTreeSelections] = useState(['descendants'])
+  const [relationship, setRelationship] = useState('descendants')
   const [openFilters,setOpenFilters] = useState(true)
   const [levelFilter, setLevelFilter] = useState()
   const [classFilter, setClassFilter] = useState(['All'])
@@ -69,22 +70,35 @@ function App() {
   const [hovered,setHovered] = useState([])
   const [colorList,setColorList] = useState([])
   const [fullClassList,setFullClassList] = useState([])
-  const [searchOnly, setSearchOnly] = useState(true)
-  const [searchIsLoaded, setSearchIsLoaded] = useState()
+  // const [searchOnly, setSearchOnly] = useState(true)
+  // const [searchIsLoaded, setSearchIsLoaded] = useState()
   const [version, setVersion] = useState()
   const [allVocabularies, setAllVocabularies] = useState([])
   const [searchFilter, setSearchFilter] = useState([])
   const [rootArray,setRootArray] = useState()
   const [dataArray, setDataArray] = useState([])
-  const [isConceptSet,setIsConceptSet] = useState(true)
-  const [rootLabels, setRootLabels] = useState([])
+  // const [isConceptSet,setIsConceptSet] = useState(true)
+  // const [rootLabels, setRootLabels] = useState([])
   const [refresh,setRefresh] = useState(false)
-  const [centers, setCenters] = useState()
+  // const [centers, setCenters] = useState()
   const [inclusions, setInclusions] = useState([])
   const [expression, setExpression] = useState([])
   const [edges, setEdges] = useState([])
+  const [maxDistance, setMaxDistance] = useState()
+  const [subspaces, setSubspaces] = useState()
+  const [visitTypeNames, setVisitTypeNames] = useState()
+  const [countType,setCountType] = useState()
+  const [stackData, setStackData] = useState([])
+  const [expandedSearch, setExpandedSearch] = useState(true)
+  const [showConfirmation, setShowConfirmation] = useState(false)
   const fetchedRef = useRef(false)
-  const [annotations,setAnnotations] = useState([{key:'PURCH',year:1995},{key:'REIMB',year:1964},{key:'PRIM_OUT',year:2011},{key:'INPAT',year:1969},{key:'OUTPAT',year:1998},{key:'CANC',year:1953},{key:'DEATH',year:1969},{key:'OPER_IN',year:1969},{key:'OPER_OUT',year:1969},{key:'BIRTH',year:1953}])
+  const [nWidth,setNWidth] = useState(200)
+  const [annotations,setAnnotations] = useState([{key:'PURCH',year:1995},{key:'REIM',year:1964},{key:'PRIM_OUT',year:2011},{key:'INPAT',year:1969},{key:'OUTPAT',year:1998},{key:'CANC',year:1953},{key:'DEATH',year:1969},{key:'OPER_IN',year:1969},{key:'OPER_OUT',year:1969},{key:'BIRTH_MOTHER',year:1953}])
+  const [categories, setCategories] = useState([
+    {key:'Long.',codes:['INPAT','OPER_IN','OPER_OUT','OUTPAT','PRIM_OUT','REIM','DEATH','PURCH','CANC']},
+    {key:'Registry',codes:['KANTA','BIOBANK','KIDNEY','VISION','BIRTH_MOTHER']},
+    {key:'Drug',codes:['PRESCRIPTION','DELIVERY','PRESCRIPTION_DELIVERY','DELIVERY_KELA','PRESCRIPTION_DELIVERY_KELA']}
+  ])
   const conceptNames = useMemo(() => selectedConcepts.map(d => d.name).filter((e,n,l) => l.indexOf(e) === n),[selectedConcepts])
   const allCounts = useMemo(() => 
     {
@@ -94,23 +108,18 @@ function App() {
       return {counts:counts,descendantCounts:descendantCounts,all:allCounts}
     }
   ,[selectedConcepts])
-  const maxLevel = useMemo(() => d3.max(nodes.filter(d => d.levels !== '-1').map(d => parseInt(d.levels.split('-')[0]))),[nodes])
-  const fullTreeMax = useMemo(() => sidebarRoot ? d3.max(sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to" && d.levels !== "-1").map(d => parseInt(d.levels.split('-')[0]))) : null,[sidebarRoot])
-  const allClasses = useMemo(() => sidebarRoot ? sidebarRoot.data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").filter(d => levelFilter === undefined || (d.levels === '-1' || parseInt(d.levels.split('-')[0]) <= levelFilter)).map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined) : null,[sidebarRoot,levelFilter])
+  const maxLevel = useMemo(() => nodes ? d3.max(nodes.map(d => d.distance)) : null,[nodes])
+  const fullTreeMax = useMemo(() => fullTree.nodes ? d3.max(fullTree.nodes.map(d => d.distance)) : null,[fullTree.nodes])
+  // filter -1?
+  const allClasses = useMemo(() => fullTree.nodes ? fullTree.nodes.map(d => d.class).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined) : null,[fullTree.nodes,levelFilter])
   const years = useMemo(() => extent ? Array.from({ length: extent[1] - extent[0] + 1 }, (_, i) => extent[0] + i) : null,[extent])
   // let timer = null
 
-  async function sendFeedback(text) {
-    const response = await fetch(`${API_BASE_URL}/sendFeedback`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ feedback: text }) 
-    })
-    if (!response.ok) throw new Error(`Server error: ${response.status}`);
-    return response.json().catch(() => ({}))
+  async function runMerge(sketches) {
+    const result = await HLL_COUNT.MERGE(sketches)
+    return result
   }
+  
   const loadNews = async () => {
     const res = await fetch('/NEWS.md')
     const text = await res.text()
@@ -120,60 +129,125 @@ function App() {
     setVersion(version)
   }
 
+  const normalizeVisitTypeName = (row) => {
+    const rawVisitGroupConceptId = row.visitGroupConceptId ?? row.visit_group_concept_id ?? row.visitgroupconceptid ?? row.concept_id ?? row.conceptId ?? row.conceptid
+    const visitGroupConceptId = rawVisitGroupConceptId == null ? undefined : Number(rawVisitGroupConceptId)
+    const conceptName = row.conceptName ?? row.concept_name ?? row.conceptname ?? row.name
+    const conceptCodeRaw = row.conceptCode ?? row.concept_code ?? row.conceptcode ?? conceptName ?? (visitGroupConceptId != null ? String(visitGroupConceptId) : undefined)
+    const conceptCode = typeof conceptCodeRaw === 'string' ? conceptCodeRaw.toUpperCase() : conceptCodeRaw
+    return {
+      ...row,
+      visitGroupConceptId,
+      conceptCode,
+      conceptName
+    }
+  }
+
+  const getVisitGroupConceptId = (row) => {
+    const rawId = row.visit_group_concept_id ?? row.visitGroupConceptId ?? row.visit_source_group_concept_id ?? row.visitSourceGroupConceptId ?? row.concept_id ?? row.conceptId
+    return rawId == null ? undefined : Number(rawId)
+  }
+
   const filteredCounts = useMemo(() => {
     const countsObj = allCounts
-    if (graphFilter.gender !== -1 || graphFilter.age.length > 1) {
-      const counts = countsObj.counts.filter(e => graphFilter.gender !== -1 && graphFilter.age.length > 1 ? e.gender_concept_id === graphFilter.gender && graphFilter.age.includes(e.age_decile) : graphFilter.gender !== -1 ? e.gender_concept_id === graphFilter.gender : graphFilter.age.includes(e.age_decile))
-      const descendantCounts = countsObj.descendantCounts.map(obj => ({...obj,counts:obj.counts.filter(e => graphFilter.gender !== -1 && graphFilter.age.length > 1 ? e.gender_concept_id === graphFilter.gender && graphFilter.age.includes(e.age_decile) : graphFilter.gender !== -1 ? e.gender_concept_id === graphFilter.gender : graphFilter.age.includes(e.age_decile))}))
+    if (graphFilter.gender !== -1 || graphFilter.age.length > 1 || !graphFilter.source.includes(-1)) {
+      let counts = countsObj.counts
+      // .filter(e => graphFilter.gender !== -1 && graphFilter.age.length > 1 && graphFilter.source.length > 1 ? e.gender_concept_id === graphFilter.gender && graphFilter.age.includes(e.age_decile) && graphFilter.source.includes(e.visit_group_concept_id) : graphFilter.gender !== -1 ? e.gender_concept_id === graphFilter.gender : graphFilter.age.includes(e.age_decile))
+      if (graphFilter.gender !== -1) counts = counts.filter(e => e.gender_concept_id === graphFilter.gender)
+      if (graphFilter.age.length > 1) counts = counts.filter(e => graphFilter.age.includes(e.age_decile))
+      if (!graphFilter.source.includes(-1)) counts = counts.filter(e => graphFilter.source.includes(getVisitGroupConceptId(e)))
+      let dCounts = []
+      countsObj.descendantCounts.forEach(obj => {
+        let counts = obj.counts
+        if (graphFilter.gender !== -1) counts = counts.filter(e => e.gender_concept_id === graphFilter.gender)
+        if (graphFilter.age.length > 1) counts = counts.filter(e => graphFilter.age.includes(e.age_decile))
+        if (!graphFilter.source.includes(-1)) counts = counts.filter(e => graphFilter.source.includes(getVisitGroupConceptId(e)))
+        dCounts.push(counts)
+      })
+      const descendantCounts = countsObj.descendantCounts.map((obj,i) => ({...obj,counts:dCounts[i]}))
       const allCounts = [...counts,...descendantCounts.map(d => d.counts).flat()]
       return {counts:counts,descendantCounts:descendantCounts,all:allCounts}
     } else {return allCounts}
   },[allCounts,graphFilter])
 
-  const stackData = useMemo(() => {
-    if (!filteredCounts || filteredCounts.all.length === 0) return []
-    else {
+  useEffect(() => {
+    async function buildStackData() {
+      if (!filteredCounts || filteredCounts.all.length === 0) {
+        setStackData([])
+        return
+      }
+
       const rollupA = new Map()
+
       for (const row of filteredCounts.counts) {
         const year = row.calendar_year
         const id = row.concept_id
         const key = `${year}__${id}`
-        const current = rollupA.get(key) ?? 0
-        const value = row['node_record_counts']
-        rollupA.set(key, current + value)
-      }
-      const rollupB = new Map()
-      for (const item of filteredCounts.descendantCounts) {
-        const id = item.name
-        for (const row of item.counts) {
-          const year = row.calendar_year
-          const value = row.node_record_counts
-          const key = `${year}__${id}`
-          const current = rollupB.get(key) ?? 0
-          rollupB.set(key, current + value)
+
+        const current =
+          countType === 'record'
+            ? rollupA.get(key) ?? 0
+            : rollupA.get(key) ?? []
+
+        const value =
+          countType === 'record'
+            ? row.node_record_counts ?? 0
+            : row.node_hll_person_counts ?? 0
+
+        if (countType === 'record') rollupA.set(key, current + value)
+        else {
+          if (value !== 0) rollupA.set(key, [...current, value])
         }
       }
+
+      const rollupB = new Map()
+
+      for (const item of filteredCounts.descendantCounts) {
+        const id = item.name
+
+        for (const row of item.counts) {
+          const year = row.calendar_year
+          const key = `${year}__${id}`
+
+          const current = rollupB.get(key) ?? 0
+          rollupB.set(key, current + row.node_record_counts)
+        }
+      }
+
       const rollupMap = new Map([...rollupA, ...rollupB])
       const yearConceptMap = new Map()
+
       for (const [key, value] of rollupMap.entries()) {
         const [year, id] = key.split('__')
         const y = +year
-        if (!yearConceptMap.has(y)) yearConceptMap.set(y, {})
-        yearConceptMap.get(y)[id] = value
+
+        if (!yearConceptMap.has(y)) {
+          yearConceptMap.set(y, {})
+        }
+
+        yearConceptMap.get(y)[id] =
+          countType === 'record'
+            ? value
+            : await runMerge(value)
       }
       const conceptNames = selectedConcepts.map(d => d.name)
       const allYears = new Set([...years, ...yearConceptMap.keys()])
+
       const finalData = Array.from(allYears).map(year => {
         const row = yearConceptMap.get(year) || {}
+
         const filled = {}
         for (const name of conceptNames) {
           filled[name] = row[name] ?? 0
         }
+
         return { ...filled, year }
       })
-      return finalData.sort((a, b) => a.year - b.year)  
+
+      setStackData(finalData.sort((a, b) => a.year - b.year))
     }
-  },[filteredCounts,classFilter])
+    buildStackData()
+  }, [filteredCounts,classFilter,countType])
 
   const genderData = useMemo(() => {
     let genderDataVar = []
@@ -192,6 +266,21 @@ function App() {
     ages.forEach(a => ageDataVar.push({id:a, sum: d3.sum(ageSums.filter(d => d.id === a).map(d => d.sum))}))
     return ageDataVar
   },[filteredCounts,extent])
+
+  const sourceData = useMemo(() => {
+    if (visitTypeNames) {
+      let sourceSums = []
+      visitTypeNames.forEach(obj => selectedConcepts.forEach(d => sourceSums.push({id: obj.visitGroupConceptId,sum: d.leaf ? getCounts(d.data.descendant_code_counts.filter(e => (e.calendar_year >= extent[0] && e.calendar_year <= extent[1])).filter(e => getVisitGroupConceptId(e) === obj.visitGroupConceptId),'node_record_counts') : getCounts(d.data.code_counts.filter(e => (e.calendar_year >= extent[0] && e.calendar_year <= extent[1])).filter(e => getVisitGroupConceptId(e) === obj.visitGroupConceptId),'node_record_counts')})))
+      const sourceDataVar = categories.map(obj => ({key:obj.key,codes:visitTypeNames.filter(d => obj.codes.includes(d.conceptCode)).map(d => ({id:d.visitGroupConceptId,code:d.conceptCode,name:d.conceptName,sum:d3.sum(sourceSums.filter(s => s.id === d.visitGroupConceptId).map(s => s.sum))}))}))
+      const categorizedCodes = new Set(categories.map(obj => obj.codes).flat())
+      const otherCodes = visitTypeNames
+        .filter(d => !categorizedCodes.has(d.conceptCode))
+        .map(d => ({id:d.visitGroupConceptId,code:d.conceptCode,name:d.conceptName,sum:d3.sum(sourceSums.filter(s => s.id === d.visitGroupConceptId).map(s => s.sum))}))
+      if (otherCodes.length > 0) sourceDataVar.push({key:'Other',codes:otherCodes})
+      const sorted = sourceDataVar.map(obj => ({...obj,codes:obj.codes.sort((a,b) => a.sum - b.sum)}))
+      return sorted
+    }
+  },[filteredCounts,extent,visitTypeNames])
 
   const maxGender = useMemo(() => {return genderData.reduce((max, obj) => obj.sum > max.sum ? obj : max).id},[genderData])
 
@@ -212,33 +301,22 @@ function App() {
     return hexToRgb(hexColor)
   }
 
+  function moveSlider(index,w,id) {
+      const buffer = id === 'view' ? 1 : 0
+      d3.select('#slider-'+id).style('transform',`translateX(${index * (w+buffer)}%)`)
+  }
+
   function getCounts(data,col) {
     let sum = 0;
     data.forEach(d => sum += d[col])
     return sum
   }
 
-  // *** get rid of this?
-  function reset() {
-    d3.select("#graph-section").style('width', "60vw")
-    d3.select('#expand').style('display', 'block') 
-    d3.select('#compress').style('display', 'none') 
-    setGraphFilter({gender:-1,age:[-1]})
-    setClassFilter(rootData.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined))
-    setSidebarRoot({name:rootArray,data:rootData}) 
-    setView('Set')
-    // if (rootArray.length > 1) setView('Set')
-    // else setView('Tree')
-    setTreeSelections(['descendants'])
-    setLevelFilter()
-    setOpenFilters(true)
-    setMapRoot([])
-  }
-
   function getAllDescendants(relationships, rootId, descendants) {
     const immediateChildren = relationships
       .filter(r => r.parent_concept_id === rootId && r.child_concept_id !== rootId)
-      .map(r => r.child_concept_id);
+      .filter(r => r.levels !== '-1')
+      .map(r => r.child_concept_id)
 
     for (const child of immediateChildren) {
       if (!descendants.includes(child)) { 
@@ -272,7 +350,6 @@ function App() {
         bmusID: [],
         ref: []
     }));
-      //console.log("N",JSON.parse(JSON.stringify(neurons.map(n=>n.weights))))
             
     // Helper function to update weights
     
@@ -299,12 +376,12 @@ function App() {
         profiles.forEach(profile => {
             // Step 1: Find the Best Matching Unit (BMU)
             let bmuIndex = 0;
-            let minDist = Infinity;
+            let w = Infinity;
             
             neurons.forEach((neuron, index) => {
                 const dist = jaccardDistance(neuron.weights, profile);
-                if (dist < minDist) {
-                    minDist = dist;
+                if (dist < w) {
+                    w = dist;
                     bmuIndex = index;
                 }
             });
@@ -326,12 +403,12 @@ function App() {
     profiles.forEach((profile, n) => {
         
         let bmuIndex = 0;
-        let minDist = Infinity;
+        let w = Infinity;
 
         neurons.forEach((neuron, index) => {
             const dist = jaccardDistance(neuron.weights, profile);
-            if (dist < minDist) {
-                minDist = dist;
+            if (dist < w) {
+                w = dist;
                 bmuIndex = index;
             }
         });
@@ -354,624 +431,196 @@ function App() {
 
   }
 
-  function linearLayout1(poset,nWidth) {
-    // const barycenterSort = (sets, ids) => {
-    //   const order = [...ids]
-    //   const supersetCount = i => ids.filter(j => j !== i && po.isSubset(sets[ids.indexOf(i)], sets[ids.indexOf(j)])).length
-    //   const toMove = [...ids].sort((a, b) => supersetCount(b) - supersetCount(a))
-    //   for (const node of toMove) {
-    //       const nodeVec = sets[ids.indexOf(node)]
-    //       const supersets = order.filter(j => j !== node && po.isSubset(nodeVec, sets[ids.indexOf(j)]))
-    //       if (supersets.length === 0) continue
-    //       const positions = supersets.map(s => order.indexOf(s))
-    //       const mid = Math.round(positions.reduce((a, b) => a + b, 0) / positions.length)
-    //       order.splice(order.indexOf(node), 1)
-    //       order.splice(mid, 0, node)
-    //   }
-    //   return order
-    // }
-    const barycenterSort = (sets, ids) => {
-      const order = [...ids];
-      
-      const supersetCount = i => ids.filter(j => j !== i && po.isSubset(sets[ids.indexOf(i)], sets[ids.indexOf(j)])).length;
-      const toMove = [...ids].sort((a, b) => supersetCount(b) - supersetCount(a));
-
-      for (const node of toMove) {
-          const nodeVec = sets[ids.indexOf(node)];
-          const supersets = order.filter(j => j !== node && po.isSubset(nodeVec, sets[ids.indexOf(j)]));
-          if (supersets.length === 0) continue;
-
-          const positions = supersets.map(s => order.indexOf(s));
-          const mid = Math.round(positions.reduce((a, b) => a + b, 0) / positions.length);
-
-          order.splice(order.indexOf(node), 1);
-          order.splice(mid, 0, node);
-      }
-
-      return order;
+  const propagate = (layers,start,f,sorted=false) => {
+    const below = layers.slice(0, start).reverse()
+    const above = layers.slice(start + 1)
+    below.forEach(l => f(l,layers.indexOf(l),'up',sorted))
+    above.forEach(l => f(l,layers.indexOf(l),'down',sorted))
   }
-    const countNonZeros = (subspace) => subspace.length > 1
-          ? subspace.reduce((l1,l2)=>l1.map((v,n)=>v+l2[n])).filter(e=>e!==0).length
-          : subspace[0].filter(e=>e!==0).length
-    function spreadOverlap(nodes,w,center) {
-      let nodeWidth
-      const layerIndex = poset.layers.findIndex(i => i.includes(nodes[0]))
-      if (layerIndex === poset.layers.length-1) nodeWidth = nWidth
-      else nodeWidth = w/nodes.length
-      let adjustment = nodes.length % 2 !== 0 ? 0 : nodeWidth/2
-      let median = Math.floor(nodes.length/2) 
-      const childrenArray = nodes.map(node => poset.getLower(node))
-      const uniqueChildren = childrenArray.flat().filter((e,n,l) => l.indexOf(e) === n)
-      const numChildren = childrenArray.map(array => array.length)
-      // at least one node with all children -> spread evenly
-      if (d3.max(numChildren) === uniqueChildren.length) {
-        nodes.forEach(node => poset.features[node].x = nodes.findIndex(d => d === node) >= median ? center + ((nodes.findIndex(d => d === node) - median) * nodeWidth) + adjustment : center - ((median - nodes.findIndex(d => d === node)) * nodeWidth) + adjustment)
-        nodes.forEach(node => poset.features[node].width = w/nodes.length)  
-      } else {
-        // spread based on counts ratio 
-        const counts = nodes.map(node => poset.getLower(node).filter(child => poset.layers.findIndex(i => i.includes(child)) === layerIndex-1).length > 0 ? poset.getDownset(node) : [node]).map(array => array.length)
-        const ratios = counts.map(count => count / d3.sum(counts))
-        const widths = getWidths(ratios,w)
-        const centroids = getCentroids(center-(w/2),widths)
-        nodes.forEach((id,i) => {
-          poset.features[id].x = centroids[i]
-          poset.features[id].width = widths[i]
-        })
-      }  
-    }
-    const getWidths = (ratios,totalWidth) => ratios.map(ratio => ratio * totalWidth)
-    const getCentroids = (acc,widths) => {
-      return widths.map(w => {
-        const center = acc + (w / 2)
-        acc += w
-        return center  
-      })
-    }
-    const setPositions = (ids,widths,centroids) => {
-      ids.forEach((array,i) => {
-          if (array.length > 1) spreadOverlap(array,widths[i],centroids[i])
-          else {
-            array.forEach(id => {
-              poset.features[id].x = centroids[i]
-              poset.features[id].width = widths[i]
-            })    
-          }
-        })
-    }
-    let prevSubsets
-    for (let L = poset.layers.length-1; L >= 0; L--) {
-      const {ids,subspaces} = po.findSubspaces(po.dominanceScores(poset,L))
-      // re-order ids with linearEmbedding and barycenterSort
-      let idArray = ids
-      // for (let i = 0; i < subspaces.length; i++) {
-      //   const LE = linearEmbedding(subspaces[i],ids[i])
-      //   const sets = LE.neurons.flatMap(neu=>neu.bmus)
-      //   const sspids = LE.neurons.flatMap(neu=>neu.bmusID)
-      //   console.log('ordered',barycenterSort(sets, sspids))
-      //   idArray[i] = barycenterSort(sets, sspids)
-      // }
-      // console.log('check',ids,idArray)
-      // first layer
-      if (L === poset.layers.length-1) {
-        // set positioning for first layer
-        const counts = subspaces.map(ssp=>countNonZeros(ssp))
-        const widths = counts.map(count => count === 0 ? nWidth : count * nWidth)
-        const centroids = getCentroids(0,widths)
-        setPositions(idArray,widths,centroids)
-      } else {
-        // group subspaces by shared parents based on previous layer's subspaces
-        const data = idArray.map((array,i) => ({ids:array,subspaces:subspaces[i],parents:array.map(id => poset.getUpper(id)).flat().filter((e,n,l) => l.indexOf(e) === n).filter(p => poset.layers.findIndex(i => i.includes(p)) === L+1)}))
-        let clusters = prevSubsets.map(idList => ([...idList,...data.filter(d => idList.some(id => d.parents.includes(id)))]))
-        clusters = clusters.map(inner => inner.filter(item => typeof item === "object" && !Array.isArray(item))).filter(inner => inner.length > 0)
-        // set positioning for each group
-        clusters.forEach(cluster => {
-          const parents = cluster.map(c => c.parents).flat().filter((e,n,l) => l.indexOf(e) === n)
-          const counts = cluster.map(c => c.subspaces).map(ssp=>countNonZeros(ssp)).map(c => c === 0 ? 1 : c)
-          const ratios = counts.map(count => count / d3.sum(counts))
-          const widths = getWidths(ratios,d3.sum(parents.map(p => poset.features[p].width)))
-          const firstParent = parents.sort((a,b) => poset.features[a].x - poset.features[b].x)[0]
-          const startX = poset.features[firstParent].x - (poset.features[firstParent].width/2)
-          let centroids
-          if (widths.length === 1) centroids = [d3.sum(parents.map(p => poset.features[p].x))/parents.length]
-          else centroids = getCentroids(startX,widths)
-          setPositions(cluster.map(c => c.ids),widths,centroids)
-        })
-      }
-      prevSubsets = idArray
-    }
-  }
-  function linearLayout2(poset, nWidth) {
-    const allNodes = poset.elements
-    const exp = 0.6
-    const offset = 2
 
-    const countNonZeros = (subspace) => subspace.length > 1
-      ? subspace.reduce((l1,l2)=>l1.map((v,n)=>v+l2[n])).filter(e=>e!==0).length
-      : subspace[0].filter(e=>e!==0).length
-
-    // ---------------------------
-    // 🔧 GLOBAL PRECOMPUTATION
-    // ---------------------------
-    const layerIndex = new Map()
-    poset.layers.forEach((layer, i) => {
-      for (const node of layer) layerIndex.set(node, i)
-    })
-
-    const lowerCache = new Map()
-    const upperCache = new Map()
-    const downsetCache = new Map()
-
-    for (const node of allNodes) {
-      lowerCache.set(node, poset.getLower(node))
-      upperCache.set(node, poset.getUpper(node))
-      downsetCache.set(node, poset.getDownset(node))
-    }
-
-    // ---------------------------
-    // ⚡ BARYCENTER SORT
-    // ---------------------------
-    const barycenterSort = (ids, sets) => {
-      const order = [...ids]
-      const supersetCount = i => ids.filter(j => j !== i && po.isSubset(sets[ids.indexOf(i)], sets[ids.indexOf(j)])).length
-      const toMove = [...ids].sort((a, b) => supersetCount(b) - supersetCount(a))
-      for (const node of toMove) {
-          const nodeVec = sets[ids.indexOf(node)]
-          const supersets = order.filter(j => j !== node && po.isSubset(nodeVec, sets[ids.indexOf(j)]))
-          if (supersets.length === 0) continue
-          const positions = supersets.map(s => order.indexOf(s))
-          const mid = Math.round(positions.reduce((a, b) => a + b, 0) / positions.length)
-          order.splice(order.indexOf(node), 1)
-          order.splice(mid, 0, node)
-      }
-      return order
-    }
-
-    // ---------------------------
-    // ⚡ CLUSTERING
-    // ---------------------------
-    function buildClusters(prevSubsets, data) {
-      const parentToCluster = new Map()
-
-      prevSubsets.forEach((group, i) => {
-        for (const id of group) {
-          parentToCluster.set(id, i)
-        }
-      })
-
-      const clusters = Array.from({ length: prevSubsets.length }, () => [])
-
-      for (const item of data) {
-        for (const p of item.parents) {
-          const idx = parentToCluster.get(p)
-          if (idx !== undefined) {
-            clusters[idx].push(item)
-            break
-          }
-        }
-      }
-
-      return clusters.filter(c => c.length > 0)
-    }
-
-    // ---------------------------
-    // ⚡ SPREAD OVERLAP
-    // ---------------------------
-    function spreadOverlap(nodes, totalWidth, center) {
-      const n = nodes.length
-      if (!n) return
-
-      const layer = layerIndex.get(nodes[0])
-      const isLast = layer === poset.layers.length - 1
-
-      const nodeWidth = isLast ? nWidth : totalWidth / n
-      const half = Math.floor(n / 2)
-      const offsetFix = n % 2 === 0 ? nodeWidth / 2 : 0
-
-      const childrenArray = new Array(n)
-      const childCounts = new Array(n)
-
-      for (let i = 0; i < n; i++) {
-        const children = lowerCache.get(nodes[i]) || []
-        childrenArray[i] = children
-        childCounts[i] = children.length
-      }
-
-      const uniqueChildren = new Set()
-      for (const arr of childrenArray) {
-        for (const c of arr) uniqueChildren.add(c)
-      }
-
-      const maxChildren = Math.max(...childCounts)
-
-      // Even spread
-      if (maxChildren === uniqueChildren.size) {
-        for (let i = 0; i < n; i++) {
-          const offset = (i - half) * nodeWidth + offsetFix
-          poset.features[nodes[i]].x = center + offset
-          poset.features[nodes[i]].width = totalWidth / n
-        }
-        return
-      }
-
-      // Proportional spread
-      const counts = new Array(n)
-      // let total = 0
-
-      for (let i = 0; i < n; i++) {
-        const node = nodes[i]
-
-        const hasLower = (lowerCache.get(node) || []).some(
-          c => layerIndex.get(c) === layer - 1
-        )
-
-        const arr = hasLower
-          ? downsetCache.get(node) || [node]
-          : [node]
-
-        counts[i] = arr.length || 1
-        // total += counts[i]
-      }
-
-      const adjustedCounts = counts.map(c => Math.pow(c + offset, exp) - Math.pow(offset, exp))
-      const total = adjustedCounts.reduce((a,b)=>a+b,0)
-
-      let acc = center - totalWidth / 2
-
-      for (let i = 0; i < n; i++) {
-        const w = (adjustedCounts[i] / total) * totalWidth
-        const x = acc + w / 2
-
-        poset.features[nodes[i]].x = x
-        poset.features[nodes[i]].width = w
-
-        acc += w
-      }
-    }
-
-    // ---------------------------
-    // MAIN LOOP
-    // ---------------------------
-    let prevSubsets
-
-    for (let L = poset.layers.length - 1; L >= 0; L--) {
-
-      const { ids, subspaces } = po.findSubspaces(
-        po.dominanceScores(poset, L)
-      )
-
-      const idArray = []
-
-      // Sort each subspace
-      for (let i = 0; i < subspaces.length; i++) {
-        const LE = linearEmbedding(subspaces[i], ids[i])
-        const sets = LE.neurons.flatMap(neu => neu.bmus)
-        const sspids = LE.neurons.flatMap(neu => neu.bmusID)
-
-        idArray[i] = barycenterSort(sspids, sets)
-      }
-
-      // First layer
-      if (L === poset.layers.length - 1) {
-        const widths = subspaces.map(ssp=>countNonZeros(ssp)).map(count => count === 0 ? nWidth : count * nWidth)
-
-        let acc = 0
-        for (let i = 0; i < idArray.length; i++) {
-          const width = widths[i]
-          const center = acc + (width / 2)
-
-          const nodes = idArray[i]
-          if (nodes.length > 1) {
-            spreadOverlap(nodes, width, center)
-          } else {
-            poset.features[nodes[0]].x = center
-            poset.features[nodes[0]].width = width
-          }
-
-          acc += width
-        }
-
-      } else {
-        const data = idArray.map((array, i) => {
-          const parentsSet = new Set()
-
-          for (const id of array) {
-            const parents = upperCache.get(id) || []
-            for (const p of parents) {
-              if (layerIndex.get(p) === L + 1) {
-                parentsSet.add(p)
-              }
-            }
-          }
-
-          return {
-            ids: array,
-            subspaces: subspaces[i],
-            parents: [...parentsSet]
-          }
-        })
-
-        const clusters = buildClusters(prevSubsets, data)
-
-        for (const cluster of clusters) {
-          const parentSet = new Set()
-          for (const c of cluster) {
-            for (const p of c.parents) parentSet.add(p)
-          }
-
-          const parents = [...parentSet]
-
-          let totalWidth = 0
-          for (const p of parents) {
-            totalWidth += poset.features[p].width
-          }
-
-          let startX = Infinity
-          for (const p of parents) {
-            const x = poset.features[p].x
-            const w = poset.features[p].width
-            startX = Math.min(startX, x - w / 2)
-          }
-
-          // ---- compute counts using your function ----
-          const counts = new Array(cluster.length)
-
-          for (let i = 0; i < cluster.length; i++) {
-            let count = countNonZeros(cluster[i].subspaces)
-            if (count === 0) count = 1
-
-            counts[i] = count
-          }
-
-          const adjustedCounts = counts.map(c => Math.pow(c + offset, exp) - Math.pow(offset, exp))
-          const totalCount = adjustedCounts.reduce((a,b)=>a+b,0)
-
-          // ---- compute widths ----
-          const widths = new Array(cluster.length)
-          for (let i = 0; i < cluster.length; i++) {
-            widths[i] = (adjustedCounts[i] / totalCount) * totalWidth
-          }
-
-          // ---- assign positions ----
-          let acc = startX
-
-          for (let i = 0; i < cluster.length; i++) {
-            const c = cluster[i]
-            const width = widths[i]
-            let center
-            if (cluster.length === 1) center = d3.sum(parents.map(p => poset.features[p].x))/parents.length
-            else center = acc + width / 2
-            const nodes = c.ids
-
-            if (nodes.length > 1) {
-              spreadOverlap(nodes, width, center)
-            } else {
-              const node = nodes[0]
-              poset.features[node].x = center
-              poset.features[node].width = width
-            }
-
-            acc += width
-          }
-        }
-      }
-
-      prevSubsets = idArray
+  const bottomUp = (layers,f,sorted=false) => {
+    for (let i = 1; i <= layers.length-1; i++) {
+        f(layers[i],i,'down',sorted)
     }
   }
 
-  function linearLayout(poset,width) {
-    const countNonZeros = (subspace) => subspace.length > 1
-        ? subspace.reduce((l1,l2)=>l1.map((v,n)=>v+l2[n])).filter(e=>e!==0).length
-        : subspace[0].filter(e=>e!==0).length
-
-    const bb = poset.layers.map((l,n)=>({n:n, l:l, deg:l.map(node=>poset.featureOf(node,"node_degree")).reduce((acc,el)=>acc+el)})).sort((a,b)=>b.deg-a.deg)[0]
-    const L = bb.n
-
-    const trees = po.findSubspaces(po.dominanceScores(poset,poset.layers.length-1))
-    // trees.counts = trees.subspaces.map(ssp=>countNonZeros(ssp))
-    trees.descendants = trees.ids.map(group => group.map(id => poset.getDownset(id)).flat().filter((e,n,l) => l.indexOf(e) === n))
-    trees.counts = trees.descendants.map(d => d3.max(poset.layers.map(layer => layer.filter(l => d.includes(l))).map(l => l.length)))
-
-    const {ids,subspaces} = po.findSubspaces(po.dominanceScores(poset,L))
-    // const counts = subspaces.map(ssp=>countNonZeros(ssp))
+  function spreadAroundCentroid(nodes,centroid,w) {
+    const adjustment = nodes.length % 2 !== 0 ? 0 : w/2
+    const median = Math.floor(nodes.length/2) 
+    const spreadPositions = nodes.map((n,i) => ({node:n,x:i >= median ? centroid+((i-median)*w)+adjustment : centroid-((median-i)*w)+adjustment}))
+    return spreadPositions
+  }
+  
+  const barycenterSort = (sets, ids) => {
+    const order = [...ids];
     
-    //TODO: not using the useless zeroes would be nice
-    // const unit_h = height / poset.layers.length
-    // const unit_w = width / subspaces.flat().length
+    const supersetCount = i => ids.filter(j => j !== i && po.isSubset(sets[ids.indexOf(i)], sets[ids.indexOf(j)])).length;
+    const toMove = [...ids].sort((a, b) => supersetCount(b) - supersetCount(a));
+
+    for (const node of toMove) {
+        const nodeVec = sets[ids.indexOf(node)];
+        const supersets = order.filter(j => j !== node && po.isSubset(nodeVec, sets[ids.indexOf(j)]));
+        if (supersets.length === 0) continue;
+
+        const positions = supersets.map(s => order.indexOf(s));
+        const mid = Math.round(positions.reduce((a, b) => a + b, 0) / positions.length);
+
+        order.splice(order.indexOf(node), 1);
+        order.splice(mid, 0, node);
+    }
+
+    return order;
+  }
+
+  function isTree(poset,nodes,edges,suprema) {
+    const supremaChildren = suprema.map(s => poset.getLower(s)).flat().filter((e,n,l) => l.indexOf(e) === n)
+    const ignoreSuprema = suprema.length > 1 && supremaChildren.length === 1
+    return edges.length === nodes.length - 1 && (suprema.length === 1 || ignoreSuprema)
+  }
+
+  function linearLayout(poset,edges,width,unFilteredPoset=null) {
     const unit_w = width
+    let bbIds = []
+    const nodes = poset.elements 
+    const layers = unFilteredPoset ? unFilteredPoset.layers.map(layer => layer.filter(e => nodes.includes(e))).filter(layer => layer.length > 0) : poset.layers
+    const tree = isTree(poset,nodes,edges,poset.analytics.suprema)
 
-    const bbIds = subspaces.map((ssp,n)=>{
-        const LE = linearEmbedding(ssp,ids[n])
-        // console.log(LE)
-        if(ssp.length>1){
-            const sets = LE.neurons.flatMap(neu=>neu.bmus)
-            const sspids = LE.neurons.flatMap(neu=>neu.bmusID)
-            const barycenterSort = (sets, ids) => {
-                const order = [...ids];
-                
-                const supersetCount = i => ids.filter(j => j !== i && po.isSubset(sets[ids.indexOf(i)], sets[ids.indexOf(j)])).length;
-                const toMove = [...ids].sort((a, b) => supersetCount(b) - supersetCount(a));
+    function sortLayersByX(layers) {
+      return layers.map(layer => layer.sort((a,b) => poset.featureOf(a,'x') - poset.featureOf(b,'x')))
+    }
+    function getCenter(ids) {
+      return (Math.min(...poset.featureOf(ids,'x')) + Math.max(...poset.featureOf(ids,'x'))) / 2
+    }
 
-                for (const node of toMove) {
-                    const nodeVec = sets[ids.indexOf(node)];
-                    const supersets = order.filter(j => j !== node && po.isSubset(nodeVec, sets[ids.indexOf(j)]));
-                    if (supersets.length === 0) continue;
+    const setX = (e,l,direction,sorted=false) => {
+      let idealPositions = []
+      let sortedPositions = []
+      let shiftToEnd = []
+      const lowerLayer = e.map(n => poset.getLower(n).filter(d => d !== n)).flat()
+      const upperLayer = e.map(n => poset.getUpper(n).filter(d => d !== n)).flat().filter((e,n,l) => l.indexOf(e) === n)
 
-                    const positions = supersets.map(s => order.indexOf(s));
-                    const mid = Math.round(positions.reduce((a, b) => a + b, 0) / positions.length);
+      function shiftPositionsByGroup(group,sortedPositions,w) {
+        const ref = group[0]
+        const prevGroup = sortedPositions[sortedPositions.length-1]
+        const prev = prevGroup[prevGroup.length-1]
+        if (ref.x < prev.x || ref.x-prev.x < w) {
+          const shifted = group.map((d,i) => ({node:d.node,x:prev.x+w+(w*i)}))
+          sortedPositions = [...sortedPositions,shifted]
+        } else sortedPositions = [...sortedPositions,group] 
+        return sortedPositions
+      }
 
-                    order.splice(order.indexOf(node), 1);
-                    order.splice(mid, 0, node);
-                }
-
-                return order;
-            }
-            return barycenterSort(sets, sspids);
+      e.forEach(node => {
+        let x
+        const refs = direction === 'up' ? poset.getUpper(node).filter(n => n !== node) : poset.getLower(node).filter(n => n !== node)
+        const values = poset.featureOf(refs, "x").filter(v => v !== undefined)
+        const sum = d3.sum(values)
+        if (values.length !== 0) x = sum === 0 ? 0 : sum / values.length
+        if (x == null) {
+          if (poset.featureOf(node,'x') == null || !sorted) x = 0
+          else  x = poset.featureOf(node,'x')
         }
-        return LE.neurons.flatMap(neu=>neu.bmusID)
-    }).flat()
+        if (x !== null) {
+          // full dangling layer with nothing below and max one shared parent above, spread around center of lowest layer
+          if (sorted && lowerLayer.length === 0 && upperLayer.length <= 1) {
+            x = getCenter(layers[0])
+            idealPositions.push({node:node,x:x}) 
+          }
+          // dangling node in layer
+          else if (sorted && poset.getLower(node).filter(n => n !== node).length === 0 && poset.getUpper(node).filter(n => n !== node).length === 0) shiftToEnd.push(node)
+          else idealPositions.push({node:node,x:x}) 
+        }
+      })
 
-    const groupedByTree = trees.ids.map((ids,i) => ({counts:trees.counts[i],bbIds:bbIds.filter(i => ids.some(id => poset.getUpset(i).includes(id)))}))
-    groupedByTree.forEach(group => {
+      const groups = new Map()
+      for (const obj of idealPositions) {
+        if (!groups.has(obj.x)) groups.set(obj.x, [])
+        groups.get(obj.x).push(obj)
+      }
+      let groupedByPosition = Array.from(groups.values())
+
+      if (!sorted) groupedByPosition = groupedByPosition.sort((a,b) => a[0].x - b[0].x)
+      groupedByPosition.forEach(groupArray => {
+        let group
+        let nodes = groupArray.map(d => d.node)
+        let value = groupArray[0].x
+        if (groupArray.length > 1) {
+          group = spreadAroundCentroid(nodes,value,unit_w)
+          if (sortedPositions.length === 0) sortedPositions.push(group)
+          else sortedPositions = shiftPositionsByGroup(group,sortedPositions,unit_w)  
+        } else {
+          group = nodes.map(n => ({node:n,x:value}))
+          if (sortedPositions.length === 0) sortedPositions.push(group)
+          else sortedPositions = shiftPositionsByGroup(group,sortedPositions,unit_w)
+        }
+      })
+      const min = d3.min(sortedPositions.flat().map(d => d.x))
+      shiftToEnd.forEach((node,i) => poset.featureOf(node,'x',min - unit_w - (i*unit_w)))
+      sortedPositions.flat().forEach(d => poset.featureOf(d.node,'x',d.x))
+    }
+
+    if (layers.length === 0) return
+
+    if (layers.length === 1) {
       let acc = 0
-      group.bbIds.forEach((id,n)=>{
+      nodes.forEach(id => {
         const x = acc + unit_w/2
         poset.featureOf(id,"x",x)
         acc += unit_w
       })
-      // acc += group.counts*unit_w + unit_w
-    })
-
-    const propagate = (start,f) =>{
-      const below = poset.layers.slice(0, start).reverse()
-      const above = poset.layers.slice(start + 1)
-      below.forEach(l => f(l,poset.layers.findIndex(i => i === l),'up'))
-      above.forEach(l => f(l,poset.layers.findIndex(i => i === l),'down'))
     }
 
-    const setX = (e,n,direction) => {
-      let idealPositions,sortedPositions,emptyNodes
+    else {
+      let L = layers.length - 1
+      bbIds = layers[layers.length-1]
+      if (!tree) {
 
-      function spreadAroundCentroid(nodes,centroid,w) {
-        const adjustment = nodes.length % 2 !== 0 ? 0 : w/2
-        const median = Math.floor(nodes.length/2) 
-        const sorted = nodes
-          .map((n,i) => ({ node: n, x: i >= median ? centroid+((i-median)*w)+adjustment : centroid-((median-i)*w)+adjustment}))
-          .sort((a, b) => a.x - b.x);
-        sorted.forEach(d => {
-          idealPositions.set(d.node, d.x)
-          poset.featureOf(d.node, "x", d.x)
-        });
-        if (sortedPositions.length > 0) shiftByGroup(sorted,w) 
-        else sortedPositions = [sorted]
-      }
-      function shiftByGroup(group,minDist) {
-        const ref = group[0]
-        const prevGroup = sortedPositions[sortedPositions.length-1]
-        const prev = prevGroup[prevGroup.length-1]
+        // **** GET BB **** //
+        const bb = layers.map((l,n)=>({n:n, l:l, deg:l.length === 0 ? 0 : l.map(node=>poset.featureOf(node,"node_degree")).reduce((acc,el)=>acc+el)})).sort((a,b)=>b.deg-a.deg)[0]
+        const midPoint = Math.trunc((layers.length-1)/2)
+        L = bb.n > midPoint ? bb.n : midPoint 
 
-        if (ref.x < prev.x || ref.x-prev.x < minDist) {
-          const shifted = group.map((d,i) => ({node:d.node,x:prev.x+minDist+(minDist*i)}))
-          shifted.forEach(d => {
-            idealPositions.set(d.node, d.x)
-            sortedPositions = [...sortedPositions,shifted]
-            poset.featureOf(d.node, "x", d.x)
-          });
-        } else sortedPositions = [...sortedPositions,group]
-      }
-      function resolveCollisions(nodes, minDist) {
-        let sorted = nodes
-          .filter(n => !emptyNodes.includes(n))
-          .map(n => ({ node: n, x: idealPositions.get(n) }))
-          .sort((a, b) => a.x - b.x);
-        const empties = emptyNodes.map((n,i)=> ({node:n,x:sorted[sorted.length-1].x+(minDist*i)}))
-        sorted = [...sorted,...empties]
-
-        // --- forward pass (push right)
-        for (let i = 1; i < sorted.length; i++) {
-          const prev = sorted[i - 1];
-          const curr = sorted[i];
-          if (curr.x < prev.x + minDist) {
-            curr.x = prev.x + minDist;
-          }
-        }
-
-        // --- backward pass (push left)
-        for (let i = sorted.length - 2; i >= 0; i--) {
-          const curr = sorted[i];
-          const next = sorted[i + 1];
-          if (curr.x > next.x - minDist) {
-            curr.x = next.x - minDist;
-          }
-        }
-
-        // --- recenter to original centroid
-        const originalCenter =
-          nodes.map(n => idealPositions.get(n)).reduce((a, b) => a + b, 0) / nodes.length;
-
-        const newCenter =
-          sorted.map(d => d.x).reduce((a, b) => a + b, 0) / sorted.length;
-
-        const shift = originalCenter - newCenter;
-
-        // --- apply corrected positions
-        sorted.forEach(d => {
-          const corrected = d.x + shift;
-          idealPositions.set(d.node, corrected);
-          poset.featureOf(d.node, "x", corrected);
-        });
-      }
-
-      const groupedByTree = trees.descendants.map((d,i) => e.filter(l => d.includes(l) || trees.ids[i].includes(l)))
-      groupedByTree.forEach((layer,index) => {
-        idealPositions = new Map();
-        sortedPositions = []
-        emptyNodes = []
-        layer.forEach((node,i) => {
-          let x
-          const refs = direction === 'up' ? poset.getUpper(node) : poset.getLower(node);
-          const values = poset.featureOf(refs, "x").filter(v => v !== undefined);
-          if (values.length) {
-            x = values.reduce((a, b) => a + b, 0) / values.length;
-          }
-          if (!x) {
-            if (poset.featureOf(node,'x') == null) {
-              x = 0
-              emptyNodes.push(node)
-            } else x = poset.featureOf(node,'x')
-          }
-          idealPositions.set(node, x);
-        });
-        const grouped = new Map();
-        for (const [key, value] of idealPositions) {
-            if (!grouped.has(value)) {
-                grouped.set(value, []);
+        const i = unFilteredPoset ? unFilteredPoset.layers.findIndex(l => layers[L].some(id => l.includes(id))) : L
+        const pos = unFilteredPoset ? unFilteredPoset : poset
+        const scores = tree || layers[L+1].length > 1 ? po.boundScores(pos,i) : po.dominanceScores(pos,i) 
+        const {ids,subspaces} = po.findSubspaces(scores)
+        bbIds = subspaces.map((ssp,n)=>{
+            const LE = linearEmbedding(ssp,ids[n])
+            if(ssp.length>1){
+                const sets = LE.neurons.flatMap(neu=>neu.bmus)
+                const sspids = LE.neurons.flatMap(neu=>neu.bmusID)
+                return barycenterSort(sets, sspids)
             }
-            grouped.get(value).push(key);
-        }
-        const sortedGroups = new Map(
-          [...grouped.entries()].sort((a, b) => a[0] - b[0])
-        );
-        for (const [value, keys] of sortedGroups) {
-            if (keys.length > 1) spreadAroundCentroid(keys,value,unit_w)
-            else {
-              poset.featureOf(keys[0], "x", value)
-              const group = keys.map(id => ({node:id,x:value}))
-              if (sortedPositions.length > 0) shiftByGroup(group,unit_w)
-              else sortedPositions = [group]
-            }
-        }
-        resolveCollisions(layer,unit_w)
+            return LE.neurons.flatMap(neu=>neu.bmusID)
+        }).flat().filter(id => nodes.includes(id))
+      }
+
+      let acc = 0
+      bbIds.forEach(id => {
+        const x = acc + unit_w/2
+        poset.featureOf(id,"x",x)
+        acc += unit_w
       })
-    }
 
-    const topDown = () => {
-      for (let i = poset.layers.length-1; i > 0; i--) {
-          setX(poset.layers[i], i, 'down');
-      }  
+      propagate(layers,L,setX)
+      let sortedLayers = sortLayersByX(layers)
+      bottomUp(sortedLayers,setX,true)
     }
-    const bottomUp = () => {
-      for (let i = 0; i < poset.layers.length-1; i++) {
-          setX(poset.layers[i], i, 'up');
-      }
-    }
+  }
 
-    const iterations = 3
-    for (let i = 0; i < iterations; i++) {
-      propagate(L,setX)
-      topDown()
-    }
-    // *** shift each tree based on max x of previous tree ***
-
-    let descendantsByTree = trees.descendants.map((descendants,i) => ({descendants:[...descendants,...trees.ids[i]],max:d3.max(poset.featureOf([...descendants,...trees.ids[i]], "x"))}))
-    console.log(descendantsByTree)
-    descendantsByTree.forEach((obj,i) => {
-      if (i !== 0) {
-        const max = descendantsByTree[i-1].max + (unit_w*3)
-        obj.descendants.forEach(d => poset.featureOf(d,'x',poset.featureOf(d,'x') + max))
-        descendantsByTree = descendantsByTree.map(obj => ({...obj,max:d3.max(poset.featureOf(obj.descendants, "x"))}))
-      }
-    })
+  function spaceSubspaces(posets,width) {
+    const unit_w = width
+    posets.forEach((pos,index) => {
+      if (index > 0 && posets[index-1].elements.length > 0) {
+          const prevMax = d3.max(posets[index-1].featureOf(posets[index-1].elements,'x'))
+          const thisMin = d3.min(pos.featureOf(pos.elements,'x'))  
+          const ideal = prevMax + (unit_w*2)
+          if (thisMin !== ideal) {
+            const adjustment = ideal - thisMin
+            pos.elements.forEach(node => pos.featureOf(node,'x',pos.featureOf(node,'x') + adjustment))
+          }  
+        }  
+    }) 
   }
 
   function getInclusions(roots,nodes,id,eList,dFilter,descendants) {
@@ -1003,12 +652,106 @@ function App() {
         }
     }
   }
+
+  function updateInclusions(relationship) {
+      let newInclusions = []
+      let mappings = []
+      if (relationship === 'descendants') {
+          newInclusions = sidebarRoot.name.map(r => nodes.map(n => n.name).includes(r) ? getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,nodes.find(n => n.name === r).descendants) : getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)))).flat().filter((e,n,l) => l.indexOf(e) === n)
+              .filter(i => sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts !== 0 && sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts)
+          setMapRoot([])
+      } else {
+          newInclusions = sidebarRoot.name.map(r => nodes.map(n => n.name).includes(r) ? getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,nodes.find(n => n.name === r).descendants) : getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)))).flat().filter((e,n,l) => l.indexOf(e) === n)
+              .map(i => fullTree.nodes.find(n => n.name === i).mappings.map(m => m.name)).flat()   
+              .filter(i => sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts !== 0)
+          const allMappings = nodes.filter(n => n.mappings.length > 0).map(n => n.name)
+          setMapRoot(allMappings)
+          mappings = allMappings
+      }
+      updateConcepts(newInclusions,nodes,[],[],true,mappings)
+  }
+
+  function updateWidth(openedMappings,nList=false) {
+    let n = nodes
+    if (nList) n = nList
+    let positions = {}
+    poset.forEach((pos,i) => {
+        const nodeWidth = openedMappings.filter(r => pos.elements.includes(r.toString())).length > 0 ? nWidth*2 : nWidth
+        linearLayout(pos,edges,nodeWidth,subspaces[i]) 
+    })
+    spaceSubspaces(poset,openedMappings.length > 0 ? nWidth*2 : nWidth)
+    poset.forEach(pos => pos.elements.forEach(e => positions[e] = pos.featureOf(e,'x')))
+
+    const nodeList = n.map(d => d.name)
+    let nodesArray = n
+        .map(d => ({...d,x:positions[d.name]}))
+        .map(e => ({...e,mappings: e.mappings.map(map => ({...map,source: e}))}))
+    nodesArray = nodesArray.map(d => ({...d,connections:d.connections.map(c => ({...c,x:d.x,mid:getMidX(c.parents,nodesArray)}))}))
+    const linksArray = links.map(d=>({source: nodesArray[nodeList.indexOf(d.source.name)], target: nodesArray[nodeList.indexOf(d.target.name)]}))
+    // setTimeout(() => {
+    console.log(n.map(n => n.x),nodesArray.map(n => n.x))
+      setNodes(nodesArray)
+      setLinks(linksArray)
+    // }, 2000)     
+  }
+
+  function getMidX(ids,nodeList) {
+      let xPositions = []
+      ids.forEach(id => xPositions.push(nodeList.filter(d => d.name === id)[0].x))
+      const midX = d3.sum(xPositions)/xPositions.length
+      return midX
+  }
+
+  function updateConcepts(inclusionList,nodeList,toAdd,toRemove,updateW=false,mappings=null) {
+    let newNodes = nodeList
+        .map(e => ({
+            ...e,
+            included_descendants: [...e.descendants.filter(d => inclusionList.includes(d)),...e.descendants.map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => inclusionList.includes(d))]
+        }))
+        .map(e => ({
+            ...e,
+            descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => e.included_descendants.includes(c.concept_id)),
+            // *** use a maxDistance variable instead of levelFilter? ***
+            leaf: e.included_descendants.filter(d => d !== e.name  && !e.mappings.map(m => m.name).includes(d)).length > 0 && ((e.distance === maxDistance && !links.map(d => d.source).map(d => d.name).includes(e.name)) && e.levels !== '-1') ? true : false}
+        ))
+        .map(e => ({...e,descendant_counts:getCounts(e.descendant_code_counts,'node_record_counts')}))
+    let newConnections = crossConnections
+        .filter(c => inclusionList.includes(c.child) || fullTree.nodes.find(n => n.name === c.child).mappings.map(m => m.name).some(item => inclusionList.includes(item)))
+        .map(d => ({...d,parents:d.parents.filter(p => newNodes.map(d => d.name).includes(p)).filter(p => newNodes.filter(d => d.name === p)[0]?.leaf)}))
+    newConnections = newConnections.filter(d => d.parents.length > 1)
+    newNodes = newNodes.map(e => ({...e,connections: newConnections.filter(c => c.parents.includes(e.name)).map(d => ({...d,source:e.name}))}))
+    const updatedSelections = newNodes
+        .filter(d => !d.leaf ? inclusionList.includes(d.name) : d)
+        .map(d => ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: !d.leaf ? d.data : {...d.data,descendant_code_counts:d.descendant_code_counts}})) 
+    const mapSelections = newNodes.map(d => d.mappings).flat()
+        .filter(d => inclusionList.includes(d.name) && !newNodes.find(n => n.name === d.source.name).leaf)
+        .map(d => ({name: d.name, leaf: false, distance: d.distance, data: d.data}))
+    let newSelections = [...updatedSelections,...mapSelections]
+    if (toAdd.length > 0) {
+        toAdd = toAdd.map(d => d.source ? ({name: d.name, leaf: false, distance: d.distance, data: d.data}) : ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: d.data}))
+        newSelections = [...newSelections.filter(d => !toAdd.map(e => e.name).includes(d.name)),...toAdd]
+    }
+    if (toRemove.length > 0) {
+        newSelections = newSelections.filter(d => !toRemove.map(e => e.name).includes(d.name))
+    } 
+    newSelections.sort((a,b) => d3.ascending(a.distance, b.distance))
+    let isPruned = false
+    newNodes.filter(d => d.leaf).forEach(d => d.children.length > 0 ? isPruned = true : null)
+    setPruned(isPruned)
+    setSelectedConcepts(newSelections)
+    setInclusions(inclusionList)
+    if (!updateW) setNodes(newNodes)
+    else updateWidth(mappings,newNodes)
+  }
   
-  function createInitialStates(data,trees,filterClass,filterLevel,filteredClassList) {
+  // *** optimize this ***
+  function createInitialStates(data,filterClass,filterLevel,filteredClassList) {
     console.log('run',data)
-    // set nodes 
+    // create data 
     const subsumesData = data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to")
     const mappingData = data.concept_relationships.filter(d => d.levels === "Mapped from" || d.levels === "Maps to")
+    
+    // what is this doing???
     let nodeData = Array.from(
       subsumesData
       .reduce((map, obj) => {
@@ -1020,21 +763,69 @@ function App() {
       }, new Map())
       .values()
     )
+
+    // full poset
+    let colors = {}
+    let distances = {}
+    let positions = {}
+    let fullEdges = data.concept_relationships
+      .filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to")
+      .map(d => d.levels === "-1" ? ({...d,parent_concept_id: d.child_concept_id,child_concept_id: d.parent_concept_id}) : d)
+      .map(d => ([d.parent_concept_id.toString(),d.child_concept_id.toString()]))
+    if (fullEdges.length > 1) fullEdges = fullEdges.filter(d => d[0] !== d[1])
+    const {matrix,nodes} = po.domFromEdges(fullEdges)
+    const fullPoset = po.createPoset(matrix,nodes)
+    // coloring 
+    fullPoset.enrich().setLayers().color(80,25,90)
+    const layers = [...fullPoset.layers].reverse()
+    const depthScale = d3.scaleLinear(d3.extent(layers.map((l,i)=>i)), [20,70])
+    fullPoset.elements.forEach(name => {
+      distances[name] = layers.findIndex(i => i.includes(name))
+      colors[name] = `hsl(${fullPoset.featureOf(name,'pTheta')},${fullPoset.featureOf(name,'pAlpha')*100}%,${depthScale(distances[name])}%)` 
+    })
+
+    // subspace posets
+    const posetArray = []
+    const subspaces = po.findSubspaces(po.dominanceScores(fullPoset,fullPoset.layers.length-1))
+    subspaces.nodes = subspaces.ids.map(ids => [...ids.map(id => fullPoset.getDownset(id)).flat(),...ids].filter((e,n,l) => l.indexOf(e) === n))
+    // set x positions
+    subspaces.nodes.forEach(sbsp => {
+      const edges = fullEdges.filter(e => sbsp.includes(e[0]) && sbsp.includes(e[1]))
+      const {matrix,nodes} = po.domFromEdges(edges)
+      const pos = po.createPoset(matrix,nodes)
+      pos.enrich()
+        .setLayers()
+        .feature("lower_bound",(node)=>pos.getLower(node))
+        .feature("upper_bound",(node)=>pos.getUpper(node))
+        .feature("node_degree",(node,f)=>f.lower_bound.length+f.upper_bound.length)
+      linearLayout(pos,edges,nWidth)
+      posetArray.push(pos)
+    })
+    spaceSubspaces(posetArray,nWidth)
+    posetArray.forEach(pos => pos.elements.forEach(e => positions[e] = pos.featureOf(e,'x')))
+
+    // create nodes 
     nodeData = nodeData.map(e=>({
-        'name': e.child_concept_id, 
-        'distance': subsumesData.map(d => d.levels).includes('-1') ? e.levels === "-1" ? 0 : parseInt(e.levels.split('-')[0]) + 1 : parseInt(e.levels.split('-')[0]), 
-        'levels': e.levels,
-        'relationship': e.levels,
-        'class': e.concept_class_id,
-        'color': generateColor(e.child_concept_id),
-        'leaf': !subsumesData.map(d => d.parent_concept_id).includes(e.child_concept_id) ? true : false,
-        'parents': rootArray.includes(e.child_concept_id) ? subsumesData.filter(d => d.parent_concept_id === e.child_concept_id).filter(d => d.levels === '-1').map(d => d.child_concept_id).concat(subsumesData.filter(d => d.child_concept_id === e.child_concept_id).map(d => d.parent_concept_id).filter(p => parseInt(e.levels.split('-')[0]) > parseInt(subsumesData.filter(n => n.child_concept_id === p)[0].levels.split('-')[0])).flat()) : e.levels === "-1" ? [] : subsumesData.filter(d => d.child_concept_id === e.child_concept_id).map(d => d.parent_concept_id).filter(p => parseInt(e.levels.split('-')[0]) > parseInt(subsumesData.filter(n => n.child_concept_id === p)[0].levels.split('-')[0])),
-        'children': e.levels === "-1" ? subsumesData.filter(d => d.child_concept_id === e.child_concept_id).map(d => d.parent_concept_id) : subsumesData.filter(d => d.parent_concept_id === e.child_concept_id && d.child_concept_id !== e.child_concept_id).map(d => d.child_concept_id),
-        'connections': [],
-        'total_counts': getCounts(data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),'node_record_counts'),
-        'descendants': [...getAllDescendants(subsumesData,e.child_concept_id,[]),e.child_concept_id],
-        'data': {code_counts: data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id), concept: data.concepts.filter(d => d.concept_id === e.child_concept_id)[0]}
+      'name': e.child_concept_id, 
+      'levels': e.levels,
+      'relationship': e.levels,
+      'class': e.concept_class_id,
+      'distance': distances[e.child_concept_id], 
+      'color': colors[e.child_concept_id],
+      'x': positions[e.child_concept_id],
+      'leaf': !subsumesData.map(d => d.parent_concept_id).includes(e.child_concept_id) ? true : false,
+      'parents': fullPoset.getUpper(e.child_concept_id.toString()).map(d => parseInt(d)),
+      'children': fullPoset.getLower(e.child_concept_id.toString()).map(d => parseInt(d)),
+      'connections': [],
+      'total_counts': getCounts(data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),'node_record_counts'),
+      'descendants': [...getAllDescendants(subsumesData,e.child_concept_id,[]),e.child_concept_id],
+      'data': {code_counts: data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id), concept: data.concepts.filter(d => d.concept_id === e.child_concept_id)[0]}
     })) 
+
+    // set max distance
+    const maxD = d3.max(nodeData.map(d => d.distance))
+    setMaxDistance(maxD)
+
     // set root line 
     let rootDescendants = []
     rootArray.forEach(root => rootDescendants.push(...nodeData.find(n => n.name === root).descendants))
@@ -1049,10 +840,15 @@ function App() {
     rootLineData.sort((a, b) => a[0] - b[0])
     setRootExtent(rootExtentData)
     setRootLine(rootLineData) 
+
     // set cross connections 
     const allNodes = subsumesData
       .filter(d => d.parent_concept_id !== d.child_concept_id)
-      .map(d => d.levels === "-1" ? ({...d, parent_concept_id: d.child_concept_id, child_concept_id: d.parent_concept_id}) : d)
+      .map(d => d.levels === "-1" ? ({
+        ...d, 
+        parent_concept_id: d.child_concept_id, 
+        child_concept_id: d.parent_concept_id
+      }) : d)
     const allChildren = allNodes
       .map(d => d.child_concept_id)
       .filter((e,n,l) => l.indexOf(e) === n)
@@ -1060,123 +856,34 @@ function App() {
     allChildren.forEach(child => allNodes.filter(d => d.child_concept_id === child).length > 1 ? connections.push({child:child,parents:allNodes.filter(d => d.child_concept_id === child).map(d => d.parent_concept_id)}) : null)
     connections = connections.filter(d => d.parents.length > 1)
     setCrossConnections(connections)
-    // posets
-    // const posetArray = []
-    // const width = window.innerWidth*0.4
-    // const nodeWidth = mappingData.map(d => d.levels).includes('Maps to') && mappingData.map(d => d.levels).includes('Mapped from') ? 160 : 140
-    // const spacingUnit = nodeWidth + 40
-    const depthScale = d3.scaleLinear(d3.extent(nodeData.map(d => d.distance)), [20,70])
-    let colors = {}
-    // let positions = {}
-    let distances = {}
-    // let centerArray = []
-    // iterate through trees
-    // trees.forEach((tree,index) => {
-    //   const edges = tree
-    //     .filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to")
-    //     .filter(d => subsumesData.length === 1 && d.parent_concept_id === d.child_concept_id ? d : d.parent_concept_id !== d.child_concept_id)
-    //     // .filter(d => d.levels !== "-1")
-    //     .map(d => d.levels === "-1" ? ({...d,parent_concept_id: d.child_concept_id,child_concept_id: d.parent_concept_id}) : d)
-    //     .map(d => ([d.parent_concept_id.toString(),d.child_concept_id.toString()]))
-    //   const {matrix,nodes} = po.domFromEdges(edges)
-    //   const poset = po.createPoset(matrix,nodes)
-    //   poset
-    //     .enrich()
-    //     .feature("depth",node => nodeData.filter(d => d.name === parseInt(node))[0].distance)
-    //     .setSubstructure("depth","depth")
-    //     .setLayers()
-    //     .feature("parents",node => nodeData.filter(d => d.name === parseInt(node))[0].parents)
-    //   // set x
-    //   // const layers = poset.analytics.substructures.depth
-    //   const layers = poset.layers.reverse()
-    //   // const classes = tree.map(d => d.concept_class_id)
-    //   // const maxLevel = d3.max(tree.filter(d => d.levels !== '-1' && d.levels !== "Mapped from" && d.levels !== "Maps to").map(d => parseInt(d.levels.split('-')[0]) + 1))
-    //   // *** set based on width of biggest layer
-    //   // if ((!filterClass && !filterLevel) || (filterClass && (!classes.includes('Ingredient') && !classes.includes('Clinical Drug Comp'))) || (filterLevel && maxLevel <= 3)) {  
-    //   if (!filterClass && !filterLevel) {
-    //     const thisWidth = d3.max(layers, d => d.length)*spacingUnit
-    //     centerArray.push(thisWidth)
-    //     let center = d3.sum(centerArray) - thisWidth/2
-    //     // layers = layers.reverse()
-    //     layers.forEach((layer,i) => {
-    //       // const center = (width/trees.length)/2 + (width)*index + buffer
-    //       if (i === 0) {
-    //         // let unit = (width/trees.length)/layer.length
-    //         let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
-    //         let median = Math.floor(layer.length/2) 
-    //         layer.forEach((node,i) => poset.features[node].x = i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
-    //         // layer.forEach((node,i) => poset.features[node].x = unit >= nodeWidth ? unit*i + unit/2 + (width)*index + buffer : i >= median ? center + ((i - median) * nodeWidth) + adjustment : center - ((median - i) * nodeWidth) + adjustment)
-    //       } else {
-    //         let xPositions = []
-    //         // let unit = (width/trees.length)/layer.length
-    //         let adjustment = layer.length % 2 !== 0 ? 0 : nodeWidth/2
-    //         let median = Math.floor(layer.length/2) 
-    //         layer.forEach(node => {
-    //           xPositions.push({id:node,x: d3.sum(poset.features[node].parents.map(parent => poset.features[parent].x))/poset.features[node].parents.length})})
-    //         xPositions.sort((a, b) => d3.ascending(a.x, b.x))
-    //         let minDistance = d3.min(d3.pairs(xPositions, (a, b) => b.x - a.x))
-    //         if (minDistance < nodeWidth && layer.length > 1) {
-    //           layer.forEach(node => poset.features[node].x = xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
-    //           // layer.forEach(node => poset.features[node].x = unit >= nodeWidth ? unit*xPositions.findIndex(d => d.id === node) + unit/2 + (width)*index + buffer : xPositions.findIndex(d => d.id === node) >= median ? center + ((xPositions.findIndex(d => d.id === node) - median) * nodeWidth) + adjustment : center - ((median - xPositions.findIndex(d => d.id === node)) * nodeWidth) + adjustment)
-    //         } else layer.forEach(node => poset.features[node].x = xPositions.find(d => d.id === node)?.x)
-    //       }
-    //     })
-    //     // set distance and positions list
-    //     poset.elements.forEach(name => {
-    //       // colors[name] = `hsl(${colorPoset.features[name].pTheta},${colorPoset.features[name].pAlpha*100}%,${depthScale(poset.features[name].depth)}%)` 
-    //       positions[name] = poset.features[name].x
-    //       distances[name] = layers.findIndex(i => i.includes(name))
-    //     })    
-    //   } 
-    //   else {
-    //     // const thisWidth = (d3.max(layers, d => d.length)/2)*nodeWidth
-    //     // centerArray.push(thisWidth)
-    //     // set distance and positions list
-    //     poset.elements.forEach(name => {
-    //       // colors[name] = `hsl(${colorPoset.features[name].pTheta},${colorPoset.features[name].pAlpha*100}%,${depthScale(poset.features[name].depth)}%)` 
-    //       // positions[name] = 0
-    //       distances[name] = layers.findIndex(i => i.includes(name))
-    //     })
-    //   }
-    //   posetArray.push(poset)
-    // })
-    // set color
-    const combinedEdges = trees.flat()
-    let edges = combinedEdges 
-      .filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to")
-      .map(d => d.levels === "-1" ? ({...d,parent_concept_id: d.child_concept_id,child_concept_id: d.parent_concept_id}) : d)
-      .map(d => ([d.parent_concept_id.toString(),d.child_concept_id.toString()]))
-    if (edges.length > 1) edges = edges.filter(d => d[0] !== d[1])
-      // console.log('edges',edges)
-    const {matrix,nodes} = po.domFromEdges(edges)
-    const poset = po.createPoset(matrix,nodes)
-    poset.enrich()
-      .setLayers()
-      .color(80,25,90)
-      .feature("lower_bound",(node)=>poset.getLower(node))
-      .feature("upper_bound",(node)=>poset.getUpper(node))
-      .feature("node_degree",(node,f)=>f.lower_bound.length+f.upper_bound.length)
-    if (!filterClass && !filterLevel) linearLayout(poset,150) 
-    const layers = poset.layers.reverse()
-    poset.elements.forEach(name => {
-        distances[name] = layers.findIndex(i => i.includes(name))
-        colors[name] = `hsl(${poset.features[name].pTheta},${poset.features[name].pAlpha*100}%,${depthScale(poset.layers.findIndex(i => i.includes(name)))}%)`})
-    // update color, position, and distance
-    nodeData = nodeData.map(d => ({...d,distance:distances[d.name], color: colors[d.name] ? colors[d.name] : d.color,x:poset.featureOf(d.name,"x") ? poset.featureOf(d.name,"x") : 0}))
-    setColorList(colors)
+
     // set selections
     const inclusionList = rootArray.map(r => getInclusions(rootArray,nodeData,r,excludeList,descendantsFilter,nodeData.find(n => n.name === r).descendants)).flat()
-      .filter(i => nodeData.find(n => n.name === i).levels !== '-1')
+      .filter(i => nodeData.find(n => n.name === i).levels !== '-1' && nodeData.find(n => n.name === i).levels)
       .filter(i => nodeData.find(n => n.name === i).total_counts !== 0)
-    // const inclusionList = nodeData.filter(n => n.levels !== '-1').filter(n => n.total_counts !== 0).map(n => n.name)
     setInclusions(inclusionList)
-    nodeData = nodeData.map(e=>({...e,descendant_code_counts: data.stratified_code_counts.filter(d => e.descendants.includes(d.concept_id)),leaf:e.descendants.filter(d => d !== e.name).length > 0 && e.leaf ? true : false}))
+    nodeData = nodeData.map(e=>({
+      ...e,
+      descendant_code_counts: data.stratified_code_counts.filter(d => e.descendants.includes(d.concept_id)),
+      leaf:e.descendants.filter(d => d !== e.name).length > 0 && e.leaf ? true : false
+    }))
     const selectedNodes = nodeData
       .filter(d => !d.leaf ? inclusionList.includes(d.name) : d)
-      .map(d => ({name: d.name, leaf: d.leaf, descendants: d.descendants, distance: d.distance, data: {...d.data,descendant_code_counts:d.descendant_code_counts}}))
+      .map(d => ({
+        name: d.name, 
+        leaf: d.leaf, 
+        descendants: d.descendants, 
+        distance: d.distance, 
+        data: {...d.data,descendant_code_counts:d.descendant_code_counts}
+      }))
     selectedNodes.sort((a,b) => d3.ascending(a.distance, b.distance))
     setSelectedConcepts(selectedNodes)
-    nodeData = nodeData.map(d => ({...d,included_descendants:d.descendants.filter(e => inclusionList.includes(e)),descendant_counts:getCounts(d.descendant_code_counts,'node_record_counts')}))
+
+    // set mappings
+    nodeData = nodeData.map(d => ({
+      ...d,
+      included_descendants:d.descendants.filter(e => inclusionList.includes(e)),
+      descendant_counts:getCounts(d.descendant_code_counts,'node_record_counts')}))
       .map(node => ({
         ...node,
         mappings: mappingData.filter(d => d.parent_concept_id === node.name).map(e=>({
@@ -1184,27 +891,31 @@ function App() {
           'direction': e.levels === "Mapped from" ? -1 : 1,
           'distance': node.distance,
           'source': node,
-          'color': colors[e.child_concept_id] ? colors[e.child_concept_id] : generateColor(e.child_concept_id),
+          'color': generateColor(e.child_concept_id),
           'total_counts': getCounts(data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),'node_record_counts'),
           'descendant_counts': data.concepts.find(c => c.concept_id === e.child_concept_id).descendant_record_counts,
           'data': {code_counts: data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),concept: data.concepts.filter(d => d.concept_id === e.child_concept_id)[0]}
           })).sort((a, b) => b.total_counts - a.total_counts)
       }))
     nodeData.forEach(node => {node.mappings.forEach(map => colors[map.name] = map.color)})
+    setColorList(colors)
+
     // set links
     const nodeNames = nodeData.map(d => d.name)
     const linkData = subsumesData.filter(d => d.parent_concept_id !== d.child_concept_id).map(d=>({...d, source: d.levels === "-1" ? nodeData[nodeNames.indexOf(d.child_concept_id)] : nodeData[nodeNames.indexOf(d.parent_concept_id)], target: d.levels === "-1" ? nodeData[nodeNames.indexOf(d.parent_concept_id)] : nodeData[nodeNames.indexOf(d.child_concept_id)]}))
+    
     // set extent
     let extentData = d3.extent(selectedNodes.map(d => d.data.code_counts).flat().map(d => d.calendar_year))
     if (!extentData[0] || !extentData[1]) extentData = rootExtentData
     setExtent(extentData) 
+
     // set states
     setEdges(edges)
-    setPoset(poset)
+    setPoset(posetArray)
+    setSubspaces(posetArray)
     setPruned(false)
-    setFullTree({relationships:subsumesData,trees:trees,nodes:nodeData,links:linkData,selected:selectedNodes,mappings:mappingData.map(d => d.child_concept_id),edges:edges})
+    setFullTree({relationships:subsumesData,layers:layers,nodes:nodeData,links:linkData,selected:selectedNodes,mappings:mappingData.map(d => d.child_concept_id),edges:fullEdges,poset:fullPoset,maxDistance:maxD})
     if (!filterClass && !filterLevel) {
-      // setCenters(centerArray)
       setNodes(nodeData)
       setLinks(linkData)
     } 
@@ -1232,6 +943,11 @@ function App() {
     const params = new URLSearchParams(window.location.search)
     setLoaded(true)
     loadNews()
+    fetch(`${API_BASE_URL}/getVisitTypeNames`)
+      .then(res=> res.json())
+      .then(data=>{
+        setVisitTypeNames(data.map(normalizeVisitTypeName).filter(d => Number.isFinite(d.visitGroupConceptId)))
+      })
     fetch(`${API_BASE_URL}/getAPIInfo`)
       .then(res=> res.json())
       .then(data=>{
@@ -1240,45 +956,36 @@ function App() {
     fetch(`${API_BASE_URL}/getListOfConcepts`)
       .then(res=> res.json())
       .then(data=>{
-        // console.log("concept list",data)
         const vocabList = data.map(d => d.vocabulary_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined)
         setConceptList(data)
         setFilteredList(data)
         setAllVocabularies(vocabList)
-        setLoading(true)
-        // setTimeout(() => {
-        //   setSearchIsLoaded(true)
-        //   setLoading(false)
-        // },3000)
       })
   }, [])
 
   // on concept list load
-  useEffect(()=>{
-    if (conceptList.length > 0) {
-      setSearchIsLoaded(true)
-      // setLoading(false)
-    }
-  },[conceptList])
+  // useEffect(()=>{
+  //   if (conceptList.length > 0) {
+  //     // setSearchIsLoaded(true)
+  //     setLoading(false)
+  //     console.log('concept list',conceptList)
+  //   }
+  // },[conceptList])
 
   // on root load
   useEffect(()=>{
+    setLoading(true)
+    moveSlider(0,0,'relationship')
+    moveSlider(0,0,'view')
+    moveSlider(0,0,'counts')
     if (!root) {
       setRootData([])
-      setRootLabels([])
-      setIsConceptSet(false)
-      setSearchOnly(true)
+      setLoading(false)
     } else {
       fetchedRef.current = true
-      setSearchOnly(false)
       setLevelFilter()
       setClassFilter(['All'])
-      // const timer = setTimeout(() => {
-      //     setLoading(true)
-      // }, 300)
       const array = root.split(',').map(Number)
-      // if (array.length > 1) setIsConceptSet(true)
-      // else setIsConceptSet(false)
       setRootArray(array)
       if (expression.length > 0) {
         setDescendantsFilter(expression.filter(e => !e.descendants).map(e => e.name))
@@ -1297,15 +1004,12 @@ function App() {
       )
       .then(data => {
         setDataArray(data)
-        // setLoading(false)
-        // clearTimeout(timer)
       })
       .catch(err => {
         console.error("Fetch failed:", err.message)
-        // setLoading(true)
+        setLoading(false)
         d3.select('#error-message').style('display','block')
-        d3.select('#loading-animation').style('visibility','hidden')
-        // clearTimeout(timer)
+        // d3.select('#loading-animation').style('visibility','hidden')
       })  
     }
   },[root])
@@ -1313,7 +1017,6 @@ function App() {
   // on data load
   useEffect(()=>{
     if (dataArray && dataArray.length > 0) {
-      let trees = [dataArray[0].concept_relationships]
       let combinedData = dataArray[0]
       if (dataArray.length > 1) {
         let toRemove = []
@@ -1334,22 +1037,18 @@ function App() {
         }))
         let filteredData = dataArray
         if (toRemove.length > 0) filteredData = dataArray.filter((data,i) => !toRemove.includes(i))
-        trees = filteredData.map(d => d.concept_relationships)
-        combinedData.concept_relationships = trees.flat()
+        combinedData.concept_relationships = filteredData.map(d => d.concept_relationships).flat()
         combinedData.concepts = filteredData.map(d => d.concepts).flat().filter((e, i, a) => a.findIndex(x => deepEqual(x, e)) === i)
         combinedData.stratified_code_counts = filteredData.map(d => d.stratified_code_counts).flat()
       } 
+      setCountType('record')
       setRootData(combinedData)
       setSidebarRoot({name:rootArray,data:combinedData}) 
-      setRootLabels(rootArray.map(root => ({id:root,name:combinedData.concepts.find(e=>e.concept_id === root).concept_name,code:combinedData.concepts.find(e=>e.concept_id === root).concept_code,vocabulary:combinedData.concepts.find(e=>e.concept_id === root).vocabulary_id})))
+      // setRootLabels(rootArray.map(root => ({id:root,name:combinedData.concepts.find(e=>e.concept_id === root).concept_name,code:combinedData.concepts.find(e=>e.concept_id === root).concept_code,vocabulary:combinedData.concepts.find(e=>e.concept_id === root).vocabulary_id})))
       if (d3.select('#suggestions-container').style('visibility') === 'hidden') setRefresh(true)
-      setView('Set')
-      // if (rootArray.length > 1) setView('Set')
-      // else setView('Tree')
+      setView('set')
       d3.select("#graph-section").style('width', "60vw")
-      d3.select('#expand').style('display', 'block') 
-      d3.select('#compress').style('display', 'none') 
-      setGraphFilter({gender:-1,age:[-1]})
+      setGraphFilter({gender:-1,age:[-1],source:[-1]})
       let filterClass = false
       let classList = combinedData.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to").map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined)
       const thisClass = combinedData.concepts.filter(d => rootArray.includes(d.concept_id)).map(d => d.concept_class_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined)
@@ -1359,13 +1058,11 @@ function App() {
         filteredClassList = classList.filter(d => d !== 'Ingredient' && d !== 'Clinical Drug Comp') 
         setRemovedClasses(classList.filter(d => d === "Ingredient" || d === 'Clinical Drug Comp'))
         filterClass = true
-        // setClassFilter(filteredClassList) 
       } 
-      // else setClassFilter(['All'])
-      setTreeSelections(['descendants'])
+      if (classList.length === 1) setClassFilter(classList)
+      setRelationship('descendants')
       setOpenFilters(true)
       setHovered([])
-      // setMapRoot([])
       setNodes([])
       setLinks([])
       setVisible(false)
@@ -1376,91 +1073,71 @@ function App() {
       } 
       const initialPrune = filterLevel || filterClass ? true : false
       setInitialPrune(initialPrune)
-      createInitialStates(combinedData,trees,filterClass,filterLevel,filteredClassList)  
+      createInitialStates(combinedData,filterClass,filterLevel,filteredClassList)  
     }
   },[dataArray])
 
   // search bar labels
-  useEffect(() => {
-    d3.select('#search-root-container').selectAll('.search-root').data(rootLabels, d => d.name)
-      .join(enter => {
-          const div = enter.append('div')
-            .classed('search-root',true)
-            .style('margin-left', (d,i) => (rootLabels.length <= 2 || i == 0) ? '0px' : '-116px')
-            .style('z-index', (d, i) => i == 0 ? 10 : 10 - i)
-          const pContainer = div.append('div')
-            .classed('search-p-container',true)
-            .style("filter", "drop-shadow(0px 3px 5px rgba(0,0,0,0.4))")
-            .style('width', (d,i) => (rootLabels.length <= 2 || i == 0) ? 'auto' : '100px')
-            // .style('border', (d,i) => rootLabels.length > 2 ? '1px solid #342458' : 'none')
-            .style('background-color',color.mediumpurple)
-            .style('height','26px')
-            .style('border-radius','20px')
-            .style('padding-right','14px')
-            .style('padding-left','14px')
-            .style('display','flex')
-            .style('align-items','center')
-            .style('justify-content','center')
-            .style("cursor","text")
-            .on('click',(e,d) => {
-              setRefresh(false)
-              document.getElementById('searchConcept').focus()
-            })
-          pContainer.append('p')
-            .classed('search-root-name',true)
-            .style('padding-bottom','2px')
-            .html((d,i) => (rootLabels.length <= 2 || i == 0) ? d.name.length > 20 ? d.name.substring(0, 20) + '...' : d.name : '')
-          pContainer.append('p')
-            .classed('search-root-code',true)
-            .html((d,i) => (rootLabels.length <= 2 || i == 0) ? d.code : '')
-            // .style('margin-top','1px')
-            .style('margin-left','4px')
-            .style('font-size','10px')
-            .style('font-weight',700)
-            .style('color','white')
-          pContainer.append('p')
-            .classed('search-root-vocab',true)
-            .html((d,i) => (rootLabels.length <= 2 || i == 0) ? d.vocabulary : '')
-            // .style('margin-top','1px')
-            .style('margin-left','4px')
-            .style('font-size','10px')
-            .style('font-weight',400)
-            .style('color','ffffff80')
-          div.append('i')
-            .classed('search-x fa-solid fa-x fa-xs',true)
-            .style('pointer-events','all')
-            .style("display", rootLabels.length <= 2 ? 'block' : 'none')
-            .style('color','white')
-            .style('padding-left','4px')
-            .style('margin-right','2px')
-            .style('cursor','pointer')
-            .on('click',(e,d) => {
-              const array = root.split(',').map(Number)
-              const arrayToString = array.filter(root => root !== d.id).join(",")
-              navigate(`/${arrayToString}`)
-            })
-      },update => {
-        update
-          .style('margin-left', (d,i) => (rootLabels.length <= 2 || i == 0) ? '0px' : '-116px')
-          .style('z-index', (d, i) => i == 0 ? 10 : 10 - i)
-        update.select('.search-p-container')
-          .style('width', (d,i) => (rootLabels.length <= 2 || i == 0) ? 'auto' : '100px')
-          // .style('border', (d,i) => rootLabels.length > 2 ? '1px solid #342458' : 'none')
-        update.select('.search-root-name')
-          .html((d,i) => (rootLabels.length <= 2 || i == 0) ? d.name.length > 20 ? d.name.substring(0, 20) + '...' : d.name : '')
-        update.select('.search-root-code')
-          .html((d,i) => (rootLabels.length <= 2 || i == 0) ? d.code : '')
-        update.select('.search-root-vocab')
-          .html((d,i) => (rootLabels.length <= 2 || i == 0) ? d.vocabulary : '')
-        update.select('.search-x')
-          .style("display", rootLabels.length <= 2 ? 'block' : 'none')
-          .on('click',(e,d) => {
-            const array = root.split(',').map(Number)
-            const arrayToString = array.filter(root => root !== d.id).join(",")
-            navigate(`/${arrayToString}`)
-          })
-      })  
-  }, [rootLabels])
+  // useEffect(() => {
+  //   d3.select('#search-root-container').selectAll('.search-root').data(rootLabels, d => d.name)
+  //     .join(enter => {
+  //         const div = enter.append('div')
+  //           .classed('search-root flex btn',true)
+  //           .style('margin-left', (d,i) => (rootLabels.length <= 3 || i == 0) ? '0px' : '-110px')
+  //           .style('z-index', (d, i) => i == 0 ? 10 : 10 - i)
+  //         const pContainer = div.append('div')
+  //           .classed('search-p-container',true)
+  //           .classed('rootLabel',true)
+  //           .classed('conceptLabel',true)
+  //           .style('width', (d,i) => (rootLabels.length <= 3 || i == 0) ? 'auto' : '100px')
+  //           .on('click',(e,d) => {
+  //             setRefresh(false)
+  //             document.getElementById('searchConcept').focus()
+  //           })
+  //         pContainer.append('p')
+  //           .classed('search-root-name',true)
+  //           .classed('conceptName',true)
+  //           .html((d,i) => (rootLabels.length <= 3 || i == 0) ? d.name.length > 16 ? d.name.substring(0, 16) + '...' : d.name : '')
+  //         pContainer.append('p')
+  //           .classed('search-root-code',true)
+  //           .classed('conceptCode',true)
+  //           .html((d,i) => (rootLabels.length <= 3 || i == 0) ? d.code : '')
+  //         pContainer.append('p')
+  //           .classed('search-root-vocab',true)
+  //           .classed('conceptVocab',true)
+  //           .html((d,i) => (rootLabels.length <= 3 || i == 0) ? d.vocabulary : '')
+  //         div.append('i')
+  //           .classed('search-x fa-solid fa-x icon',true)
+  //           .style('pointer-events','all')
+  //           .style("display", rootLabels.length <= 3 ? 'block' : 'none')
+  //           .style('padding-left','3px')
+  //           .style('margin-right','0px')
+  //           .on('click',(e,d) => {
+  //             const array = root.split(',').map(Number)
+  //             const arrayToString = array.filter(root => root !== d.id).join(",")
+  //             navigate(`/${arrayToString}`)
+  //           })
+  //     },update => {
+  //       update
+  //         .style('margin-left', (d,i) => (rootLabels.length <= 3 || i == 0) ? '0px' : '-110px')
+  //         .style('z-index', (d, i) => i == 0 ? 10 : 10 - i)
+  //       update.select('.search-p-container')
+  //         .style('width', (d,i) => (rootLabels.length <= 3 || i == 0) ? 'auto' : '100px')
+  //       update.select('.search-root-name')
+  //         .html((d,i) => (rootLabels.length <= 3 || i == 0) ? d.name.length > 16 ? d.name.substring(0, 16) + '...' : d.name : '')
+  //       update.select('.search-root-code')
+  //         .html((d,i) => (rootLabels.length <= 3 || i == 0) ? d.code : '')
+  //       update.select('.search-root-vocab')
+  //         .html((d,i) => (rootLabels.length <= 3 || i == 0) ? d.vocabulary : '')
+  //       update.select('.search-x')
+  //         .style("display", rootLabels.length <= 3 ? 'block' : 'none')
+  //         .on('click',(e,d) => {
+  //           const array = root.split(',').map(Number)
+  //           const arrayToString = array.filter(root => root !== d.id).join(",")
+  //           navigate(`/${arrayToString}`)
+  //         })
+  //     })  
+  // }, [rootLabels])
 
   return ( loaded ?
     <div className = "App">
@@ -1471,31 +1148,41 @@ function App() {
         rootData = {rootData}
         getCounts = {getCounts}
         // setRoot = {setRoot}
-        reset = {reset}
+        // reset = {reset}
         conceptList = {conceptList}
         filteredList = {filteredList}
         setFilteredList = {setFilteredList}
         listIndexes = {listIndexes}
         apiInfo = {apiInfo}
-        searchIsLoaded = {searchIsLoaded}
+        // searchIsLoaded = {searchIsLoaded}
         version = {version}
         allVocabularies = {allVocabularies}
         searchFilter = {searchFilter}
         setSearchFilter = {setSearchFilter}
-        isConceptSet = {isConceptSet}
-        setIsConceptSet = {setIsConceptSet}
+        // isConceptSet = {isConceptSet}
+        // setIsConceptSet = {setIsConceptSet}
         refresh = {refresh}
         setRefresh = {setRefresh}
         setExpression = {setExpression}
+        setLoading = {setLoading}
+        loading = {loading}
+        API_BASE_URL = {API_BASE_URL}
+        expandedSearch = {expandedSearch}
+        setExpandedSearch = {setExpandedSearch}
+        moveSlider = {moveSlider}
+        relationship = {relationship}
+        setRelationship = {setRelationship}
+        countType = {countType}
+        setCountType = {setCountType}
+        updateInclusions = {updateInclusions}
+        nodes = {nodes}
       />
-      {(searchIsLoaded && searchOnly) && <div className = "loading">
-        <img style = {{width:60,opacity: 0.2}} src={finngen} alt="Finngen logo"/>
-      </div>}
-      {(!searchIsLoaded || initialPrune || loading) && <div className = "loading" style={{ fontSize: '20px' }}>
-        <div style = {{display: 'none',fontSize:16}} id = "error-message">Concept not found</div>
+      {(conceptList.length > 0 && !root) && <div className = "loading"><img style = {{width:60,opacity: 0.2}} src={finngen} alt="Finngen logo"/></div>}
+      {(!conceptList || loading || initialPrune) && <div className = "loading" style={{ fontSize: '20px' }}>
         <div id = "loading-animation" class="lds-grid" style = {{visibility: 'visible'}}><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
       </div>}
-      <div id = "content" style={{ visibility: loading || initialPrune ? 'hidden' : 'visible',opacity: loading || initialPrune ? 0 : 1 }}>
+      <div style = {{display: 'none',fontSize:16}} id = "error-message">Concept not found</div>
+      <div id = "content" style={{ visibility: loading || initialPrune ? 'hidden' : 'visible'}}>
         <Routes>
           <Route path="/" element={<Navigate to="/" replace />} />
           <Route path="/:urlCode" element={
@@ -1527,8 +1214,8 @@ function App() {
               setLinks = {setLinks}
               list = {list}
               rootLine = {rootLine}
-              treeSelections = {treeSelections}
-              setTreeSelections = {setTreeSelections}
+              relationship = {relationship}
+              setRelationship = {setRelationship}
               levelFilter = {levelFilter}
               setLevelFilter = {setLevelFilter}
               maxLevel = {maxLevel}
@@ -1542,6 +1229,7 @@ function App() {
               setPruned = {setPruned}
               ageData = {ageData}
               genderData = {genderData}
+              sourceData = {sourceData}
               maxGender = {maxGender}
               // getConceptInfo = {getConceptInfo}
               setLoading = {setLoading}
@@ -1555,7 +1243,6 @@ function App() {
               filteredCounts = {filteredCounts}
               drawingComplete = {drawingComplete}
               setDrawingComplete = {setDrawingComplete}
-              sendFeedback = {sendFeedback}
               initialPrune = {initialPrune}
               setInitialPrune = {setInitialPrune}
               visible = {visible}
@@ -1571,15 +1258,30 @@ function App() {
               excludeList = {excludeList}
               setExcludeList = {setExcludeList}
               annotations = {annotations}
-              centers = {centers}
-              setCenters = {setCenters}
+              // centers = {centers}
+              // setCenters = {setCenters}
               inclusions = {inclusions}
               setInclusions = {setInclusions}
               getAllDescendants = {getAllDescendants}
               linearLayout = {linearLayout}
+              // linearLayoutTree = {linearLayoutTree}
               getInclusions = {getInclusions}
               edges = {edges}
               setEdges = {setEdges}
+              maxDistance = {maxDistance}
+              setMaxDistance = {setMaxDistance}
+              subspaces = {subspaces}
+              spaceSubspaces = {spaceSubspaces}
+              visitTypeNames = {visitTypeNames}
+              nWidth = {nWidth}
+              countType = {countType}
+              setCountType = {setCountType}
+              moveSlider = {moveSlider}
+              updateConcepts = {updateConcepts}
+              updateWidth = {updateWidth}
+              getMidX = {getMidX}
+              showConfirmation = {showConfirmation}
+              setShowConfirmation = {setShowConfirmation}
             />      
           } />
         </Routes>
