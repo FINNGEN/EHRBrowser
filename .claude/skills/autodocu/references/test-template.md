@@ -4,23 +4,29 @@ Concrete skeletons for the files autodocu generates. Adapt locators to the app; 
 
 ## Layout
 
-`AUTODOCU/Tests` stays clean — per-section spec folders + one `playwright/` folder + `README.md`:
+`AUTODOCU/Tests` stays clean — per-section spec folders + the `run_test.sh`
+runner and its `.env` + one `Scripts/` folder holding all the machinery + `README.md`:
 
 ```
 AUTODOCU/Tests/
   README.md
-  playwright/                         # self-contained npm project — run everything from here
-    package.json  package-lock.json
-    playwright.config.ts  _helpers.ts  .gitignore
-    node_modules/  .pw-artifacts/      # (gitignored)
-  <n.section_slug>/<slug>.spec.ts      # imports '../playwright/_helpers'
+  run_test.sh                          # generic one-command runner (diffs screenshots + writes report)
+  .env                                 # tunable harness settings (sourced by run_test.sh)
+  Scripts/                             # the machinery the runner drives
+    compare_report.mjs                 #   pixel-diff + writes test_report.md (generic, Node)
+    app_control.sh                     #   app start/stop + URL (app-specific; build generates it)
+    playwright/                        #   self-contained npm project — run Playwright from here
+      package.json  package-lock.json
+      playwright.config.ts  _helpers.ts  .gitignore
+      node_modules/  .pw-artifacts/      # (gitignored)
+  <n.section_slug>/<slug>.spec.ts      # imports '../Scripts/playwright/_helpers'
 ```
 
-`init` lays down `playwright/{package.json, playwright.config.ts, _helpers.ts, .gitignore}` and `Tests/README.md` from the template; `build` fills in the config's `baseURL`/`viewport` and generates the per-section specs.
+`init` lays down `Scripts/playwright/{package.json, playwright.config.ts, _helpers.ts, .gitignore}`, `Scripts/compare_report.mjs`, `Scripts/app_control.sh` (placeholder), `run_test.sh`, `.env`, and `Tests/README.md` from the template; `build` fills in the config's `baseURL`/`viewport`, generates `Scripts/app_control.sh`, and generates the per-section specs.
 
-**Module resolution:** the specs live one level *above* `playwright/node_modules`, so Node's normal walk can't find `@playwright/test`. The `playwright/package.json` `test` script sets `NODE_PATH="$PWD/node_modules"` to fix that — so run tests with **`npm test`** from inside `playwright/` (or prefix `NODE_PATH="$PWD/node_modules" npx playwright test`).
+**Module resolution:** the specs live two levels *above* `Scripts/playwright/node_modules`, so Node's normal walk can't find `@playwright/test`. The `Scripts/playwright/package.json` `test` script sets `NODE_PATH="$PWD/node_modules"` to fix that — so run tests with **`npm test`** from inside `Scripts/playwright/` (or prefix `NODE_PATH="$PWD/node_modules" npx playwright test`).
 
-## `AUTODOCU/Tests/playwright/package.json`
+## `AUTODOCU/Tests/Scripts/playwright/package.json`
 
 The isolated npm project. Its only dependency is `@playwright/test`, so installing it never touches the app's root manifests.
 
@@ -40,21 +46,21 @@ The isolated npm project. Its only dependency is `@playwright/test`, so installi
 }
 ```
 
-Install once (from inside the folder — this creates `AUTODOCU/Tests/playwright/node_modules` only):
+Install once (from inside the folder — this creates `AUTODOCU/Tests/Scripts/playwright/node_modules` only):
 
 ```bash
-cd AUTODOCU/Tests/playwright && npm install && npm run install-browsers
+cd AUTODOCU/Tests/Scripts/playwright && npm install && npm run install-browsers
 ```
 
-## `AUTODOCU/Tests/playwright/playwright.config.ts`
+## `AUTODOCU/Tests/Scripts/playwright/playwright.config.ts`
 
-`baseURL` and `viewport` come from the Outline `# Run` section. `testDir` is `..` (the Tests folder), so it finds `<section>/*.spec.ts`. `outputDir` is scratch only — real screenshots are written by explicit path into the Documentation tree.
+`baseURL` and `viewport` come from the Outline `# Run` section. `testDir` is `../..` (the Tests folder, two levels up), so it finds `<section>/*.spec.ts`. `outputDir` is scratch only — real screenshots are written by explicit path into the Documentation tree.
 
 ```ts
 import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
-  testDir: '..',
+  testDir: '../..',
   testIgnore: ['**/node_modules/**', '**/.pw-artifacts/**', '**/.playwright-cli/**'],
   outputDir: './.pw-artifacts',
   fullyParallel: false,
@@ -67,14 +73,17 @@ export default defineConfig({
 });
 ```
 
-## Shared helpers — `AUTODOCU/Tests/playwright/_helpers.ts`
+## Shared helpers — `AUTODOCU/Tests/Scripts/playwright/_helpers.ts`
 
 ```ts
 import { Page, Locator } from '@playwright/test';
 import * as path from 'path';
 
-// _helpers.ts lives in AUTODOCU/Tests/playwright, so Documentation is two levels up.
-const DOC_ROOT = path.resolve(__dirname, '..', '..', 'Documentation');
+// _helpers.ts lives in AUTODOCU/Tests/Scripts/playwright, so Documentation is three levels up.
+// (run_test.sh sets AUTODOCU_SHOT_ROOT to redirect captures to a temp dir for diffing.)
+const DOC_ROOT = process.env.AUTODOCU_SHOT_ROOT
+  ? path.resolve(process.env.AUTODOCU_SHOT_ROOT)
+  : path.resolve(__dirname, '..', '..', '..', 'Documentation');
 
 // Draw a red box around an element (the `highlight` keyword).
 // Override style via the `style` arg when the Outline's
@@ -112,11 +121,11 @@ export async function shot(page: Page, section: string, name: string) {
 
 ## Per-section spec — `AUTODOCU/Tests/<section>/<slug>.spec.ts`
 
-One `test` per section folder. Note the helper import path `../playwright/_helpers`. Walk the Outline `# Sections` steps top to bottom; the screenshot name = heading slug + running index so Phase 3 can locate each image under its heading.
+One `test` per section folder. Note the helper import path `../Scripts/playwright/_helpers`. Walk the Outline `# Sections` steps top to bottom; the screenshot name = heading slug + running index so Phase 3 can locate each image under its heading.
 
 ```ts
 import { test } from '@playwright/test';
-import { highlight, clearHighlights, shot } from '../playwright/_helpers';
+import { highlight, clearHighlights, shot } from '../Scripts/playwright/_helpers';
 
 const SECTION = '1.exploring_a_single_standard_concept'; // must equal the folder name
 
@@ -156,7 +165,7 @@ Always run from inside the workspace so all scratch stays there:
 
 ```bash
 # app must be up first (build launches it per the Run section, then stops it after)
-cd AUTODOCU/Tests/playwright
+cd AUTODOCU/Tests/Scripts/playwright
 npm test -- 1.exploring_a_single_standard_concept   # a single section
 npm test                                             # all sections
 ```
@@ -165,10 +174,10 @@ npm test                                             # all sections
 
 ## Resolving locators
 
-When a locator in the Outline is described in words (e.g. "the List selector in the left area"), attach `playwright-cli` to the running app and inspect the snapshot to find the real selector, then bake it into the spec. Run it **from inside `AUTODOCU/Tests/playwright`** so its `.playwright-cli/` dumps stay inside the (gitignored) workspace:
+When a locator in the Outline is described in words (e.g. "the List selector in the left area"), attach `playwright-cli` to the running app and inspect the snapshot to find the real selector, then bake it into the spec. Run it **from inside `AUTODOCU/Tests/Scripts/playwright`** so its `.playwright-cli/` dumps stay inside the (gitignored) workspace:
 
 ```bash
-cd AUTODOCU/Tests/playwright
+cd AUTODOCU/Tests/Scripts/playwright
 playwright-cli open http://localhost:8563/
 playwright-cli find "List"
 playwright-cli snapshot

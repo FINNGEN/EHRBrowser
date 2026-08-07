@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { highlight, clearHighlights, shot } from '../playwright/_helpers';
+import { highlight, clearHighlights, shot } from '../Scripts/playwright/_helpers';
 
 const SECTION = '1.Exploring_a_single_standard_concept'; // must equal the folder name
 

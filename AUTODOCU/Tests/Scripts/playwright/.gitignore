@@ -1,8 +1,8 @@
-# AUTODOCU/Tests/playwright — the self-contained Playwright workspace.
+# AUTODOCU/Tests/Scripts/playwright — the self-contained Playwright workspace.
 #
 # Committed SOURCES (here): package.json, package-lock.json,
 # playwright.config.ts, _helpers.ts, .gitignore.
-# (The specs live one level up in AUTODOCU/Tests/<section>/; the folder
+# (The specs live two levels up in AUTODOCU/Tests/<section>/; the folder
 # README is AUTODOCU/Tests/README.md.)
 #
 # Everything below is installed or regenerated on each run — never commit it.
