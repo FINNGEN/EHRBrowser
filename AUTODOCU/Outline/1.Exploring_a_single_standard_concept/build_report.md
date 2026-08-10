@@ -14,13 +14,6 @@ Advisory notes from the last `autodocu build` (full rebuild of this section). Ge
 - The **List** row arrow expands the same *Mapped from* codes — confirmed (`10`).
 - Switching to **Person Counts** rescales the time plot and relabels the tree nodes only — confirmed and documented as such (`17`).
 
-## Typos (prose only — non-blocking)
-
-These are in the describe-notes, so they don't affect the build; the intended meaning was rendered in clean British English on the doc page:
-
-- **`"Descrive"` (many occurrences) → "Describe".**
-- Assorted single-word slips: `"decendants"` / `"dencendants"` → "descendants"; `"furhter"` → "further"; `"onthese"` → "on these"; `"mapt"` → "map"; `"bee to big"` → "be too big"; `"compapt"` → "compact"; `"an stack plot"` → "a stacked plot"; `"serv"` → "serve"; `"recor counts occurrin"` → "record counts occurring"; `"updateThe"` → "update the".
-
 ## Result
 
 - Heading hierarchy mirrored exactly: `## Searching for a concept`, `## Overall view` → `### Hierarchy panel (left panel)` (`#### Concept Set`, `#### Hierarchy tree`, `#### List`), `### Counts panel (right panel)`, `### Concept Control (top bar)`.

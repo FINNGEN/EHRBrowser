@@ -22,13 +22,9 @@ Advisory notes from the last `autodocu build` (first build of this section). Gen
 - The **Class** dropdown lists every concept class, with **Ingredient** and **Clinical Drug Comp** deactivated by default (shown greyed-out) — confirmed (`06`).
 - Adding **Ingredient** so both it and **ATC 5th** are active makes the stacked areas overflow the black **Root DRC** line, the signal that children are shared (the hierarchy is a graph) — confirmed (`07`).
 
-## Typos (prose only — non-blocking)
+## Naming (unresolved — your call)
 
-In `# Description` and the describe-notes; the intended text was rendered corrected in clean British English:
-
-- Folder / name: the folder slug is `3.Exploring_a_large_tree_ATC_tree_exaple` — **`"exaple"` → "example"**. Renaming the folder is your call (the name must stay identical across the `Outline` / `Tests` / `Documentation` trees), so it was **not** changed.
-- `# Description`: `"descendans"` → "descendants"; `"exproring"` → "exploring"; `"Clasification"` → "classification"; `"conceps"` → "concepts"; `"RxNomn"` → "RxNorm"; `"humdres"` → "hundreds"; `"Cases like results in"` → "Cases like this result in".
-- Describe-notes: `"Descrive"` / `"Decrive"` → "Describe"; `"distiguise"` → "distinguish"; `"inmediate"` → "immediate"; `"overTime"` → "over time"; `"Concep Classes"` → "Concept Classes"; `"grups"` / `"grup"` / `"gropings"` → "groups" / "group" / "groupings"; `"drus"` → "drugs"; `"seelct"` → "select"; `"Ingrediens"` / `"Ingredien"` → "Ingredient"; `"childre"` / `"childrens"` → "children".
+- Folder / name: the folder slug is `3.Exploring_a_large_tree_ATC_tree_exaple` — **`"exaple"` → "example"**. Renaming the folder is your call (the name must stay identical across the `Outline` / `Tests` / `Documentation` trees), so it was **not** changed. All prose typos previously flagged here have since been fixed in the Outline.
 
 ## Result
 

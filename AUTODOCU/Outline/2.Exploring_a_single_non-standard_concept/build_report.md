@@ -21,13 +21,6 @@ Everything the Outline claims about the non-standard differences is correct and 
 - Clicking that circle **expands the standard concept it maps to** (SNOMED Asthma, id `317009`) — confirmed (`03`).
 - The **List** row arrow reveals the **"Maps to"** standard concept — confirmed and described in prose against `04`.
 
-## Typos (prose only — non-blocking)
-
-In `# Description` and the describe-notes, so they don't affect the build; the intended text was rendered corrected on the page:
-
-- `# Description`: **`"OMOP-CDP"` → "OMOP-CDM"** (worth fixing — it names the data model); `"understant"` → "understand".
-- Describe-notes: `"Descrive"` (×5) → "Describe"; `"similart"` → "similar"; `"non-standar"` / `"conceps"` → "non-standard" / "concepts"; `"expans"` → "expands"; `"standar concepts"` → "standard concepts"; `"aswell"` → "as well"; `"smae"` → "same".
-
 ## Handling of the "same as section 1" notes
 
 - The steps `"add link to section 1"` and `"the rest of the tool behaves the same way as section 1"` were honoured: the rendered page links back to `../1.Exploring_a_single_standard_concept/README.md` and defers the counts / person-counts / filter walkthrough to it rather than repeating it.
