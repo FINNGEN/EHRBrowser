@@ -72,4 +72,4 @@ The EHR Browser lets you load any standard concept from the vocabulary and explo
 - Click 'Mappings', `highlight` 'Mappings', `take-screenshot`. 
 - Descrive, before we show how Mapped codes can be show per one concept, but clicking this will open the mapping codes on all the concepts in the tree and list. 
 - Click 'Descendants', Click 'Person Counts', `highlight` 'Person Counts', `take-screenshot`. 
-- Descrive that switching to 'Person Counts' will switch the whole view to display PC and DPC instead of RC and DRC, we can see that inThe list, hierachny, time plot and filters. 
+- Descrive that switching to 'Person Counts' will display PC and DPC instead of RC and DRC. This affects the time plot (which rescales to person counts) and the Hierarchy tree node labels; the List counts and the Sex/Age/Visit Type filters stay record-based. 
