@@ -21,15 +21,17 @@ Lives at the repo root. Three sibling trees that **share the same subfolder skel
 
 ```
 AUTODOCU/
-  Outline/         # INPUT — hand-written by the user (build writes only build_report.md here)
-    build_report.md  # GENERATED — advisory notes on the Outline (overwritten every build)
+  Outline/                       # INPUT — hand-written by the user (build writes only build_report.md files here)
+    build_report.md              # GENERATED — advisory notes on the root Outline/README.md (overwritten every build)
+    <n.section_slug>/
+      build_report.md            # GENERATED — advisory notes on THIS section's README.md (overwritten when that section is built)
   Tests/           # GENERATED — per-section specs + a Scripts/ folder of machinery (see below)
   Documentation/   # GENERATED — Markdown pages + screenshots
 ```
 
 Every documentation chapter is a subfolder that appears in **all three** trees with the **identical name**. Folder naming convention: `number.section_in_snake_case` (e.g. `1.exploring_a_single_standard_concept`). The number sets the order; the snake_case part is the slug.
 
-- **`Outline/`** holds the instructions. You only read from it — the sole exception is `Outline/build_report.md`, the advisory report `build` writes there (see Phase 5).
+- **`Outline/`** holds the instructions. You only read from it — the sole exception is the `build_report.md` files `build` writes: one at the root (`Outline/build_report.md`, about `Outline/README.md`) and one inside each built section folder (`Outline/<section>/build_report.md`, about that section's `README.md`). See Phase 5.
 - **`Tests/<section>/`** holds the `.spec.ts` you generate for that section.
 - **`Documentation/<section>/`** holds the rendered `README.md` for that section and its `screenshots/` folder.
 
@@ -223,16 +225,21 @@ Write `AUTODOCU/Documentation/README.md` (always refresh it, even for a single-s
 - `#` Name and Description from the Outline root.
 - Build the index exactly as the `# Index` section dictates (e.g. a heading "Use cases" followed by a list of `**<section name>**: <brief description>`), linking each entry to its section page (`./<section>/README.md`).
 
-### Phase 5 — Build report
+### Phase 5 — Build reports
 
-After the requested sections are built, write `AUTODOCU/Outline/build_report.md` (overwrite it every run) summarizing what would make the Outline clearer for future builds. It sits inside `Outline/` next to the input it comments on, but it is the **one** file `build` writes there — it is advisory only, so **never edit the user's Outline content yourself**, just report. Group findings by file (`Outline/README.md`, each `Outline/<section>/README.md`) as short, actionable bullets, each with a quote and a suggested fix. Cover at least:
+Because `build` is usually run one section at a time, the advisory report is **split per file** so each report only ever concerns the input it comments on — building one section never rewrites another section's notes. Write **one report per Outline file**, each overwritten only when that file's input is (re)processed:
+
+- **`AUTODOCU/Outline/build_report.md`** — notes about the **root** `Outline/README.md` only (Name, Description, Index, Run, Documentation instruction). Refresh it on every `build` run, since the root Outline is always read regardless of which section is built.
+- **`AUTODOCU/Outline/<section>/build_report.md`** — notes about **that one section's** `README.md` only. Write it inside the section folder, and overwrite it **only for the sections actually built this run** (a single-section build must not touch the reports of sections it didn't rebuild).
+
+Each report sits next to the input it comments on, and these are the **only** files `build` writes under `Outline/`. They are advisory only, so **never edit the user's Outline content yourself**, just report. Write findings as short, actionable bullets, each with a quote and a suggested fix. Across the reports, cover at least:
 
 - **Fuzzy-matched keywords** — every misspelled/loose keyword you accepted (e.g. `highligth` → `highlight`) and where it was.
 - **Ambiguous or contradictory instructions** — steps whose target you had to guess, or that contradict the screenshots (e.g. Outline says "left side" but the element is on the right).
 - **Missing `# Run` fields** — a port or window size you had to infer or default.
 - **Typos and wrong labels** — concept or UI-label names in the Outline that didn't match the app's real text.
 
-If nothing needs improving, still write the file and state that the Outline was clean.
+Route each finding to the report for the file it concerns: `# Run` / `# Index` / `# Documentation instruction` issues go in the root report; a section's step, heading, and label issues go in that section's report. If a given file needs no improvement, still write its report and state that the file was clean.
 
 ## Rules
 
@@ -240,5 +247,5 @@ If nothing needs improving, still write the file and state that the Outline was 
 - **Isolation**: Playwright and all its scratch stay inside `AUTODOCU/Tests/Scripts/playwright`. Never add Playwright to the app's root `package.json`; never run `npm`/`npx`/`playwright-cli` from the repo root for autodocu work — always `cd AUTODOCU/Tests/Scripts/playwright` first, and run tests via `npm test` (which sets `NODE_PATH`).
 - **Names stay identical** across the three trees. Create Tests/Documentation folders to exactly match the Outline folder names.
 - **Screenshots are the source of truth** for the docs — generate them by running tests, then describe only what they show.
-- **Full rebuild, not merge**: re-running `build` deletes each target section's previous `Tests/<section>/` and `Documentation/<section>/` and regenerates them from scratch — it never reuses prior specs, locators, screenshots, or prose. (A future `update` command will preserve prior work; `build` does not.) It never touches `Tests/Scripts/playwright/`, and in `Outline/` it writes only `build_report.md` (never the user's input). `init` never overwrites an existing Outline — it stops and asks.
+- **Full rebuild, not merge**: re-running `build` deletes each target section's previous `Tests/<section>/` and `Documentation/<section>/` and regenerates them from scratch — it never reuses prior specs, locators, screenshots, or prose. (A future `update` command will preserve prior work; `build` does not.) It never touches `Tests/Scripts/playwright/`, and in `Outline/` it writes only the `build_report.md` files — the root one and each built section's — never the user's input. `init` never overwrites an existing Outline — it stops and asks.
 - If a section's Outline is ambiguous (a locator you can't resolve, a missing Run command), stop and ask rather than guessing selectors.
