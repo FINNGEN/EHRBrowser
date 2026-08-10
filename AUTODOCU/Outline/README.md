@@ -26,13 +26,13 @@ eg
 
 # Run
 
-Lauch the docker image with command 
+Launch the docker image with command
 
 ```
-docker run --rm -p 8563:8563  ehr_browser
+docker run --rm -p 8563:8563 ehr_browser
 ```
 
-Navegate to 
+Navigate to
 
 http://localhost:8563/
 
@@ -41,6 +41,6 @@ Window size: 1280 × 800
 
 # Documentation instruction
 
-- Use Britih English 
-- Hihglight the following key workds in the documentaion as **bold** and star them with high case: **EHRBrowser**, **OMOP-CDM**, **Concept**, **Concept Set** 
-- Always expand the acronims in the pictures in parentesis: eg  **DRC** (Descendant Record Counts) 
+- Use British English
+- Highlight the following key words in the documentation as **bold** and start them with upper case: **EHRBrowser**, **OMOP-CDM**, **Concept**, **Concept Set**
+- Always expand the acronyms in the pictures in parentheses: eg **DRC** (Descendant Record Counts)
