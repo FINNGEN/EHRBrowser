@@ -110,7 +110,7 @@ Markdown `#` sections:
 
 - **`# Name`** — the chapter/step name.
 - **`# Description`** — overall description of this documentation chapter.
-- **`# Sections`** — the body. Uses `##`, `###`, … headings that define the **exact heading hierarchy** the rendered doc page must mirror. Under each heading is a bullet list of **steps**: navigation actions, described areas, and the two keywords below.
+- **`# Sections`** — the body. Uses `##`, `###`, … headings that define the **exact heading hierarchy** the rendered doc page must mirror. Under each heading is a bullet list of **steps**: navigation actions, described areas, and the two keywords below. The steps are the **minimum information** the documentation must cover — not verbatim paragraphs to copy; the rendered page may be more descriptive (see Phase 3).
 
 ### Keywords inside steps
 
@@ -217,7 +217,8 @@ Once a section's screenshots exist, write `AUTODOCU/Documentation/<section>/READ
 1. Start with the section **Name** as the top `#` heading, then its **Description**.
 2. Reproduce the **exact `##`/`###` heading hierarchy** from the Outline `# Sections`.
 3. Under each heading, embed the screenshot(s) captured there with a relative path (`![...](screenshots/01-....png)`), and write the prose the steps asked for — turn every "describe the …" instruction into clear explanatory text about that area/picture.
-4. Follow the global **Documentation instruction** for tone and language throughout. Never invent UI that isn't in the screenshots.
+4. **The Outline is a minimum, not a verbatim script.** Its steps and describe-notes are the least that *must* be covered — they are not paragraphs to copy word for word. When rendering the documentation you may (and should) write more than the Outline literally says: add connective prose, context, and explanation that help the reader understand the overall documentation and how the tool works, so the page reads as a coherent guide rather than a terse checklist. Stay grounded in what the screenshots and the app actually show — expand on the tool, never invent UI. How descriptive and how deep to go is governed by the `# Documentation instruction` section: if it specifies tone or depth of explanation, follow it; otherwise aim for clear, helpful explanation.
+5. Follow the global **Documentation instruction** for tone and language throughout. Never invent UI that isn't in the screenshots.
 
 ### Phase 4 — Root index
 
