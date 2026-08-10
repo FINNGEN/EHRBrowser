@@ -15,8 +15,8 @@ Given a single **Concept** or **Concept Set**, EHRBrowser can visualise:
 
 # Index
 
-Name the index section as 'Overview and use cases'
-Show the subsections as a list with the subsection name ':' and a brief description.
+Name the index section as 'Use cases'
+Show the subsections as a list with the subsection name ':' and a brief description. This brief description should be a broad explanation of the use case and not contain deep detaisl of the section. Keep the all the descriptions on similar tone and scope for all the points.
 
 eg
 ```

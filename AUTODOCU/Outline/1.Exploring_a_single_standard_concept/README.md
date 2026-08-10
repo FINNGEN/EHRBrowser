@@ -60,10 +60,10 @@ The EHR Browser lets you load any standard concept from the vocabulary and explo
 - The black line of top shows the DRC for the selected concept. 
 - Hover over the 'Asthma' area (the large bottom layer of the stack), wait few second, `take-screenshot`
 - Descrive that hovering over an area will highligt the concept and dropdown more info. 
-- `highlight` the filter on the top of the plot in one box (Sex, Age, Visit Type), `take-screenshot`
+- `highlight` the filter on the top make one box that includes all the filters in it, Sex, Age, and Visit Type, `take-screenshot`
 - Descrive that these plots how the distribution of reocrd counts for the Sex, Age, Visit Type, but also they serv as filters when clicked. 
-- Click in "Female" and click in "50-59", `take-screenshot`
-- Descrive that now the time plot only show the recor counts occurrin in Females on the age range of 50-59 years. 
+- Click in "Female", click in "50-59", click in "PRIM_OUT" `take-screenshot`
+- Descrive that now the time plot only show the recor counts occurrin in Females on the age range of 50-59 years and the 'avohilmo' register. We can see how only the data covers the years that the 'avohilmo' register covers.
 
 ### Concept Control (top bar)
 

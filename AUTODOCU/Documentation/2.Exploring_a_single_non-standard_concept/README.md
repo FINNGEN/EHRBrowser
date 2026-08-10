@@ -22,7 +22,7 @@ Selecting **Hierarchy** shows the same kind of tree seen for a standard **Concep
 
 The difference from a standard **Concept** is the position of the small grey mapping circle. For a standard **Concept** it sits on the **left** of each node; for a non-standard **Concept** it appears on the **right** instead.
 
-![The standard concepts J45 maps to, expanded in the tree](screenshots/03-hierarchy-tree-mappings-open.png)
+![The standard concept J45 maps to, expanded in the tree](screenshots/03-hierarchy-tree-mappings-open.png)
 
 Clicking that grey circle on the J45 node expands the **Standard** **Concept** this non-standard code **maps to** — here the **SNOMED** Asthma **Concept** (circled above). This is the mirror image of the standard-concept behaviour: for a standard **Concept** the circle reveals the non-standard codes that map *into* it, whereas here it reveals the standard **Concept** the non-standard code maps *to*.
 
@@ -32,4 +32,4 @@ Clicking that grey circle on the J45 node expands the **Standard** **Concept** t
 
 The **List** view compacts the same descendants into a flat list grouped by tree level, each row showing its **RC** (Record Counts) and **DRC** (Descendant Record Counts) — exactly as for a standard **Concept**. The non-standard difference carries over here too: the arrow on the left of each row expands the **Maps to** **Standard** concepts for that code, rather than the *Mapped from* non-standard codes shown for a standard **Concept**.
 
-Everything else behaves just as it does for a standard **Concept** — the counts panel on the right explores **Record Counts** and **Person Counts** over time, stratified and filterable by sex, age, and visit type. See [Exploring a single Standard **Concept**](../1.Exploring_a_single_standard_concept/README.md) for a full walkthrough of those views.
+Everything else behaves just as it does for a standard **Concept** — the counts panel on the right explores **Record Counts** and **Person Counts** over time, stratified and filterable by sex, age and visit type. See [Exploring a single Standard **Concept**](../1.Exploring_a_single_standard_concept/README.md) for a full walkthrough of those views.
