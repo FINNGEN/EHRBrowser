@@ -1,6 +1,6 @@
 # Build report — root `Outline/README.md`
 
-Advisory notes from the last `autodocu build` (full rebuild of all three sections). This file is generated (refreshed every build) and comments **only** on the root `Outline/README.md` — Name, Description, Index, Run and Documentation instruction. Your Outline input was **not** modified.
+Advisory notes from the last `autodocu build` (this run built section `4.Working_with_Concept_Sets`; the root Outline is re-read on every build). This file is generated (refreshed every build) and comments **only** on the root `Outline/README.md` — Name, Description, Index, Run and Documentation instruction. Your Outline input was **not** modified.
 
 **The root Outline is clean and complete.** All `# Run` fields were present, the `# Index` rules were unambiguous, and the `# Documentation instruction` was applied throughout. Nothing had to be defaulted or guessed.
 
@@ -11,7 +11,7 @@ Advisory notes from the last `autodocu build` (full rebuild of all three section
 
 ## `# Index`
 
-- Clear. Rendered as a **Use cases** list, one `**<name>**: <description>` bullet per section linking to its page, with descriptions kept to a similar broad scope — exactly as specified.
+- Clear. Rendered as a **Use cases** list, one `**<name>**: <description>` bullet per section linking to its page, with descriptions kept to a similar broad scope — exactly as specified. The index now lists all four sections, with **Working with Concept Sets** appended for this build.
 
 ## `# Documentation instruction`
 
@@ -19,6 +19,6 @@ Advisory notes from the last `autodocu build` (full rebuild of all three section
 
 ## Result
 
-- Playwright: **3/3 specs passed**. Screenshot diffs: **28/28** captured (all `1280 × 800`); total **31/31** rows PASS. Because the whole `Documentation/` tree was removed before this build, every screenshot was adopted as a fresh baseline (`new baseline`). See `Tests/test_report.md`.
+- This run built only `4.Working_with_Concept_Sets`: Playwright **1/1 spec passed**, **10/10** screenshots captured at `1280 × 800` and adopted as fresh baselines (the section had no prior `Documentation/`). The other sections were left untouched.
 
 Per-section notes live next to each section's input, in `Outline/<section>/build_report.md`.
