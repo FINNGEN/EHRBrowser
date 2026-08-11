@@ -209,8 +209,18 @@ function App() {
           const year = row.calendar_year
           const key = `${year}__${id}`
 
-          const current = rollupB.get(key) ?? 0
-          rollupB.set(key, current + row.node_record_counts)
+          const current =
+          countType === 'record'
+            ? rollupB.get(key) ?? 0
+            : rollupB.get(key) ?? []
+          
+          const value =
+            countType === 'record'
+              ? row.node_record_counts ?? 0
+              : row.node_hll_person_counts ?? 0
+
+          if (countType === 'record') rollupB.set(key, current + value)
+          else {if (value !== 0) rollupB.set(key, [...current, value])}
         }
       }
 
@@ -307,9 +317,21 @@ function App() {
   }
 
   function getCounts(data,col) {
-    let sum = 0;
-    data.forEach(d => sum += d[col])
-    return sum
+    if (col === 'node_hll_person_counts') {
+      async function getPersonCounts() {
+        const sketches = data
+          .filter(d => d[col])
+          .map(d => d[col])
+
+        return sketches.length > 0 ? await runMerge(sketches) : 0
+      }
+      return getPersonCounts()
+    } 
+    else {
+      let sum = 0;
+      data.forEach(d => sum += d[col])
+      return sum  
+    }
   }
 
   function getAllDescendants(relationships, rootId, descendants) {
@@ -653,22 +675,23 @@ function App() {
     }
   }
 
-  function updateInclusions(relationship) {
+  function updateInclusions(relationship,countType,updateWidth=false) {
       let newInclusions = []
       let mappings = []
+
       if (relationship === 'descendants') {
           newInclusions = sidebarRoot.name.map(r => nodes.map(n => n.name).includes(r) ? getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,nodes.find(n => n.name === r).descendants) : getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)))).flat().filter((e,n,l) => l.indexOf(e) === n)
-              .filter(i => sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts !== 0 && sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts)
+              .filter(i => countType === 'record' ? fullTree.nodes.find(n => n.name === i).total_counts !== 0 : fullTree.nodes.find(n => n.name === i).person_counts !== 0)
           setMapRoot([])
       } else {
           newInclusions = sidebarRoot.name.map(r => nodes.map(n => n.name).includes(r) ? getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,nodes.find(n => n.name === r).descendants) : getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)))).flat().filter((e,n,l) => l.indexOf(e) === n)
               .map(i => fullTree.nodes.find(n => n.name === i).mappings.map(m => m.name)).flat()   
-              .filter(i => sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts !== 0)
+              .filter(i => countType === 'record' ? fullTree.mappings.find(n => n.name === i).total_counts !== 0 : fullTree.mappings.find(n => n.name === i).person_counts !== 0)
           const allMappings = nodes.filter(n => n.mappings.length > 0).map(n => n.name)
           setMapRoot(allMappings)
           mappings = allMappings
       }
-      updateConcepts(newInclusions,nodes,[],[],true,mappings)
+      updateConcepts(newInclusions,nodes,[],[],updateWidth,mappings)
   }
 
   function updateWidth(openedMappings,nList=false) {
@@ -745,11 +768,12 @@ function App() {
   }
   
   // *** optimize this ***
-  function createInitialStates(data,filterClass,filterLevel,filteredClassList) {
+  async function createInitialStates(data,filterClass,filterLevel,filteredClassList) {
     console.log('run',data)
     // create data 
     const subsumesData = data.concept_relationships.filter(d => d.levels !== "Mapped from" && d.levels !== "Maps to")
     const mappingData = data.concept_relationships.filter(d => d.levels === "Mapped from" || d.levels === "Maps to")
+
     
     // what is this doing???
     let nodeData = Array.from(
@@ -805,7 +829,7 @@ function App() {
     posetArray.forEach(pos => pos.elements.forEach(e => positions[e] = pos.featureOf(e,'x')))
 
     // create nodes 
-    nodeData = nodeData.map(e=>({
+    nodeData = await Promise.all(nodeData.map(async e => ({
       'name': e.child_concept_id, 
       'levels': e.levels,
       'relationship': e.levels,
@@ -818,9 +842,10 @@ function App() {
       'children': fullPoset.getLower(e.child_concept_id.toString()).map(d => parseInt(d)),
       'connections': [],
       'total_counts': getCounts(data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),'node_record_counts'),
+      'person_counts': await getCounts(data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),'node_hll_person_counts'),
       'descendants': [...getAllDescendants(subsumesData,e.child_concept_id,[]),e.child_concept_id],
       'data': {code_counts: data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id), concept: data.concepts.filter(d => d.concept_id === e.child_concept_id)[0]}
-    })) 
+    })))
 
     // set max distance
     const maxD = d3.max(nodeData.map(d => d.distance))
@@ -865,6 +890,7 @@ function App() {
     nodeData = nodeData.map(e=>({
       ...e,
       descendant_code_counts: data.stratified_code_counts.filter(d => e.descendants.includes(d.concept_id)),
+      descendant_person_counts: d3.sum(nodeData.filter(n => e.descendants.includes(n.name)).map(n => n.person_counts)),
       leaf:e.descendants.filter(d => d !== e.name).length > 0 && e.leaf ? true : false
     }))
     const selectedNodes = nodeData
@@ -879,24 +905,69 @@ function App() {
     selectedNodes.sort((a,b) => d3.ascending(a.distance, b.distance))
     setSelectedConcepts(selectedNodes)
 
-    // set mappings
-    nodeData = nodeData.map(d => ({
-      ...d,
-      included_descendants:d.descendants.filter(e => inclusionList.includes(e)),
-      descendant_counts:getCounts(d.descendant_code_counts,'node_record_counts')}))
-      .map(node => ({
-        ...node,
-        mappings: mappingData.filter(d => d.parent_concept_id === node.name).map(e=>({
-          'name': e.child_concept_id,
-          'direction': e.levels === "Mapped from" ? -1 : 1,
-          'distance': node.distance,
-          'source': node,
-          'color': generateColor(e.child_concept_id),
-          'total_counts': getCounts(data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),'node_record_counts'),
-          'descendant_counts': data.concepts.find(c => c.concept_id === e.child_concept_id).descendant_record_counts,
-          'data': {code_counts: data.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),concept: data.concepts.filter(d => d.concept_id === e.child_concept_id)[0]}
-          })).sort((a, b) => b.total_counts - a.total_counts)
-      }))
+    // MAPPINGS
+    nodeData = await Promise.all(
+      nodeData.map(async node => {
+
+        const mappings = await Promise.all(
+          mappingData
+            .filter(d => d.parent_concept_id === node.name)
+            .map(async e => ({
+              name: e.child_concept_id,
+              direction: e.levels === "Mapped from" ? -1 : 1,
+              distance: node.distance,
+              source: node,
+              color: generateColor(e.child_concept_id),
+
+              total_counts: getCounts(
+                data.stratified_code_counts.filter(
+                  d => d.concept_id === e.child_concept_id
+                ),
+                'node_record_counts'
+              ),
+
+              person_counts: await getCounts(
+                data.stratified_code_counts.filter(
+                  d => d.concept_id === e.child_concept_id
+                ),
+                'node_hll_person_counts'
+              ),
+
+              descendant_person_counts: 0,
+
+              descendant_counts: data.concepts.find(
+                c => c.concept_id === e.child_concept_id
+              ).descendant_record_counts,
+
+              data: {
+                code_counts: data.stratified_code_counts.filter(
+                  d => d.concept_id === e.child_concept_id
+                ),
+                concept: data.concepts.find(
+                  c => c.concept_id === e.child_concept_id
+                )
+              }
+            }))
+        )
+
+        return {
+          ...node,
+
+          included_descendants: node.descendants.filter(
+            e => inclusionList.includes(e)
+          ),
+
+          descendant_counts: getCounts(
+            node.descendant_code_counts,
+            'node_record_counts'
+          ),
+
+          mappings: mappings.sort(
+            (a, b) => b.total_counts - a.total_counts
+          )
+        }
+      })
+    )
     nodeData.forEach(node => {node.mappings.forEach(map => colors[map.name] = map.color)})
     setColorList(colors)
 
@@ -904,6 +975,8 @@ function App() {
     const nodeNames = nodeData.map(d => d.name)
     const linkData = subsumesData.filter(d => d.parent_concept_id !== d.child_concept_id).map(d=>({...d, source: d.levels === "-1" ? nodeData[nodeNames.indexOf(d.child_concept_id)] : nodeData[nodeNames.indexOf(d.parent_concept_id)], target: d.levels === "-1" ? nodeData[nodeNames.indexOf(d.parent_concept_id)] : nodeData[nodeNames.indexOf(d.child_concept_id)]}))
     
+    const mappings = nodeData.map(n => n.mappings).flat()
+
     // set extent
     let extentData = d3.extent(selectedNodes.map(d => d.data.code_counts).flat().map(d => d.calendar_year))
     if (!extentData[0] || !extentData[1]) extentData = rootExtentData
@@ -914,7 +987,7 @@ function App() {
     setPoset(posetArray)
     setSubspaces(posetArray)
     setPruned(false)
-    setFullTree({relationships:subsumesData,layers:layers,nodes:nodeData,links:linkData,selected:selectedNodes,mappings:mappingData.map(d => d.child_concept_id),edges:fullEdges,poset:fullPoset,maxDistance:maxD})
+    setFullTree({relationships:subsumesData,layers:layers,nodes:nodeData,links:linkData,selected:selectedNodes,mappings:mappings,edges:fullEdges,poset:fullPoset,maxDistance:maxD})
     if (!filterClass && !filterLevel) {
       setNodes(nodeData)
       setLinks(linkData)

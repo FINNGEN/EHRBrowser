@@ -120,6 +120,7 @@ function Visualization (props) {
         if (mode === "enter") {
             clearHideTimer()
             setVisible(true)
+            setShowConfirmation(false)
             d3.select("#tooltip")
                 .style('left', function() {
                     const w = document.getElementById('tooltip').clientWidth
@@ -147,7 +148,7 @@ function Visualization (props) {
                 .on('click', (e,i) => {
                     clearTimeout(e.currentTarget.__hoverTimeout__)
                     showActionLabel('','leave')
-                    showConfirmationPopup(d, 'enter', e)
+                    showConfirmationPopup(d, 'enter', e, true)
                 })
             d3.select('#tooltip-eye-closed')
                 .style('display', () => !conceptNames.includes(d.name) && (d.total_counts !== 0 || d.leaf) ? 'inline-block' : 'none')
@@ -199,12 +200,12 @@ function Visualization (props) {
             d3.select("#tooltip-vocabulary").html(concept_info.vocabulary_id)
             d3.select("#tooltip-domain").html(concept_info.domain_id)
             d3.select("#tooltip-class").html(concept_info.concept_class_id)
-        } else scheduleHide('tooltip')
+        } else scheduleHide()
     }
 
-    function showConfirmationPopup(d, mode, event = null) {
+    function showConfirmationPopup(d, mode, event = null, fromTooltip = false) {
         if (mode === 'enter') {
-            clearHideTimer()
+            if (!fromTooltip) clearHideTimer()
             setShowConfirmation(true)
             d3.select('#confirmation-btn')
                 .on('click', (e,i) => {
@@ -221,10 +222,10 @@ function Visualization (props) {
                 .style('top', function() {
                     const h = document.getElementById('confirmation-popup').clientHeight
                     if (event.y - h < 0) return (event.y + 10 + 'px')  
-                    else return (event.y - h + 'px')
+                    else return (event.y + 'px')
                 })
-                .transition()
-        } else scheduleHide('confirmation')
+            d3.select('#confirmation-name').html(d.data.concept.concept_name)
+        } else scheduleHide()
     }
 
     function showActionLabel(label,mode,event) {
@@ -262,13 +263,28 @@ function Visualization (props) {
         }
     }
 
-    const scheduleHide = (id) => {
+    const scheduleHide = () => {
         clearHideTimer()
         hideTimer.current = setTimeout(() => { 
-            if (id === 'tooltip') setVisible(false)
-            if (id === 'confirmation') setShowConfirmation(false)
+            setShowConfirmation(false)
+            setVisible(false)
         }, 800)    
     }
+
+    // close popup
+    document.addEventListener('click', (e) => {
+        if (document.getElementById('tooltip')) {
+            if (visible) {
+                if (document.getElementById('confirmation-popup')) {
+                    const popupContainer = document.getElementById('confirmation-popup')
+                    const tooltipSearch = document.getElementById('tooltip-search')
+                    if (!popupContainer.contains(e.target) && !tooltipSearch.contains(e.target)) setShowConfirmation(false)
+                } 
+                const tooltipContainer = document.getElementById('tooltip') 
+                if (!tooltipContainer.contains(e.target)) setVisible(false)
+            }
+        }
+    })
     
     // filter tree data
     // *** optimize this *** 
@@ -326,10 +342,19 @@ function Visualization (props) {
                     descendants: fullTree.nodes.find(n => n.name === e.name).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)),
                     x: positions[e.name] 
                 }))
+            // inclusions
             const newInclusions = sidebarRoot.name.map(r => filteredNodes.map(n => n.name).includes(r) ? getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,filteredNodes.find(n => n.name === r).descendants) : getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)))).flat().filter((e,n,l) => l.indexOf(e) === n)
                 .filter(i => fullTree.nodes.find(n => n.name === i).levels !== '-1' && fullTree.nodes.find(n => n.name === i).levels)
                 .map(i => relationship.includes('mappings') ? fullTree.nodes.find(n => n.name === i).mappings.map(m => m.name) : i).flat()   
-                .filter(i => sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts !== 0)
+                .filter(i => {
+                    if (relationship.includes('mappings')) {
+                        if (countType === 'record') return fullTree.mappings.find(n => n.name === i).total_counts !== 0
+                        else return fullTree.mappings.find(n => n.name === i).person_counts !== 0
+                    } else {
+                        if (countType === 'record') return fullTree.nodes.find(n => n.name === i).total_counts !== 0
+                        else return fullTree.nodes.find(n => n.name === i).person_counts  !== 0   
+                    }
+                })
             filteredNodes = filteredNodes
                 .map(e => ({
                     ...e,
@@ -338,6 +363,7 @@ function Visualization (props) {
                 .map(e => ({
                     ...e,
                     descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => e.included_descendants.includes(c.concept_id)),
+                    descendant_person_counts: d3.sum(fullTree.nodes.filter(n => e.included_descendants.includes(n.name)).map(n => n.person_counts)),
                     leaf: e.included_descendants.filter(d => d !== e.name && !e.mappings.map(m => m.name).includes(d)).length > 0 && e.leaf ? true : false}
                 ))
             // filter connections 
@@ -426,7 +452,8 @@ function Visualization (props) {
         <div id = "visualization-container">
             <div className = "toolTip dropShadow" id = "tooltip" style = {{opacity: visible ? 1 : 0, pointerEvents: visible ? 'all' : 'none'}} 
                 onMouseEnter={() => {clearHideTimer()}}
-                onMouseLeave={() => {setVisible(false)}}>
+                onMouseLeave={() => {setVisible(false)}}
+            >
                 <div id = "tooltip-header">
                     <div id = "tooltip-btn-container">
                         <FontAwesomeIcon className = 'fa fa-search iconLg marginRight' id = "tooltip-search" icon={faSearch} alt = "select-concept" />
@@ -456,8 +483,9 @@ function Visualization (props) {
             <div className = 'actionLabel dropShadow' id = "action-label"></div> 
             <div id = "confirmation-popup" className = 'toolTip dropShadow' style = {{opacity: showConfirmation ? 1 : 0, pointerEvents: showConfirmation ? 'all' : 'none'}}
                 onMouseEnter={() => {clearHideTimer()}}
-                onMouseLeave={() => {setShowConfirmation(false)}}>
-                <div className = 'selectedText' style = {{paddingBottom:6}}>Select concept</div>
+                onMouseLeave={() => {setShowConfirmation(false)}}
+            >
+                <div style = {{paddingBottom:6}}>Select<span className='selectedText' id = "confirmation-name" style = {{marginLeft:4}}></span></div>
                 <div className = 'btn greyBtn' id = "confirmation-btn">Confirm</div>  
             </div> 
             <SideBar
@@ -529,7 +557,6 @@ function Visualization (props) {
                 showConfirmationPopup = {showConfirmationPopup}
                 showActionLabel = {showActionLabel}
                 formatThousands = {formatThousands}
-                clearHideTimer = {clearHideTimer}
                 setShowConfirmation = {setShowConfirmation}
                 countType = {countType}
                 setVisible = {setVisible}

@@ -359,6 +359,8 @@ h4 {
   justify-content: space-between;
   width: auto;
   height: 20px;
+  min-height: 20px;
+  max-height: 20px;
   border-radius: 5px;
   z-index: 500;
   overflow-x: scroll;
@@ -544,7 +546,7 @@ h4 {
   z-index: 1000;
   overflow: visible;
   justify-content: flex-start;
-  box-shadow: 0px 0px 2px rgba(0, 0, 0, 0.15);  
+  box-shadow: 0px 0px 2px rgba(0, 0, 0, 0.2);  
 }
 #header-title {
   width: 100vw;
@@ -617,7 +619,7 @@ textarea:focus {
 #filter-search {
   position: absolute;
   left: 505px;
-  top: 8px;
+  top: 9.3px;
   background-color: #e0e0e0;
   padding: 4px 6px 4px 6px;
   border-radius: 4px;
@@ -732,11 +734,11 @@ textarea:focus {
 #api-info {
   font-weight: 700;
   border-radius: 16px;
-  width: 14px;
-  height: 14px;
-  font-size: 10px;
+  width: 12px;
+  height: 12px;
+  font-size: 8px;
   color: white;
-  background-color: #36126d;
+  background-color: #36126d;  
 }
 #api-popup {
   width: auto;
@@ -802,7 +804,7 @@ textarea:focus {
 .expand-compress {
   margin-left: 0.5em;
   font-size: 18px;
-  opacity: 0.5;
+  opacity: 0.3;
   transition: 0.5s opacity;
 }
 .expand-compress:hover {
@@ -849,12 +851,12 @@ textarea:focus {
   padding: 5px 0.75em 5px 0.75em;
 }
 .set-expression-container {
-  width: 140px;
+  width: 150px;
   margin-right: 20px;
   justify-content: flex-start;
 }
 .set-counts {
-  width: 80px;
+  width: 70px;
   text-align: right;
 
 }
@@ -1578,7 +1580,7 @@ textarea:focus {
 }
 .lds-grid {
   /* change color here */
-  color: var(--darkpurple);
+  color: #6a23d6;
 }
 .lds-grid,
 .lds-grid div {
@@ -1587,8 +1589,8 @@ textarea:focus {
 .lds-grid {
   display: inline-block;
   position: relative;
-  width: 80px;
-  height: 80px;
+  width: 70px;
+  height: 70px;
 }
 .lds-grid div {
   position: absolute;

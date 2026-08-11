@@ -89,7 +89,6 @@
         const showConfirmationPopup = props.showConfirmationPopup
         const showActionLabel = props.showActionLabel
         const formatThousands = props.formatThousands
-        const clearHideTimer = props.clearHideTimer
         const setShowConfirmation = props.setShowConfirmation
         const countType = props.countType
         const setVisible = props.setVisible
@@ -101,7 +100,7 @@
         function getYPosition(source, axis, cy, node) {
             const mappings = nodes.filter(n => n.name === source.name)[0].mappings
             const direction = mappings.filter(d => d.name === node.name)[0].direction
-            const generation = mappings.filter(d => d.direction === direction).sort((a,b) => b.total_counts - a.total_counts)
+            const generation = countType === 'record' ? mappings.filter(d => d.direction === direction).sort((a,b) => b.total_counts - a.total_counts) : mappings.filter(d => d.direction === direction).sort((a,b) => b.person_counts - a.person_counts)
             const index = generation.map(d => d.name).indexOf(node.name) 
             let gap = 0
             gap = !mapRoot.includes(source.name) ? 10 : 150
@@ -114,14 +113,13 @@
             return position
         }   
         function hoverMappings(d,mode) {
-            const shift = 2
-            // if (mode === 'enter') {
-            //     console.log('1')
-            //     d3.select('#mappings-btn-'+d.name).transition().attr('x', d => !d.data.concept.standard_concept ? d3.select('#mappings-btn-'+d.name).attr('x') + shift : d3.select('#mappings-btn-'+d.name).attr('x') - shift)
-            // } else {
-            //     console.log('2')
-            //     d3.select('#mappings-btn-'+d.name).transition().attr('x', d => !d.data.concept.standard_concept ? d3.select('#mappings-btn-'+d.name).attr('x') - shift : d3.select('#mappings-btn-'+d.name).attr('x') + shift)    
-            // }
+            if (mode === 'enter') {
+                d3.select('#mappings-btn-'+d.name).transition().style('opacity',1)
+                if (!mapRoot.includes(d.name)) d3.selectAll('.map-circle-'+d.name).transition().attr("transform", "translate(-2, 0)")
+            } else {
+                d3.select('#mappings-btn-'+d.name).transition().style('opacity',0.3) 
+                d3.selectAll('.map-circle-'+d.name).transition().attr("transform", "translate(0, 0)")
+            }
         }
         function zoomed(e) {
             const {x,y,k} = e.transform
@@ -181,8 +179,9 @@
         // DRAWING
         // concept set
         function drawSet() {
-            const conceptSetData = sidebarRoot.name.map(root => ({name:root,color:nodes.find(n => n.name === root).color,leaf:nodes.find(n => n.name === root) ? nodes.find(n => n.name === root).leaf : false,descendant_counts:nodes.find(n => n.name === root) ? nodes.find(n => n.name === root).descendant_counts : getCounts(sidebarRoot.data.stratified_code_counts.filter(c => fullTree.nodes.find(n => n.name === root).descendants.filter(d => inclusions.includes(d)).includes(c.concept_id)  || fullTree.nodes.find(n => n.name === root).descendants.map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => inclusions.includes(d)).includes(c.concept_id)),'node_record_counts'),concept:sidebarRoot.data.concepts.find(d => d.concept_id === root),descendants:descendantsFilter.includes(root) ? false : true,exclude:excludeList.includes(root) ? true : false}))
-            console.log(conceptSetData)
+            const allNodes = [...fullTree.nodes,...fullTree.mappings]
+            // MAKE THIS A STATE, FIND BETTER WAY -> MOVE TO FILTERING, HAVE IT BE IN DESCENDANT_COUNTS
+            const conceptSetData = sidebarRoot.name.map(root => ({name:root,color:nodes.find(n => n.name === root).color,leaf:nodes.find(n => n.name === root) ? nodes.find(n => n.name === root).leaf : false, descendant_person_counts:d3.sum([...fullTree.nodes.filter(n => fullTree.nodes.find(n => n.name === root).descendants.includes(n.name)),...fullTree.mappings.filter(m => fullTree.nodes.find(n => n.name === root).descendants.includes(m.source.name))].filter(node => inclusions.includes(node.name)).map(node => node.person_counts)),  descendant_counts: d3.sum([...fullTree.nodes.filter(n => fullTree.nodes.find(n => n.name === root).descendants.includes(n.name)),...fullTree.mappings.filter(m => fullTree.nodes.find(n => n.name === root).descendants.includes(m.source.name))].filter(node => inclusions.includes(node.name)).map(node => node.total_counts)),concept:sidebarRoot.data.concepts.find(d => d.concept_id === root),descendants:descendantsFilter.includes(root) ? false : true,exclude:excludeList.includes(root) ? true : false}))
             d3.select('#set-items').selectAll('.set-item').data(conceptSetData, d => d.name)
             .join(enter => {
                 const container = enter.append('div')
@@ -375,7 +374,7 @@
 
                 container.append('div')
                     .classed('set-counts num',true)
-                    .html(d => d.descendant_counts)
+                    .html(d => countType === 'record' ? d.descendant_counts : d.descendant_person_counts)
             },update => {
                 update.select('.set-concept')
                     .on('mouseover',(e,d) => {
@@ -466,7 +465,7 @@
                 update.select('.exclude-p')
                     .classed('selectedText', d => d.exclude ? true : false)
                 update.select('.set-counts')
-                    .html(d => d.descendant_counts)
+                    .html(d => countType === 'record' ? d.descendant_counts : d.descendant_person_counts)
             })
         }
         // tree
@@ -475,8 +474,8 @@
             // get extent of total counts
             let sums = []
             nodes.forEach(node => {
-                sums.push(Math.sqrt(node.total_counts))
-                node.mappings.forEach(map => sums.push(Math.sqrt(map.total_counts)))
+                countType === 'record' ? sums.push(Math.sqrt(node.total_counts)) : sums.push(Math.sqrt(node.person_counts))
+                node.mappings.forEach(map => countType === 'record' ? sums.push(Math.sqrt(map.total_counts)) : sums.push(Math.sqrt(map.person_counts)))
             })
             const extent = d3.extent(sums)
             const scaleRadius = d3.scaleLinear().domain([0, extent[1]]).range(extent[1] === 0 ? [4,4] : [18, 42])
@@ -548,7 +547,8 @@
             const getLabel = d => {
                 let labelPosition = {x: 0, y: 0}
                     labelPosition.x = d.data.concept.standard_concept ? d.x : d.x ;
-                    labelPosition.y = d.levels === '-1' ? cy + (genHeight[d.distance]) + 30 : d.total_counts > 0 ? cy + (genHeight[d.distance]) - scaleRadius(Math.sqrt(d.total_counts)) - 7 : cy + (genHeight[d.distance]) - scaleRadius(Math.sqrt(d.total_counts)) - 9; 
+                    if (countType === 'record') labelPosition.y = d.levels === '-1' ? cy + (genHeight[d.distance]) + 30 : d.total_counts > 0 ? cy + (genHeight[d.distance]) - scaleRadius(Math.sqrt(d.total_counts)) - 7 : cy + (genHeight[d.distance]) - scaleRadius(Math.sqrt(d.total_counts)) - 9; 
+                    else labelPosition.y = d.levels === '-1' ? cy + (genHeight[d.distance]) + 30 : d.person_counts > 0 ? cy + (genHeight[d.distance]) - scaleRadius(Math.sqrt(d.person_counts)) - 7 : cy + (genHeight[d.distance]) - scaleRadius(Math.sqrt(d.person_counts)) - 9;
                 return labelPosition 
             }
             // get map node positioning 
@@ -557,9 +557,11 @@
                 if (mapRoot.includes(d.source.name)) {
                     mapPosition.x = d.source.x + d.direction*200
                 } else {
-                    mapPosition.x = d.source.x + d.direction*(scaleRadius(Math.sqrt(d.source.total_counts)) + 28)
+                    if (countType === 'record') mapPosition.x = d.source.x + d.direction*(scaleRadius(Math.sqrt(d.source.total_counts)) + 28)
+                    else mapPosition.x = d.source.x + d.direction*(scaleRadius(Math.sqrt(d.source.person_counts)) + 28)
                 }
-                mapPosition.y = d.total_counts > 0 ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) - scaleRadius(Math.sqrt(d.total_counts)) - 7 : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) - scaleRadius(Math.sqrt(d.total_counts)) - 9
+                if (countType === 'record') mapPosition.y = d.total_counts > 0 ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) - scaleRadius(Math.sqrt(d.total_counts)) - 7 : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) - scaleRadius(Math.sqrt(d.total_counts)) - 9
+                else mapPosition.y = d.person_counts > 0 ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) - scaleRadius(Math.sqrt(d.person_counts)) - 7 : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) - scaleRadius(Math.sqrt(d.person_counts)) - 9
                 return mapPosition
             }
             // DRAW LINKS
@@ -578,10 +580,16 @@
                                 .attr('stroke', d => (inclusions.includes(d.source.name) || d.source.mappings.map(m => m.name).some(m => inclusions.includes(m))) && (inclusions.includes(d.target.name) || d.target.mappings.map(m => m.name).some(m => inclusions.includes(m))) ? '#c2c2c2' : '#e0e0e0')
                                 .attr('stroke-width', 1.5)
                                 .attr("d", d => {
+                                    let sourceY, targetY
                                     let sourceX = d.source.x
-                                    let sourceY = d.source.distance > d.target.distance ? cy + (genHeight[d.source.distance]) - scaleRadius(Math.sqrt(d.source.total_counts)) - 48 : cy + (genHeight[d.source.distance]) + scaleRadius(Math.sqrt(d.source.total_counts)) + 18
                                     let targetX = d.target.x
-                                    let targetY = d.source.distance >= d.target.distance ? cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.total_counts)) + 18 : cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 48
+                                    if (countType === 'record') {
+                                        sourceY = d.source.distance > d.target.distance ? cy + (genHeight[d.source.distance]) - scaleRadius(Math.sqrt(d.source.total_counts)) - 48 : cy + (genHeight[d.source.distance]) + scaleRadius(Math.sqrt(d.source.total_counts)) + 18
+                                        targetY = d.source.distance >= d.target.distance ? cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.total_counts)) + 18 : cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 48
+                                    } else {
+                                        sourceY = d.source.distance > d.target.distance ? cy + (genHeight[d.source.distance]) - scaleRadius(Math.sqrt(d.source.person_counts)) - 48 : cy + (genHeight[d.source.distance]) + scaleRadius(Math.sqrt(d.source.person_counts)) + 18
+                                        targetY = d.source.distance >= d.target.distance ? cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.person_counts)) + 18 : cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.person_counts)) - 48
+                                    }
                                     if (d.source.distance === d.target.distance) {
                                         const points =  [
                                             { x: sourceX, y: sourceY },
@@ -600,10 +608,16 @@
                                 .attr('stroke','transparent')
                                 .attr('stroke-width',5)
                                 .attr("d", d => {
+                                    let sourceY, targetY
                                     let sourceX = d.source.x
-                                    let sourceY = d.source.distance > d.target.distance ? cy + (genHeight[d.source.distance]) - scaleRadius(Math.sqrt(d.source.total_counts)) - 48 : cy + (genHeight[d.source.distance]) + scaleRadius(Math.sqrt(d.source.total_counts)) + 18
                                     let targetX = d.target.x
-                                    let targetY = d.source.distance >= d.target.distance ? cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.total_counts)) + 18 : cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 48
+                                    if (countType === 'record') {
+                                        sourceY = d.source.distance > d.target.distance ? cy + (genHeight[d.source.distance]) - scaleRadius(Math.sqrt(d.source.total_counts)) - 48 : cy + (genHeight[d.source.distance]) + scaleRadius(Math.sqrt(d.source.total_counts)) + 18
+                                        targetY = d.source.distance >= d.target.distance ? cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.total_counts)) + 18 : cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 48
+                                    } else {
+                                        sourceY = d.source.distance > d.target.distance ? cy + (genHeight[d.source.distance]) - scaleRadius(Math.sqrt(d.source.person_counts)) - 48 : cy + (genHeight[d.source.distance]) + scaleRadius(Math.sqrt(d.source.person_counts)) + 18
+                                        targetY = d.source.distance >= d.target.distance ? cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.person_counts)) + 18 : cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.person_counts)) - 48
+                                    }
                                     if (d.source.distance === d.target.distance) {
                                         const points =  [
                                             { x: sourceX, y: sourceY },
@@ -624,7 +638,9 @@
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x = d.target.x
-                                    let y = d.source.distance >= d.target.distance ? d.target.total_counts !== 0 ? cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.total_counts)) + 18 : cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.total_counts)) + 25 : d.target.total_counts !== 0 ? cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 48 : cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 50
+                                    let y
+                                    if (countType === 'record') y = d.source.distance >= d.target.distance ? d.target.total_counts !== 0 ? cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.total_counts)) + 18 : cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.total_counts)) + 25 : d.target.total_counts !== 0 ? cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 48 : cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 50
+                                    else y = d.source.distance >= d.target.distance ? d.target.person_counts !== 0 ? cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.person_counts)) + 18 : cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.person_counts)) + 25 : d.target.person_counts !== 0 ? cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.person_counts)) - 48 : cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.person_counts)) - 50
                                     return d.source.distance >= d.target.distance ? "translate(" + x + "," + y + ")" : "translate(" + x + "," + y + ")rotate(" + 180 + ")"
                                 }) 
                         return geometry 
@@ -634,10 +650,16 @@
                                 .style('opacity', d => hovered.includes(d.source.name) && hovered.includes(d.target.name) ? 1 : hovered.length > 0 ? 0.2 : 1)
                             update.select('.line-background')
                                 .attr("d", d => {
+                                    let sourceY, targetY
                                     let sourceX = d.source.x
-                                    let sourceY = d.source.distance > d.target.distance ? cy + (genHeight[d.source.distance]) - scaleRadius(Math.sqrt(d.source.total_counts)) - 48 : cy + (genHeight[d.source.distance]) + scaleRadius(Math.sqrt(d.source.total_counts)) + 18
                                     let targetX = d.target.x
-                                    let targetY = d.source.distance >= d.target.distance ? cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.total_counts)) + 18 : cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 48
+                                    if (countType === 'record') {
+                                        sourceY = d.source.distance > d.target.distance ? cy + (genHeight[d.source.distance]) - scaleRadius(Math.sqrt(d.source.total_counts)) - 48 : cy + (genHeight[d.source.distance]) + scaleRadius(Math.sqrt(d.source.total_counts)) + 18
+                                        targetY = d.source.distance >= d.target.distance ? cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.total_counts)) + 18 : cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 48
+                                    } else {
+                                        sourceY = d.source.distance > d.target.distance ? cy + (genHeight[d.source.distance]) - scaleRadius(Math.sqrt(d.source.person_counts)) - 48 : cy + (genHeight[d.source.distance]) + scaleRadius(Math.sqrt(d.source.person_counts)) + 18
+                                        targetY = d.source.distance >= d.target.distance ? cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.person_counts)) + 18 : cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.person_counts)) - 48
+                                    }
                                     if (d.source.distance === d.target.distance) {
                                         const points =  [
                                             { x: sourceX, y: sourceY },
@@ -655,10 +677,16 @@
                             update.select('.line-path')
                                 .attr('stroke', d => (inclusions.includes(d.source.name) || d.source.mappings.map(m => m.name).some(m => inclusions.includes(m))) && (inclusions.includes(d.target.name) || d.target.mappings.map(m => m.name).some(m => inclusions.includes(m))) ? '#c2c2c2' : '#e0e0e0')
                                 .attr("d", d => {
+                                    let sourceY, targetY
                                     let sourceX = d.source.x
-                                    let sourceY = d.source.distance > d.target.distance ? cy + (genHeight[d.source.distance]) - scaleRadius(Math.sqrt(d.source.total_counts)) - 48 : cy + (genHeight[d.source.distance]) + scaleRadius(Math.sqrt(d.source.total_counts)) + 18
                                     let targetX = d.target.x
-                                    let targetY = d.source.distance >= d.target.distance ? cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.total_counts)) + 18 : cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 48
+                                    if (countType === 'record') {
+                                        sourceY = d.source.distance > d.target.distance ? cy + (genHeight[d.source.distance]) - scaleRadius(Math.sqrt(d.source.total_counts)) - 48 : cy + (genHeight[d.source.distance]) + scaleRadius(Math.sqrt(d.source.total_counts)) + 18
+                                        targetY = d.source.distance >= d.target.distance ? cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.total_counts)) + 18 : cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 48
+                                    } else {
+                                        sourceY = d.source.distance > d.target.distance ? cy + (genHeight[d.source.distance]) - scaleRadius(Math.sqrt(d.source.person_counts)) - 48 : cy + (genHeight[d.source.distance]) + scaleRadius(Math.sqrt(d.source.person_counts)) + 18
+                                        targetY = d.source.distance >= d.target.distance ? cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.person_counts)) + 18 : cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.person_counts)) - 48
+                                    }
                                     if (d.source.distance === d.target.distance) {
                                         const points =  [
                                             { x: sourceX, y: sourceY },
@@ -678,7 +706,9 @@
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x = d.target.x
-                                    let y = d.source.distance >= d.target.distance ? d.target.total_counts !== 0 ? cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.total_counts)) + 18 : cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.total_counts)) + 25 : d.target.total_counts !== 0 ? cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 48 : cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 50
+                                    let y
+                                    if (countType === 'record') y = d.source.distance >= d.target.distance ? d.target.total_counts !== 0 ? cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.total_counts)) + 18 : cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.total_counts)) + 25 : d.target.total_counts !== 0 ? cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 48 : cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.total_counts)) - 50
+                                    else y = d.source.distance >= d.target.distance ? d.target.person_counts !== 0 ? cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.person_counts)) + 18 : cy + (genHeight[d.target.distance]) + scaleRadius(Math.sqrt(d.target.person_counts)) + 25 : d.target.person_counts !== 0 ? cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.person_counts)) - 48 : cy + (genHeight[d.target.distance]) - scaleRadius(Math.sqrt(d.target.person_counts)) - 50
                                     return d.source.distance >= d.target.distance ? "translate(" + x + "," + y + ")" : "translate(" + x + "," + y + ")rotate(" + 180 + ")"
                                 })    
                     },exit => exit.remove())
@@ -699,7 +729,6 @@
                                 .classed('map-node-main btn', true)
                                 .attr('id', d => 'map-node-'+d.name)
                                 .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
-                                .raise()
                             const mapLine = mapNode.append('g')
                                 .classed('map-link',true)
                                 .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
@@ -714,8 +743,10 @@
                                 .attr("d", d => {
                                     let sourceX = getMap(d).x 
                                     let sourceY = mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : cy + (genHeight[d.distance])
-                                    let targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 24 : d.source.x + scaleRadius(Math.sqrt(d.source.total_counts)) + 24 : getMap(d).x 
                                     let targetY = cy + (genHeight[d.distance])
+                                    let targetX
+                                    if (countType === 'record') targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 24 : d.source.x + scaleRadius(Math.sqrt(d.source.total_counts)) + 24 : getMap(d).x 
+                                    else targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.person_counts)) - 24 : d.source.x + scaleRadius(Math.sqrt(d.source.person_counts)) + 24 : getMap(d).x 
                                     return curveX({source: [sourceX, sourceY], target: [targetX, targetY]})}
                                 )
                                 .lower()
@@ -725,40 +756,23 @@
                                 .attr('fill', d => d.source.mappings?.map(d => d.name).some(name => conceptNames.includes(name)) ? '#c2c2c2' : '#e0e0e0')
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
-                                    let x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 16
+                                    let x 
+                                    if (countType === 'record') x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 16
+                                    else x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.person_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.person_counts)) - 16
                                     let y = d.direction === -1 ? cy + (genHeight[d.distance]) : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d)
                                     return "translate(" + x + "," + y + ")rotate(" + 90 + ")"
                                 }) 
-                            geometry.append('rect')
-                                .classed('map-rect btn',true)
-                                .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
-                                .style('pointer-events','all')
-                                .attr('fill','transparent')
-                                .attr('x', d => getMap(d).x - 60)
-                                .attr('y', d => getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) - (120 + scaleRadius(Math.sqrt(d.total_counts)))/2)
-                                .attr('width',120)
-                                .attr('height', d => 100 + scaleRadius(Math.sqrt(d.total_counts)))
-                                .on('mouseover', function (e,d) {
-                                    const el = this
-                                    el.__hoverTimeout__ = setTimeout(() => {
-                                        if (conceptNames.includes(d.name)) setHovered([d.name])
-                                        if (d.levels !== '-1') tooltipHover(d, "enter", e)  
-                                    }, 600)    
-                                })
-                                .on('mouseout', function (e,d) {
-                                    const el = this
-                                    clearTimeout(el.__hoverTimeout__)
-                                    setHovered([])
-                                    tooltipHover(d, "leave", e)   
-                                })
-                                .raise()
                             mapNode.append('circle')
-                                .classed('map-tree-circle btn', true)
-                                .classed(d => 'map-circle-'+d.source.name,true)
+                                .classed('map-tree-circle-background', true)
+                                .attr('r', d => !mapRoot.includes(d.source.name) ? 0 : countType === 'record' ? scaleRadius(Math.sqrt(d.total_counts)) + 2 : scaleRadius(Math.sqrt(d.person_counts)) + 2)
+                                .attr('cx', d => getMap(d).x)
+                                .attr('cy', d => mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : getYPosition(d.source, 'z', cy + (genHeight[d.distance]), d))
+                            mapNode.append('circle')
+                                .attr('class', d => `map-tree-circle btn map-circle-${d.source.name}`)
                                 .attr('id', d => 'tree-circle-' + d.name)
                                 .attr('r', d => mapRoot.includes(d.source.name) ? scaleRadius(Math.sqrt(d.total_counts)) : 12)
                                 .style('fill', d => {
-                                    if (d.total_counts === 0) return 'white'
+                                    if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && mapRoot.includes(d.source.name)) return 'white'
                                     else {
                                         if (conceptNames.includes(d.name)) {
                                             if (d.direction === 1) return d.color
@@ -770,30 +784,46 @@
                                                 d3.select('#tree').call(t)
                                                 return t.url()  
                                             }
-                                        } else return '#f2f2f5'    
+                                        } else {
+                                            if (mapRoot.includes(d.source.name)) return '#f2f2f5'
+                                            else return '#ebebeb'
+                                        }    
                                     }
                                 })
-                                .attr('stroke', d => conceptNames.includes(d.name) ? d.color : mapRoot.includes(d.source.name) ? '#f2f2f5' : 'white')
+                                .attr('stroke', d => mapRoot.includes(d.source.name) ? conceptNames.includes(d.name) ? d.color : (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? 'none' : '#ebebeb' : 'white')
                                 .attr('stroke-width', 1.5)
                                 .attr('cx', d => getMap(d).x)
                                 .attr('cy', d => mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : getYPosition(d.source, 'z', cy + (genHeight[d.distance]), d))
+                                .on('mouseover',(e,d) => {
+                                    e.stopPropagation()
+                                    hoverMappings(d.source,'enter')
+                                    setVisible(false)
+                                })
+                                .on('mouseout',(e,d) => {hoverMappings(d.source,'leave');setVisible(false)})
                                 .on('click',(e,d) => {
-                                    setMapRoot([...mapRoot,d.source.name])
-                                    updateWidth([...mapRoot,d.source.name])  
+                                    if (!mapRoot.includes(d.source.name)) {
+                                        setMapRoot([...mapRoot,d.source.name])
+                                        updateWidth([...mapRoot,d.source.name])    
+                                    } else {
+                                        setMapRoot([...mapRoot,d.source.name])
+                                        updateWidth([...mapRoot,d.source.name])
+                                    }
+                                    
                                 })
                                 .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
                                 .style('pointer-events', d => mapRoot.includes(d.source.name) ? 'none' : 'all')
-                                .lower()
+                                .raise()
                             const mapGroup = mapNode.append('g')
                                 .classed('map-group',true)
                                 .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
+                                .raise()
                             const mapCounts = mapGroup.append('g')
                                 .attr('id', d => 'node-label-'+d.name)
                                 .style('opacity',1)
                             mapCounts.append('text')
                                 .classed('map-total-counts num', true)
                                 .attr('id', d => 'total-counts-' + d.name)
-                                .text(d => formatThousands(d.total_counts))
+                                .text(d => countType === 'record' ? formatThousands(d.total_counts) : formatThousands(d.person_counts))
                                 .attr('fill', d => conceptNames.includes(d.name) ? 'white' : '#36126d')
                                 .style('font-size', '9px')
                                 .attr('x', d => getMap(d).x)
@@ -814,14 +844,14 @@
                                 .attr('fill', '#36126d')
                                 .attr('opacity', 0.6)
                                 .attr('x', d => getMap(d).x)
-                                .attr('y', d => getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.total_counts)) + 18)
+                                .attr('y', d => countType === 'record' ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.total_counts)) + 18 : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.person_counts)) + 18)
                             mapDrcText.append('tspan')
                                 .classed('map-drc-num num',true)
-                                .text(d => formatThousands(d.descendant_counts))
+                                .text(d => countType === 'record' ? formatThousands(d.descendant_counts) : formatThousands(d.descendant_person_counts))
                                 .raise()
                             mapDrcText.append('tspan')
                                 .classed('map-drc-label-tree',true)
-                                .text(() => countType === 'record' ? ' DRC' : 'DPC')
+                                .text(() => countType === 'record' ? ' DRC' : ' DPC')
                             mapDrc.append('rect')
                                 .classed('map-drc-rect',true)
                                 .attr('height',16)
@@ -830,7 +860,7 @@
                                 .attr('fill', d => d.descendant_counts === 0 ? 'transparent' : '#f2f2f5')
                                 .attr('width',d => d3.select('#drc-text-'+d.name).node().getBBox().width + 10)
                                 .attr('x', d => getMap(d).x - (d3.select('#drc-text-'+d.name).node().getBBox().width + 10)/2)
-                                .attr('y', d => getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.total_counts)) + 7)
+                                .attr('y', d => countType === 'record' ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.total_counts)) + 7 : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.person_counts)) + 7)
                                 .lower()
                             const mapLabel = mapGroup.append('g')
                                 .classed('map-label btn', true)
@@ -899,34 +929,15 @@
                                 .attr('stroke-width',1)
                                 .attr('stroke', d => sidebarRoot.name.includes(d.name) ? '#6a23d6' : 'transparent')
                                 .lower()
-                        }, update => {
-                            update.select('.map-node-main')
-                                .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
-                            update.select('.map-link')
+                            geometry.append('rect')
+                                .classed('map-rect btn',true)
                                 .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
-                                .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
-                            update.select('.map-line')
-                                .attr('stroke', d => conceptNames.includes(d.name) ? '#c2c2c2' : '#e0e0e0')
-                                .attr("d", d => {
-                                    let sourceX = getMap(d).x 
-                                    let sourceY = mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : cy + (genHeight[d.distance])
-                                    let targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 24 : d.source.x + scaleRadius(Math.sqrt(d.source.total_counts)) + 24 : getMap(d).x 
-                                    let targetY = cy + (genHeight[d.distance])
-                                    return curveX({source: [sourceX, sourceY], target: [targetX, targetY]})}
-                                )
-                            update.select('.map-tree-arrow')
-                                .attr('fill', d => d.source.mappings?.map(d => d.name).some(name => conceptNames.includes(name)) ? '#c2c2c2' : '#e0e0e0')
-                                .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
-                                .attr("transform", d => {
-                                    let x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 16
-                                    let y = d.direction === -1 ? cy + (genHeight[d.distance]) : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d)
-                                    return "translate(" + x + "," + y + ")rotate(" + 90 + ")"
-                                }) 
-                            update.select('.map-rect')
-                                .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
+                                .style('pointer-events','all')
+                                .attr('fill','transparent')
+                                .attr('width',120)
                                 .attr('x', d => getMap(d).x - 60)
-                                .attr('y', d => getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) - (120 + scaleRadius(Math.sqrt(d.total_counts)))/2)
-                                .attr('height', d => 100 + scaleRadius(Math.sqrt(d.total_counts)))
+                                .attr('y', d => countType === 'record' ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) - (120 + scaleRadius(Math.sqrt(d.total_counts)))/2 : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) - (120 + scaleRadius(Math.sqrt(d.person_counts)))/2)
+                                .attr('height', d => countType === 'record' ? 100 + scaleRadius(Math.sqrt(d.total_counts)) : 100 + scaleRadius(Math.sqrt(d.person_counts)))
                                 .on('mouseover', function (e,d) {
                                     const el = this
                                     el.__hoverTimeout__ = setTimeout(() => {
@@ -940,10 +951,60 @@
                                     setHovered([])
                                     tooltipHover(d, "leave", e)   
                                 })
+                                .raise()
+                        }, update => {
+                            update.select('.map-node-main')
+                                .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
+                            update.select('.map-link')
+                                .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
+                                .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
+                            update.select('.map-line')
+                                .attr('stroke', d => conceptNames.includes(d.name) ? '#c2c2c2' : '#e0e0e0')
+                                .attr("d", d => {
+                                    let sourceX = getMap(d).x 
+                                    let sourceY = mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : cy + (genHeight[d.distance])
+                                    let targetY = cy + (genHeight[d.distance])
+                                    let targetX
+                                    if (countType === 'record') targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 24 : d.source.x + scaleRadius(Math.sqrt(d.source.total_counts)) + 24 : getMap(d).x 
+                                    else targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.person_counts)) - 24 : d.source.x + scaleRadius(Math.sqrt(d.source.person_counts)) + 24 : getMap(d).x 
+                                    return curveX({source: [sourceX, sourceY], target: [targetX, targetY]})}
+                                )
+                            update.select('.map-tree-arrow')
+                                .attr('fill', d => d.source.mappings?.map(d => d.name).some(name => conceptNames.includes(name)) ? '#c2c2c2' : '#e0e0e0')
+                                .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
+                                .attr("transform", d => {
+                                    let x 
+                                    if (countType === 'record') x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 16
+                                    else x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.person_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.person_counts)) - 16
+                                    let y = d.direction === -1 ? cy + (genHeight[d.distance]) : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d)
+                                    return "translate(" + x + "," + y + ")rotate(" + 90 + ")"
+                                })  
+                            update.select('.map-rect')
+                                .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
+                                .attr('x', d => getMap(d).x - 60)
+                                .attr('y', d => countType === 'record' ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) - (120 + scaleRadius(Math.sqrt(d.total_counts)))/2 : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) - (120 + scaleRadius(Math.sqrt(d.person_counts)))/2)
+                                .attr('height', d => countType === 'record' ? 100 + scaleRadius(Math.sqrt(d.total_counts)) : 100 + scaleRadius(Math.sqrt(d.person_counts)))
+                                .on('mouseover', function (e,d) {
+                                    const el = this
+                                    el.__hoverTimeout__ = setTimeout(() => {
+                                        if (conceptNames.includes(d.name)) setHovered([d.name])
+                                        if (d.levels !== '-1') tooltipHover(d, "enter", e)  
+                                    }, 600)    
+                                })
+                                .on('mouseout', function (e,d) {
+                                    const el = this
+                                    clearTimeout(el.__hoverTimeout__)
+                                    setHovered([])
+                                    tooltipHover(d, "leave", e)   
+                                })
+                            update.select('.map-tree-circle-background')
+                                .attr('r', d => !mapRoot.includes(d.source.name) ? 0 : countType === 'record' ? scaleRadius(Math.sqrt(d.total_counts)) + 2 : scaleRadius(Math.sqrt(d.person_counts)) + 2)
+                                .attr('cx', d => getMap(d).x)
+                                .attr('cy', d => mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : getYPosition(d.source, 'z', cy + (genHeight[d.distance]), d))
                             update.select('.map-tree-circle')
                                 .attr('r', d => mapRoot.includes(d.source.name) ? scaleRadius(Math.sqrt(d.total_counts)) : 12)
                                 .style('fill', d => {
-                                    if (d.total_counts === 0) return 'white'
+                                    if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && mapRoot.includes(d.source.name)) return 'white'
                                     else {
                                         if (conceptNames.includes(d.name)) {
                                             if (d.direction === 1) return d.color
@@ -955,22 +1016,37 @@
                                                 d3.select('#tree').call(t)
                                                 return t.url()  
                                             }
-                                        } else return '#f2f2f5'    
+                                        } else {
+                                            if (mapRoot.includes(d.source.name)) return '#f2f2f5'
+                                            else return '#ebebeb'
+                                        }    
                                     }
                                 })
-                                .attr('stroke', d => conceptNames.includes(d.name) ? d.color : mapRoot.includes(d.source.name) ? '#f2f2f5' : 'white')
+                                .attr('stroke', d => mapRoot.includes(d.source.name) ? conceptNames.includes(d.name) ? d.color : (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? 'none' : '#ebebeb' : 'white')
                                 .attr('cx', d => getMap(d).x)
                                 .attr('cy', d => mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : getYPosition(d.source, 'z', cy + (genHeight[d.distance]), d))
+                                .on('mouseover',(e,d) => {
+                                    e.stopPropagation()
+                                    hoverMappings(d.source,'enter')
+                                    setVisible(false)
+                                })
+                                .on('mouseout',(e,d) => {hoverMappings(d.source,'leave');setVisible(false)})
                                 .on('click',(e,d) => {
-                                    setMapRoot([...mapRoot,d.source.name])
-                                    updateWidth([...mapRoot,d.source.name])  
+                                    if (!mapRoot.includes(d.source.name)) {
+                                        setMapRoot([...mapRoot,d.source.name])
+                                        updateWidth([...mapRoot,d.source.name])    
+                                    } else {
+                                        setMapRoot([...mapRoot,d.source.name])
+                                        updateWidth([...mapRoot,d.source.name])
+                                    }
+                                    
                                 })
                                 .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
                                 .style('pointer-events', d => mapRoot.includes(d.source.name) ? 'none' : 'all')
                             update.select('.map-group')
                                 .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
                             update.select('.map-total-counts')
-                                .text(d => formatThousands(d.total_counts))
+                                .text(d => countType === 'record' ? formatThousands(d.total_counts) : formatThousands(d.person_counts))
                                 .attr('fill', d => conceptNames.includes(d.name) ? 'white' : '#36126d')
                                 .attr('x', d => getMap(d).x)
                                 .attr('y', d => getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) - 1)
@@ -984,16 +1060,16 @@
                                 .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
                             update.select('.map-drc-text')
                                 .attr('x', d => getMap(d).x)
-                                .attr('y', d => getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.total_counts)) + 18)
+                                .attr('y', d => countType === 'record' ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.total_counts)) + 18 : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.person_counts)) + 18)
                             update.select('.map-drc-num')
-                                .text(d => formatThousands(d.descendant_counts))
+                                .text(d => countType === 'record' ? formatThousands(d.descendant_counts) : formatThousands(d.descendant_person_counts))
                             update.select('.map-drc-label-tree')
-                                .text(() => countType === 'record' ? ' DRC' : 'DPC')
+                                .text(() => countType === 'record' ? ' DRC' : ' DPC')
                             update.select('.map-drc-rect')
                                 .attr('fill', d => d.descendant_counts === 0 ? 'transparent' : '#f2f2f5')
                                 .attr('width',d => d3.select('#drc-text-'+d.name).node().getBBox().width + 10)
                                 .attr('x', d => getMap(d).x - (d3.select('#drc-text-'+d.name).node().getBBox().width + 10)/2)
-                                .attr('y', d => getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.total_counts)) + 7)
+                                .attr('y', d => countType === 'record' ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.total_counts)) + 7 : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.person_counts)) + 7)
                             update.select('.map-label')
                                 .on('mouseover', (e, d) => {
                                     if (!sidebarRoot.name.includes(d.name)) {
@@ -1050,9 +1126,9 @@
                             .style('display', d => d.levels === '-1' ? 'none' : 'block')
                             .attr('fill','transparent')
                             .attr('x', d => d.x - 60)
-                            .attr('y', d => cy + (genHeight[d.distance]) - (120 + scaleRadius(Math.sqrt(d.total_counts)))/2)
+                            .attr('y', d => countType === 'record' ? cy + (genHeight[d.distance]) - (120 + scaleRadius(Math.sqrt(d.total_counts)))/2 : cy + (genHeight[d.distance]) - (120 + scaleRadius(Math.sqrt(d.person_counts)))/2)
                             .attr('width',120)
-                            .attr('height', d => 100 + scaleRadius(Math.sqrt(d.total_counts)))
+                            .attr('height', d => countType === 'record' ? 100 + scaleRadius(Math.sqrt(d.total_counts)) : 100 + scaleRadius(Math.sqrt(d.person_counts)))
                             .on('mouseover', function (e,d) {
                                 const el = this
                                 el.__hoverTimeout__ = setTimeout(() => {
@@ -1072,17 +1148,17 @@
                             .style('display', d => d.levels === '-1' ? 'none' : 'block')
                         nodeGroup.append('circle')
                             .classed('tree-circle-background', true)
-                            .attr('r', d => scaleRadius(Math.sqrt(d.total_counts)) + 2)
+                            .attr('r', d => countType === 'record' ? scaleRadius(Math.sqrt(d.total_counts)) + 2 : scaleRadius(Math.sqrt(d.person_counts)) + 2)
                             .attr('cx', d => d.x)
                             .attr('cy', d => cy + (genHeight[d.distance]))
                         nodeGroup.append('circle')
                             .classed('tree-circle btn', true)
                             .attr('id', d => 'tree-circle-' + d.name)
-                            .attr('r', d => scaleRadius(Math.sqrt(d.total_counts)))
+                            .attr('r', d => countType === 'record' ? scaleRadius(Math.sqrt(d.total_counts)) : scaleRadius(Math.sqrt(d.person_counts)))
                             .attr('stroke-width',1.5)
-                            .attr('stroke', d => d.total_counts === 0 ? 'none' : conceptNames.includes(d.name) && inclusions.includes(d.name) ? d.color : '#ebebeb')
+                            .attr('stroke', d => (countType === 'record' && (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0)) || (countType === 'person' && d.person_counts === 0) ? 'none' : conceptNames.includes(d.name) && inclusions.includes(d.name) ? d.color : '#ebebeb')
                             .attr('fill', d => {
-                                if (d.total_counts === 0 || (d.leaf && d.descendant_counts !== d.total_counts)) return 'white'
+                                if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) || (d.leaf && d.descendant_counts !== d.total_counts)) return 'white'
                                 else {
                                     if (!d.data.concept.standard_concept && conceptNames.includes(d.name)) {
                                         let t = textures.lines()
@@ -1099,14 +1175,14 @@
                             })
                             .attr('cx', d => d.x)
                             .attr('cy', d => cy + (genHeight[d.distance]))
-                            .attr('pointer-events', d => d.total_counts === 0 || d.levels === "-1" || d.leaf ? "none" : "all")
+                            .attr('pointer-events', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) || d.levels === "-1" || d.leaf ? "none" : "all")
                         const nodeLabel = nodeGroup.append('g')
                             .attr('id', d => 'node-label-'+d.name)
                             .style('opacity',1)
                         nodeLabel.append('text')
                             .classed('total-counts num', true)
                             .attr('id', d => 'total-counts-' + d.name)
-                            .text(d => formatThousands(d.total_counts))
+                            .text(d => countType === 'record' ? formatThousands(d.total_counts) : formatThousands(d.person_counts))
                             .attr('fill', d => conceptNames.includes(d.name) && inclusions.includes(d.name) && !d.leaf ? 'white' : '#36126d')
                             .style('font-size', '9px')
                             .attr('x', d => d.x)
@@ -1123,11 +1199,10 @@
                             .style('display', d => sidebarRoot.name.includes(d.name) ? 'block' : 'none')
                             .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
                             .attr('transform', d => {
-                                const xVar = d.total_counts === 0 ? 35 : 20
-                                if (d.data.concept.standard_concept) return `translate(${d.x + scaleRadius(Math.sqrt(d.total_counts)) + xVar}, 0)`
-                                else return `translate(${d.x - scaleRadius(Math.sqrt(d.total_counts)) - xVar}, 0)`
-                                }   
-                            )
+                                const xVar = (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? 35 : 20
+                                if (d.data.concept.standard_concept) return countType === 'record' ? `translate(${d.x + scaleRadius(Math.sqrt(d.total_counts)) + xVar}, 0)` : `translate(${d.x + scaleRadius(Math.sqrt(d.person_counts)) + xVar}, 0)`
+                                else return countType === 'record' ? `translate(${d.x - scaleRadius(Math.sqrt(d.total_counts)) - xVar}, 0)` : `translate(${d.x - scaleRadius(Math.sqrt(d.person_counts)) - xVar}, 0)`
+                            })
                         setExpression.append('rect')
                             .classed('set-expression-rect',true)
                             .attr('x', -10)
@@ -1215,12 +1290,13 @@
                         //     .attr('y', d => cy + (genHeight[d.distance]) - 10)
                         //     .on('mouseover',function(e,d) {d3.select(this).transition().style('opacity',1)})
                         //     .on('mouseover',function(e,d) {d3.select(this).transition().style('opacity',0.5)})
-                        nodeContainer.append('text')
+                        geometry.append('text')
                             .classed('mappings-btn  mappingBtn fa-solid', true)
                             .attr('id', d => 'mappings-btn-' + d.name)
                             .text(d => mapRoot.includes(d.name) && d.mappings.length > 0 ? "\uf00d" : "\uf0da")
                             .style('font-size', d => mapRoot.includes(d.name) && d.mappings.length > 0 ? '14px' : '15px')
                             .style('display', d => d.mappings.length > 0 ? 'block' : 'none')
+                            .style('opacity', d => hovered.length > 0 ? 0.1 : 0.3)
                             .on('mouseover',(e,d) => {
                                 e.stopPropagation()
                                 hoverMappings(d,'enter')
@@ -1238,7 +1314,10 @@
                                 }
                                 
                             })
-                            .attr('x', d => !d.data.concept.standard_concept ? d.x + scaleRadius(Math.sqrt(d.total_counts)) + 15 : d.x - scaleRadius(Math.sqrt(d.total_counts)) - 15)
+                            .attr('x', d => {
+                                if (!d.data.concept.standard_concept) return countType === 'record' ? d.x + scaleRadius(Math.sqrt(d.total_counts)) + 15 : d.x + scaleRadius(Math.sqrt(d.person_counts)) + 15 
+                                else return countType === 'record' ? d.x - scaleRadius(Math.sqrt(d.total_counts)) - 15 : d.x - scaleRadius(Math.sqrt(d.person_counts)) - 15
+                            })
                             .attr('y', d => cy + (genHeight[d.distance]) + 5.5)
                             .raise()
                         const drc = nodeContainer.append('g')
@@ -1258,14 +1337,14 @@
                             .attr('fill', d => d.leaf ? 'white' : '#36126d')
                             .attr('opacity', d => d.leaf ? 1 : 0.6)
                             .attr('x', d => d.x)
-                            .attr('y', d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 18)
+                            .attr('y', d => countType === 'record' ? cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 18 : cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.person_counts)) + 18)
                         drcText.append('tspan')
                             .classed('drc-num num',true)
-                            .text(d => formatThousands(d.descendant_counts))
+                            .text(d => countType === 'record' ? formatThousands(d.descendant_counts) : formatThousands(d.descendant_person_counts))
                             .raise()
                         drcText.append('tspan')
                             .classed('drc-label-tree',true)
-                            .text(() => countType === 'record' ? ' DRC' : 'DPC')
+                            .text(() => countType === 'record' ? ' DRC' : ' DPC')
                         drc.append('rect')
                             .classed('drc-rect',true)
                             .attr('height',16)
@@ -1274,7 +1353,7 @@
                             .attr('fill', d => d.leaf ? d.color : d.descendant_counts === 0 || d.descendant_counts === d.total_counts ? 'transparent' : '#f2f2f5')
                             .attr('width',d => d3.select('#drc-text-'+d.name).node().getBBox().width + 10)
                             .attr('x', d => d.x - (d3.select('#drc-text-'+d.name).node().getBBox().width + 10)/2)
-                            .attr('y', d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 7)
+                            .attr('y', d => countType === 'record' ? cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 7 : cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.person_counts)) + 7)
                             .lower()
                         const label = node.append('g')
                             .classed('label btn', true)
@@ -1361,7 +1440,7 @@
                             .attr("stroke", "url(#myGradient)")
                             .attr('stroke-width', 1.5)
                             .attr('x1',d => d.x)
-                            .attr('y1',d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 18)
+                            .attr('y1',d => countType === 'record' ? cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 18 : cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.person_counts)) + 18)
                             .attr('x2',d => d.x + 0.1)
                             .attr('y2',d => cy + (genHeight[d.distance]) + (num - 20))
                         pruneLine.append('path')
@@ -1387,7 +1466,7 @@
                                 .attr("d", d => {
                                     let sourceNode = nodes.filter(e => e.name === d.source)[0]
                                     let x1 = d.x
-                                    let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18
+                                    let y1 = countType === 'record' ? cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18 : cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.person_counts)) + 18
                                     let x2 = d.mid
                                     let y2 = cy + (genHeight[sourceNode.distance]) + (num - 20)
                                     return curveY({source: [x1, y1], target: [x2, y2]})
@@ -1401,7 +1480,7 @@
                                 .attr("d", d => {
                                     let sourceNode = nodes.filter(e => e.name === d.source)[0]
                                     let x1 = d.x
-                                    let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18
+                                    let y1 = countType === 'record' ? cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18 : cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.person_counts)) + 18
                                     let x2 = d.mid
                                     let y2 = cy + (genHeight[sourceNode.distance]) + (num - 20)
                                     return curveY({source: [x1, y1], target: [x2, y2]})
@@ -1425,7 +1504,7 @@
                                 .attr("d", d => {
                                     let sourceNode = nodes.filter(e => e.name === d.source)[0]
                                     let x1 = d.x
-                                    let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18
+                                    let y1 = countType === 'record' ? cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18 : cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.person_counts)) + 18
                                     let x2 = d.mid
                                     let y2 = cy + (genHeight[sourceNode.distance]) + (num - 20)
                                     return curveY({source: [x1, y1], target: [x2, y2]})
@@ -1435,7 +1514,7 @@
                                 .attr("d", d => {
                                     let sourceNode = nodes.filter(e => e.name === d.source)[0]
                                     let x1 = d.x
-                                    let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18
+                                    let y1 = countType === 'record' ? cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18 : cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.person_counts)) + 18
                                     let x2 = d.mid
                                     let y2 = cy + (genHeight[sourceNode.distance]) + (num - 20)
                                     return curveY({source: [x1, y1], target: [x2, y2]})
@@ -1451,6 +1530,7 @@
                         })
                         d3.selectAll('.subsumes-nodes').lower()
                         d3.selectAll('.map-node').raise()
+                        d3.selectAll('.prune-curve').lower()
                         return geometry 
                     }, update => {
                         update.selectAll(".map-node").data(d => d.mappings, d => d.name+d.source.name)
@@ -1462,7 +1542,6 @@
                                 .classed('map-node-main btn', true)
                                 .attr('id', d => 'map-node-'+d.name)
                                 .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
-                                .raise()
                             const mapLine = mapNode.append('g')
                                 .classed('map-link',true)
                                 .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
@@ -1477,8 +1556,10 @@
                                 .attr("d", d => {
                                     let sourceX = getMap(d).x 
                                     let sourceY = mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : cy + (genHeight[d.distance])
-                                    let targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 24 : d.source.x + scaleRadius(Math.sqrt(d.source.total_counts)) + 24 : getMap(d).x 
                                     let targetY = cy + (genHeight[d.distance])
+                                    let targetX
+                                    if (countType === 'record') targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 24 : d.source.x + scaleRadius(Math.sqrt(d.source.total_counts)) + 24 : getMap(d).x 
+                                    else targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.person_counts)) - 24 : d.source.x + scaleRadius(Math.sqrt(d.source.person_counts)) + 24 : getMap(d).x 
                                     return curveX({source: [sourceX, sourceY], target: [targetX, targetY]})}
                                 )
                                 .lower()
@@ -1488,40 +1569,23 @@
                                 .attr('fill', d => d.source.mappings?.map(d => d.name).some(name => conceptNames.includes(name)) ? '#c2c2c2' : '#e0e0e0')
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
-                                    let x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 16
+                                    let x 
+                                    if (countType === 'record') x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 16
+                                    else x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.person_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.person_counts)) - 16
                                     let y = d.direction === -1 ? cy + (genHeight[d.distance]) : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d)
                                     return "translate(" + x + "," + y + ")rotate(" + 90 + ")"
                                 }) 
-                            geometry.append('rect')
-                                .classed('map-rect btn',true)
-                                .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
-                                .style('pointer-events','all')
-                                .attr('fill','transparent')
-                                .attr('x', d => getMap(d).x - 60)
-                                .attr('y', d => getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) - (120 + scaleRadius(Math.sqrt(d.total_counts)))/2)
-                                .attr('width',120)
-                                .attr('height', d => 100 + scaleRadius(Math.sqrt(d.total_counts)))
-                                .on('mouseover', function (e,d) {
-                                    const el = this
-                                    el.__hoverTimeout__ = setTimeout(() => {
-                                        if (conceptNames.includes(d.name)) setHovered([d.name])
-                                        if (d.levels !== '-1') tooltipHover(d, "enter", e)  
-                                    }, 600)    
-                                })
-                                .on('mouseout', function (e,d) {
-                                    const el = this
-                                    clearTimeout(el.__hoverTimeout__)
-                                    setHovered([])
-                                    tooltipHover(d, "leave", e)   
-                                })
-                                .raise()
                             mapNode.append('circle')
-                                .classed('map-tree-circle btn', true)
-                                .classed(d => 'map-circle-'+d.source.name,true)
+                                .classed('map-tree-circle-background', true)
+                                .attr('r', d => !mapRoot.includes(d.source.name) ? 0 : countType === 'record' ? scaleRadius(Math.sqrt(d.total_counts)) + 2 : scaleRadius(Math.sqrt(d.person_counts)) + 2)
+                                .attr('cx', d => getMap(d).x)
+                                .attr('cy', d => mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : getYPosition(d.source, 'z', cy + (genHeight[d.distance]), d))
+                            mapNode.append('circle')
+                                .attr('class', d => `map-tree-circle btn map-circle-${d.source.name}`)
                                 .attr('id', d => 'tree-circle-' + d.name)
                                 .attr('r', d => mapRoot.includes(d.source.name) ? scaleRadius(Math.sqrt(d.total_counts)) : 12)
                                 .style('fill', d => {
-                                    if (d.total_counts === 0) return 'white'
+                                    if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && mapRoot.includes(d.source.name)) return 'white'
                                     else {
                                         if (conceptNames.includes(d.name)) {
                                             if (d.direction === 1) return d.color
@@ -1533,30 +1597,46 @@
                                                 d3.select('#tree').call(t)
                                                 return t.url()  
                                             }
-                                        } else return '#f2f2f5'    
+                                        } else {
+                                            if (mapRoot.includes(d.source.name)) return '#f2f2f5'
+                                            else return '#ebebeb'
+                                        }    
                                     }
                                 })
-                                .attr('stroke', d => conceptNames.includes(d.name) ? d.color : mapRoot.includes(d.source.name) ? '#f2f2f5' : 'white')
+                                .attr('stroke', d => mapRoot.includes(d.source.name) ? conceptNames.includes(d.name) ? d.color : (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? 'none' : '#ebebeb' : 'white')
                                 .attr('stroke-width', 1.5)
                                 .attr('cx', d => getMap(d).x)
                                 .attr('cy', d => mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : getYPosition(d.source, 'z', cy + (genHeight[d.distance]), d))
+                                .on('mouseover',(e,d) => {
+                                    e.stopPropagation()
+                                    hoverMappings(d.source,'enter')
+                                    setVisible(false)
+                                })
+                                .on('mouseout',(e,d) => {hoverMappings(d.source,'leave');setVisible(false)})
                                 .on('click',(e,d) => {
-                                    setMapRoot([...mapRoot,d.source.name])
-                                    updateWidth([...mapRoot,d.source.name])  
+                                    if (!mapRoot.includes(d.source.name)) {
+                                        setMapRoot([...mapRoot,d.source.name])
+                                        updateWidth([...mapRoot,d.source.name])    
+                                    } else {
+                                        setMapRoot([...mapRoot,d.source.name])
+                                        updateWidth([...mapRoot,d.source.name])
+                                    }
+                                    
                                 })
                                 .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
                                 .style('pointer-events', d => mapRoot.includes(d.source.name) ? 'none' : 'all')
-                                .lower()
+                                .raise()
                             const mapGroup = mapNode.append('g')
                                 .classed('map-group',true)
                                 .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
+                                .raise()
                             const mapCounts = mapGroup.append('g')
                                 .attr('id', d => 'node-label-'+d.name)
                                 .style('opacity',1)
                             mapCounts.append('text')
                                 .classed('map-total-counts num', true)
                                 .attr('id', d => 'total-counts-' + d.name)
-                                .text(d => formatThousands(d.total_counts))
+                                .text(d => countType === 'record' ? formatThousands(d.total_counts) : formatThousands(d.person_counts))
                                 .attr('fill', d => conceptNames.includes(d.name) ? 'white' : '#36126d')
                                 .style('font-size', '9px')
                                 .attr('x', d => getMap(d).x)
@@ -1577,14 +1657,14 @@
                                 .attr('fill', '#36126d')
                                 .attr('opacity', 0.6)
                                 .attr('x', d => getMap(d).x)
-                                .attr('y', d => getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.total_counts)) + 18)
+                                .attr('y', d => countType === 'record' ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.total_counts)) + 18 : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.person_counts)) + 18)
                             mapDrcText.append('tspan')
                                 .classed('map-drc-num num',true)
-                                .text(d => formatThousands(d.descendant_counts))
+                                .text(d => countType === 'record' ? formatThousands(d.descendant_counts) : formatThousands(d.descendant_person_counts))
                                 .raise()
                             mapDrcText.append('tspan')
                                 .classed('map-drc-label-tree',true)
-                                .text(() => countType === 'record' ? ' DRC' : 'DPC')
+                                .text(() => countType === 'record' ? ' DRC' : ' DPC')
                             mapDrc.append('rect')
                                 .classed('map-drc-rect',true)
                                 .attr('height',16)
@@ -1593,7 +1673,7 @@
                                 .attr('fill', d => d.descendant_counts === 0 ? 'transparent' : '#f2f2f5')
                                 .attr('width',d => d3.select('#drc-text-'+d.name).node().getBBox().width + 10)
                                 .attr('x', d => getMap(d).x - (d3.select('#drc-text-'+d.name).node().getBBox().width + 10)/2)
-                                .attr('y', d => getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.total_counts)) + 7)
+                                .attr('y', d => countType === 'record' ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.total_counts)) + 7 : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.person_counts)) + 7)
                                 .lower()
                             const mapLabel = mapGroup.append('g')
                                 .classed('map-label btn', true)
@@ -1662,34 +1742,15 @@
                                 .attr('stroke-width',1)
                                 .attr('stroke', d => sidebarRoot.name.includes(d.name) ? '#6a23d6' : 'transparent')
                                 .lower()
-                        }, update => {
-                            update.select('.map-node-main')
-                                .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
-                            update.select('.map-link')
+                            geometry.append('rect')
+                                .classed('map-rect btn',true)
                                 .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
-                                .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
-                            update.select('.map-line')
-                                .attr('stroke', d => conceptNames.includes(d.name) ? '#c2c2c2' : '#e0e0e0')
-                                .attr("d", d => {
-                                    let sourceX = getMap(d).x 
-                                    let sourceY = mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : cy + (genHeight[d.distance])
-                                    let targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 24 : d.source.x + scaleRadius(Math.sqrt(d.source.total_counts)) + 24 : getMap(d).x 
-                                    let targetY = cy + (genHeight[d.distance])
-                                    return curveX({source: [sourceX, sourceY], target: [targetX, targetY]})}
-                                )
-                            update.select('.map-tree-arrow')
-                                .attr('fill', d => d.source.mappings?.map(d => d.name).some(name => conceptNames.includes(name)) ? '#c2c2c2' : '#e0e0e0')
-                                .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
-                                .attr("transform", d => {
-                                    let x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 16
-                                    let y = d.direction === -1 ? cy + (genHeight[d.distance]) : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d)
-                                    return "translate(" + x + "," + y + ")rotate(" + 90 + ")"
-                                }) 
-                            update.select('.map-rect')
-                                .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
+                                .style('pointer-events','all')
+                                .attr('fill','transparent')
+                                .attr('width',120)
                                 .attr('x', d => getMap(d).x - 60)
-                                .attr('y', d => getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) - (120 + scaleRadius(Math.sqrt(d.total_counts)))/2)
-                                .attr('height', d => 100 + scaleRadius(Math.sqrt(d.total_counts)))
+                                .attr('y', d => countType === 'record' ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) - (120 + scaleRadius(Math.sqrt(d.total_counts)))/2 : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) - (120 + scaleRadius(Math.sqrt(d.person_counts)))/2)
+                                .attr('height', d => countType === 'record' ? 100 + scaleRadius(Math.sqrt(d.total_counts)) : 100 + scaleRadius(Math.sqrt(d.person_counts)))
                                 .on('mouseover', function (e,d) {
                                     const el = this
                                     el.__hoverTimeout__ = setTimeout(() => {
@@ -1703,10 +1764,60 @@
                                     setHovered([])
                                     tooltipHover(d, "leave", e)   
                                 })
+                                .raise()
+                        }, update => {
+                            update.select('.map-node-main')
+                                .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
+                            update.select('.map-link')
+                                .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
+                                .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
+                            update.select('.map-line')
+                                .attr('stroke', d => conceptNames.includes(d.name) ? '#c2c2c2' : '#e0e0e0')
+                                .attr("d", d => {
+                                    let sourceX = getMap(d).x 
+                                    let sourceY = mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : cy + (genHeight[d.distance])
+                                    let targetY = cy + (genHeight[d.distance])
+                                    let targetX
+                                    if (countType === 'record') targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 24 : d.source.x + scaleRadius(Math.sqrt(d.source.total_counts)) + 24 : getMap(d).x 
+                                    else targetX = mapRoot.includes(d.source.name) ? d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.person_counts)) - 24 : d.source.x + scaleRadius(Math.sqrt(d.source.person_counts)) + 24 : getMap(d).x 
+                                    return curveX({source: [sourceX, sourceY], target: [targetX, targetY]})}
+                                )
+                            update.select('.map-tree-arrow')
+                                .attr('fill', d => d.source.mappings?.map(d => d.name).some(name => conceptNames.includes(name)) ? '#c2c2c2' : '#e0e0e0')
+                                .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
+                                .attr("transform", d => {
+                                    let x 
+                                    if (countType === 'record') x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 16
+                                    else x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.person_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.person_counts)) - 16
+                                    let y = d.direction === -1 ? cy + (genHeight[d.distance]) : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d)
+                                    return "translate(" + x + "," + y + ")rotate(" + 90 + ")"
+                                })  
+                            update.select('.map-rect')
+                                .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
+                                .attr('x', d => getMap(d).x - 60)
+                                .attr('y', d => countType === 'record' ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) - (120 + scaleRadius(Math.sqrt(d.total_counts)))/2 : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) - (120 + scaleRadius(Math.sqrt(d.person_counts)))/2)
+                                .attr('height', d => countType === 'record' ? 100 + scaleRadius(Math.sqrt(d.total_counts)) : 100 + scaleRadius(Math.sqrt(d.person_counts)))
+                                .on('mouseover', function (e,d) {
+                                    const el = this
+                                    el.__hoverTimeout__ = setTimeout(() => {
+                                        if (conceptNames.includes(d.name)) setHovered([d.name])
+                                        if (d.levels !== '-1') tooltipHover(d, "enter", e)  
+                                    }, 600)    
+                                })
+                                .on('mouseout', function (e,d) {
+                                    const el = this
+                                    clearTimeout(el.__hoverTimeout__)
+                                    setHovered([])
+                                    tooltipHover(d, "leave", e)   
+                                })
+                            update.select('.map-tree-circle-background')
+                                .attr('r', d => !mapRoot.includes(d.source.name) ? 0 : countType === 'record' ? scaleRadius(Math.sqrt(d.total_counts)) + 2 : scaleRadius(Math.sqrt(d.person_counts)) + 2)
+                                .attr('cx', d => getMap(d).x)
+                                .attr('cy', d => mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : getYPosition(d.source, 'z', cy + (genHeight[d.distance]), d))
                             update.select('.map-tree-circle')
                                 .attr('r', d => mapRoot.includes(d.source.name) ? scaleRadius(Math.sqrt(d.total_counts)) : 12)
                                 .style('fill', d => {
-                                    if (d.total_counts === 0) return 'white'
+                                    if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && mapRoot.includes(d.source.name)) return 'white'
                                     else {
                                         if (conceptNames.includes(d.name)) {
                                             if (d.direction === 1) return d.color
@@ -1718,22 +1829,37 @@
                                                 d3.select('#tree').call(t)
                                                 return t.url()  
                                             }
-                                        } else return '#f2f2f5'    
+                                        } else {
+                                            if (mapRoot.includes(d.source.name)) return '#f2f2f5'
+                                            else return '#ebebeb'
+                                        }    
                                     }
                                 })
-                                .attr('stroke', d => conceptNames.includes(d.name) ? d.color : mapRoot.includes(d.source.name) ? '#f2f2f5' : 'white')
+                                .attr('stroke', d => mapRoot.includes(d.source.name) ? conceptNames.includes(d.name) ? d.color : (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? 'none' : '#ebebeb' : 'white')
                                 .attr('cx', d => getMap(d).x)
                                 .attr('cy', d => mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : getYPosition(d.source, 'z', cy + (genHeight[d.distance]), d))
+                                .on('mouseover',(e,d) => {
+                                    e.stopPropagation()
+                                    hoverMappings(d.source,'enter')
+                                    setVisible(false)
+                                })
+                                .on('mouseout',(e,d) => {hoverMappings(d.source,'leave');setVisible(false)})
                                 .on('click',(e,d) => {
-                                    setMapRoot([...mapRoot,d.source.name])
-                                    updateWidth([...mapRoot,d.source.name])  
+                                    if (!mapRoot.includes(d.source.name)) {
+                                        setMapRoot([...mapRoot,d.source.name])
+                                        updateWidth([...mapRoot,d.source.name])    
+                                    } else {
+                                        setMapRoot([...mapRoot,d.source.name])
+                                        updateWidth([...mapRoot,d.source.name])
+                                    }
+                                    
                                 })
                                 .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
                                 .style('pointer-events', d => mapRoot.includes(d.source.name) ? 'none' : 'all')
                             update.select('.map-group')
                                 .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
                             update.select('.map-total-counts')
-                                .text(d => formatThousands(d.total_counts))
+                                .text(d => countType === 'record' ? formatThousands(d.total_counts) : formatThousands(d.person_counts))
                                 .attr('fill', d => conceptNames.includes(d.name) ? 'white' : '#36126d')
                                 .attr('x', d => getMap(d).x)
                                 .attr('y', d => getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) - 1)
@@ -1747,16 +1873,16 @@
                                 .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
                             update.select('.map-drc-text')
                                 .attr('x', d => getMap(d).x)
-                                .attr('y', d => getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.total_counts)) + 18)
+                                .attr('y', d => countType === 'record' ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.total_counts)) + 18 : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.person_counts)) + 18)
                             update.select('.map-drc-num')
-                                .text(d => formatThousands(d.descendant_counts))
+                                .text(d => countType === 'record' ? formatThousands(d.descendant_counts) : formatThousands(d.descendant_person_counts))
                             update.select('.map-drc-label-tree')
-                                .text(() => countType === 'record' ? ' DRC' : 'DPC')
+                                .text(() => countType === 'record' ? ' DRC' : ' DPC')
                             update.select('.map-drc-rect')
                                 .attr('fill', d => d.descendant_counts === 0 ? 'transparent' : '#f2f2f5')
                                 .attr('width',d => d3.select('#drc-text-'+d.name).node().getBBox().width + 10)
                                 .attr('x', d => getMap(d).x - (d3.select('#drc-text-'+d.name).node().getBBox().width + 10)/2)
-                                .attr('y', d => getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.total_counts)) + 7)
+                                .attr('y', d => countType === 'record' ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.total_counts)) + 7 : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.person_counts)) + 7)
                             update.select('.map-label')
                                 .on('mouseover', (e, d) => {
                                     if (!sidebarRoot.name.includes(d.name)) {
@@ -1808,8 +1934,8 @@
                         update.select('.node-rect')
                             .style('display', d => d.levels === '-1' ? 'none' : 'block')
                             .attr('x', d => d.x - 60)
-                            .attr('y', d => cy + (genHeight[d.distance]) - (120 + scaleRadius(Math.sqrt(d.total_counts)))/2)
-                            .attr('height', d => 100 + scaleRadius(Math.sqrt(d.total_counts)))
+                            .attr('y', d => countType === 'record' ? cy + (genHeight[d.distance]) - (120 + scaleRadius(Math.sqrt(d.total_counts)))/2 : cy + (genHeight[d.distance]) - (120 + scaleRadius(Math.sqrt(d.person_counts)))/2)
+                            .attr('height', d => countType === 'record' ? 100 + scaleRadius(Math.sqrt(d.total_counts)) : 100 + scaleRadius(Math.sqrt(d.person_counts)))
                             .on('mouseover', function (e,d) {
                                 const el = this
                                 el.__hoverTimeout__ = setTimeout(() => {
@@ -1826,15 +1952,15 @@
                         update.select('.node-group')
                             .style('display', d => d.levels === '-1' ? 'none' : 'block')
                         update.select('.tree-circle-background')
-                            .attr('r', d => scaleRadius(Math.sqrt(d.total_counts)) + 2)
+                            .attr('r', d => countType === 'record' ? scaleRadius(Math.sqrt(d.total_counts)) + 2 : scaleRadius(Math.sqrt(d.person_counts)) + 2)
                             .attr('cx', d => d.x)
                             .attr('cy', d => cy + (genHeight[d.distance]))
                         update.select('.tree-circle')
                             .classed('tree-circle btn', true)
-                            .attr('r', d => scaleRadius(Math.sqrt(d.total_counts)))
-                            .attr('stroke', d => d.total_counts === 0 ? 'none' : conceptNames.includes(d.name) && inclusions.includes(d.name) ? d.color : '#ebebeb')
+                            .attr('r', d => countType === 'record' ? scaleRadius(Math.sqrt(d.total_counts)) : scaleRadius(Math.sqrt(d.person_counts)))
+                            .attr('stroke', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? 'none' : conceptNames.includes(d.name) && inclusions.includes(d.name) ? d.color : '#ebebeb')
                             .attr('fill', d => {
-                                if (d.total_counts === 0 || (d.leaf && d.descendant_counts !== d.total_counts)) return 'white'
+                                if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) || (d.leaf && d.descendant_counts !== d.total_counts)) return 'white'
                                 else {
                                     if (!d.data.concept.standard_concept && conceptNames.includes(d.name)) {
                                         let t = textures.lines()
@@ -1851,10 +1977,10 @@
                             })
                             .attr('cx', d => d.x)
                             .attr('cy', d => cy + (genHeight[d.distance]))
-                            .attr('pointer-events', d => d.total_counts === 0 || d.levels === "-1" || d.leaf ? "none" : "all")
+                            .attr('pointer-events', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) || d.levels === "-1" || d.leaf ? "none" : "all")
                         update.select('.total-counts')
                             .classed('total-counts num', true)
-                            .text(d => formatThousands(d.total_counts))
+                            .text(d => countType === 'record' ? formatThousands(d.total_counts) : formatThousands(d.person_counts))
                             .attr('fill', d => conceptNames.includes(d.name) && inclusions.includes(d.name) && !d.leaf ? 'white' : '#36126d')
                             .attr('x', d => d.x)
                             .attr('y', d => cy + (genHeight[d.distance]) - 1)
@@ -1867,11 +1993,10 @@
                             .style('display', d => sidebarRoot.name.includes(d.name) ? 'block' : 'none')
                             .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
                             .attr('transform', d => {
-                                const xVar = d.total_counts === 0 ? 35 : 20
-                                if (d.data.concept.standard_concept) return `translate(${d.x + scaleRadius(Math.sqrt(d.total_counts)) + xVar}, 0)`
-                                else return `translate(${d.x - scaleRadius(Math.sqrt(d.total_counts)) - xVar}, 0)`
-                                }   
-                            )
+                                const xVar = (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? 35 : 20
+                                if (d.data.concept.standard_concept) return countType === 'record' ? `translate(${d.x + scaleRadius(Math.sqrt(d.total_counts)) + xVar}, 0)` : `translate(${d.x + scaleRadius(Math.sqrt(d.person_counts)) + xVar}, 0)`
+                                else return countType === 'record' ? `translate(${d.x - scaleRadius(Math.sqrt(d.total_counts)) - xVar}, 0)` : `translate(${d.x - scaleRadius(Math.sqrt(d.person_counts)) - xVar}, 0)`
+                            })
                         update.select('.set-expression-rect')
                             .attr('y', d => cy + (genHeight[d.distance]) - 24)
                         update.select('.tree-descendants-btn')
@@ -1911,6 +2036,7 @@
                         update.select('.mappings-btn')
                             .text(d => mapRoot.includes(d.name) && d.mappings.length > 0 ? "\uf00d" : "\uf0da")
                             .style('display', d => d.mappings.length > 0 ? 'block' : 'none')
+                            .style('opacity', d => hovered.length > 0 ? 0.1 : 0.3)
                             .style('font-size', d => mapRoot.includes(d.name) && d.mappings.length > 0 ? '14px' : '15px')
                             .on('mouseover',(e,d) => {
                                 e.stopPropagation()
@@ -1929,7 +2055,10 @@
                                 }
                                 
                             })
-                            .attr('x', d => !d.data.concept.standard_concept ? d.x + scaleRadius(Math.sqrt(d.total_counts)) + 15 : d.x - scaleRadius(Math.sqrt(d.total_counts)) - 15)
+                            .attr('x', d => {
+                                if (!d.data.concept.standard_concept) return countType === 'record' ? d.x + scaleRadius(Math.sqrt(d.total_counts)) + 15 : d.x + scaleRadius(Math.sqrt(d.person_counts)) + 15 
+                                else return countType === 'record' ? d.x - scaleRadius(Math.sqrt(d.total_counts)) - 15 : d.x - scaleRadius(Math.sqrt(d.person_counts)) - 15
+                            })
                             .attr('y', d => cy + (genHeight[d.distance]) + 5.5)
                         update.select('.drc-group')
                             .on('mouseover',(e,d) => {
@@ -1947,16 +2076,16 @@
                             .transition()
                             .attr('opacity', d => d.leaf ? 1 : 0.6)
                             .attr('x', d => d.x)
-                            .attr('y', d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 18)
+                            .attr('y', d => countType === 'record' ? cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 18 : cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.person_counts)) + 18)
                         update.select('.drc-num')
-                            .text(d => formatThousands(d.descendant_counts))
+                            .text(d => countType === 'record' ? formatThousands(d.descendant_counts) : formatThousands(d.descendant_person_counts))
                         update.select('.drc-label-tree')
-                            .text(() => countType === 'record' ? ' DRC' : 'DPC')
+                            .text(() => countType === 'record' ? ' DRC' : ' DPC')
                         update.select('.drc-rect')
                             .attr('fill', d => d.leaf ? d.color : d.descendant_counts === 0 || d.descendant_counts === d.total_counts ? 'transparent' : '#f2f2f5')
                             .attr('width',d => d3.select('#drc-text-'+d.name).node().getBBox().width + 10)
                             .attr('x', d => d.x - (d3.select('#drc-text-'+d.name).node().getBBox().width + 10)/2)
-                            .attr('y', d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 7)
+                            .attr('y', d => countType === 'record' ? cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 7 : cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.person_counts)) + 7)
                         update.select('.label')
                             .on('mouseover', (e, d) => {
                                 if (!sidebarRoot.name.includes(d.name)) {
@@ -2014,7 +2143,7 @@
                             .style('opacity', d => hovered.length === 1 && hovered.includes(d.name) ? 1 : hovered.length > 0 ? 0.2 : 1)
                         update.select('.prune-line')
                             .attr('x1',d => d.x)
-                            .attr('y1',d => cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 18)
+                            .attr('y1',d => countType === 'record' ? cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 18 : cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.person_counts)) + 18)
                             .attr('x2',d => d.x + 0.1)
                             .attr('y2',d => cy + (genHeight[d.distance]) + (num - 20))
                         update.select('.prune-arrow')
@@ -2037,7 +2166,7 @@
                                 .attr("d", d => {
                                     let sourceNode = nodes.filter(e => e.name === d.source)[0]
                                     let x1 = d.x
-                                    let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18
+                                    let y1 = countType === 'record' ? cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18 : cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.person_counts)) + 18
                                     let x2 = d.mid
                                     let y2 = cy + (genHeight[sourceNode.distance]) + (num - 20)
                                     return curveY({source: [x1, y1], target: [x2, y2]})
@@ -2051,7 +2180,7 @@
                                 .attr("d", d => {
                                     let sourceNode = nodes.filter(e => e.name === d.source)[0]
                                     let x1 = d.x
-                                    let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18
+                                    let y1 = countType === 'record' ? cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18 : cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.person_counts)) + 18
                                     let x2 = d.mid
                                     let y2 = cy + (genHeight[sourceNode.distance]) + (num - 20)
                                     return curveY({source: [x1, y1], target: [x2, y2]})
@@ -2075,7 +2204,7 @@
                                 .attr("d", d => {
                                     let sourceNode = nodes.filter(e => e.name === d.source)[0]
                                     let x1 = d.x
-                                    let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18
+                                    let y1 = countType === 'record' ? cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18 : cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.person_counts)) + 18
                                     let x2 = d.mid
                                     let y2 = cy + (genHeight[sourceNode.distance]) + (num - 20)
                                     return curveY({source: [x1, y1], target: [x2, y2]})
@@ -2085,7 +2214,7 @@
                                 .attr("d", d => {
                                     let sourceNode = nodes.filter(e => e.name === d.source)[0]
                                     let x1 = d.x
-                                    let y1 = cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18
+                                    let y1 = countType === 'record' ? cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.total_counts)) + 18 : cy + (genHeight[sourceNode.distance]) + scaleRadius(Math.sqrt(sourceNode.person_counts)) + 18
                                     let x2 = d.mid
                                     let y2 = cy + (genHeight[sourceNode.distance]) + (num - 20)
                                     return curveY({source: [x1, y1], target: [x2, y2]})
@@ -2101,6 +2230,7 @@
                         })
                         d3.selectAll('.subsumes-nodes').lower()
                         d3.selectAll('.map-node').raise()
+                        d3.selectAll('.prune-curve').lower()
                     },exit => exit.remove())
             }
             updateLinks()
@@ -2110,11 +2240,22 @@
         function drawList() {
             let sums = []
             nodes.filter(n => n.levels !== '-1').forEach(node => {
-                sums.push(node.total_counts)
-                sums.push(node.descendant_counts)
+                if (countType === 'record') {
+                    sums.push(node.total_counts)
+                    sums.push(node.descendant_counts)    
+                } else {
+                    sums.push(node.person_counts)
+                    sums.push(node.descendant_person_counts)    
+                }
+                
                 node.mappings.forEach(map => {
-                    sums.push(map.total_counts)
-                    sums.push(map.descendant_counts)
+                    if (countType === 'record') {
+                        sums.push(map.total_counts)
+                        sums.push(map.descendant_counts)    
+                    } else {
+                        sums.push(map.person_counts)
+                        sums.push(map.descendant_person_counts)    
+                    }
                 })
             })
             const extent = d3.extent(sums)
@@ -2188,12 +2329,12 @@
                         .style('align-items','center')
                     title1.append('div')
                         .classed('list-title-circle',true)
-                        .classed('list-circle-dash', d => d.total_counts === 0 && !d.leaf ? true : false)
-                        .classed('list-circle', d => d.total_counts === 0 && !d.leaf ? false : true)
+                        .classed('list-circle-dash', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf ? true : false)
+                        .classed('list-circle', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf ? false : true)
                         .classed('btn', d => conceptNames.includes(d.name) || d.leaf ? true : false)
                         .style("pointer-events", d => conceptNames.includes(d.name) || d.leaf ? 'all' : 'none')
                         .style('background', d => {
-                            if (d.total_counts === 0 && !d.leaf) return "none"
+                            if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf) return "none"
                             if (conceptNames.includes(d.name) || d.leaf) {
                                 if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
                                 else {return "none"}
@@ -2205,14 +2346,14 @@
                             }      
                         })
                         .style("background-color", d => {
-                            if (d.total_counts === 0 && !d.leaf) return "transparent"
+                            if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf) return "transparent"
                             if (conceptNames.includes(d.name) || d.leaf) {
                                 if (d.data.concept.standard_concept) {return d.color} 
                                 else {return "transparent"}
                             }
                             else return '#d6d6d6'
                         }) 
-                        .style('border', d => d.total_counts === 0 && !d.leaf ? '1px solid #b2b2b2' : conceptNames.includes(d.name) || d.leaf ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                        .style('border', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf ? '1px solid #b2b2b2' : conceptNames.includes(d.name) || d.leaf ? `1px solid ${d.color}` : '1px solid #d6d6d6')
                         .style('display',d => d.levels === '-1' ? 'none' : 'block')
                         .on('mouseover',(e,d) => setHovered([d.name]))
                         .on('mouseout', (e,d) => setHovered([]))
@@ -2261,7 +2402,7 @@
                         .attr('id', d => 'list-eye-'+d.name)
                         .attr("src", openedEye)
                         .style('opacity', 1)
-                        .style('display', d => (d.total_counts === 0 && !d.leaf) || d.levels === '-1' ? 'none' : !conceptNames.includes(d.name) ? 'none' : 'inline-block')
+                        .style('display', d => ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf) || d.levels === '-1' ? 'none' : !conceptNames.includes(d.name) ? 'none' : 'inline-block')
                         .on('mouseover', (e, d) => {
                             const el = e.currentTarget
                             el.__hoverTimeout__ = setTimeout(() => {
@@ -2407,17 +2548,17 @@
                         .classed('counts-RC-p list-counts-p num',true)
                         .style('color', d => conceptNames.includes(d.name) && !d.leaf ? '#36126d' : '#808080')
                         .style('font-weight', d => conceptNames.includes(d.name) && !d.leaf ? 500 : 400)
-                        .html(d => formatThousands(d.total_counts))
+                        .html(d => countType === 'record' ? formatThousands(d.total_counts) : formatThousands(d.person_counts))
                     countsRC.append('p')
                         .classed('counts-RC-label list-counts-label',true)
                         .style('color', d => conceptNames.includes(d.name) && !d.leaf ? '#36126d' : '#808080')
                         .style('font-weight', d => conceptNames.includes(d.name) && !d.leaf ? 500 : 400)
-                        .html('RC')
+                        .html(() => countType === 'record' ? 'RC' : 'PC')
                     const countsBarRC = countsRC.append('div')
                         .classed('list-counts-bar-container',true)
                     countsBarRC.append('div')
                         .classed('counts-RC-bar list-counts-bar',true)
-                        .style('width', d => scaleWidth(d.total_counts) + 'px')
+                        .style('width', d => countType === 'record' ? scaleWidth(d.total_counts) + 'px' : scaleWidth(d.person_counts) + 'px')
                         .style('background-color', d => conceptNames.includes(d.name) && !d.leaf ? d.color : '#e0e0e0')
                     
                     const countsDRC = countsSection.append('div')
@@ -2427,17 +2568,17 @@
                         .style('text-align','left')
                         .style('color', d => conceptNames.includes(d.name) && d.leaf ? '#36126d' : '#808080')
                         .style('font-weight', d => conceptNames.includes(d.name) && d.leaf ? 500 : 400)
-                        .html(d => formatThousands(d.descendant_counts))
+                        .html(d => countType === 'record' ? formatThousands(d.descendant_counts) : formatThousands(d.descendant_person_counts))
                     countsDRC.append('p')
                         .classed('counts-DRC-label list-counts-label',true)
                         .style('color', d => conceptNames.includes(d.name) && d.leaf ? '#36126d' : '#808080')
                         .style('font-weight', d => conceptNames.includes(d.name) && d.leaf ? 500 : 400)
-                        .html('DRC')
+                        .html(() => countType === 'record' ? 'DRC' : 'DPC')
                     const countsBarDRC = countsDRC.append('div')
                         .classed('list-counts-bar-container',true)
                     countsBarDRC.append('div')
                         .classed('counts-DRC-bar list-counts-bar',true)
-                        .style('width', d => scaleWidth(d.descendant_counts) + 'px')
+                        .style('width', d => countType === 'record' ? scaleWidth(d.descendant_counts) + 'px' : scaleWidth(d.descendant_person_counts) + 'px')
                         .style('background-color', d => conceptNames.includes(d.name) && d.leaf ? d.color : '#e0e0e0')
 
                     const openMappings = dataSection.append('div')
@@ -2516,12 +2657,12 @@
                             .style('align-items','center')
                         mapTitle1.append('div')
                             .classed('map-list-title-circle',true)
-                            .classed('list-circle-dash', d => d.total_counts === 0 ? true : false)
-                            .classed('list-circle', d => d.total_counts === 0 ? false : true)
+                            .classed('list-circle-dash', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? true : false)
+                            .classed('list-circle', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? false : true)
                             .classed('btn', d => conceptNames.includes(d.name) ? true : false)
                             .style('pointer-events', d => conceptNames.includes(d.name) ? 'all' : 'none')
                             .style('background', d => {
-                                if (d.total_counts === 0) return "none"
+                                if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0)) return "none"
                                 if (conceptNames.includes(d.name)) {
                                     if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
                                     else {return "none"}
@@ -2533,14 +2674,14 @@
                                 }  
                             })
                             .style("background-color", d => {
-                                if (d.total_counts === 0) return "transparent"
+                                if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0)) return "transparent"
                                 if (conceptNames.includes(d.name)) {
                                     if (d.data.concept.standard_concept) {return d.color} 
                                     else {return "transparent"}
                                 }
                                 else return '#d6d6d6'
                             }) 
-                            .style('border', d => d.total_counts === 0 ? '1px solid #b2b2b2' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                            .style('border', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? '1px solid #b2b2b2' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid #d6d6d6')
                             .on('mouseover',(e,d) => setHovered([d.name]))
                             .on('mouseout', (e,d) => setHovered([]))
                         const mapTitleRight = mapTitle1.append('div')
@@ -2589,7 +2730,7 @@
                             .attr('id', d => 'list-eye-'+d.name)
                             .attr("src", openedEye)
                             .style('opacity', 1)
-                            .style('display', d => d.total_counts === 0 || !conceptNames.includes(d.name) ? 'none' : 'inline-block')
+                            .style('display', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) || !conceptNames.includes(d.name) ? 'none' : 'inline-block')
                             .on('mouseover', (e, d) => {
                                 const el = e.currentTarget
                                 el.__hoverTimeout__ = setTimeout(() => {
@@ -2732,17 +2873,17 @@
                             .classed('map-counts-RC-p list-counts-p num',true)
                             .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
                             .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
-                            .html(d => formatThousands(d.total_counts))
+                            .html(d => countType === 'record' ? formatThousands(d.total_counts) : formatThousands(d.person_counts))
                         mapCountsRC.append('p')
                             .classed('map-counts-RC-label list-counts-label',true)
                             .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
                             .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
-                            .html('RC')
+                            .html(() => countType === 'record' ? 'RC' : 'PC')
                         const mapCountsBarRC = mapCountsRC.append('div')
                             .classed('list-counts-bar-container',true)
                         mapCountsBarRC.append('div')
                             .classed('map-counts-RC-bar list-counts-bar',true)
-                            .style('width', d => scaleWidth(d.total_counts) + 'px')
+                            .style('width', d => countType === 'record' ? scaleWidth(d.total_counts) + 'px' : scaleWidth(d.person_counts) + 'px' )
                             .style('background-color', d => conceptNames.includes(d.name) ? d.color : '#e0e0e0')
                         
                         const mapCountsDRC = mapCountsSection.append('div')
@@ -2752,17 +2893,17 @@
                             .style('text-align','left')
                             .style('color', '#808080')
                             .style('font-weight', 400)
-                            .html(d => formatThousands(d.descendant_counts))
+                            .html(d => countType === 'record' ? formatThousands(d.descendant_counts) : formatThousands(d.descendant_person_counts))
                         mapCountsDRC.append('p')
                             .classed('map-counts-DRC-label list-counts-label',true)
                             .style('color', '#808080')
                             .style('font-weight', 400)
-                            .html('DRC')
+                            .html(() => countType === 'record' ? 'DRC' : 'DPC')
                         const mapCountsBarDRC = mapCountsDRC.append('div')
                             .classed('list-counts-bar-container',true)
                         mapCountsBarDRC.append('div')
                             .classed('map-counts-DRC-bar list-counts-bar',true)
-                            .style('width', d => scaleWidth(d.descendant_counts) + 'px')
+                            .style('width', d => countType === 'record' ? scaleWidth(d.descendant_counts) + 'px' : scaleWidth(d.descendant_person_counts) + 'px')
                             .style('background-color', '#e0e0e0')   
                         
                         mapDataSection.append('div')
@@ -2780,12 +2921,12 @@
                             .style('box-shadow', d => conceptNames.includes(d.name) ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
                             .style('background-color', d => d.levels === '-1' ? 'none' : conceptNames.includes(d.name) ? 'white' : '#ebebeb')
                         update.select('.map-list-title-circle')
-                            .classed('list-circle-dash', d => d.total_counts === 0 ? true : false)
-                            .classed('list-circle', d => d.total_counts === 0 ? false : true)
+                            .classed('list-circle-dash', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? true : false)
+                            .classed('list-circle', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? false : true)
                             .classed('btn', d => conceptNames.includes(d.name) ? true : false)
                             .style('pointer-events', d => conceptNames.includes(d.name) ? 'all' : 'none')
                             .style('background', d => {
-                                if (d.total_counts === 0) return "none"
+                                if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0)) return "none"
                                 if (conceptNames.includes(d.name)) {
                                     if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
                                     else {return "none"}
@@ -2797,14 +2938,14 @@
                                 }      
                             })
                             .style("background-color", d => {
-                                if (d.total_counts === 0) return "transparent"
+                                if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0)) return "transparent"
                                 if (conceptNames.includes(d.name)) {
                                     if (d.data.concept.standard_concept) {return d.color} 
                                     else {return "transparent"}
                                 }
                                 else return '#d6d6d6'
                             }) 
-                            .style('border', d => d.total_counts === 0 ? '1px solid #b2b2b2' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                            .style('border', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? '1px solid #b2b2b2' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid #d6d6d6')
                             .on('mouseover',(e,d) => setHovered([d.name]))
                             .on('mouseout', (e,d) => setHovered([]))
                         update.select('.map-list-title-right')
@@ -2836,7 +2977,7 @@
                                 updateConcepts(newInclusions,nodes,[d],[])
                             })
                         update.select('.map-list-eye')
-                            .style('display', d => d.total_counts === 0 || !conceptNames.includes(d.name) ? 'none' : 'inline-block')
+                            .style('display', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) || !conceptNames.includes(d.name) ? 'none' : 'inline-block')
                             .on('mouseover', (e, d) => {
                                 const el = e.currentTarget
                                 el.__hoverTimeout__ = setTimeout(() => {
@@ -2910,19 +3051,22 @@
                         update.select('.map-counts-RC-p')
                             .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
                             .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
-                            .html(d => formatThousands(d.total_counts))
+                            .html(d => countType === 'record' ? formatThousands(d.total_counts) : formatThousands(d.person_counts))
                         update.select('.map-counts-RC-label')
                             .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
                             .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html(() => countType === 'record' ? 'RC' : 'PC')
                         update.select('.map-counts-RC-bar')
                             .transition()
-                            .style('width', d => scaleWidth(d.total_counts) + 'px')
+                            .style('width', d => countType === 'record' ? scaleWidth(d.total_counts) + 'px' : scaleWidth(d.person_counts) + 'px')
                             .style('background-color', d => conceptNames.includes(d.name) ? d.color : '#e0e0e0')
                         update.select('.map-counts-DRC-p')
-                            .html(d => formatThousands(d.descendant_counts))
+                            .html(d => countType === 'record' ? formatThousands(d.descendant_counts) : formatThousands(d.descendant_person_counts))
+                        update.select('.map-counts-DRC-label')
+                            .html(() => countType === 'record' ? 'DRC' : 'DPC')
                         update.select('.map-counts-DRC-bar')
                             .transition()
-                            .style('width', d => scaleWidth(d.descendant_counts) + 'px')
+                            .style('width', d => countType === 'record' ? scaleWidth(d.descendant_counts) + 'px' : scaleWidth(d.descendant_person_counts) + 'px')
                     })
                 },update => {
                     update.select('.list-item')
@@ -2933,12 +3077,12 @@
                         .style('box-shadow', d => conceptNames.includes(d.name) || d.leaf ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
                         .style('background-color', d => d.levels === '-1' ? 'none' : conceptNames.includes(d.name) || d.leaf ? 'white' : '#ebebeb')
                     update.select('.list-title-circle')
-                        .classed('list-circle-dash', d => d.total_counts === 0 && !d.leaf ? true : false)
-                        .classed('list-circle', d => d.total_counts === 0 && !d.leaf ? false : true)
+                        .classed('list-circle-dash', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf ? true : false)
+                        .classed('list-circle', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf ? false : true)
                         .classed('btn', d => conceptNames.includes(d.name) || d.leaf ? true : false)
                         .style("pointer-events", d => conceptNames.includes(d.name) || d.leaf ? 'all' : 'none')
                         .style('background', d => {
-                            if (d.total_counts === 0 && !d.leaf) return "none"
+                            if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf) return "none"
                             if (conceptNames.includes(d.name) || d.leaf) {
                                 if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
                                 else {return "none"}
@@ -2950,14 +3094,14 @@
                             }      
                         })
                         .style("background-color", d => {
-                            if (d.total_counts === 0 && !d.leaf) return "transparent"
+                            if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf) return "transparent"
                             if (conceptNames.includes(d.name) || d.leaf) {
                                 if (d.data.concept.standard_concept) {return d.color} 
                                 else {return "transparent"}
                             }
                             else return '#d6d6d6'
                         }) 
-                        .style('border', d => d.total_counts === 0 && !d.leaf ? '1px solid #b2b2b2' : conceptNames.includes(d.name) || d.leaf ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                        .style('border', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf ? '1px solid #b2b2b2' : conceptNames.includes(d.name) || d.leaf ? `1px solid ${d.color}` : '1px solid #d6d6d6')
                         .on('mouseover',(e,d) => setHovered([d.name]))
                         .on('mouseout', (e,d) => setHovered([]))
                     update.select('.list-title-right')
@@ -2983,7 +3127,7 @@
                             showActionLabel('','leave',e)
                         })
                     update.select('.list-eye')
-                        .style('display', d => (d.total_counts === 0 && !d.leaf) || d.levels === '-1' ? 'none' : !conceptNames.includes(d.name) ? 'none' : 'inline-block')
+                        .style('display', d => ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf) || d.levels === '-1' ? 'none' : !conceptNames.includes(d.name) ? 'none' : 'inline-block')
                         .on('mouseover', (e, d) => {
                             const el = e.currentTarget
                             el.__hoverTimeout__ = setTimeout(() => {
@@ -3058,24 +3202,26 @@
                     update.select('.counts-RC-p')
                         .style('color', d => conceptNames.includes(d.name) && !d.leaf ? '#36126d' : '#808080')
                         .style('font-weight', d => conceptNames.includes(d.name) && !d.leaf ? 500 : 400)
-                        .html(d => formatThousands(d.total_counts))
+                        .html(d => countType === 'record' ? formatThousands(d.total_counts) : formatThousands(d.person_counts))
                     update.select('.counts-RC-label')
                         .style('color', d => conceptNames.includes(d.name) && !d.leaf ? '#36126d' : '#808080')
                         .style('font-weight', d => conceptNames.includes(d.name) && !d.leaf ? 500 : 400)
+                        .html(() => countType === 'record' ? 'RC' : 'PC')
                     update.select('.counts-RC-bar')
                         .transition()
-                        .style('width', d => scaleWidth(d.total_counts) + 'px')
+                        .style('width', d => countType === 'record' ? scaleWidth(d.total_counts) + 'px' : scaleWidth(d.person_counts) + 'px' )
                         .style('background-color', d => conceptNames.includes(d.name) && !d.leaf ? d.color : '#e0e0e0')
                     update.select('.counts-DRC-p')
                         .style('color', d => conceptNames.includes(d.name) && d.leaf ? '#36126d' : '#808080')
                         .style('font-weight', d => conceptNames.includes(d.name) && d.leaf ? 500 : 400)
-                        .html(d => formatThousands(d.descendant_counts))
+                        .html(d => countType === 'record' ? formatThousands(d.descendant_counts) : formatThousands(d.descendant_person_counts))
                     update.select('.counts-DRC-label')
                         .style('color', d => conceptNames.includes(d.name) && d.leaf ? '#36126d' : '#808080')
                         .style('font-weight', d => conceptNames.includes(d.name) && d.leaf ? 500 : 400)
+                        .html(() => countType === 'record' ? 'DRC' : 'DPC')
                     update.select('.counts-DRC-bar')
                         .transition()
-                        .style('width', d => scaleWidth(d.descendant_counts) + 'px')
+                        .style('width', d => countType === 'record' ? scaleWidth(d.descendant_counts) + 'px' : scaleWidth(d.descendant_person_counts) + 'px' )
                         .style('background-color', d => conceptNames.includes(d.name) && d.leaf ? d.color : '#e0e0e0')
                     update.select('.list-caret-down')
                         .style('display', d => d.mappings.length > 0 ? mapRoot.includes(d.name) || d.mappings.map(m => m.name).some(map => hovered.includes(map)) ? 'none' : 'block' : 'none')
@@ -3136,12 +3282,12 @@
                             .style('align-items','center')
                         mapTitle1.append('div')
                             .classed('map-list-title-circle',true)
-                            .classed('list-circle-dash', d => d.total_counts === 0 ? true : false)
-                            .classed('list-circle', d => d.total_counts === 0 ? false : true)
+                            .classed('list-circle-dash', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? true : false)
+                            .classed('list-circle', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? false : true)
                             .classed('btn', d => conceptNames.includes(d.name) ? true : false)
                             .style('pointer-events', d => conceptNames.includes(d.name) ? 'all' : 'none')
                             .style('background', d => {
-                                if (d.total_counts === 0) return "none"
+                                if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0)) return "none"
                                 if (conceptNames.includes(d.name)) {
                                     if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
                                     else {return "none"}
@@ -3153,14 +3299,14 @@
                                 }  
                             })
                             .style("background-color", d => {
-                                if (d.total_counts === 0) return "transparent"
+                                if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0)) return "transparent"
                                 if (conceptNames.includes(d.name)) {
                                     if (d.data.concept.standard_concept) {return d.color} 
                                     else {return "transparent"}
                                 }
                                 else return '#d6d6d6'
                             }) 
-                            .style('border', d => d.total_counts === 0 ? '1px solid #b2b2b2' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                            .style('border', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? '1px solid #b2b2b2' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid #d6d6d6')
                             .on('mouseover',(e,d) => setHovered([d.name]))
                             .on('mouseout', (e,d) => setHovered([]))
                         const mapTitleRight = mapTitle1.append('div')
@@ -3209,7 +3355,7 @@
                             .attr('id', d => 'list-eye-'+d.name)
                             .attr("src", openedEye)
                             .style('opacity', 1)
-                            .style('display', d => d.total_counts === 0 || !conceptNames.includes(d.name) ? 'none' : 'inline-block')
+                            .style('display', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) || !conceptNames.includes(d.name) ? 'none' : 'inline-block')
                             .on('mouseover', (e, d) => {
                                 const el = e.currentTarget
                                 el.__hoverTimeout__ = setTimeout(() => {
@@ -3352,17 +3498,17 @@
                             .classed('map-counts-RC-p list-counts-p num',true)
                             .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
                             .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
-                            .html(d => formatThousands(d.total_counts))
+                            .html(d => countType === 'record' ? formatThousands(d.total_counts) : formatThousands(d.person_counts))
                         mapCountsRC.append('p')
                             .classed('map-counts-RC-label list-counts-label',true)
                             .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
                             .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
-                            .html('RC')
+                            .html(() => countType === 'record' ? 'RC' : 'PC')
                         const mapCountsBarRC = mapCountsRC.append('div')
                             .classed('list-counts-bar-container',true)
                         mapCountsBarRC.append('div')
                             .classed('map-counts-RC-bar list-counts-bar',true)
-                            .style('width', d => scaleWidth(d.total_counts) + 'px')
+                            .style('width', d => countType === 'record' ? scaleWidth(d.total_counts) + 'px' : scaleWidth(d.person_counts) + 'px' )
                             .style('background-color', d => conceptNames.includes(d.name) ? d.color : '#e0e0e0')
                         
                         const mapCountsDRC = mapCountsSection.append('div')
@@ -3372,17 +3518,17 @@
                             .style('text-align','left')
                             .style('color', '#808080')
                             .style('font-weight', 400)
-                            .html(d => formatThousands(d.descendant_counts))
+                            .html(d => countType === 'record' ? formatThousands(d.descendant_counts) : formatThousands(d.descendant_person_counts))
                         mapCountsDRC.append('p')
                             .classed('map-counts-DRC-label list-counts-label',true)
                             .style('color', '#808080')
                             .style('font-weight', 400)
-                            .html('DRC')
+                            .html(() => countType === 'record' ? 'DRC' : 'DPC')
                         const mapCountsBarDRC = mapCountsDRC.append('div')
                             .classed('list-counts-bar-container',true)
                         mapCountsBarDRC.append('div')
                             .classed('map-counts-DRC-bar list-counts-bar',true)
-                            .style('width', d => scaleWidth(d.descendant_counts) + 'px')
+                            .style('width', d => countType === 'record' ? scaleWidth(d.descendant_counts) + 'px' : scaleWidth(d.descendant_person_counts) + 'px')
                             .style('background-color', '#e0e0e0')   
                         
                         mapDataSection.append('div')
@@ -3400,12 +3546,12 @@
                             .style('box-shadow', d => conceptNames.includes(d.name) ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
                             .style('background-color', d => d.levels === '-1' ? 'none' : conceptNames.includes(d.name) ? 'white' : '#ebebeb')
                         update.select('.map-list-title-circle')
-                            .classed('list-circle-dash', d => d.total_counts === 0 ? true : false)
-                            .classed('list-circle', d => d.total_counts === 0 ? false : true)
+                            .classed('list-circle-dash', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? true : false)
+                            .classed('list-circle', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? false : true)
                             .classed('btn', d => conceptNames.includes(d.name) ? true : false)
                             .style('pointer-events', d => conceptNames.includes(d.name) ? 'all' : 'none')
                             .style('background', d => {
-                                if (d.total_counts === 0) return "none"
+                                if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0)) return "none"
                                 if (conceptNames.includes(d.name)) {
                                     if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
                                     else {return "none"}
@@ -3417,14 +3563,14 @@
                                 }      
                             })
                             .style("background-color", d => {
-                                if (d.total_counts === 0) return "transparent"
+                                if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0)) return "transparent"
                                 if (conceptNames.includes(d.name)) {
                                     if (d.data.concept.standard_concept) {return d.color} 
                                     else {return "transparent"}
                                 }
                                 else return '#d6d6d6'
                             }) 
-                            .style('border', d => d.total_counts === 0 ? '1px solid #b2b2b2' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                            .style('border', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? '1px solid #b2b2b2' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid #d6d6d6')
                             .on('mouseover',(e,d) => setHovered([d.name]))
                             .on('mouseout', (e,d) => setHovered([]))
                         update.select('.map-list-title-right')
@@ -3456,7 +3602,7 @@
                                 updateConcepts(newInclusions,nodes,[d],[])
                             })
                         update.select('.map-list-eye')
-                            .style('display', d => d.total_counts === 0 || !conceptNames.includes(d.name) ? 'none' : 'inline-block')
+                            .style('display', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) || !conceptNames.includes(d.name) ? 'none' : 'inline-block')
                             .on('mouseover', (e, d) => {
                                 const el = e.currentTarget
                                 el.__hoverTimeout__ = setTimeout(() => {
@@ -3530,19 +3676,22 @@
                         update.select('.map-counts-RC-p')
                             .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
                             .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
-                            .html(d => formatThousands(d.total_counts))
+                            .html(d => countType === 'record' ? formatThousands(d.total_counts) : formatThousands(d.person_counts))
                         update.select('.map-counts-RC-label')
                             .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
                             .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html(() => countType === 'record' ? 'RC' : 'PC')
                         update.select('.map-counts-RC-bar')
                             .transition()
-                            .style('width', d => scaleWidth(d.total_counts) + 'px')
+                            .style('width', d => countType === 'record' ? scaleWidth(d.total_counts) + 'px' : scaleWidth(d.person_counts) + 'px')
                             .style('background-color', d => conceptNames.includes(d.name) ? d.color : '#e0e0e0')
                         update.select('.map-counts-DRC-p')
-                            .html(d => formatThousands(d.descendant_counts))
+                            .html(d => countType === 'record' ? formatThousands(d.descendant_counts) : formatThousands(d.descendant_person_counts))
+                        update.select('.map-counts-DRC-label')
+                            .html(() => countType === 'record' ? 'DRC' : 'DPC')
                         update.select('.map-counts-DRC-bar')
                             .transition()
-                            .style('width', d => scaleWidth(d.descendant_counts) + 'px')
+                            .style('width', d => countType === 'record' ? scaleWidth(d.descendant_counts) + 'px' : scaleWidth(d.descendant_person_counts) + 'px')
                     })
                 })
             },update => {
@@ -3574,12 +3723,12 @@
                         .style('align-items','center')
                     title1.append('div')
                         .classed('list-title-circle',true)
-                        .classed('list-circle-dash', d => d.total_counts === 0 && !d.leaf ? true : false)
-                        .classed('list-circle', d => d.total_counts === 0 && !d.leaf ? false : true)
+                        .classed('list-circle-dash', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf ? true : false)
+                        .classed('list-circle', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf ? false : true)
                         .classed('btn', d => conceptNames.includes(d.name) || d.leaf ? true : false)
                         .style("pointer-events", d => conceptNames.includes(d.name) || d.leaf ? 'all' : 'none')
                         .style('background', d => {
-                            if (d.total_counts === 0 && !d.leaf) return "none"
+                            if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf) return "none"
                             if (conceptNames.includes(d.name) || d.leaf) {
                                 if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
                                 else {return "none"}
@@ -3591,14 +3740,14 @@
                             }      
                         })
                         .style("background-color", d => {
-                            if (d.total_counts === 0 && !d.leaf) return "transparent"
+                            if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf) return "transparent"
                             if (conceptNames.includes(d.name) || d.leaf) {
                                 if (d.data.concept.standard_concept) {return d.color} 
                                 else {return "transparent"}
                             }
                             else return '#d6d6d6'
                         }) 
-                        .style('border', d => d.total_counts === 0 && !d.leaf ? '1px solid #b2b2b2' : conceptNames.includes(d.name) || d.leaf ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                        .style('border', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf ? '1px solid #b2b2b2' : conceptNames.includes(d.name) || d.leaf ? `1px solid ${d.color}` : '1px solid #d6d6d6')
                         .style('display',d => d.levels === '-1' ? 'none' : 'block')
                         .on('mouseover',(e,d) => setHovered([d.name]))
                         .on('mouseout', (e,d) => setHovered([]))
@@ -3647,7 +3796,7 @@
                         .attr('id', d => 'list-eye-'+d.name)
                         .attr("src", openedEye)
                         .style('opacity', 1)
-                        .style('display', d => (d.total_counts === 0 && !d.leaf) || d.levels === '-1' ? 'none' : !conceptNames.includes(d.name) ? 'none' : 'inline-block')
+                        .style('display', d => ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf) || d.levels === '-1' ? 'none' : !conceptNames.includes(d.name) ? 'none' : 'inline-block')
                         .on('mouseover', (e, d) => {
                             const el = e.currentTarget
                             el.__hoverTimeout__ = setTimeout(() => {
@@ -3793,17 +3942,17 @@
                         .classed('counts-RC-p list-counts-p num',true)
                         .style('color', d => conceptNames.includes(d.name) && !d.leaf ? '#36126d' : '#808080')
                         .style('font-weight', d => conceptNames.includes(d.name) && !d.leaf ? 500 : 400)
-                        .html(d => formatThousands(d.total_counts))
+                        .html(d => countType === 'record' ? formatThousands(d.total_counts) : formatThousands(d.person_counts))
                     countsRC.append('p')
                         .classed('counts-RC-label list-counts-label',true)
                         .style('color', d => conceptNames.includes(d.name) && !d.leaf ? '#36126d' : '#808080')
                         .style('font-weight', d => conceptNames.includes(d.name) && !d.leaf ? 500 : 400)
-                        .html('RC')
+                        .html(() => countType === 'record' ? 'RC' : 'PC')
                     const countsBarRC = countsRC.append('div')
                         .classed('list-counts-bar-container',true)
                     countsBarRC.append('div')
                         .classed('counts-RC-bar list-counts-bar',true)
-                        .style('width', d => scaleWidth(d.total_counts) + 'px')
+                        .style('width', d => countType === 'record' ? scaleWidth(d.total_counts) + 'px' : scaleWidth(d.person_counts) + 'px')
                         .style('background-color', d => conceptNames.includes(d.name) && !d.leaf ? d.color : '#e0e0e0')
                     
                     const countsDRC = countsSection.append('div')
@@ -3813,17 +3962,17 @@
                         .style('text-align','left')
                         .style('color', d => conceptNames.includes(d.name) && d.leaf ? '#36126d' : '#808080')
                         .style('font-weight', d => conceptNames.includes(d.name) && d.leaf ? 500 : 400)
-                        .html(d => formatThousands(d.descendant_counts))
+                        .html(d => countType === 'record' ? formatThousands(d.descendant_counts) : formatThousands(d.descendant_person_counts))
                     countsDRC.append('p')
                         .classed('counts-DRC-label list-counts-label',true)
                         .style('color', d => conceptNames.includes(d.name) && d.leaf ? '#36126d' : '#808080')
                         .style('font-weight', d => conceptNames.includes(d.name) && d.leaf ? 500 : 400)
-                        .html('DRC')
+                        .html(() => countType === 'record' ? 'DRC' : 'DPC')
                     const countsBarDRC = countsDRC.append('div')
                         .classed('list-counts-bar-container',true)
                     countsBarDRC.append('div')
                         .classed('counts-DRC-bar list-counts-bar',true)
-                        .style('width', d => scaleWidth(d.descendant_counts) + 'px')
+                        .style('width', d => countType === 'record' ? scaleWidth(d.descendant_counts) + 'px' : scaleWidth(d.descendant_person_counts) + 'px')
                         .style('background-color', d => conceptNames.includes(d.name) && d.leaf ? d.color : '#e0e0e0')
 
                     const openMappings = dataSection.append('div')
@@ -3902,12 +4051,12 @@
                             .style('align-items','center')
                         mapTitle1.append('div')
                             .classed('map-list-title-circle',true)
-                            .classed('list-circle-dash', d => d.total_counts === 0 ? true : false)
-                            .classed('list-circle', d => d.total_counts === 0 ? false : true)
+                            .classed('list-circle-dash', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? true : false)
+                            .classed('list-circle', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? false : true)
                             .classed('btn', d => conceptNames.includes(d.name) ? true : false)
                             .style('pointer-events', d => conceptNames.includes(d.name) ? 'all' : 'none')
                             .style('background', d => {
-                                if (d.total_counts === 0) return "none"
+                                if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0)) return "none"
                                 if (conceptNames.includes(d.name)) {
                                     if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
                                     else {return "none"}
@@ -3919,14 +4068,14 @@
                                 }  
                             })
                             .style("background-color", d => {
-                                if (d.total_counts === 0) return "transparent"
+                                if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0)) return "transparent"
                                 if (conceptNames.includes(d.name)) {
                                     if (d.data.concept.standard_concept) {return d.color} 
                                     else {return "transparent"}
                                 }
                                 else return '#d6d6d6'
                             }) 
-                            .style('border', d => d.total_counts === 0 ? '1px solid #b2b2b2' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                            .style('border', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? '1px solid #b2b2b2' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid #d6d6d6')
                             .on('mouseover',(e,d) => setHovered([d.name]))
                             .on('mouseout', (e,d) => setHovered([]))
                         const mapTitleRight = mapTitle1.append('div')
@@ -3975,7 +4124,7 @@
                             .attr('id', d => 'list-eye-'+d.name)
                             .attr("src", openedEye)
                             .style('opacity', 1)
-                            .style('display', d => d.total_counts === 0 || !conceptNames.includes(d.name) ? 'none' : 'inline-block')
+                            .style('display', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) || !conceptNames.includes(d.name) ? 'none' : 'inline-block')
                             .on('mouseover', (e, d) => {
                                 const el = e.currentTarget
                                 el.__hoverTimeout__ = setTimeout(() => {
@@ -4118,17 +4267,17 @@
                             .classed('map-counts-RC-p list-counts-p num',true)
                             .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
                             .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
-                            .html(d => formatThousands(d.total_counts))
+                            .html(d => countType === 'record' ? formatThousands(d.total_counts) : formatThousands(d.person_counts))
                         mapCountsRC.append('p')
                             .classed('map-counts-RC-label list-counts-label',true)
                             .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
                             .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
-                            .html('RC')
+                            .html(() => countType === 'record' ? 'RC' : 'PC')
                         const mapCountsBarRC = mapCountsRC.append('div')
                             .classed('list-counts-bar-container',true)
                         mapCountsBarRC.append('div')
                             .classed('map-counts-RC-bar list-counts-bar',true)
-                            .style('width', d => scaleWidth(d.total_counts) + 'px')
+                            .style('width', d => countType === 'record' ? scaleWidth(d.total_counts) + 'px' : scaleWidth(d.person_counts) + 'px' )
                             .style('background-color', d => conceptNames.includes(d.name) ? d.color : '#e0e0e0')
                         
                         const mapCountsDRC = mapCountsSection.append('div')
@@ -4138,17 +4287,17 @@
                             .style('text-align','left')
                             .style('color', '#808080')
                             .style('font-weight', 400)
-                            .html(d => formatThousands(d.descendant_counts))
+                            .html(d => countType === 'record' ? formatThousands(d.descendant_counts) : formatThousands(d.descendant_person_counts))
                         mapCountsDRC.append('p')
                             .classed('map-counts-DRC-label list-counts-label',true)
                             .style('color', '#808080')
                             .style('font-weight', 400)
-                            .html('DRC')
+                            .html(() => countType === 'record' ? 'DRC' : 'DPC')
                         const mapCountsBarDRC = mapCountsDRC.append('div')
                             .classed('list-counts-bar-container',true)
                         mapCountsBarDRC.append('div')
                             .classed('map-counts-DRC-bar list-counts-bar',true)
-                            .style('width', d => scaleWidth(d.descendant_counts) + 'px')
+                            .style('width', d => countType === 'record' ? scaleWidth(d.descendant_counts) + 'px' : scaleWidth(d.descendant_person_counts) + 'px')
                             .style('background-color', '#e0e0e0')   
                         
                         mapDataSection.append('div')
@@ -4166,12 +4315,12 @@
                             .style('box-shadow', d => conceptNames.includes(d.name) ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
                             .style('background-color', d => d.levels === '-1' ? 'none' : conceptNames.includes(d.name) ? 'white' : '#ebebeb')
                         update.select('.map-list-title-circle')
-                            .classed('list-circle-dash', d => d.total_counts === 0 ? true : false)
-                            .classed('list-circle', d => d.total_counts === 0 ? false : true)
+                            .classed('list-circle-dash', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? true : false)
+                            .classed('list-circle', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? false : true)
                             .classed('btn', d => conceptNames.includes(d.name) ? true : false)
                             .style('pointer-events', d => conceptNames.includes(d.name) ? 'all' : 'none')
                             .style('background', d => {
-                                if (d.total_counts === 0) return "none"
+                                if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0)) return "none"
                                 if (conceptNames.includes(d.name)) {
                                     if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
                                     else {return "none"}
@@ -4183,14 +4332,14 @@
                                 }      
                             })
                             .style("background-color", d => {
-                                if (d.total_counts === 0) return "transparent"
+                                if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0)) return "transparent"
                                 if (conceptNames.includes(d.name)) {
                                     if (d.data.concept.standard_concept) {return d.color} 
                                     else {return "transparent"}
                                 }
                                 else return '#d6d6d6'
                             }) 
-                            .style('border', d => d.total_counts === 0 ? '1px solid #b2b2b2' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                            .style('border', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? '1px solid #b2b2b2' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid #d6d6d6')
                             .on('mouseover',(e,d) => setHovered([d.name]))
                             .on('mouseout', (e,d) => setHovered([]))
                         update.select('.map-list-title-right')
@@ -4222,7 +4371,7 @@
                                 updateConcepts(newInclusions,nodes,[d],[])
                             })
                         update.select('.map-list-eye')
-                            .style('display', d => d.total_counts === 0 || !conceptNames.includes(d.name) ? 'none' : 'inline-block')
+                            .style('display', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) || !conceptNames.includes(d.name) ? 'none' : 'inline-block')
                             .on('mouseover', (e, d) => {
                                 const el = e.currentTarget
                                 el.__hoverTimeout__ = setTimeout(() => {
@@ -4296,19 +4445,22 @@
                         update.select('.map-counts-RC-p')
                             .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
                             .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
-                            .html(d => formatThousands(d.total_counts))
+                            .html(d => countType === 'record' ? formatThousands(d.total_counts) : formatThousands(d.person_counts))
                         update.select('.map-counts-RC-label')
                             .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
                             .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html(() => countType === 'record' ? 'RC' : 'PC')
                         update.select('.map-counts-RC-bar')
                             .transition()
-                            .style('width', d => scaleWidth(d.total_counts) + 'px')
+                            .style('width', d => countType === 'record' ? scaleWidth(d.total_counts) + 'px' : scaleWidth(d.person_counts) + 'px')
                             .style('background-color', d => conceptNames.includes(d.name) ? d.color : '#e0e0e0')
                         update.select('.map-counts-DRC-p')
-                            .html(d => formatThousands(d.descendant_counts))
+                            .html(d => countType === 'record' ? formatThousands(d.descendant_counts) : formatThousands(d.descendant_person_counts))
+                        update.select('.map-counts-DRC-label')
+                            .html(() => countType === 'record' ? 'DRC' : 'DPC')
                         update.select('.map-counts-DRC-bar')
                             .transition()
-                            .style('width', d => scaleWidth(d.descendant_counts) + 'px')
+                            .style('width', d => countType === 'record' ? scaleWidth(d.descendant_counts) + 'px' : scaleWidth(d.descendant_person_counts) + 'px')
                     })
                 },update => {
                     update.select('.list-item')
@@ -4319,12 +4471,12 @@
                         .style('box-shadow', d => conceptNames.includes(d.name) || d.leaf ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
                         .style('background-color', d => d.levels === '-1' ? 'none' : conceptNames.includes(d.name) || d.leaf ? 'white' : '#ebebeb')
                     update.select('.list-title-circle')
-                        .classed('list-circle-dash', d => d.total_counts === 0 && !d.leaf ? true : false)
-                        .classed('list-circle', d => d.total_counts === 0 && !d.leaf ? false : true)
+                        .classed('list-circle-dash', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf ? true : false)
+                        .classed('list-circle', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf ? false : true)
                         .classed('btn', d => conceptNames.includes(d.name) || d.leaf ? true : false)
                         .style("pointer-events", d => conceptNames.includes(d.name) || d.leaf ? 'all' : 'none')
                         .style('background', d => {
-                            if (d.total_counts === 0 && !d.leaf) return "none"
+                            if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf) return "none"
                             if (conceptNames.includes(d.name) || d.leaf) {
                                 if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
                                 else {return "none"}
@@ -4336,14 +4488,14 @@
                             }      
                         })
                         .style("background-color", d => {
-                            if (d.total_counts === 0 && !d.leaf) return "transparent"
+                            if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf) return "transparent"
                             if (conceptNames.includes(d.name) || d.leaf) {
                                 if (d.data.concept.standard_concept) {return d.color} 
                                 else {return "transparent"}
                             }
                             else return '#d6d6d6'
                         }) 
-                        .style('border', d => d.total_counts === 0 && !d.leaf ? '1px solid #b2b2b2' : conceptNames.includes(d.name) || d.leaf ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                        .style('border', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf ? '1px solid #b2b2b2' : conceptNames.includes(d.name) || d.leaf ? `1px solid ${d.color}` : '1px solid #d6d6d6')
                         .on('mouseover',(e,d) => setHovered([d.name]))
                         .on('mouseout', (e,d) => setHovered([]))
                     update.select('.list-title-right')
@@ -4369,7 +4521,7 @@
                             showActionLabel('','leave',e)
                         })
                     update.select('.list-eye')
-                        .style('display', d => (d.total_counts === 0 && !d.leaf) || d.levels === '-1' ? 'none' : !conceptNames.includes(d.name) ? 'none' : 'inline-block')
+                        .style('display', d => ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf) || d.levels === '-1' ? 'none' : !conceptNames.includes(d.name) ? 'none' : 'inline-block')
                         .on('mouseover', (e, d) => {
                             const el = e.currentTarget
                             el.__hoverTimeout__ = setTimeout(() => {
@@ -4444,24 +4596,26 @@
                     update.select('.counts-RC-p')
                         .style('color', d => conceptNames.includes(d.name) && !d.leaf ? '#36126d' : '#808080')
                         .style('font-weight', d => conceptNames.includes(d.name) && !d.leaf ? 500 : 400)
-                        .html(d => formatThousands(d.total_counts))
+                        .html(d => countType === 'record' ? formatThousands(d.total_counts) : formatThousands(d.person_counts))
                     update.select('.counts-RC-label')
                         .style('color', d => conceptNames.includes(d.name) && !d.leaf ? '#36126d' : '#808080')
                         .style('font-weight', d => conceptNames.includes(d.name) && !d.leaf ? 500 : 400)
+                        .html(() => countType === 'record' ? 'RC' : 'PC')
                     update.select('.counts-RC-bar')
                         .transition()
-                        .style('width', d => scaleWidth(d.total_counts) + 'px')
+                        .style('width', d => countType === 'record' ? scaleWidth(d.total_counts) + 'px' : scaleWidth(d.person_counts) + 'px' )
                         .style('background-color', d => conceptNames.includes(d.name) && !d.leaf ? d.color : '#e0e0e0')
                     update.select('.counts-DRC-p')
                         .style('color', d => conceptNames.includes(d.name) && d.leaf ? '#36126d' : '#808080')
                         .style('font-weight', d => conceptNames.includes(d.name) && d.leaf ? 500 : 400)
-                        .html(d => formatThousands(d.descendant_counts))
+                        .html(d => countType === 'record' ? formatThousands(d.descendant_counts) : formatThousands(d.descendant_person_counts))
                     update.select('.counts-DRC-label')
                         .style('color', d => conceptNames.includes(d.name) && d.leaf ? '#36126d' : '#808080')
                         .style('font-weight', d => conceptNames.includes(d.name) && d.leaf ? 500 : 400)
+                        .html(() => countType === 'record' ? 'DRC' : 'DPC')
                     update.select('.counts-DRC-bar')
                         .transition()
-                        .style('width', d => scaleWidth(d.descendant_counts) + 'px')
+                        .style('width', d => countType === 'record' ? scaleWidth(d.descendant_counts) + 'px' : scaleWidth(d.descendant_person_counts) + 'px' )
                         .style('background-color', d => conceptNames.includes(d.name) && d.leaf ? d.color : '#e0e0e0')
                     update.select('.list-caret-down')
                         .style('display', d => d.mappings.length > 0 ? mapRoot.includes(d.name) || d.mappings.map(m => m.name).some(map => hovered.includes(map)) ? 'none' : 'block' : 'none')
@@ -4522,12 +4676,12 @@
                             .style('align-items','center')
                         mapTitle1.append('div')
                             .classed('map-list-title-circle',true)
-                            .classed('list-circle-dash', d => d.total_counts === 0 ? true : false)
-                            .classed('list-circle', d => d.total_counts === 0 ? false : true)
+                            .classed('list-circle-dash', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? true : false)
+                            .classed('list-circle', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? false : true)
                             .classed('btn', d => conceptNames.includes(d.name) ? true : false)
                             .style('pointer-events', d => conceptNames.includes(d.name) ? 'all' : 'none')
                             .style('background', d => {
-                                if (d.total_counts === 0) return "none"
+                                if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0)) return "none"
                                 if (conceptNames.includes(d.name)) {
                                     if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
                                     else {return "none"}
@@ -4539,14 +4693,14 @@
                                 }  
                             })
                             .style("background-color", d => {
-                                if (d.total_counts === 0) return "transparent"
+                                if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0)) return "transparent"
                                 if (conceptNames.includes(d.name)) {
                                     if (d.data.concept.standard_concept) {return d.color} 
                                     else {return "transparent"}
                                 }
                                 else return '#d6d6d6'
                             }) 
-                            .style('border', d => d.total_counts === 0 ? '1px solid #b2b2b2' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                            .style('border', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? '1px solid #b2b2b2' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid #d6d6d6')
                             .on('mouseover',(e,d) => setHovered([d.name]))
                             .on('mouseout', (e,d) => setHovered([]))
                         const mapTitleRight = mapTitle1.append('div')
@@ -4595,7 +4749,7 @@
                             .attr('id', d => 'list-eye-'+d.name)
                             .attr("src", openedEye)
                             .style('opacity', 1)
-                            .style('display', d => d.total_counts === 0 || !conceptNames.includes(d.name) ? 'none' : 'inline-block')
+                            .style('display', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) || !conceptNames.includes(d.name) ? 'none' : 'inline-block')
                             .on('mouseover', (e, d) => {
                                 const el = e.currentTarget
                                 el.__hoverTimeout__ = setTimeout(() => {
@@ -4738,17 +4892,17 @@
                             .classed('map-counts-RC-p list-counts-p num',true)
                             .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
                             .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
-                            .html(d => formatThousands(d.total_counts))
+                            .html(d => countType === 'record' ? formatThousands(d.total_counts) : formatThousands(d.person_counts))
                         mapCountsRC.append('p')
                             .classed('map-counts-RC-label list-counts-label',true)
                             .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
                             .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
-                            .html('RC')
+                            .html(() => countType === 'record' ? 'RC' : 'PC')
                         const mapCountsBarRC = mapCountsRC.append('div')
                             .classed('list-counts-bar-container',true)
                         mapCountsBarRC.append('div')
                             .classed('map-counts-RC-bar list-counts-bar',true)
-                            .style('width', d => scaleWidth(d.total_counts) + 'px')
+                            .style('width', d => countType === 'record' ? scaleWidth(d.total_counts) + 'px' : scaleWidth(d.person_counts) + 'px' )
                             .style('background-color', d => conceptNames.includes(d.name) ? d.color : '#e0e0e0')
                         
                         const mapCountsDRC = mapCountsSection.append('div')
@@ -4758,17 +4912,17 @@
                             .style('text-align','left')
                             .style('color', '#808080')
                             .style('font-weight', 400)
-                            .html(d => formatThousands(d.descendant_counts))
+                            .html(d => countType === 'record' ? formatThousands(d.descendant_counts) : formatThousands(d.descendant_person_counts))
                         mapCountsDRC.append('p')
                             .classed('map-counts-DRC-label list-counts-label',true)
                             .style('color', '#808080')
                             .style('font-weight', 400)
-                            .html('DRC')
+                            .html(() => countType === 'record' ? 'DRC' : 'DPC')
                         const mapCountsBarDRC = mapCountsDRC.append('div')
                             .classed('list-counts-bar-container',true)
                         mapCountsBarDRC.append('div')
                             .classed('map-counts-DRC-bar list-counts-bar',true)
-                            .style('width', d => scaleWidth(d.descendant_counts) + 'px')
+                            .style('width', d => countType === 'record' ? scaleWidth(d.descendant_counts) + 'px' : scaleWidth(d.descendant_person_counts) + 'px')
                             .style('background-color', '#e0e0e0')   
                         
                         mapDataSection.append('div')
@@ -4786,12 +4940,12 @@
                             .style('box-shadow', d => conceptNames.includes(d.name) ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
                             .style('background-color', d => d.levels === '-1' ? 'none' : conceptNames.includes(d.name) ? 'white' : '#ebebeb')
                         update.select('.map-list-title-circle')
-                            .classed('list-circle-dash', d => d.total_counts === 0 ? true : false)
-                            .classed('list-circle', d => d.total_counts === 0 ? false : true)
+                            .classed('list-circle-dash', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? true : false)
+                            .classed('list-circle', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? false : true)
                             .classed('btn', d => conceptNames.includes(d.name) ? true : false)
                             .style('pointer-events', d => conceptNames.includes(d.name) ? 'all' : 'none')
                             .style('background', d => {
-                                if (d.total_counts === 0) return "none"
+                                if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0)) return "none"
                                 if (conceptNames.includes(d.name)) {
                                     if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
                                     else {return "none"}
@@ -4803,14 +4957,14 @@
                                 }      
                             })
                             .style("background-color", d => {
-                                if (d.total_counts === 0) return "transparent"
+                                if ((countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0)) return "transparent"
                                 if (conceptNames.includes(d.name)) {
                                     if (d.data.concept.standard_concept) {return d.color} 
                                     else {return "transparent"}
                                 }
                                 else return '#d6d6d6'
                             }) 
-                            .style('border', d => d.total_counts === 0 ? '1px solid #b2b2b2' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                            .style('border', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? '1px solid #b2b2b2' : conceptNames.includes(d.name) ? `1px solid ${d.color}` : '1px solid #d6d6d6')
                             .on('mouseover',(e,d) => setHovered([d.name]))
                             .on('mouseout', (e,d) => setHovered([]))
                         update.select('.map-list-title-right')
@@ -4842,7 +4996,7 @@
                                 updateConcepts(newInclusions,nodes,[d],[])
                             })
                         update.select('.map-list-eye')
-                            .style('display', d => d.total_counts === 0 || !conceptNames.includes(d.name) ? 'none' : 'inline-block')
+                            .style('display', d => (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) || !conceptNames.includes(d.name) ? 'none' : 'inline-block')
                             .on('mouseover', (e, d) => {
                                 const el = e.currentTarget
                                 el.__hoverTimeout__ = setTimeout(() => {
@@ -4916,19 +5070,22 @@
                         update.select('.map-counts-RC-p')
                             .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
                             .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
-                            .html(d => formatThousands(d.total_counts))
+                            .html(d => countType === 'record' ? formatThousands(d.total_counts) : formatThousands(d.person_counts))
                         update.select('.map-counts-RC-label')
                             .style('color', d => conceptNames.includes(d.name) ? '#36126d' : '#808080')
                             .style('font-weight', d => conceptNames.includes(d.name) ? 500 : 400)
+                            .html(() => countType === 'record' ? 'RC' : 'PC')
                         update.select('.map-counts-RC-bar')
                             .transition()
-                            .style('width', d => scaleWidth(d.total_counts) + 'px')
+                            .style('width', d => countType === 'record' ? scaleWidth(d.total_counts) + 'px' : scaleWidth(d.person_counts) + 'px')
                             .style('background-color', d => conceptNames.includes(d.name) ? d.color : '#e0e0e0')
                         update.select('.map-counts-DRC-p')
-                            .html(d => formatThousands(d.descendant_counts))
+                            .html(d => countType === 'record' ? formatThousands(d.descendant_counts) : formatThousands(d.descendant_person_counts))
+                        update.select('.map-counts-DRC-label')
+                            .html(() => countType === 'record' ? 'DRC' : 'DPC')
                         update.select('.map-counts-DRC-bar')
                             .transition()
-                            .style('width', d => scaleWidth(d.descendant_counts) + 'px')
+                            .style('width', d => countType === 'record' ? scaleWidth(d.descendant_counts) + 'px' : scaleWidth(d.descendant_person_counts) + 'px')
                     })
                 })
                 update.select('.list-section-title')
@@ -5173,12 +5330,7 @@
                         let newRemoved = removedClasses
                         newRemoved.push(d)
                         setRemovedClasses(newRemoved)
-                        setClassFilter(classes)
-                        // if (newFilter.length === 0) {
-                        //     d3.select('#open-classes').style('display', 'block')
-                        //     d3.select('#close-classes').style('display', 'none') 
-                        //     d3.select('#dropdown-classes').style('visibility','hidden')    
-                        // }    
+                        setClassFilter(classes)  
                     })
                 document.getElementById("header-classes").style.minWidth =  document.getElementById('dropdown-classes').clientWidth - 12 + 'px'
             }
@@ -5213,18 +5365,21 @@
                     drawSet()     
                 }    
             }
-        },[nodes,conceptNames,view,mapRoot,graphSectionWidth,conceptNames.length < 50 ? hovered : null])
+        },[nodes,conceptNames,view,mapRoot,countType,graphSectionWidth,conceptNames.length < 50 ? hovered : null])
 
         useEffect(() => {
             setTimeout(() => {
                 zoomToFit()
             }, 400) 
-        },[relationship,mapRoot,view,graphSectionWidth])
+        },[countType,mapRoot,view,graphSectionWidth])
 
         useEffect(() => {
-            const sum = getCounts(sidebarRoot.data.stratified_code_counts.filter(c => inclusions.includes(c.concept_id)),'node_record_counts')
-            d3.select('#set-total-counts').html(sum)      
-        },[inclusions])
+            if (fullTree.nodes && fullTree.mappings) {
+                const allNodes = [...fullTree.nodes,...fullTree.mappings]
+                const sum = countType === 'record' ? d3.sum(allNodes.filter(n => inclusions.includes(n.name)).map(n => n.total_counts)) : d3.sum(allNodes.filter(n => inclusions.includes(n.name)).map(n => n.person_counts))
+                d3.select('#set-total-counts').html(sum)    
+            }      
+        },[inclusions,countType])
 
         useEffect(() => {
             setShowConfirmation(false)
@@ -5248,7 +5403,7 @@
                                 }}
                             />
                             <div className = 'dropdownContainer'>
-                                <div className = "dropdownHeader btn filterMargin" id = "header-levels" style = {{border: levelFilter < fullTreeMax ? '1px solid #cacaca' : '1px solid #e0e0e0',overflow:'hidden'}}
+                                <div className = "dropdownHeader btn filterMargin" id = "header-levels" style = {{border: levelFilter < fullTreeMax ? 'none' : '1px solid #e0e0e0',overflow:'hidden'}}
                                     onClick = {() => {
                                         if (d3.select('#open-levels').style('display') === 'block') {
                                             d3.select('#open-levels').style('display', 'none')
@@ -5320,7 +5475,7 @@
                     <div className = 'sidebarContainer' id = "set-container" style = {{display: view === 'Set' ? 'flex' : 'none'}}>
                         <div id = "set-header">
                             <p className = "selectedText" style = {{marginLeft:'2px'}}>Concept</p>
-                            <div className = "flex" style = {{position:'absolute',right:179}}>
+                            <div className = "flex" style = {{position:'absolute',right:'calc(172px + 0.75em)'}}>
                                 <p className = "selectedText marginRight">Expression</p> 
                                 <div className = "questionMark flex selectedText btn">?</div>   
                             </div>
