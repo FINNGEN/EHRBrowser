@@ -13,6 +13,11 @@ export default defineConfig({
   testIgnore: ['**/node_modules/**', '**/.pw-artifacts/**', '**/.playwright-cli/**'],
   outputDir: './.pw-artifacts', // scratch — gitignored (see .gitignore)
   fullyParallel: false,
+  // One worker: run every section's spec serially. The harness drives a single
+  // app instance whose backend may be single-threaded (and slow under emulation),
+  // so parallel workers just contend for it and blow per-test timeouts. Serial is
+  // also more deterministic for screenshot capture, which is the whole point here.
+  workers: 1,
   reporter: [['list']],
   use: {
     baseURL: 'http://localhost:8563/', // <-- set by build from Outline # Run
