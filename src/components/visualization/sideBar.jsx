@@ -15,6 +15,7 @@
     import { faCaretUp } from '@fortawesome/free-solid-svg-icons'
     import { faX } from '@fortawesome/free-solid-svg-icons'
     import { faArrowRight } from '@fortawesome/free-solid-svg-icons';
+    import rootLineIcon from '../../img/root-line.svg'
     import * as d3 from "d3";
     import po from '../../po.js';
     import textures from 'textures';
@@ -22,10 +23,7 @@
 
     function SideBar (props) {
         const navigate = useNavigate()
-        const color = props.color
-        const selectedConcepts = props.selectedConcepts
-        const setSelectedConcepts = props.setSelectedConcepts
-        const sidebarRoot = props.sidebarRoot
+        const rootConcepts = props.rootConcepts
         const mapRoot = props.mapRoot
         const setMapRoot = props.setMapRoot
         const tooltipHover = props.tooltipHover
@@ -50,7 +48,6 @@
         const pruned = props.pruned
         const poset = props.poset 
         const setPoset = props.setPoset
-        const getConceptInfo = props.getConceptInfo
         const setNodes = props.setNodes
         const setLinks = props.setLinks
         const fullTree = props.fullTree
@@ -70,6 +67,7 @@
         const setDescendantsFilter = props.setDescendantsFilter
         const excludeList = props.excludeList
         const setExcludeList = props.setExcludeList
+        const getConceptInfo = props.getConceptInfo
         // const centers = props.centers
         const inclusions = props.inclusions
         const setInclusions = props.setInclusions
@@ -92,6 +90,7 @@
         const setShowConfirmation = props.setShowConfirmation
         const countType = props.countType
         const setVisible = props.setVisible
+        const showRootLine = props.showRootLine
         const margin = 10
         let hoverTimeout = null
         let currentTarget = null
@@ -125,11 +124,10 @@
             const {x,y,k} = e.transform
             d3.select("#tree-graphics").attr("transform", "translate(" + x + "," + y + ")" + " scale(" + k + ")");
         }
-        function zoomToFit(padding = 20) {
+        function zoomToFit(geometry,padding = 20) {
             const svgNode = d3.select('#tree-container').node()
-            const gNode = d3.select('#tree-graphics').node()
+            const gNode = geometry.node().parentElement
             const svgWidth = window.innerWidth * ((100-parseInt(graphSectionWidth))/100) + padding*2
-            // const svgWidth = svgNode.getBoundingClientRect().width + padding*2
             const svgHeight = svgNode.getBoundingClientRect().height - padding
             const bbox = gNode.getBBox()
             const width = bbox.width
@@ -169,26 +167,32 @@
                     setExcludeList(eList)
                 }
             }
-            const newInclusions = sidebarRoot.name.map(r => nodes.map(n => n.name).includes(r) ? getInclusions(sidebarRoot.name,fullTree.nodes,r,eList,dFilter,nodes.find(n => n.name === r).descendants) : getInclusions(sidebarRoot.name,fullTree.nodes,r,eList,dFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)))).flat().filter((e,n,l) => l.indexOf(e) === n)
+            const newInclusions = rootConcepts.map(r => nodes.map(n => n.name).includes(r) ? getInclusions(rootConcepts,fullTree.nodes,r,eList,dFilter,nodes.find(n => n.name === r).descendants) : getInclusions(rootConcepts,fullTree.nodes,r,eList,dFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)))).flat().filter((e,n,l) => l.indexOf(e) === n)
                 .filter(i => fullTree.nodes.find(n => n.name === i).levels !== '-1')
                 .map(i => relationship === 'mappings' ? fullTree.nodes.find(n => n.name === i).mappings.map(m => m.name) : i).flat()   
-                .filter(i => sidebarRoot.data.concepts.find(c => c.concept_id === i).record_counts !== 0)
+                .filter(i => {
+                    if (relationship.includes('mappings')) {
+                        if (countType === 'record') return fullTree.mappings.find(n => n.name === i).total_counts !== 0
+                        else return fullTree.mappings.find(n => n.name === i).person_counts !== 0
+                    } else {
+                        if (countType === 'record') return fullTree.nodes.find(n => n.name === i).total_counts !== 0
+                        else return fullTree.nodes.find(n => n.name === i).person_counts  !== 0   
+                    }
+                })
             updateConcepts(newInclusions,nodes,[],[])
         }
                         
         // DRAWING
         // concept set
         function drawSet() {
-            const allNodes = [...fullTree.nodes,...fullTree.mappings]
-            // MAKE THIS A STATE, FIND BETTER WAY -> MOVE TO FILTERING, HAVE IT BE IN DESCENDANT_COUNTS
-            const conceptSetData = sidebarRoot.name.map(root => ({name:root,color:nodes.find(n => n.name === root).color,leaf:nodes.find(n => n.name === root) ? nodes.find(n => n.name === root).leaf : false, descendant_person_counts:d3.sum([...fullTree.nodes.filter(n => fullTree.nodes.find(n => n.name === root).descendants.includes(n.name)),...fullTree.mappings.filter(m => fullTree.nodes.find(n => n.name === root).descendants.includes(m.source.name))].filter(node => inclusions.includes(node.name)).map(node => node.person_counts)),  descendant_counts: d3.sum([...fullTree.nodes.filter(n => fullTree.nodes.find(n => n.name === root).descendants.includes(n.name)),...fullTree.mappings.filter(m => fullTree.nodes.find(n => n.name === root).descendants.includes(m.source.name))].filter(node => inclusions.includes(node.name)).map(node => node.total_counts)),concept:sidebarRoot.data.concepts.find(d => d.concept_id === root),descendants:descendantsFilter.includes(root) ? false : true,exclude:excludeList.includes(root) ? true : false}))
+            const conceptSetData = rootConcepts.map(root => ({name:root,color:fullTree.nodes.find(n => n.name === root).color,leaf:nodes.find(n => n.name === root) ? nodes.find(n => n.name === root).leaf : false, descendant_person_counts:nodes.find(n => n.name === root) ? nodes.find(n => n.name === root).descendant_person_counts : d3.sum(fullTree.allNodes.filter(node => !node.source ? fullTree.nodes.find(n => n.name === 4191479).descendants.includes(node.name) : (node.source && fullTree.nodes.find(n => n.name === 4191479).descendants.includes(node.source.name))).filter(node => inclusions.includes(node.name)).map(node => node.person_counts)),  descendant_counts: nodes.find(n => n.name === root) ? nodes.find(n => n.name === root).descendant_counts : d3.sum(fullTree.allNodes.filter(node => !node.source ? fullTree.nodes.find(n => n.name === 4191479).descendants.includes(node.name) : (node.source && fullTree.nodes.find(n => n.name === 4191479).descendants.includes(node.source.name))).filter(node => inclusions.includes(node.name)).map(node => node.total_counts)),concept:getConceptInfo(root),descendants:descendantsFilter.includes(root) ? false : true,exclude:excludeList.includes(root) ? true : false}))
             d3.select('#set-items').selectAll('.set-item').data(conceptSetData, d => d.name)
             .join(enter => {
                 const container = enter.append('div')
                     .classed('set-item',true)
                     .attr('id', d => 'set-item-'+d.name)
                 const conceptSection = container.append('div')
-                    .classed('set-concept flex btn',true)
+                    .classed('set-concept flex',true)
                     .style('flex-grow',1)
                     .on('mouseover',(e,d) => {
                         d3.select('#set-trash-'+d.name).transition(1000).style('max-width','15px').style('opacity',1).style('margin-right','4px')
@@ -217,7 +221,7 @@
                     })
                     .on('click',(e,d) => {
                         showActionLabel('','leave',e)
-                        const arrayToString = sidebarRoot.name.filter(root => root !== d.name).join(",")
+                        const arrayToString = rootConcepts.filter(root => root !== d.name).join(",")
                         navigate(`/${arrayToString}`)
                     })
                 const conceptCard = conceptSection.append('div')
@@ -230,7 +234,7 @@
                     .style('border', '1px solid #6a23d6')
                     .style('margin-right','20px')
                 const title = conceptCard.append('div')
-                    .classed('set-item-title',true)
+                    .classed('set-item-title btn',true)
                 const title1 = title.append('div')
                     .style('display','flex')
                     .style('align-items','center')
@@ -285,7 +289,7 @@
                     .classed('set-info-icon fa-solid fa-circle-info icon',true)  
                     .attr('id', d => 'set-info-icon-'+d.name)  
                     .style('opacity', 0.2)
-                    .on('mouseover',(e,d) => d3.select('#set-info-icon-'+d.name).transition().style('opacity',1))
+                    .on('mouseover',(e,d) => {e.stopPropagation();d3.select('#set-trash-' + d.name).transition(1000).style('max-width', '0px').style('opacity', 0).style('margin-right', '0px');d3.select('#set-info-icon-'+d.name).transition().style('opacity',1)})
                     .on('mouseout', (e,d) => {if(d3.select('#set-info-container-'+d.name).style('height') !== '45px') d3.select('#set-info-icon-'+d.name).transition().style('opacity',0.2)})
                     .on('click', (e,d) => {
                         if (d3.select('#set-info-container-'+d.name).style('height') === '45px') {
@@ -302,6 +306,7 @@
                     .classed('set-info-container',true)
                     .attr('id', d => 'set-info-container-'+d.name)
                     .style('border-top', d => conceptNames.includes(d.name) || d.leaf ? '1px solid color-mix(in srgb, #36126d, white 90%)' : '1px solid color-mix(in srgb, #36126d, white 78%)')
+                    .on('mouseover',(e,d) => {e.stopPropagation();d3.select('#set-trash-' + d.name).transition(1000).style('max-width', '0px').style('opacity', 0).style('margin-right', '0px')})
                 const infoCol1 = infoContainer.append('div')
                     .classed('info-col',true)
                 infoCol1.append('p')
@@ -398,7 +403,7 @@
                     })
                     .on('click',(e,d) => {
                         showActionLabel('','leave',e)
-                        const arrayToString = sidebarRoot.name.filter(root => root !== d.name).join(",")
+                        const arrayToString = rootConcepts.filter(root => root !== d.name).join(",")
                         navigate(`/${arrayToString}`)
                     })
                 update.select('.set-card')
@@ -435,7 +440,7 @@
                 update.select('.set-title-p')
                     .style('opacity', d => conceptNames.includes(d.name) || d.leaf ? 1 : 0.6)
                 update.select('.set-info-icon')
-                    .on('mouseover',(e,d) => d3.select('#set-info-icon-'+d.name).transition().style('opacity',1))
+                    .on('mouseover',(e,d) => {e.stopPropagation();d3.select('#set-trash-' + d.name).transition(1000).style('max-width', '0px').style('opacity', 0).style('margin-right', '0px');d3.select('#set-info-icon-'+d.name).transition().style('opacity',1)})
                     .on('mouseout', (e,d) => {if(d3.select('#set-info-container-'+d.name).style('height') !== '45px') d3.select('#set-info-icon-'+d.name).transition().style('opacity',0.2)})
                     .on('click', (e,d) => {
                         if (d3.select('#set-info-container-'+d.name).style('height') === '45px') {
@@ -449,6 +454,7 @@
                         }
                     })
                 update.select('.set-info-container')
+                    .on('mouseover',(e,d) => {e.stopPropagation();d3.select('#set-trash-' + d.name).transition(1000).style('max-width', '0px').style('opacity', 0).style('margin-right', '0px')})
                     .style('border-top', d => conceptNames.includes(d.name) || d.leaf ? '1px solid color-mix(in srgb, #36126d, white 90%)' : '1px solid color-mix(in srgb, #36126d, white 78%)')
                 update.select('.descendants-box')
                     .style('border', d => d.descendants ? '1px solid #808080' : '1px solid #e0e0e0')
@@ -470,7 +476,7 @@
         }
         // tree
         function drawTree() {
-            console.log('nodes',nodes,'links',links,'selected',selectedConcepts)
+            console.log('nodes',nodes,'links',links)
             // get extent of total counts
             let sums = []
             nodes.forEach(node => {
@@ -865,7 +871,7 @@
                             const mapLabel = mapGroup.append('g')
                                 .classed('map-label btn', true)
                                 .on('mouseover', (e, d) => {
-                                    if (!sidebarRoot.name.includes(d.name)) {
+                                    if (!rootConcepts.includes(d.name)) {
                                         const el = e.currentTarget
                                         el.__hoverTimeout__ = setTimeout(() => {
                                             showActionLabel('Select concept','enter',e)
@@ -880,7 +886,7 @@
                                 .on('click', (e,d) => {
                                     clearTimeout(e.currentTarget.__hoverTimeout__)
                                     showActionLabel('','leave')
-                                    if (!sidebarRoot.name.includes(d.name)) {
+                                    if (!rootConcepts.includes(d.name)) {
                                         setVisible(false)
                                         showConfirmationPopup(d, 'enter', e)
                                     }
@@ -927,7 +933,7 @@
                                 .attr('fill', d => conceptNames.includes(d.name) ? 'white' : '#f5f5f5')
                                 .style("filter", d => conceptNames.includes(d.name) ? "drop-shadow(0px 0px 4px rgba(0, 0, 0, 0.16))" : 'none')
                                 .attr('stroke-width',1)
-                                .attr('stroke', d => sidebarRoot.name.includes(d.name) ? '#6a23d6' : 'transparent')
+                                .attr('stroke', d => rootConcepts.includes(d.name) ? '#6a23d6' : 'transparent')
                                 .lower()
                             geometry.append('rect')
                                 .classed('map-rect btn',true)
@@ -1072,7 +1078,7 @@
                                 .attr('y', d => countType === 'record' ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.total_counts)) + 7 : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.person_counts)) + 7)
                             update.select('.map-label')
                                 .on('mouseover', (e, d) => {
-                                    if (!sidebarRoot.name.includes(d.name)) {
+                                    if (!rootConcepts.includes(d.name)) {
                                         const el = e.currentTarget
                                         el.__hoverTimeout__ = setTimeout(() => {
                                             showActionLabel('Select concept','enter',e)
@@ -1087,7 +1093,7 @@
                                 .on('click', (e,d) => {
                                     clearTimeout(e.currentTarget.__hoverTimeout__)
                                     showActionLabel('','leave')
-                                    if (!sidebarRoot.name.includes(d.name)) {
+                                    if (!rootConcepts.includes(d.name)) {
                                         setVisible(false)
                                         showConfirmationPopup(d, 'enter', e)
                                     }
@@ -1112,7 +1118,7 @@
                                 .attr('y', d => getMap(d).y - 35)
                                 .attr('fill', d => conceptNames.includes(d.name) ? 'white' : '#f5f5f5')
                                 .style("filter", d => conceptNames.includes(d.name) ? "drop-shadow(0px 0px 4px rgba(0, 0, 0, 0.16))" : 'none')
-                                .attr('stroke', d => sidebarRoot.name.includes(d.name) ? '#6a23d6' : 'transparent')
+                                .attr('stroke', d => rootConcepts.includes(d.name) ? '#6a23d6' : 'transparent')
                         },exit => exit.remove())
                         //Subsumes node
                         const nodeContainer = geometry.append('g')  
@@ -1196,7 +1202,7 @@
                             .attr('y', d => cy + (genHeight[d.distance]) + 9)
                         const setExpression = geometry.append('g')
                             .classed('set-expression',true)
-                            .style('display', d => sidebarRoot.name.includes(d.name) ? 'block' : 'none')
+                            .style('display', d => rootConcepts.includes(d.name) ? 'block' : 'none')
                             .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
                             .attr('transform', d => {
                                 const xVar = (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? 35 : 20
@@ -1358,7 +1364,7 @@
                         const label = node.append('g')
                             .classed('label btn', true)
                             .on('mouseover', (e, d) => {
-                                if (!sidebarRoot.name.includes(d.name)) {
+                                if (!rootConcepts.includes(d.name)) {
                                     const el = e.currentTarget
                                     el.__hoverTimeout__ = setTimeout(() => {
                                         showActionLabel('Select concept','enter',e)
@@ -1373,7 +1379,7 @@
                             .on('click', (e,d) => {
                                 clearTimeout(e.currentTarget.__hoverTimeout__)
                                 showActionLabel('','leave')
-                                if (!sidebarRoot.name.includes(d.name)) {
+                                if (!rootConcepts.includes(d.name)) {
                                     setVisible(false)
                                     showConfirmationPopup(d, 'enter', e)
                                 }
@@ -1427,7 +1433,7 @@
                             .attr('fill', d => conceptNames.includes(d.name) ? 'white' : '#f5f5f5')
                             .style("filter", d => conceptNames.includes(d.name) ? "drop-shadow(0px 0px 4px rgba(0, 0, 0, 0.16))" : 'none')
                             .attr('stroke-width',1)
-                            .attr('stroke', d => sidebarRoot.name.includes(d.name) ? '#6a23d6' : 'transparent')
+                            .attr('stroke', d => rootConcepts.includes(d.name) ? '#6a23d6' : 'transparent')
                             .lower()
                         const pruneLine = node.append('g')
                             .classed('prune-group', true)
@@ -1678,7 +1684,7 @@
                             const mapLabel = mapGroup.append('g')
                                 .classed('map-label btn', true)
                                 .on('mouseover', (e, d) => {
-                                    if (!sidebarRoot.name.includes(d.name)) {
+                                    if (!rootConcepts.includes(d.name)) {
                                         const el = e.currentTarget
                                         el.__hoverTimeout__ = setTimeout(() => {
                                             showActionLabel('Select concept','enter',e)
@@ -1693,7 +1699,7 @@
                                 .on('click', (e,d) => {
                                     clearTimeout(e.currentTarget.__hoverTimeout__)
                                     showActionLabel('','leave')
-                                    if (!sidebarRoot.name.includes(d.name)) {
+                                    if (!rootConcepts.includes(d.name)) {
                                         setVisible(false)
                                         showConfirmationPopup(d, 'enter', e)
                                     }
@@ -1740,7 +1746,7 @@
                                 .attr('fill', d => conceptNames.includes(d.name) ? 'white' : '#f5f5f5')
                                 .style("filter", d => conceptNames.includes(d.name) ? "drop-shadow(0px 0px 4px rgba(0, 0, 0, 0.16))" : 'none')
                                 .attr('stroke-width',1)
-                                .attr('stroke', d => sidebarRoot.name.includes(d.name) ? '#6a23d6' : 'transparent')
+                                .attr('stroke', d => rootConcepts.includes(d.name) ? '#6a23d6' : 'transparent')
                                 .lower()
                             geometry.append('rect')
                                 .classed('map-rect btn',true)
@@ -1885,7 +1891,7 @@
                                 .attr('y', d => countType === 'record' ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.total_counts)) + 7 : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) + scaleRadius(Math.sqrt(d.person_counts)) + 7)
                             update.select('.map-label')
                                 .on('mouseover', (e, d) => {
-                                    if (!sidebarRoot.name.includes(d.name)) {
+                                    if (!rootConcepts.includes(d.name)) {
                                         const el = e.currentTarget
                                         el.__hoverTimeout__ = setTimeout(() => {
                                             showActionLabel('Select concept','enter',e)
@@ -1900,7 +1906,7 @@
                                 .on('click', (e,d) => {
                                     clearTimeout(e.currentTarget.__hoverTimeout__)
                                     showActionLabel('','leave')
-                                    if (!sidebarRoot.name.includes(d.name)) {
+                                    if (!rootConcepts.includes(d.name)) {
                                         setVisible(false)
                                         showConfirmationPopup(d, 'enter', e)
                                     }
@@ -1925,7 +1931,7 @@
                                 .attr('y', d => getMap(d).y - 35)
                                 .attr('fill', d => conceptNames.includes(d.name) ? 'white' : '#f5f5f5')
                                 .style("filter", d => conceptNames.includes(d.name) ? "drop-shadow(0px 0px 4px rgba(0, 0, 0, 0.16))" : 'none')
-                                .attr('stroke', d => sidebarRoot.name.includes(d.name) ? '#6a23d6' : 'transparent')
+                                .attr('stroke', d => rootConcepts.includes(d.name) ? '#6a23d6' : 'transparent')
                         },exit => exit.remove())
                         //Subsumes node
                         update.select('.subsumes-node')
@@ -1990,7 +1996,7 @@
                             .attr('x', d => d.x - 6)
                             .attr('y', d => cy + (genHeight[d.distance]) + 9)
                         update.select('.set-expression')
-                            .style('display', d => sidebarRoot.name.includes(d.name) ? 'block' : 'none')
+                            .style('display', d => rootConcepts.includes(d.name) ? 'block' : 'none')
                             .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
                             .attr('transform', d => {
                                 const xVar = (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? 35 : 20
@@ -2073,7 +2079,7 @@
                             .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
                         update.select('.drc-text')
                             .attr('fill', d => d.leaf ? 'white' : '#36126d')
-                            .transition()
+                            // .transition()
                             .attr('opacity', d => d.leaf ? 1 : 0.6)
                             .attr('x', d => d.x)
                             .attr('y', d => countType === 'record' ? cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 18 : cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.person_counts)) + 18)
@@ -2088,7 +2094,7 @@
                             .attr('y', d => countType === 'record' ? cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.total_counts)) + 7 : cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.person_counts)) + 7)
                         update.select('.label')
                             .on('mouseover', (e, d) => {
-                                if (!sidebarRoot.name.includes(d.name)) {
+                                if (!rootConcepts.includes(d.name)) {
                                     const el = e.currentTarget
                                     el.__hoverTimeout__ = setTimeout(() => {
                                         showActionLabel('Select concept','enter',e)
@@ -2103,7 +2109,7 @@
                             .on('click', (e,d) => {
                                 clearTimeout(e.currentTarget.__hoverTimeout__)
                                 showActionLabel('','leave')
-                                if (!sidebarRoot.name.includes(d.name)) {
+                                if (!rootConcepts.includes(d.name)) {
                                     setVisible(false)
                                     showConfirmationPopup(d, 'enter', e)
                                 }
@@ -2137,7 +2143,7 @@
                             .attr('y', d => getLabel(d).y - 35)
                             .attr('fill', d => conceptNames.includes(d.name) ? 'white' : '#f5f5f5')
                             .style("filter", d => conceptNames.includes(d.name) ? "drop-shadow(0px 0px 4px rgba(0, 0, 0, 0.16))" : 'none')
-                            .attr('stroke', d => sidebarRoot.name.includes(d.name) ? '#6a23d6' : 'transparent')
+                            .attr('stroke', d => rootConcepts.includes(d.name) ? '#6a23d6' : 'transparent')
                         update.select('.prune-group')
                             .style('display', d => pruned && d.leaf && !d.children?.every(child => d.connections.map(d => d.child).includes(child)) ? 'block' : 'none')
                             .style('opacity', d => hovered.length === 1 && hovered.includes(d.name) ? 1 : hovered.length > 0 ? 0.2 : 1)
@@ -2231,7 +2237,8 @@
                         d3.selectAll('.subsumes-nodes').lower()
                         d3.selectAll('.map-node').raise()
                         d3.selectAll('.prune-curve').lower()
-                    },exit => exit.remove())
+                        return update
+                    },exit => exit.remove()).call(zoomToFit)
             }
             updateLinks()
             updateNodes()
@@ -2321,7 +2328,7 @@
                         .style('flex-direction','column')
                         .style('box-shadow', d => conceptNames.includes(d.name) || d.leaf ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
                         .style('background-color', d => d.levels === '-1' ? 'none' : conceptNames.includes(d.name) || d.leaf ? 'white' : '#ebebeb')
-                        .style('border', d => sidebarRoot.name.includes(d.name) ? '1px solid #6a23d6' : 'none')
+                        .style('border', d => rootConcepts.includes(d.name) ? '1px solid #6a23d6' : 'none')
                     const title = conceptCard.append('div')
                         .classed('list-item-title',true)
                     const title1 = title.append('div')
@@ -2423,7 +2430,7 @@
                         .classed('list-search fa fa-search iconLg marginRight',true)
                         .attr('id', d => 'list-search-'+d.name)
                         .style('transform','scaleX(-1)')
-                        .style('display', d => sidebarRoot.name.includes(d.name) ? 'none' : 'inline-block')
+                        .style('display', d => rootConcepts.includes(d.name) ? 'none' : 'inline-block')
                         .on('mouseover', (e, d) => {
                             const el = e.currentTarget
                             el.__hoverTimeout__ = setTimeout(() => {
@@ -2444,7 +2451,7 @@
                         .classed('list-title-p btn',true)
                         .style('opacity', d => conceptNames.includes(d.name) || d.leaf ? 1 : 0.6)
                         .on('mouseover', (e, d) => {
-                            if (!sidebarRoot.name.includes(d.name)) {
+                            if (!rootConcepts.includes(d.name)) {
                                 const el = e.currentTarget
                                 el.__hoverTimeout__ = setTimeout(() => {
                                     showActionLabel('Select concept','enter',e)
@@ -2459,7 +2466,7 @@
                         .on('click', (e,d) => {
                             clearTimeout(e.currentTarget.__hoverTimeout__)
                             showActionLabel('','leave')
-                            if (!sidebarRoot.name.includes(d.name)) showConfirmationPopup(d, 'enter', e)
+                            if (!rootConcepts.includes(d.name)) showConfirmationPopup(d, 'enter', e)
                         })
                     titleP.append('span')
                         .classed('title-name selectedText marginRight',true)
@@ -2771,7 +2778,7 @@
                             .classed('map-list-title-p btn',true)
                             .style('opacity', d => conceptNames.includes(d.name) ? 1 : 0.6)
                             .on('mouseover', (e, d) => {
-                                if (!sidebarRoot.name.includes(d.name)) {
+                                if (!rootConcepts.includes(d.name)) {
                                     const el = e.currentTarget
                                     el.__hoverTimeout__ = setTimeout(() => {
                                         showActionLabel('Select concept','enter',e)
@@ -2786,7 +2793,7 @@
                             .on('click', (e,d) => {
                                 clearTimeout(e.currentTarget.__hoverTimeout__)
                                 showActionLabel('','leave')
-                                if (!sidebarRoot.name.includes(d.name)) showConfirmationPopup(d, 'enter', e)
+                                if (!rootConcepts.includes(d.name)) showConfirmationPopup(d, 'enter', e)
                             })
                         mapTitleP.append('span')
                             .classed('title-name selectedText marginRight',true)
@@ -3013,7 +3020,7 @@
                             })
                         update.select('.map-list-title-p')
                             .on('mouseover', (e, d) => {
-                                if (!sidebarRoot.name.includes(d.name)) {
+                                if (!rootConcepts.includes(d.name)) {
                                     const el = e.currentTarget
                                     el.__hoverTimeout__ = setTimeout(() => {
                                         showActionLabel('Select concept','enter',e)
@@ -3028,7 +3035,7 @@
                             .on('click', (e,d) => {
                                 clearTimeout(e.currentTarget.__hoverTimeout__)
                                 showActionLabel('','leave')
-                                if (!sidebarRoot.name.includes(d.name)) showConfirmationPopup(d, 'enter', e)
+                                if (!rootConcepts.includes(d.name)) showConfirmationPopup(d, 'enter', e)
                             })
                             .transition()
                             .style('opacity', d => conceptNames.includes(d.name) ? 1 : 0.6)
@@ -3163,7 +3170,7 @@
                         })
                     update.select('.list-title-p')
                         .on('mouseover', (e, d) => {
-                            if (!sidebarRoot.name.includes(d.name)) {
+                            if (!rootConcepts.includes(d.name)) {
                                 const el = e.currentTarget
                                 el.__hoverTimeout__ = setTimeout(() => {
                                     showActionLabel('Select concept','enter',e)
@@ -3178,7 +3185,7 @@
                         .on('click', (e,d) => {
                             clearTimeout(e.currentTarget.__hoverTimeout__)
                             showActionLabel('','leave')
-                            if (!sidebarRoot.name.includes(d.name)) showConfirmationPopup(d, 'enter', e)
+                            if (!rootConcepts.includes(d.name)) showConfirmationPopup(d, 'enter', e)
                         })
                         .transition()
                         .style('opacity', d => conceptNames.includes(d.name) || d.leaf ? 1 : 0.6)
@@ -3396,7 +3403,7 @@
                             .classed('map-list-title-p btn',true)
                             .style('opacity', d => conceptNames.includes(d.name) ? 1 : 0.6)
                             .on('mouseover', (e, d) => {
-                                if (!sidebarRoot.name.includes(d.name)) {
+                                if (!rootConcepts.includes(d.name)) {
                                     const el = e.currentTarget
                                     el.__hoverTimeout__ = setTimeout(() => {
                                         showActionLabel('Select concept','enter',e)
@@ -3411,7 +3418,7 @@
                             .on('click', (e,d) => {
                                 clearTimeout(e.currentTarget.__hoverTimeout__)
                                 showActionLabel('','leave')
-                                if (!sidebarRoot.name.includes(d.name)) showConfirmationPopup(d, 'enter', e)
+                                if (!rootConcepts.includes(d.name)) showConfirmationPopup(d, 'enter', e)
                             })
                         mapTitleP.append('span')
                             .classed('title-name selectedText marginRight',true)
@@ -3638,7 +3645,7 @@
                             })
                         update.select('.map-list-title-p')
                             .on('mouseover', (e, d) => {
-                                if (!sidebarRoot.name.includes(d.name)) {
+                                if (!rootConcepts.includes(d.name)) {
                                     const el = e.currentTarget
                                     el.__hoverTimeout__ = setTimeout(() => {
                                         showActionLabel('Select concept','enter',e)
@@ -3653,7 +3660,7 @@
                             .on('click', (e,d) => {
                                 clearTimeout(e.currentTarget.__hoverTimeout__)
                                 showActionLabel('','leave')
-                                if (!sidebarRoot.name.includes(d.name)) showConfirmationPopup(d, 'enter', e)
+                                if (!rootConcepts.includes(d.name)) showConfirmationPopup(d, 'enter', e)
                             })
                             .transition()
                             .style('opacity', d => conceptNames.includes(d.name) ? 1 : 0.6)
@@ -3715,7 +3722,7 @@
                         .style('flex-direction','column')
                         .style('box-shadow', d => conceptNames.includes(d.name) || d.leaf ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
                         .style('background-color', d => d.levels === '-1' ? 'none' : conceptNames.includes(d.name) || d.leaf ? 'white' : '#ebebeb')
-                        .style('border', d => sidebarRoot.name.includes(d.name) ? '1px solid #6a23d6' : 'none')
+                        .style('border', d => rootConcepts.includes(d.name) ? '1px solid #6a23d6' : 'none')
                     const title = conceptCard.append('div')
                         .classed('list-item-title',true)
                     const title1 = title.append('div')
@@ -3817,7 +3824,7 @@
                         .classed('list-search fa fa-search iconLg marginRight',true)
                         .attr('id', d => 'list-search-'+d.name)
                         .style('transform','scaleX(-1)')
-                        .style('display', d => sidebarRoot.name.includes(d.name) ? 'none' : 'inline-block')
+                        .style('display', d => rootConcepts.includes(d.name) ? 'none' : 'inline-block')
                         .on('mouseover', (e, d) => {
                             const el = e.currentTarget
                             el.__hoverTimeout__ = setTimeout(() => {
@@ -3838,7 +3845,7 @@
                         .classed('list-title-p btn',true)
                         .style('opacity', d => conceptNames.includes(d.name) || d.leaf ? 1 : 0.6)
                         .on('mouseover', (e, d) => {
-                            if (!sidebarRoot.name.includes(d.name)) {
+                            if (!rootConcepts.includes(d.name)) {
                                 const el = e.currentTarget
                                 el.__hoverTimeout__ = setTimeout(() => {
                                     showActionLabel('Select concept','enter',e)
@@ -3853,7 +3860,7 @@
                         .on('click', (e,d) => {
                             clearTimeout(e.currentTarget.__hoverTimeout__)
                             showActionLabel('','leave')
-                            if (!sidebarRoot.name.includes(d.name)) showConfirmationPopup(d, 'enter', e)
+                            if (!rootConcepts.includes(d.name)) showConfirmationPopup(d, 'enter', e)
                         })
                     titleP.append('span')
                         .classed('title-name selectedText marginRight',true)
@@ -4165,7 +4172,7 @@
                             .classed('map-list-title-p btn',true)
                             .style('opacity', d => conceptNames.includes(d.name) ? 1 : 0.6)
                             .on('mouseover', (e, d) => {
-                                if (!sidebarRoot.name.includes(d.name)) {
+                                if (!rootConcepts.includes(d.name)) {
                                     const el = e.currentTarget
                                     el.__hoverTimeout__ = setTimeout(() => {
                                         showActionLabel('Select concept','enter',e)
@@ -4180,7 +4187,7 @@
                             .on('click', (e,d) => {
                                 clearTimeout(e.currentTarget.__hoverTimeout__)
                                 showActionLabel('','leave')
-                                if (!sidebarRoot.name.includes(d.name)) showConfirmationPopup(d, 'enter', e)
+                                if (!rootConcepts.includes(d.name)) showConfirmationPopup(d, 'enter', e)
                             })
                         mapTitleP.append('span')
                             .classed('title-name selectedText marginRight',true)
@@ -4407,7 +4414,7 @@
                             })
                         update.select('.map-list-title-p')
                             .on('mouseover', (e, d) => {
-                                if (!sidebarRoot.name.includes(d.name)) {
+                                if (!rootConcepts.includes(d.name)) {
                                     const el = e.currentTarget
                                     el.__hoverTimeout__ = setTimeout(() => {
                                         showActionLabel('Select concept','enter',e)
@@ -4422,7 +4429,7 @@
                             .on('click', (e,d) => {
                                 clearTimeout(e.currentTarget.__hoverTimeout__)
                                 showActionLabel('','leave')
-                                if (!sidebarRoot.name.includes(d.name)) showConfirmationPopup(d, 'enter', e)
+                                if (!rootConcepts.includes(d.name)) showConfirmationPopup(d, 'enter', e)
                             })
                             .transition()
                             .style('opacity', d => conceptNames.includes(d.name) ? 1 : 0.6)
@@ -4557,7 +4564,7 @@
                         })
                     update.select('.list-title-p')
                         .on('mouseover', (e, d) => {
-                            if (!sidebarRoot.name.includes(d.name)) {
+                            if (!rootConcepts.includes(d.name)) {
                                 const el = e.currentTarget
                                 el.__hoverTimeout__ = setTimeout(() => {
                                     showActionLabel('Select concept','enter',e)
@@ -4572,7 +4579,7 @@
                         .on('click', (e,d) => {
                             clearTimeout(e.currentTarget.__hoverTimeout__)
                             showActionLabel('','leave')
-                            if (!sidebarRoot.name.includes(d.name)) showConfirmationPopup(d, 'enter', e)
+                            if (!rootConcepts.includes(d.name)) showConfirmationPopup(d, 'enter', e)
                         })
                         .transition()
                         .style('opacity', d => conceptNames.includes(d.name) || d.leaf ? 1 : 0.6)
@@ -4790,7 +4797,7 @@
                             .classed('map-list-title-p btn',true)
                             .style('opacity', d => conceptNames.includes(d.name) ? 1 : 0.6)
                             .on('mouseover', (e, d) => {
-                                if (!sidebarRoot.name.includes(d.name)) {
+                                if (!rootConcepts.includes(d.name)) {
                                     const el = e.currentTarget
                                     el.__hoverTimeout__ = setTimeout(() => {
                                         showActionLabel('Select concept','enter',e)
@@ -4805,7 +4812,7 @@
                             .on('click', (e,d) => {
                                 clearTimeout(e.currentTarget.__hoverTimeout__)
                                 showActionLabel('','leave')
-                                if (!sidebarRoot.name.includes(d.name)) showConfirmationPopup(d, 'enter', e)
+                                if (!rootConcepts.includes(d.name)) showConfirmationPopup(d, 'enter', e)
                             })
                         mapTitleP.append('span')
                             .classed('title-name selectedText marginRight',true)
@@ -5032,7 +5039,7 @@
                             })
                         update.select('.map-list-title-p')
                             .on('mouseover', (e, d) => {
-                                if (!sidebarRoot.name.includes(d.name)) {
+                                if (!rootConcepts.includes(d.name)) {
                                     const el = e.currentTarget
                                     el.__hoverTimeout__ = setTimeout(() => {
                                         showActionLabel('Select concept','enter',e)
@@ -5047,7 +5054,7 @@
                             .on('click', (e,d) => {
                                 clearTimeout(e.currentTarget.__hoverTimeout__)
                                 showActionLabel('','leave')
-                                if (!sidebarRoot.name.includes(d.name)) showConfirmationPopup(d, 'enter', e)
+                                if (!rootConcepts.includes(d.name)) showConfirmationPopup(d, 'enter', e)
                             })
                             .transition()
                             .style('opacity', d => conceptNames.includes(d.name) ? 1 : 0.6)
@@ -5368,15 +5375,8 @@
         },[nodes,conceptNames,view,mapRoot,countType,graphSectionWidth,conceptNames.length < 50 ? hovered : null])
 
         useEffect(() => {
-            setTimeout(() => {
-                zoomToFit()
-            }, 400) 
-        },[countType,mapRoot,view,graphSectionWidth])
-
-        useEffect(() => {
             if (fullTree.nodes && fullTree.mappings) {
-                const allNodes = [...fullTree.nodes,...fullTree.mappings]
-                const sum = countType === 'record' ? d3.sum(allNodes.filter(n => inclusions.includes(n.name)).map(n => n.total_counts)) : d3.sum(allNodes.filter(n => inclusions.includes(n.name)).map(n => n.person_counts))
+                const sum = countType === 'record' ? d3.sum(fullTree.allNodes.filter(n => inclusions.includes(n.name)).map(n => n.total_counts)) : d3.sum(fullTree.allNodes.filter(n => inclusions.includes(n.name)).map(n => n.person_counts))
                 d3.select('#set-total-counts').html(sum)    
             }      
         },[inclusions,countType])
@@ -5483,7 +5483,10 @@
                         </div>
                         <div id = "set-items"></div>
                         <div id = "set-total">
-                            <p className = "selectedText">Total Descendant Counts:<span className = "num" id = "set-total-counts"  style = {{marginLeft:20}}></span></p>
+                            <div className = 'flex btn' style = {{pointerEvents:showRootLine ? 'all' : 'none'}} onMouseEnter={() => {setHovered(['rootline'])}} onMouseLeave={() => {setHovered([])}}>
+                                <img className = 'marginRight' id = "rootline-icon" src={rootLineIcon} alt="root descendants line icon"/>
+                                <p className = "selectedText">Total Descendant Counts:<span className = "num" id = "set-total-counts"  style = {{marginLeft:20}}></span></p>    
+                            </div>
                         </div>
                     </div>
                     <div className = 'sidebarContainer' id = "list-container" style = {{display: view === 'List' ? 'block' : 'none'}}></div>

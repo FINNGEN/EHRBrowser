@@ -6,6 +6,7 @@ import { faCaretDown } from '@fortawesome/free-solid-svg-icons'
 import { faCaretUp } from '@fortawesome/free-solid-svg-icons'
 import { faCheck } from '@fortawesome/free-solid-svg-icons'
 import { faX } from '@fortawesome/free-solid-svg-icons'
+import rootLineIcon from '../../img/root-line.svg'
 import * as d3 from "d3";
 import textures from 'textures';
 
@@ -14,7 +15,7 @@ function GraphSection (props) {
     const color = props.color
     const selectedConcepts = props.selectedConcepts
     const setSelectedConcepts = props.setSelectedConcepts
-    const sidebarRoot = props.sidebarRoot
+    const rootConcepts = props.rootConcepts
     const tooltipHover = props.tooltipHover
     const graphFilter = props.graphFilter
     const setGraphFilter = props.setGraphFilter
@@ -43,9 +44,12 @@ function GraphSection (props) {
     const relationship = props.relationship
     const showRootLine = props.showRootLine
     const setShowRootLine = props.setShowRootLine
+    const showConfirmationPopup = props.showConfirmationPopup
+    const showActionLabel = props.showActionLabel
     const countType = props.countType
     const setCountType = props.setCountType
     const moveSlider = props.moveSlider
+    const fullTree = props.fullTree
     const graphContainerRef = useRef()
     const margin = 20
     let hoverLabelCircle = false
@@ -122,21 +126,20 @@ function GraphSection (props) {
                     .classed("area-path-background", true)
                     .attr("cursor", "pointer")
                     .attr("id", d => "area-background-" + d.key)
-                    .on('click', (e,d) => navigate(`/${d.key}`))
                     .on("mouseover", function (e,d) {
-                        let element = selectedConcepts.filter(c => c.name === d.key)[0]
-                        const el = this
-                        el.__hoverTimeout__ = setTimeout(() => {
+                        const node = fullTree.allNodes.find(n => n.name === d.key)
+                        const el = e.currentTarget
+                        el.hoverStateTimeout = setTimeout(() => {
                             setHovered([d.key])
-                            tooltipHover(element, "enter", e) 
-                        },600) 
+                            tooltipHover(node,'enter',e)
+                        }, 600)
                     })
                     .on("mouseout", function (e,d) {
-                        const el = this
-                        clearTimeout(el.__hoverTimeout__)
-                        let element = selectedConcepts.filter(c => c.name === d.key)[0]
+                        const node = fullTree.allNodes.find(n => n.name === d.key)
+                        const el = e.currentTarget
+                        clearTimeout(el.hoverStateTimeout)
                         setHovered([])
-                        tooltipHover(element, "leave", e)    
+                        tooltipHover(node, "leave", e)    
                     })
                     .style("fill", "transparent")
                     .style("transition", "0.5s all")
@@ -162,21 +165,20 @@ function GraphSection (props) {
                         } else return colorList[d.key]
                     })
                 update.select('.area-path-background')
-                    .on('click', (e,d) => navigate(`/${d.key}`))
                     .on("mouseover", function (e,d) {
-                        let element = selectedConcepts.filter(c => c.name === d.key)[0]
-                        const el = this
-                        el.__hoverTimeout__ = setTimeout(() => {
+                        const node = fullTree.allNodes.find(n => n.name === d.key)
+                        const el = e.currentTarget
+                        el.hoverStateTimeout = setTimeout(() => {
                             setHovered([d.key])
-                            tooltipHover(element, "enter", e) 
-                        },600) 
+                            tooltipHover(node,'enter',e)
+                        }, 600)
                     })
                     .on("mouseout", function (e,d) {
-                        const el = this
-                        clearTimeout(el.__hoverTimeout__)
-                        let element = selectedConcepts.filter(c => c.name === d.key)[0]
+                        const node = fullTree.allNodes.find(n => n.name === d.key)
+                        const el = e.currentTarget
+                        clearTimeout(el.hoverStateTimeout)
                         setHovered([])
-                        tooltipHover(element, "leave", e)    
+                        tooltipHover(node, "leave", e)    
                     })
                     .transition()
                     .attr("d", d3.area()
@@ -229,29 +231,32 @@ function GraphSection (props) {
         else d3.select('#graph-line').selectAll('.lines').remove()
         d3.select("#graph-viz").raise()
     }
+    // show annotation tooltip
+    function showAnnotationTooltip(mode,event=null,value=null,name=null) {
+        if (mode === 'enter') {
+            const html = 'Start of ' + name.map(e => e.key).join("<br/>")
+            d3.select('#annotation-value').html(value)
+            d3.select('#annotation-name').html(html)
+            d3.select("#annotation-tooltip")
+                .style('left', function() {
+                    const gap = 5
+                    const w = document.getElementById('annotation-tooltip').clientWidth
+                    if (event.x + w > window.innerWidth) return (event.x - w - gap + 'px')
+                    else return (event.x + gap + 'px')    
+                })
+                .style('top', function() {
+                    const gap = 5
+                    const h = document.getElementById('annotation-tooltip').clientHeight
+                    if (event.y + h > window.innerHeight) return (event.y - h - gap + 'px')  
+                    else return (event.y + gap + 'px')
+                })
+                .transition().style('opacity',1)
+        } else {
+            d3.select("#annotation-tooltip").transition().style('opacity',0)     
+        }
+    }
     // draw annotations
     function drawAnnotations(scaleX,height) {
-        // const tooltip = d3.select("body")
-        //     .append("div")
-        //     .style("position", "absolute")
-        //     .style("background", "white")
-        //     .style("padding", "6px 10px")
-        //     .style("filter", "drop-shadow(0px 3px 5px rgba(0,0,0,0.2))")
-        //     .style("border-radius", "12px")
-        //     .style("font-size", "12px")
-        //     .style("display", "none")
-        const tooltip = d3.select("body")
-        .selectAll(".tooltip")
-        .data([null])
-        .join("div")
-        .attr("class", "tooltip")
-        .style("position", "absolute")
-        .style("background", "white")
-        .style("padding", "6px 10px")
-        .style("filter", "drop-shadow(0px 3px 5px rgba(0,0,0,0.2))")
-        .style("border-radius", "12px")
-        .style("font-size", "12px")
-        .style("display", "none")
         const filteredAnnotations = annotations.filter(a => a.year >= extent[0] && a.year <= extent[1])
         const grouped = d3.group(filteredAnnotations, d => d.year)
         const spreadAnnotations = []
@@ -266,9 +271,6 @@ function GraphSection (props) {
                 })
             })
         })
-        const triangle = d3.symbol()
-            .type(d3.symbolTriangle)
-            .size(80)
         const annotation = d3.select('#graph')
             .selectAll(".annotation")
             .data(spreadAnnotations, d => d.year)
@@ -283,30 +285,21 @@ function GraphSection (props) {
             .attr('x2', d => scaleX(d.year))
             .attr('y1', 0)
             .attr('y2', height - 5)
-            .attr('stroke',color.textmedium)
+            .attr('stroke','#36126d')
             .attr('stroke-width',1)
             .style("stroke-dasharray", ("5, 5"))
         annotationMerge.select("circle")
+            .classed('btn',true)
             .attr("cx", d => scaleX(d.year) + d.offsetX)
             .attr("cy", height)
             .attr("r", 5)
             .attr("fill", 'white')
-            .style("filter", "drop-shadow(0px 3px 3px rgba(0,0,0,0.3))")
-            .style('cursor','pointer')
+            .style("filter", "drop-shadow(0px 0px 4px rgba(0, 0, 0, 0.16))")
             .on("mouseover", function(event, d) {
                 const eventsThatYear = grouped.get(d.year)
-                const html = `
-                <strong>${d.year}</strong><br/>Start of 
-                ${eventsThatYear.map(e => e.key).join("<br/>")}
-                `
-                tooltip.style("display", "block").html(html)
+                showAnnotationTooltip('enter',event,d.year,eventsThatYear)
             })
-            .on("mousemove", function(event) {
-                tooltip.style("left", (event.pageX + 10) + "px").style("top", (event.pageY - 20) + "px")
-            })
-            .on("mouseout", function() {
-                tooltip.style("display", "none")
-            })
+            .on("mouseout", function() {showAnnotationTooltip('leave')})
         annotation.exit().remove()
     }
     // FUNCTIONS
@@ -524,18 +517,18 @@ function GraphSection (props) {
             d3.select('#filter-value').html(abbreviateNumber(d.sum))
             d3.select('#filter-tooltip')
                 .style('left', function() {
+                    const gap = 5
                     const w = document.getElementById('filter-tooltip').clientWidth
-                    if (event.x + w > window.innerWidth) return (event.x - w - 5 + 'px')
-                    else return (event.x + 10 + 'px')    
+                    if (event.x + w > window.innerWidth) return (event.x - w - gap + 'px')
+                    else return (event.x + gap + 'px')    
                 })
                 .style('top', function() {
+                    const gap = 5
                     const h = document.getElementById('filter-tooltip').clientHeight
-                    if (event.y - h < 0) return (event.y + 10 + 'px')    
-                    else return (event.y - h + 'px')
+                    if (event.y + h > window.innerHeight) return (event.y - h - gap + 'px')  
+                    else return (event.y + gap + 'px')
                 })
-                .transition()
-                .style('opacity',1)
-                
+                .transition().style('opacity',1)
         } else d3.select('#filter-tooltip').transition().style('opacity',0)
     }
     function abbreviateNumber(num) {
@@ -1101,19 +1094,34 @@ function GraphSection (props) {
                         .attr('id', d => 'label-' + d[0])
                         .style('background-color','white')
                         .style('box-shadow','0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.1)')
-                        .style('border', d => sidebarRoot.name.includes(d[0]) ? '1px solid #6a23d6' : 'none')
+                        .style('border', d => rootConcepts.includes(d[0]) ? '1px solid #6a23d6' : 'none')
                         .style('border-radius', '20px')
-                        .on('click', (e,d) => {
-                            navigate(`/${d[0]}`)
+                        .on('mouseover', (e, d) => {
+                            const el = e.currentTarget
+                            if (!rootConcepts.includes(d[0])) {
+                                el.hoverLabelTimeout = setTimeout(() => {
+                                    showActionLabel('Select concept', 'enter', e)
+                                }, 1200)    
+                            }
+                            el.hoverStateTimeout = setTimeout(() => {
+                                setHovered([d[0]])
+                            }, 600)
                         })
-                        .on("mouseover", function (e,d) {
-                            const el = this
-                            el.__hoverTimeout__ = setTimeout(() => {setHovered([d[0]])},200)
-                        })
-                        .on("mouseout", function (e,d) {
-                            const el = this
-                            clearTimeout(el.__hoverTimeout__)
+                        .on('mouseout', (e, d) => {
+                            const el = e.currentTarget
+                            clearTimeout(el.hoverLabelTimeout)
+                            clearTimeout(el.hoverStateTimeout)
+                            if (!rootConcepts.includes(d[0])) showActionLabel('', 'leave', e)
                             setHovered([])
+                        })
+                        .on('click', (e,d) => {
+                            const el = e.currentTarget
+                            clearTimeout(el.hoverLabelTimeout)
+                            clearTimeout(el.hoverStateTimeout)
+                            if (!rootConcepts.includes(d[0])) {
+                                showActionLabel('','leave')
+                                showConfirmationPopup(d[0], 'enter', e)    
+                            }
                         })
                         .style('transition','0.5s opacity')
                         .style('opacity', d => hovered.length > 0 && !hovered.includes(d[0]) ? 0.2 : 1)
@@ -1148,18 +1156,33 @@ function GraphSection (props) {
                         .html(d => d[1][0].data.concept.vocabulary_id)
                 }, update => {
                     const labels = update
-                        .style('border', d => sidebarRoot.name.includes(d[0]) ? '1px solid #6a23d6' : 'none')
-                        .on('click', (e,d) => {
-                            navigate(`/${d[0]}`)
+                        .style('border', d => rootConcepts.includes(d[0]) ? '1px solid #6a23d6' : 'none')
+                        .on('mouseover', (e, d) => {
+                            const el = e.currentTarget
+                            if (!rootConcepts.includes(d[0])) {
+                                el.hoverLabelTimeout = setTimeout(() => {
+                                    showActionLabel('Select concept', 'enter', e)
+                                }, 1200)    
+                            }
+                            el.hoverStateTimeout = setTimeout(() => {
+                                setHovered([d[0]])
+                            }, 600)
                         })
-                        .on("mouseover", function (e,d) {
-                            const el = this
-                            el.__hoverTimeout__ = setTimeout(() => {setHovered([d[0]])},200)
-                        })
-                        .on("mouseout", function (e,d) {
-                            const el = this
-                            clearTimeout(el.__hoverTimeout__)
+                        .on('mouseout', (e, d) => {
+                            const el = e.currentTarget
+                            clearTimeout(el.hoverLabelTimeout)
+                            clearTimeout(el.hoverStateTimeout)
+                            if (!rootConcepts.includes(d[0])) showActionLabel('', 'leave', e)
                             setHovered([])
+                        })
+                        .on('click', (e,d) => {
+                            const el = e.currentTarget
+                            clearTimeout(el.hoverLabelTimeout)
+                            clearTimeout(el.hoverStateTimeout)
+                            if (!rootConcepts.includes(d[0])) {
+                                showActionLabel('','leave')
+                                showConfirmationPopup(d[0], 'enter', e)    
+                            }
                         })
                         .style('opacity', d => hovered.length > 0 && !hovered.includes(d[0]) ? 0.2 : 1)
                     labels.select('.label-circle')
@@ -1186,8 +1209,12 @@ function GraphSection (props) {
     return (
         <div id = "graph-section">
             <div id = "filter-tooltip" className = 'toolTip dropShadow'>
-                <div style = {{paddingBottom:2,fontWeight:500}} id = "filter-name"></div>
-                <div id = "filter-value"></div>    
+                <div className = 'selectedText' style = {{paddingBottom:1}} id = "filter-name"></div>
+                <div className = 'num' id = "filter-value"></div>    
+            </div>
+            <div id = 'annotation-tooltip' className = 'toolTip dropShadow'>
+                <p className = "selectedText num" style = {{paddingBottom:1}} id = 'annotation-value'></p>
+                <p id = "annotation-name"></p>
             </div>
             <div id = "graph-section-container">
                 <div className = "selectionsContainer removeLeftShadow">
@@ -1288,11 +1315,28 @@ function GraphSection (props) {
                     </div>     
                 </div>
                 <div id = "graph-group" style = {{position:'relative'}}>
-                    <div id = "graph-subheader">
-                        <div className = "margin" id = "graph-labels"></div>  
-                    </div> 
+                    <div id = "graph-subheader"><div className = "margin" id = "graph-labels"></div>  </div> 
                     <div ref={graphContainerRef} id = "graph-container" style = {{position:'relative'}}>
-                        <div id = "rootline-btn" style = {{backgroundColor: showRootLine ? color.text : 'transparent',color: showRootLine ? 'white' : color.text,fontWeight: showRootLine ? 700 : 400, border: showRootLine ? '1px solid var(--text)' : '1px solid var(--textlightest)'}} onClick = {() => setShowRootLine(!showRootLine)}>Root DRC</div>
+                        
+                        <div className = 'selectedText' id = "y-label">Record Counts</div>
+                        <div className = 'flex' id = "rootline-container">
+                            <div className = 'selectedText' id = "x-label" style = {{justifySelf:'flex-start'}}>{extent && extent[0]+'-'+extent[1]}</div>
+                            <div className='flex'>
+                                <div className = 'flex btn' style = {{pointerEvents:showRootLine ? 'all' : 'none'}} onMouseEnter={() => {setHovered(['rootline'])}} onMouseLeave={() => {setHovered([])}}>
+                                    <img className = 'marginRight' id = "rootline-icon" style = {{opacity:showRootLine ? 1 : 0.3}} src={rootLineIcon} alt="root descendants line icon"/>
+                                    <p className={`marginRight ${showRootLine ? 'selectedText' : ''}`} style = {{opacity:showRootLine ? 1 : 0.5}}>Total Descendant Counts</p>    
+                                </div>
+                                <label className="rootline-switch">
+                                    <input
+                                        type="checkbox"
+                                        checked={showRootLine}
+                                        onChange={() => setShowRootLine(prev => !prev)}
+                                    />
+                                    <span className="rootline-slider"></span>
+                                </label>
+                            </div>
+                                
+                        </div>
                         <div id = "reset-zoom" style = {{display: zoomed ? 'block' : 'none'}} onClick = {() => resetZoom()}>Reset</div>
                         <svg style = {{display:'block'}} id = "graph">
                             <g className = "brush"></g>
@@ -1306,7 +1350,6 @@ function GraphSection (props) {
                             <circle id = "focus"></circle>
                         </svg>
                     </div>  
-                    <div id = "y-label">Record Counts</div>
                 </div>       
             </div>  
         </div>    

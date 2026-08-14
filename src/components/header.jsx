@@ -10,7 +10,6 @@ import * as d3 from "d3";
 function Header (props) {
     const color = props.color
     const root = props.root 
-    const rootData = props.rootData
     const getCounts = props.getCounts
     // const setRoot = props.setRoot
     const inputRef = useRef(null)
@@ -534,7 +533,7 @@ function Header (props) {
 
                     <FontAwesomeIcon className = "fa-search btn" id = "searchBtn" icon={faSearch} onClick = {() => setExpandedSearch(!expandedSearch)}></FontAwesomeIcon>
                     
-                    <div onClick = {()=>{navigate(``)}} style = {{display: !root || root.length === 0 || !expandedSearch ? 'none' : 'flex'}} className = 'btn greyBtn flex' id = "clear-concept-set">
+                    <div onClick = {()=>{navigate(``)}} style = {{display: !root || !expandedSearch ? 'none' : 'flex'}} className = 'btn greyBtn flex' id = "clear-concept-set">
                         <p style = {{margin:0}}>Clear Set</p>
                         <FontAwesomeIcon className = "icon" id = "clear-set-icon" icon={faX} />
                     </div>

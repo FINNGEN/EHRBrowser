@@ -22,13 +22,11 @@ function Visualization (props) {
     // const getValidity = props.getValidity
     const selectedConcepts = props.selectedConcepts
     const setSelectedConcepts = props.setSelectedConcepts
-    const sidebarRoot = props.sidebarRoot
-    const setSidebarRoot = props.setSidebarRoot
+    const rootConcepts = props.rootConcepts
     const graphFilter = props.graphFilter
     const setGraphFilter = props.setGraphFilter
     const extent = props.extent
     const setExtent = props.setExtent
-    const setRootData = props.setRootData
     const stackData = props.stackData
     const conceptNames = props.conceptNames
     const view = props.view
@@ -102,6 +100,9 @@ function Visualization (props) {
     const getMidX = props.getMidX
     const showConfirmation = props.showConfirmation
     const setShowConfirmation = props.setShowConfirmation
+    const rootLineData = props.rootLineData
+    const setRootLine = props.setRootLine
+    const setRootExtent = props.setRootExtent
     const [showRootLine, setShowRootLine] = useState(true)
     const [zoomed, setZoomed] = useState(false)
     const [biDirectional, setBiDirectional] = useState()
@@ -110,9 +111,8 @@ function Visualization (props) {
     const setEdges = props.setEdges
     const updateConcepts = props.updateConcepts
     const updateWidth = props.updateWidth
-    const hoverTimeout = useRef(null)
-    const hideTimeout = useRef(null)
     const hideTimer = useRef(null)
+    const popupTimeout = useRef(null)
 
     // tooltip
     function tooltipHover(d, mode, event) {
@@ -120,21 +120,22 @@ function Visualization (props) {
         if (mode === "enter") {
             clearHideTimer()
             setVisible(true)
-            setShowConfirmation(false)
             d3.select("#tooltip")
                 .style('left', function() {
+                    const gap = 5
                     const w = document.getElementById('tooltip').clientWidth
-                    if (event.x + w > window.innerWidth) return (event.x - w + 'px')
-                    else return (event.x + 'px')    
+                    if (event.x + w > window.innerWidth) return (event.x - w - gap + 'px')
+                    else return (event.x + gap + 'px')    
                 })
                 .style('top', function() {
+                    const gap = 5
                     const h = document.getElementById('tooltip').clientHeight
-                    if (event.y + h > window.innerHeight) return (event.y - h + 'px')  
-                    else return (event.y + 'px')
+                    if (event.y + h > window.innerHeight) return (event.y - h - gap + 'px')  
+                    else return (event.y + gap + 'px')
                 })
             
             d3.select('#tooltip-search')
-                .style('display', () => sidebarRoot.name.includes(d.name) ? 'none' : 'inline-block') 
+                .style('display', () => rootConcepts.includes(d.name) ? 'none' : 'inline-block') 
                 .on('mouseover', (e,i) => {
                     const el = e.currentTarget
                     el.__hoverTimeout__ = setTimeout(() => {
@@ -148,7 +149,7 @@ function Visualization (props) {
                 .on('click', (e,i) => {
                     clearTimeout(e.currentTarget.__hoverTimeout__)
                     showActionLabel('','leave')
-                    showConfirmationPopup(d, 'enter', e, true)
+                    showConfirmationPopup(d, 'enter', e)
                 })
             d3.select('#tooltip-eye-closed')
                 .style('display', () => !conceptNames.includes(d.name) && (d.total_counts !== 0 || d.leaf) ? 'inline-block' : 'none')
@@ -187,9 +188,9 @@ function Visualization (props) {
             
             d3.select('#tooltip-counts').style('opacity', () => d.leaf ? 0.2 : 1)
             d3.select('#tooltip-desc-counts').style('opacity', () => d.leaf ? 1 : 0.2)
-            d3.select('#tooltip-counts-num').html(concept_info.record_counts)
+            d3.select('#tooltip-counts-num').html(countType === 'record' ? d.total_counts : d.person_counts)
             d3.select('#tooltip-counts-label').html(() => countType === 'record' ? ' RC' : ' PC')
-            d3.select('#tooltip-desc-counts-num').html(concept_info.descendant_record_counts)
+            d3.select('#tooltip-desc-counts-num').html(countType === 'record' ? d.descendant_counts : d.descendant_person_counts)
             d3.select('#tooltip-desc-counts-label').html(() => countType === 'record' ? ' DRC' : ' DPC')
             
             d3.select("#tooltip-title").html(concept_info.concept_name)
@@ -203,15 +204,19 @@ function Visualization (props) {
         } else scheduleHide()
     }
 
-    function showConfirmationPopup(d, mode, event = null, fromTooltip = false) {
+    function showConfirmationPopup(d, mode, event = null) {
         if (mode === 'enter') {
-            if (!fromTooltip) clearHideTimer()
             setShowConfirmation(true)
+            clearTimeout(popupTimeout.current)
+            popupTimeout.current = setTimeout(() => {
+                setShowConfirmation(false)
+            }, 1400)
             d3.select('#confirmation-btn')
                 .on('click', (e,i) => {
                     setShowConfirmation(false)
                     setLoading(true)
-                    navigate(`/${d.name}`)
+                    if (!d.name) navigate(`/${d}`)
+                    else navigate(`/${d.name}`)
                 })
             d3.select('#confirmation-popup')
                 .style('left', function() {
@@ -224,8 +229,9 @@ function Visualization (props) {
                     if (event.y - h < 0) return (event.y + 10 + 'px')  
                     else return (event.y + 'px')
                 })
-            d3.select('#confirmation-name').html(d.data.concept.concept_name)
-        } else scheduleHide()
+            if (!d.data) d3.select('#confirmation-name').html(nodes.find(n => n.name === d).data.concept.concept_name)
+            else d3.select('#confirmation-name').html(d.data.concept.concept_name)
+        } 
     }
 
     function showActionLabel(label,mode,event) {
@@ -248,7 +254,7 @@ function Visualization (props) {
     }
 
     function getConceptInfo(id) {
-        return sidebarRoot.data.concepts.filter(d => d.concept_id === id)[0]
+        return fullTree.allNodes.find(n => n.name === id).data.concept
     }
 
     function formatThousands(num) {
@@ -266,28 +272,11 @@ function Visualization (props) {
     const scheduleHide = () => {
         clearHideTimer()
         hideTimer.current = setTimeout(() => { 
-            setShowConfirmation(false)
             setVisible(false)
         }, 800)    
     }
-
-    // close popup
-    document.addEventListener('click', (e) => {
-        if (document.getElementById('tooltip')) {
-            if (visible) {
-                if (document.getElementById('confirmation-popup')) {
-                    const popupContainer = document.getElementById('confirmation-popup')
-                    const tooltipSearch = document.getElementById('tooltip-search')
-                    if (!popupContainer.contains(e.target) && !tooltipSearch.contains(e.target)) setShowConfirmation(false)
-                } 
-                const tooltipContainer = document.getElementById('tooltip') 
-                if (!tooltipContainer.contains(e.target)) setVisible(false)
-            }
-        }
-    })
     
     // filter tree data
-    // *** optimize this *** 
     useEffect(()=>{
         if (fullTree.nodes) {
             // filter nodes and links
@@ -343,7 +332,7 @@ function Visualization (props) {
                     x: positions[e.name] 
                 }))
             // inclusions
-            const newInclusions = sidebarRoot.name.map(r => filteredNodes.map(n => n.name).includes(r) ? getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,filteredNodes.find(n => n.name === r).descendants) : getInclusions(sidebarRoot.name,fullTree.nodes,r,excludeList,descendantsFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)))).flat().filter((e,n,l) => l.indexOf(e) === n)
+            const newInclusions = rootConcepts.map(r => filteredNodes.map(n => n.name).includes(r) ? getInclusions(rootConcepts,fullTree.nodes,r,excludeList,descendantsFilter,filteredNodes.find(n => n.name === r).descendants) : getInclusions(rootConcepts,fullTree.nodes,r,excludeList,descendantsFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)))).flat().filter((e,n,l) => l.indexOf(e) === n)
                 .filter(i => fullTree.nodes.find(n => n.name === i).levels !== '-1' && fullTree.nodes.find(n => n.name === i).levels)
                 .map(i => relationship.includes('mappings') ? fullTree.nodes.find(n => n.name === i).mappings.map(m => m.name) : i).flat()   
                 .filter(i => {
@@ -362,8 +351,8 @@ function Visualization (props) {
                 }))
                 .map(e => ({
                     ...e,
-                    descendant_code_counts:sidebarRoot.data.stratified_code_counts.filter(c => e.included_descendants.includes(c.concept_id)),
-                    descendant_person_counts: d3.sum(fullTree.nodes.filter(n => e.included_descendants.includes(n.name)).map(n => n.person_counts)),
+                    descendant_counts:d3.sum(fullTree.allNodes.filter(node => e.included_descendants.includes(node.name)).map(node => node.total_counts)),
+                    descendant_person_counts:d3.sum(fullTree.allNodes.filter(node => e.included_descendants.includes(node.name)).map(node => node.person_counts)),
                     leaf: e.included_descendants.filter(d => d !== e.name && !e.mappings.map(m => m.name).includes(d)).length > 0 && e.leaf ? true : false}
                 ))
             // filter connections 
@@ -382,7 +371,7 @@ function Visualization (props) {
                     leaf: d.leaf, 
                     descendants: d.descendants, 
                     distance: d.distance, 
-                    data: !d.leaf ? d.data : {...d.data,descendant_code_counts:d.descendant_code_counts}
+                    data: !d.leaf ? d.data : {...d.data,descendant_code_counts:d.descendant_code_counts.filter(c => newInclusions.includes(c.concept_id))}
                 })) 
             const mapSelections = filteredNodes.map(d => d.mappings).flat()
                 .filter(d => newInclusions.includes(d.name) && !filteredNodes.find(n => n.name === d.source.name).leaf)
@@ -401,15 +390,9 @@ function Visualization (props) {
             filteredNodes = filteredNodes
                 .map(d => ({
                     ...d,
-                    descendant_counts: getCounts(d.descendant_code_counts,'node_record_counts')
-                }))
-                .map(d => ({...d,
+                    connections: filteredConnections.filter(c => c.parents.includes(d.name)).map(e => ({...e,source:d.name,x:d.x,mid:getMidX(e.parents,filteredNodes)})),
                     mappings:d.mappings.map(m => ({...m,source:d}))
                 }))
-            filteredNodes = filteredNodes.map(d => ({
-                ...d,
-                connections:filteredConnections.filter(c => c.parents.includes(d.name)).map(e => ({...e,source:d.name,x:d.x,mid:getMidX(e.parents,filteredNodes)}))
-            }))
             filteredLinks = filteredLinks.map(d => ({
                 ...d,
                 source:filteredNodes[nodeNames.indexOf(d.source.name)],
@@ -434,21 +417,36 @@ function Visualization (props) {
 
     // update extent
     useEffect(()=>{
-        if (sidebarRoot && rootExtent) {
+        if (rootConcepts && rootExtent) {
+            let newExtent = []
             let extent = rootExtent
             let selectedExtent = d3.extent(filteredCounts.all.map(d => d.calendar_year)) 
             if (!selectedExtent[0] || !selectedExtent[1]) setExtent(extent)
             else {
-                if (selectedExtent[0] <= rootExtent[0]) extent[0] = selectedExtent[0] 
-                else extent[0] = rootExtent[0]
-                if (selectedExtent[1] >= rootExtent[1]) extent[1] = selectedExtent[1] 
-                else extent[1] = rootExtent[1]
-                setExtent(extent) 
+                if (selectedExtent[0] <= extent[0]) newExtent[0] = selectedExtent[0] 
+                else newExtent[0] = extent[0]
+                if (selectedExtent[1] >= extent[1]) newExtent[1] = selectedExtent[1] 
+                else newExtent[1] = extent[1]
+                setExtent(newExtent) 
             } 
         }   
     },[filteredCounts])
 
-    return ( sidebarRoot !== undefined ? 
+    // update root line variable
+    useEffect(()=>{
+        if (rootLineData) {
+            if (countType === 'record') {
+                setRootLine(rootLineData.record.data)
+                setRootExtent(rootLineData.record.extent)
+            }
+            if (countType === 'person') {
+                setRootLine(rootLineData.person.data)
+                setRootExtent(rootLineData.person.extent)    
+            }    
+        }
+    },[countType])
+
+    return ( rootConcepts ? 
         <div id = "visualization-container">
             <div className = "toolTip dropShadow" id = "tooltip" style = {{opacity: visible ? 1 : 0, pointerEvents: visible ? 'all' : 'none'}} 
                 onMouseEnter={() => {clearHideTimer()}}
@@ -456,9 +454,9 @@ function Visualization (props) {
             >
                 <div id = "tooltip-header">
                     <div id = "tooltip-btn-container">
-                        <FontAwesomeIcon className = 'fa fa-search iconLg marginRight' id = "tooltip-search" icon={faSearch} alt = "select-concept" />
                         <img className = "icon eye" id = "tooltip-eye-closed" src={closedEye} alt="show concept"/>
                         <img className = "icon eye" style = {{opacity:1}} id = "tooltip-eye-opened" src={openedEye} alt="hide concept"/>
+                        <FontAwesomeIcon className = 'fa fa-search iconLg' id = "tooltip-search" icon={faSearch} alt = "select-concept" />   
                     </div>
                     <div className = 'flex'>
                         <p className = 'marginRight' id = "tooltip-counts"><span id = "tooltip-counts-num" className='num'></span><span id = 'tooltip-counts-label'></span></p>
@@ -481,18 +479,15 @@ function Visualization (props) {
                 </div>
             </div>  
             <div className = 'actionLabel dropShadow' id = "action-label"></div> 
-            <div id = "confirmation-popup" className = 'toolTip dropShadow' style = {{opacity: showConfirmation ? 1 : 0, pointerEvents: showConfirmation ? 'all' : 'none'}}
-                onMouseEnter={() => {clearHideTimer()}}
+            <div id = "confirmation-popup" className = 'toolTip dropShadow' style = {{opacity: showConfirmation ? 1 : 0, pointerEvents: showConfirmation ? 'all' : 'none'}} 
+                onMouseEnter={() => {clearTimeout(popupTimeout.current)}}
                 onMouseLeave={() => {setShowConfirmation(false)}}
             >
                 <div style = {{paddingBottom:6}}>Select<span className='selectedText' id = "confirmation-name" style = {{marginLeft:4}}></span></div>
                 <div className = 'btn greyBtn' id = "confirmation-btn">Confirm</div>  
             </div> 
             <SideBar
-                color = {color}
-                selectedConcepts = {selectedConcepts}
-                setSelectedConcepts = {setSelectedConcepts}
-                sidebarRoot = {sidebarRoot} 
+                rootConcepts = {rootConcepts} 
                 mapRoot = {mapRoot}
                 setMapRoot = {setMapRoot}
                 tooltipHover = {tooltipHover}
@@ -560,12 +555,13 @@ function Visualization (props) {
                 setShowConfirmation = {setShowConfirmation}
                 countType = {countType}
                 setVisible = {setVisible}
+                showRootLine = {showRootLine}
             ></SideBar> 
             <GraphSection
                 color = {color}
                 selectedConcepts = {selectedConcepts}
                 setSelectedConcepts = {setSelectedConcepts}
-                sidebarRoot = {sidebarRoot}
+                rootConcepts = {rootConcepts} 
                 tooltipHover = {tooltipHover}
                 graphFilter = {graphFilter}
                 setGraphFilter = {setGraphFilter}
@@ -597,6 +593,9 @@ function Visualization (props) {
                 countType = {countType}
                 setCountType = {setCountType}
                 moveSlider = {moveSlider}
+                showConfirmationPopup = {showConfirmationPopup}
+                showActionLabel = {showActionLabel}
+                fullTree = {fullTree}
             />  
         </div> : null
     )
