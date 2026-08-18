@@ -114,7 +114,7 @@
         function hoverMappings(d,mode) {
             if (mode === 'enter') {
                 d3.select('#mappings-btn-'+d.name).transition().style('opacity',1)
-                if (!mapRoot.includes(d.name)) d3.selectAll('.map-circle-'+d.name).transition().attr("transform", "translate(-2, 0)")
+                if (!mapRoot.includes(d.name)) d.data.concept.standard_concept ? d3.selectAll('.map-circle-'+d.name).transition().attr("transform", "translate(-2, 0)") : d3.selectAll('.map-circle-'+d.name).transition().attr("transform", "translate(2, 0)")
             } else {
                 d3.select('#mappings-btn-'+d.name).transition().style('opacity',0.3) 
                 d3.selectAll('.map-circle-'+d.name).transition().attr("transform", "translate(0, 0)")
@@ -476,7 +476,7 @@
         }
         // tree
         function drawTree() {
-            console.log('nodes',nodes,'links',links)
+            console.log('nodes',nodes,'links',links,'selected',conceptNames)
             // get extent of total counts
             let sums = []
             nodes.forEach(node => {
@@ -763,8 +763,8 @@
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x 
-                                    if (countType === 'record') x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 16
-                                    else x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.person_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.person_counts)) - 16
+                                    if (countType === 'record') x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 5
+                                    else x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.person_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.person_counts)) - 5
                                     let y = d.direction === -1 ? cy + (genHeight[d.distance]) : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d)
                                     return "translate(" + x + "," + y + ")rotate(" + 90 + ")"
                                 }) 
@@ -980,8 +980,8 @@
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x 
-                                    if (countType === 'record') x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 16
-                                    else x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.person_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.person_counts)) - 16
+                                    if (countType === 'record') x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 5
+                                    else x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.person_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.person_counts)) - 5
                                     let y = d.direction === -1 ? cy + (genHeight[d.distance]) : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d)
                                     return "translate(" + x + "," + y + ")rotate(" + 90 + ")"
                                 })  
@@ -1205,21 +1205,21 @@
                             .style('display', d => rootConcepts.includes(d.name) ? 'block' : 'none')
                             .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
                             .attr('transform', d => {
-                                const xVar = (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? 35 : 20
+                                const xVar = (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? 28 : 13
                                 if (d.data.concept.standard_concept) return countType === 'record' ? `translate(${d.x + scaleRadius(Math.sqrt(d.total_counts)) + xVar}, 0)` : `translate(${d.x + scaleRadius(Math.sqrt(d.person_counts)) + xVar}, 0)`
                                 else return countType === 'record' ? `translate(${d.x - scaleRadius(Math.sqrt(d.total_counts)) - xVar}, 0)` : `translate(${d.x - scaleRadius(Math.sqrt(d.person_counts)) - xVar}, 0)`
                             })
-                        setExpression.append('rect')
-                            .classed('set-expression-rect',true)
-                            .attr('x', -10)
-                            .attr('y', d => cy + (genHeight[d.distance]) - 24)
-                            .attr("filter", "drop-shadow(0px 0px 4px rgba(0, 0, 0, 0.1))")
-                            .attr('width',97)
-                            .attr('height',48)
-                            .attr('rx',6)
-                            .attr('ry',6)
-                            .attr('fill','white')
-                            .lower()
+                        // setExpression.append('rect')
+                        //     .classed('set-expression-rect',true)
+                        //     .attr('x', -10)
+                        //     .attr('y', d => cy + (genHeight[d.distance]) - 24)
+                        //     .attr("filter", "drop-shadow(0px 0px 4px rgba(0, 0, 0, 0.1))")
+                        //     .attr('width',97)
+                        //     .attr('height',48)
+                        //     .attr('rx',6)
+                        //     .attr('ry',6)
+                        //     .attr('fill','white')
+                        //     .lower()
                         const descendantsBtn = setExpression.append('g')
                             .classed("tree-descendants-btn btn",true)
                             .style('pointer-events', 'all')
@@ -1240,7 +1240,7 @@
                         descendantsBtn.append('text')
                             .classed('tree-descendants-check fa-solid',true)
                             .text('\uf00c')
-                            .style('opacity',0.5)
+                            .style('opacity',0.6)
                             .attr('font-size', 10)
                             .attr('fill', d => descendantsFilter.includes(d.name) ? 'none' : '#36126d')
                             .attr('x', 0.5)
@@ -1248,7 +1248,7 @@
                         descendantsBtn.append('text')
                             .classed("tree-descendants-text",true)
                             .text('Descendants')
-                            .style('opacity', 0.7)
+                            .style('opacity', 0.8)
                             .attr('fill', d => descendantsFilter.includes(d.name) ? '#4c4c4c' : '#36126d')
                             .attr('font-weight', d => descendantsFilter.includes(d.name) ? 400 : 500)
                             .attr('x', d => d.data.concept.standard_concept ? 16 : -16)
@@ -1273,7 +1273,7 @@
                         excludeBtn.append('text')
                             .classed('tree-exclude-check fa-solid',true)
                             .text('\uf00c')
-                            .style('opacity',0.5)
+                            .style('opacity',0.6)
                             .attr('font-size', 10)
                             .attr('fill', d => excludeList.includes(d.name) ? '#36126d' : 'none')
                             .attr('x', 0.5)
@@ -1281,7 +1281,7 @@
                         excludeBtn.append('text')
                             .classed("tree-exclude-text",true)
                             .text('Exclude')
-                            .style('opacity', 0.7)
+                            .style('opacity', 0.8)
                             .attr('fill', d => !excludeList.includes(d.name) ? '#4c4c4c' : '#36126d')
                             .attr('font-weight', d => !excludeList.includes(d.name) ? 400 : 500)
                             .attr('x', d => d.data.concept.standard_concept ? 16 : -16)
@@ -1299,7 +1299,7 @@
                         geometry.append('text')
                             .classed('mappings-btn  mappingBtn fa-solid', true)
                             .attr('id', d => 'mappings-btn-' + d.name)
-                            .text(d => mapRoot.includes(d.name) && d.mappings.length > 0 ? "\uf00d" : "\uf0da")
+                            .text(d => mapRoot.includes(d.name) && d.mappings.length > 0 ? "\uf00d" : d.data.concept.standard_concept ? "\uf0da" : "\uf0d9")
                             .style('font-size', d => mapRoot.includes(d.name) && d.mappings.length > 0 ? '14px' : '15px')
                             .style('display', d => d.mappings.length > 0 ? 'block' : 'none')
                             .style('opacity', d => hovered.length > 0 ? 0.1 : 0.3)
@@ -1321,8 +1321,8 @@
                                 
                             })
                             .attr('x', d => {
-                                if (!d.data.concept.standard_concept) return countType === 'record' ? d.x + scaleRadius(Math.sqrt(d.total_counts)) + 15 : d.x + scaleRadius(Math.sqrt(d.person_counts)) + 15 
-                                else return countType === 'record' ? d.x - scaleRadius(Math.sqrt(d.total_counts)) - 15 : d.x - scaleRadius(Math.sqrt(d.person_counts)) - 15
+                                if (d.data.concept.standard_concept) return countType === 'record' ? d.x - scaleRadius(Math.sqrt(d.total_counts)) - 15 : d.x - scaleRadius(Math.sqrt(d.person_counts)) - 15 
+                                else return countType === 'record' ? d.x + scaleRadius(Math.sqrt(d.total_counts)) + 8 : d.x + scaleRadius(Math.sqrt(d.person_counts)) + 8
                             })
                             .attr('y', d => cy + (genHeight[d.distance]) + 5.5)
                             .raise()
@@ -1576,8 +1576,8 @@
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x 
-                                    if (countType === 'record') x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 16
-                                    else x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.person_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.person_counts)) - 16
+                                    if (countType === 'record') x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 8
+                                    else x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.person_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.person_counts)) - 8
                                     let y = d.direction === -1 ? cy + (genHeight[d.distance]) : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d)
                                     return "translate(" + x + "," + y + ")rotate(" + 90 + ")"
                                 }) 
@@ -1793,8 +1793,8 @@
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x 
-                                    if (countType === 'record') x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 16
-                                    else x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.person_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.person_counts)) - 16
+                                    if (countType === 'record') x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.total_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.total_counts)) - 8
+                                    else x = d.direction === -1 ? d.source.x - scaleRadius(Math.sqrt(d.source.person_counts)) - 26 : getMap(d).x - scaleRadius(Math.sqrt(d.person_counts)) - 8
                                     let y = d.direction === -1 ? cy + (genHeight[d.distance]) : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d)
                                     return "translate(" + x + "," + y + ")rotate(" + 90 + ")"
                                 })  
@@ -1999,12 +1999,12 @@
                             .style('display', d => rootConcepts.includes(d.name) ? 'block' : 'none')
                             .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
                             .attr('transform', d => {
-                                const xVar = (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? 35 : 20
+                                const xVar = (countType === 'record' && d.total_counts === 0) || (countType === 'person' && d.person_counts === 0) ? 28 : 13
                                 if (d.data.concept.standard_concept) return countType === 'record' ? `translate(${d.x + scaleRadius(Math.sqrt(d.total_counts)) + xVar}, 0)` : `translate(${d.x + scaleRadius(Math.sqrt(d.person_counts)) + xVar}, 0)`
                                 else return countType === 'record' ? `translate(${d.x - scaleRadius(Math.sqrt(d.total_counts)) - xVar}, 0)` : `translate(${d.x - scaleRadius(Math.sqrt(d.person_counts)) - xVar}, 0)`
                             })
-                        update.select('.set-expression-rect')
-                            .attr('y', d => cy + (genHeight[d.distance]) - 24)
+                        // update.select('.set-expression-rect')
+                        //     .attr('y', d => cy + (genHeight[d.distance]) - 24)
                         update.select('.tree-descendants-btn')
                             .attr('text-anchor', d => d.data.concept.standard_concept ? 'start' : 'end')
                             .on('click', (e,d) => {
@@ -2040,7 +2040,7 @@
                             .attr('x', d => d.data.concept.standard_concept ? 16 : -16)
                             .attr('y', d => cy + (genHeight[d.distance]) - 5)
                         update.select('.mappings-btn')
-                            .text(d => mapRoot.includes(d.name) && d.mappings.length > 0 ? "\uf00d" : "\uf0da")
+                            .text(d => mapRoot.includes(d.name) && d.mappings.length > 0 ? "\uf00d" : d.data.concept.standard_concept ? "\uf0da" : "\uf0d9")
                             .style('display', d => d.mappings.length > 0 ? 'block' : 'none')
                             .style('opacity', d => hovered.length > 0 ? 0.1 : 0.3)
                             .style('font-size', d => mapRoot.includes(d.name) && d.mappings.length > 0 ? '14px' : '15px')
@@ -2062,8 +2062,8 @@
                                 
                             })
                             .attr('x', d => {
-                                if (!d.data.concept.standard_concept) return countType === 'record' ? d.x + scaleRadius(Math.sqrt(d.total_counts)) + 15 : d.x + scaleRadius(Math.sqrt(d.person_counts)) + 15 
-                                else return countType === 'record' ? d.x - scaleRadius(Math.sqrt(d.total_counts)) - 15 : d.x - scaleRadius(Math.sqrt(d.person_counts)) - 15
+                                if (d.data.concept.standard_concept) return countType === 'record' ? d.x - scaleRadius(Math.sqrt(d.total_counts)) - 15 : d.x - scaleRadius(Math.sqrt(d.person_counts)) - 15 
+                                else return countType === 'record' ? d.x + scaleRadius(Math.sqrt(d.total_counts)) + 8 : d.x + scaleRadius(Math.sqrt(d.person_counts)) + 8
                             })
                             .attr('y', d => cy + (genHeight[d.distance]) + 5.5)
                         update.select('.drc-group')
@@ -5392,8 +5392,7 @@
                 <div className = "selectionsContainer removeRightShadow">
                     <div className = "filters" id = "sidebar-filters">
                         <div className="filterContainer" id = 'levels-container'>
-                            <p className = 'filterLabel' style = {{fontWeight: levelFilter < fullTreeMax ? 500 : 400,opacity: levelFilter < fullTreeMax ? 1 : 0.7}}>Max Level</p>
-                            <FontAwesomeIcon style = {{display: levelFilter < fullTreeMax ? 'block' : 'none',marginTop:1}} className = "resetFilter fa-solid icon" id = "reset-levels" icon={faX} 
+                            <div className = {`btn flex ${levelFilter < fullTreeMax ? "greyBtn" : ""}`} onMouseEnter = {()=>d3.select('#reset-levels').style('opacity',1)} onMouseLeave = {()=>d3.select('#reset-levels').style('opacity',0.3)} style = {{padding: '3px 5px 3px 5px',borderRadius: '4px'}} 
                                 onClick = {() => {
                                     setLevelFilter(fullTreeMax)
                                     d3.select('#open-levels').style('display', 'block')
@@ -5401,7 +5400,10 @@
                                     d3.select('#dropdown-levels').style('visibility','hidden')
                                     d3.select('#header-levels').classed('filterActive', false) 
                                 }}
-                            />
+                            >
+                                <p className = 'filterLabel' style = {{fontWeight: levelFilter < fullTreeMax ? 500 : 400,opacity: levelFilter < fullTreeMax ? 1 : 0.7}}>{levelFilter < fullTreeMax ? 'Clear Level' : 'Level'}</p>
+                                <FontAwesomeIcon style = {{display: levelFilter < fullTreeMax ? 'block' : 'none',marginTop:1}} className = "resetFilter fa-solid icon" id = "reset-levels" icon={faX} />
+                            </div>
                             <div className = 'dropdownContainer'>
                                 <div className = "dropdownHeader btn filterMargin" id = "header-levels" style = {{border: levelFilter < fullTreeMax ? 'none' : '1px solid #e0e0e0',overflow:'hidden'}}
                                     onClick = {() => {
@@ -5424,17 +5426,17 @@
                                 
                         </div>
                         <div className="filterContainer" id = 'classes-container' style = {{borderRight:'none'}}>
-                            <div className='flex' id = 'classes-label-container'>
-                                <p className = 'filterLabel' style = {{fontWeight: classFilter && fullClassList.length > 1 && (classFilter.includes('All') || fullClassList.every(c => classFilter.includes(c))) ? 400 : 500,opacity: classFilter && classFilter && fullClassList.length > 1 && (classFilter.includes('All') || fullClassList.every(c => classFilter.includes(c))) ? 1 : 0.7}}>Classes</p>
-                                <FontAwesomeIcon style = {{marginTop:1,display: classFilter && (classFilter.includes('All') || fullClassList.every(c => classFilter.includes(c))) ? 'none' : 'block'}} className = "resetFilter fa-solid icon" id = "reset-classes" icon={faX} 
-                                    onClick = {() => {
+                            <div id = 'classes-label-container' className = {`btn flex ${classFilter && fullClassList.length > 1 && !(classFilter.includes('All') || fullClassList.every(c => classFilter.includes(c))) ? "greyBtn" : ""}`} onMouseEnter = {()=>d3.select('#reset-classes').style('opacity',1)} onMouseLeave = {()=>d3.select('#reset-classes').style('opacity',0.3)} style = {{padding: '3px 5px 3px 5px',borderRadius: '4px'}} 
+                                onClick = {() => {
                                         setClassFilter(fullClassList)
                                         d3.select('#open-classes').style('display', 'block')
                                         d3.select('#close-classes').style('display', 'none') 
                                         d3.select('#dropdown-classes').style('visibility','hidden')
                                         d3.select('#header-classes').classed('filterActive', false) 
-                                    }}
-                                />    
+                                }}
+                            >
+                                <p className = 'filterLabel' style = {{fontWeight: classFilter && fullClassList.length > 1 && !(classFilter.includes('All') || fullClassList.every(c => classFilter.includes(c))) ? 500 : 400, opacity: classFilter && fullClassList.length > 1 && !(classFilter.includes('All') || fullClassList.every(c => classFilter.includes(c))) ? 1 : 0.7}}>{classFilter && fullClassList.length > 1 && !(classFilter.includes('All') || fullClassList.every(c => classFilter.includes(c))) ? 'Clear Classes' : 'Classes'}</p>
+                                <FontAwesomeIcon style = {{marginTop:1,display: classFilter && (classFilter.includes('All') || fullClassList.every(c => classFilter.includes(c))) ? 'none' : 'block'}} className = "resetFilter fa-solid icon" id = "reset-classes" icon={faX} />    
                             </div>
                             <div className = 'dropdownContainer'>
                                 <div className = "dropdownHeader btn filterMargin" id = "header-classes" 

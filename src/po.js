@@ -11,16 +11,44 @@
  * Po is designed to offer both ready-made chart helpers and D3-like compositional APIs,
  * enabling quick visualization workflows as well as custom chart composition.
 **/
-//TODO closure (poset operations in general) 
+//TODO : LAYOUTS
+    //* linear layout
+    //* circular trelly (without grays)
+    //  Axonometric
+    //* sauvage chart
+    //* spinner chart (preserve grays)
+    //  Morphological Embedding
+    //* treemap
+    //* bivariate coloring
+//TODO : INTERACTIONS
+    // DOI
+    //* circular structure DOI (review print)
+    // FCA
+    //* conceptual faceting
+    //* dynamic coloring (e.g. network graphs)
+//TODO : EXAMPLES
+    // COLORING
+    // // UPSET PLOT
+    //// treemap
+    //* stacked barchart
+    //* clustered parallel coords
+    //* intersection glyphs – dimension reduction + colored glyphs (col1 + small_patch_of(col2))
+    //* complex network
+//TODO : OPERATIONS
+    // CLOSURE 
     //* close edges down with phi (and pass it as infima)
     //* close edges up with higher node (and pass it as suprema)
-
+    // SUM
+    //* HORIZONTAL generate two subspaces
+    //* VERTICAL generate a stack
+    
+import * as d3 from "d3";
 //TODO check if PO
 //TODO remove d3 dependency from radial scale
-import * as d3 from "d3";
 
 const po = {//edges need to be unique
-    domFromEdges : (edges, s = null, t = null) => {      
+    domFromEdges : (edges, s = null, t = null) => {  
+        
         const isArray = Array.isArray(edges[0])
         const source = s || isArray ? Object.keys(edges[0])[0] : 0;
         const target = t || isArray ? Object.keys(edges[0])[1] : 1;
@@ -39,8 +67,8 @@ const po = {//edges need to be unique
             
             const sourceIdx = nodeIndex[sourceNode];
             const targetIdx = nodeIndex[targetNode];
-            //matrix[sourceIdx][targetIdx] = 1;
-            matrix[targetIdx][sourceIdx] = 1;
+            matrix[sourceIdx][targetIdx] = 1;
+            //matrix[targetIdx][sourceIdx] = 1;
         }
     
         // Step 2: Compute the transitive closure using Floyd-Warshall algorithm
@@ -63,6 +91,14 @@ const po = {//edges need to be unique
         
         return {matrix,nodes};
     },
+    filter : (poset, f)=>{
+        //TODO : filter by feature
+    },
+    profileMIS : (data,...columns)=>{
+        //TODO : group data by column compound string
+        //* filter every combination  "A"== 0 "B"==1 | "A"== 1 "B"==1 | "A"== 0 "B"==2 | "A"== 2 "B"==2
+        //return profiles
+    },
     scale : (domain,range)=>{
         const extentDomain = domain[1]-domain[0]
         const extentRange = range[1]-range[0]
@@ -82,6 +118,26 @@ const po = {//edges need to be unique
         }
         return rel 
     } ,
+    close: function (coverMatrix) {
+        const n = coverMatrix.length;
+        const dominanceMatrix = coverMatrix.map(row => [...row]); // deep copy
+
+        function collect(root, current, visited) {
+            for (let j = 0; j < n; j++) {
+                if (coverMatrix[current][j] === 1 && !visited.has(j)) {
+                    visited.add(j);
+                    dominanceMatrix[root][j] = 1; // always write to the fixed root's row
+                    collect(root, j, visited);    // advance traversal position, root stays fixed
+                }
+            }
+        }
+
+        for (let i = 0; i < n; i++) {
+            collect(i, i, new Set());
+        }
+
+        return dominanceMatrix;
+    },
     dotProd: (a, b) => a.map((x, i) => x * b[i]).reduce((acc, el) => acc + el),
     findSubspaces : function(profiles) {
                     const labels = profiles.map(e=>e[0])
@@ -116,6 +172,29 @@ const po = {//edges need to be unique
 
                     return {subspaces,ids};
                 },
+    separateSubspaces : function(subspaces,poset){
+            const ssps = subspaces.ids
+            return ssps.map(ssp=>{
+                const recursiveBound = (list,leaves)=>{
+                    
+                
+                    if(leaves.length > 0 ){
+                        const relations = leaves.flatMap(e=>poset.getLower(e).map(lowEl=>[e,lowEl]))
+                        
+                        if(relations.length>0 && relations[0][0] === relations[0][1])return list.concat(relations)
+                        return recursiveBound(
+                            list.concat(relations),
+                            relations.map(r=>r[1])
+                        )
+                    }else{
+                        
+                        return list
+                    }
+                }
+                return recursiveBound([],ssp)
+            })
+                
+        },
     dominanceScores : (poset,layer)=>{ 
         const l = poset.setLayers().layers[layer]
         const rootIndexes = l.map(node => poset.elements.indexOf(node))
@@ -144,72 +223,21 @@ const po = {//edges need to be unique
         ])
     },
     isSubset: (a,b) => po.dotProd(a,b) === a.filter(x=>x===1).length,
-    // rootsFromLayer : (poset,n,w) => {
-    //     const roots = poset.layers[n]
-    //     w = !w ? w : w === true ? [0,1] : w
-    //     if(!Array.isArray(w)){
-
-    //         const vectors = roots.map(root=>{
-    //             const us = poset.getUpset(root) 
-    //             const ds = poset.getDownset(root)
-                
-    //             const context = us.concat(ds).concat(Array.from({'length':poset.elements.length})).map(e=>poset.elements.indexOf(e)) //! isn't there one less???
-                
-    //             return Array.from({length: poset.dominanceMatrix.length}, (_,i)=>context.includes(i)?1:0)
-    //         }) 
-    //         return {
-    //             vectors: vectors,
-    //             ids: roots  // Mantieni l'associazione corretta
-    //         };
-    //     }else{
-            
-            
-
-    //         const getNext = (direction,count,list) => {
-                
-    //             const weightScale =  po.scale([n,0],[w[1],w[0]])//direction > 0 ? [0,poset.layers.length - (n+1)] : [poset.layers.length -(poset.layers.length - (n+1)),0])
-                
-                
-    //             const layer = poset.layers[n+(direction*count)]
-    //             if(layer){
-                     
-    //                 //const weightedLayer = layer.map(node=>poset.getCovMatrix()[poset.elements.indexOf(node)].map(covRel=>covRel * weightScale(count)))
-    //                 for(node of layer){
-                        
-    //                     list[poset.elements.indexOf(node)] =  weightScale(count)
-    //                 }
-    //                 //list.push(weightedLayer)
-    //                 getNext(direction,count+1,list)
-    //             }
-                
-    //             return list
-    //         }
-    //         const upVals = getNext(-1,0,Array.from({length:poset.elements.length},()=>0))
-    //         const downVals = getNext(1,0,Array.from({length:poset.elements.length},()=>0)) //?? []
-    //         const values = upVals.map((e,n)=>e+downVals[n])
-            
-            
-            
-    //         const vectors = roots.map(root=>{
-    //             const us = poset.getUpset(root) 
-    //             const ds = poset.getDownset(root)
-                
-    //             const context = us.concat(ds).map(e=>poset.elements.indexOf(e)) 
-                
-    //             return Array.from({length: poset.elements.length}, (_,i)=>context.includes(i)?values[i]:0)
-    //         }) 
-    //         //const us = getNext(-1,0,Array.from({length:poset.elements.length},()=>0))// ?? []
-    //         //const ds = getNext(1,0,Array.from({length:poset.elements.length},()=>0)) //?? []
     
-    //         //const context = ds.map((e,n)=>e+us[n])
-    //             //.concat(Array.from({length: poset.layers[0]}, ()=>0))
-    //             //.concat(ds)//.map(e=>poset.elements.indexOf(e))
-            
     
-    //         return vectors//.map(vectorSet=>vectorSet[n])
-    //     }
-
-    // },
+    getBiggestBound: (poset) => {
+       const {layers} = poset.setLayers()
+       const mostDenseLayer = layers.map((l,n)=>({n:n, l:l, deg:l.length === 0 ? 0 : l.map(node=>poset.getUpper(node).length+poset.getLower(node).length).reduce((acc,el)=>acc+el)})).sort((a,b)=>b.deg-a.deg)[0]
+        
+        return  mostDenseLayer.n
+    },
+    getBarycenter: (poset) => {
+       const {layers} = poset.setLayers()
+       const mostDenseLayer = layers.map((l,n)=>({n:n, l:l, deg:l.length === 0 ? 0 : l.map(node=>poset.getUpper(node).length+poset.getLower(node).length).reduce((acc,el)=>acc+el)})).sort((a,b)=>b.deg-a.deg)[0]
+       const midPoint = Math.trunc((layers.length-1)/2)
+        
+        return  mostDenseLayer.n > midPoint ? mostDenseLayer.n : midPoint
+    },
     
     polarRepulsion : (points,delta=1,alpha=1,f=()=>{}) => {
             
@@ -325,200 +353,15 @@ const po = {//edges need to be unique
             
             return points
             
-        },
-    // visualizeEmbedding : function (cSOM,){
-
-    //     function toRad(deg) {
-    //         return deg * (Math.PI / 180);
-    //     }
-    //     function toDeg(rad) {
-    //         return rad * (180 / Math.PI);
-    //     }
-    //     function jchToRgb(jch,d3) {
-    //         const { J, C, h } = jch; // Expected: J, C, h are extracted from the input object. Example: { J: 50, C: 30, h: 45 }
-
-    //         // Convert hue from degrees to radians
-    //         let hueRad = (Math.PI / 180) * h; // Expected: Converts hue (e.g., 45°) to radians (e.g., 0.7854)
-
-    //         // Convert JCh to Lab
-    //         let L = J; // Expected: L is the same as J (lightness). Example: L = 50
-    //         let a = C * Math.cos(hueRad); // Expected: a = C * cos(hueRad). Example: a = 30 * cos(0.7854) ≈ 21.213
-    //         let b = C * Math.sin(hueRad); // Expected: b = C * sin(hueRad). Example: b = 30 * sin(0.7854) ≈ 21.213
-
-
-
-    //         // Convert Lab to XYZ (using D65 reference white)
-    //         const refX = 95.047; // Expected: D65 reference white X value
-    //         const refY = 100.000; // Expected: D65 reference white Y value
-    //         const refZ = 108.883; // Expected: D65 reference white Z value
-
-    //         let var_Y = (L + 16) / 116; // Expected: Intermediate Y value. Example: var_Y = (50 + 16) / 116 ≈ 0.569
-    //         let var_X = a / 500 + var_Y; // Expected: Intermediate X value. Example: var_X = 21.213 / 500 + 0.569 ≈ 0.611
-    //         let var_Z = var_Y - b / 200; // Expected: Intermediate Z value. Example: var_Z = 0.569 - 21.213 / 200 ≈ 0.463
-
-    //         let X = refX * (Math.pow(var_X, 3) > 0.008856 ? Math.pow(var_X, 3) : (var_X - 16 / 116) / 7.787); // Expected: X value in XYZ space. Example: X ≈ 95.047 * (0.611^3) ≈ 95.047 * 0.228 ≈ 21.68
-    //         let Y = refY * (Math.pow(var_Y, 3) > 0.008856 ? Math.pow(var_Y, 3) : (var_Y - 16 / 116) / 7.787); // Expected: Y value in XYZ space. Example: Y ≈ 100.000 * (0.569^3) ≈ 100.000 * 0.183 ≈ 18.30
-    //         let Z = refZ * (Math.pow(var_Z, 3) > 0.008856 ? Math.pow(var_Z, 3) : (var_Z - 16 / 116) / 7.787); // Expected: Z value in XYZ space. Example: Z ≈ 108.883 * (0.463^3) ≈ 108.883 * 0.099 ≈ 10.78
-
-
-
-    //         // Normalize XYZ values relative to D65 reference white
-    //         X = X / refX; // Expected: Normalized X value. Example: X ≈ 21.68 / 95.047 ≈ 0.228
-    //         Y = Y / refY; // Expected: Normalized Y value. Example: Y ≈ 18.30 / 100.000 ≈ 0.183
-    //         Z = Z / refZ; // Expected: Normalized Z value. Example: Z ≈ 10.78 / 108.883 ≈ 0.099
-
-
-
-    //         // Convert XYZ to linear RGB
-    //         let R = X *  3.2406 + Y * -1.5372 + Z * -0.4986; // Expected: Linear R value. Example: R ≈ 0.228 * 3.2406 + 0.183 * -1.5372 + 0.099 * -0.4986 ≈ 0.739 - 0.281 - 0.049 ≈ 0.409
-    //         let G = X * -0.9689 + Y *  1.8758 + Z *  0.0415; // Expected: Linear G value. Example: G ≈ 0.228 * -0.9689 + 0.183 * 1.8758 + 0.099 * 0.0415 ≈ -0.221 + 0.343 + 0.004 ≈ 0.126
-    //         let B = X *  0.0557 + Y * -0.2040 + Z *  1.0570; // Expected: Linear B value. Example: B ≈ 0.228 * 0.0557 + 0.183 * -0.2040 + 0.099 * 1.0570 ≈ 0.013 - 0.037 + 0.105 ≈ 0.081
-
-
-
-    //         // Apply gamma correction
-    //         let gammaCorrect = (c) => c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055; // Expected: Gamma correction function
-
-    //         R = gammaCorrect(R); // Expected: Gamma-corrected R value. Example: R ≈ gammaCorrect(0.409) ≈ 0.662
-    //         G = gammaCorrect(G); // Expected: Gamma-corrected G value. Example: G ≈ gammaCorrect(0.126) ≈ 0.414
-    //         B = gammaCorrect(B); // Expected: Gamma-corrected B value. Example: B ≈ gammaCorrect(0.081) ≈ 0.332
-
-
-
-    //         // Clamp values to [0, 1] range (only if necessary)
-    //         R = Math.max(0, Math.min(1, R)); // Expected: Clamps R to [0, 1]. Example: R ≈ 0.662 (unchanged)
-    //         G = Math.max(0, Math.min(1, G)); // Expected: Clamps G to [0, 1]. Example: G ≈ 0.414 (unchanged)
-    //         B = Math.max(0, Math.min(1, B)); // Expected: Clamps B to [0, 1]. Example: B ≈ 0.332 (unchanged)
-
-    //         // Convert to 0-255 range
-    //         const out = `rgb(${Math.round(R * 255)}, ${Math.round(G * 255)}, ${Math.round(B * 255)})`; // Expected: Converts to 8-bit RGB. Example: rgb(169, 106, 85)
-
-    //         return out;
-    //     }
-        
-
-    //     const radius = 20;
-
-    //     const assignments = cSOM.neurons
-    //         .filter(n=>n.bmus.length>0)
-    //         .map(n=>{
-    //             if(n.bmus.length === 1) return {name:n.ref[0],embedding:cSOM.toHue(n.position),data:n}
-                
-    //             return n.bmus.map((_,i) => ({name:n.ref[i],embedding:cSOM.toHue(n.position),data:n}) )
-
-    //         })
-    //         .flat()
-    //     const neurons = cSOM.neurons.filter(n=>n.bmus.length>0).map(n=>(n.theta = cSOM.toHue(n.position),n))
+    },
     
-    
-    //     //     neurons,
-    //     //     10
-    //     // ).map(n=>n.theta))
-        
-        
-        
-    //     //takes [0–>100] outputs Θ radians
-    //     const angularScale = d3.scaleLinear()
-    //         .domain([0, 100])  // Same domain, for simplicity
-    //         .range([0, 2 * Math.PI]);  // 360 degrees in radians
-            
-    //     const resolution = 150,
-    //           ref = d3.range(0,100,100/resolution);
-        
-    //     const svg = d3.select("body")
-    //         .append("svg")
-    //         .attr("width",800)
-    //         .attr("height",800)
-    //         .attr("viewBox","0 0 100 100")
-            
-    //     const canvas = svg.append("g")
-    //         .attr("transform","translate(50,70) scale(2)")
-        
-        
-            
-    //     const layer = canvas.append("g").classed("layer",true)
-    //         .attr(
-    //             "transform",
-    //             `
-    //             rotate(0 0 20) 
-    //             translate(0 ${-2}) 
-    //             skewX(0) 
-    //             scale(1 0.5)
-    //             `
-    //         )
-    //     layer.selectAll(".ref")
-    //         .data(ref)
-    //         .join("rect")
-    //         .classed("ref",true)
-    //         .attr("x", (d,i) => radius * Math.cos(angularScale(d)) -0.5)
-    //         .attr("y", (d,i) => radius * Math.sin(angularScale(d)) -0.5)
-    //         .attr("width", 1)
-    //         .attr("height", 1)
-    //         .attr("fill",d=>jchToRgb(d3.jch(70, 100, angularScale(d) * 180/Math.PI )))
-    //         //.attr("fill",d=>(jchToRgb(d3.jch(70, 100, angularScale(d) * 180/Math.PI ))))
-        
-            
-    //     //TODO something wrong here – the scale should be fed radians, or am I missing something?
-    //     const assignment = canvas.select(".layer").selectAll(".assignment")
-    //     .data(assignments)
-    //     .join("g")
-    //     .classed("assignment",true)
-    //     .attr("transform",d=>(
-    //     `translate(
-    //         ${radius * Math.cos(toRad(d.embedding))},
-    //         ${radius * Math.sin(toRad(d.embedding))}
-    //     )`))
-    
-    //     assignment.append("circle")
-    //     .attr("r",2)
-    //     .attr("fill",d=>(jchToRgb(d3.jch(70, 100, d.embedding))))
-        
-    //     .attr("opacity","0.7")
-    //     assignment.append("text")
-    //     .classed("label",true)
-    //     .text(d=>d.name)
-
-    //     // assignment.selectAll(".feature")
-    //     //     .data(d=>data[d.name])
-    //     //     .join("rect")
-    //     //     .classed("feature",true)
-    //     //     .attr("width",0.2)
-    //     //     .attr("height",d=>d*2)
-    //     //     .attr("x",(d,i)=>i*0.2-0.5)
-    //     //     .attr("y",(d,i)=>1-d*2-0.5)
-    //     //     .attr("fill","darkgray")
-
-        
-    //     const neuron = layer
-    //         .selectAll(".neuron")
-    //         .data(cSOM.neurons)
-    //         .join("g")
-    //         .attr("transform",d=>`translate(
-    //         ${radius * Math.cos(toRad(cSOM.toHue(d.position))) -0.5},
-    //         ${radius * Math.sin(toRad(cSOM.toHue(d.position))) -0.5})`)
-            
-        
-    //     neuron.selectAll(".weight").data(d=>d.weights)
-    //         .join("rect")
-    //         .classed("weight",true)
-    //         .attr("width",0.2)
-    //         .attr("height",d=>d*2)
-    //         .attr("x",(d,i)=>i*0.2)
-    //         .attr("y",(d,i)=>1-d*2)
-    //         .attr("fill","none")
-    //         .attr("stroke","black")
-    //         .attr("stroke-width",0.05)
-            
-            
-
-    //    },
-       
-    circularEmbedding: function (profiles,ids = Array.from({length:profiles.length},(_,n)=>n), cells = 12, iterations = 100, learningRate = 0.1, seed=42) { 
-                
+    circularEmbedding: function (profiles,ids=[], cells = 12, iterations = 100, learningRate = 0.1, seed=42) { 
+                ids = ids.length === 0 ? Array.from({length:profiles.length},(_,n)=>n) : ids
                 //FIND SUBSPACES
                 const dotProd = (a, b) => a.map((x, i) => x * b[i]).reduce((acc, el) => acc + el);
                 
-
+                
+                
                 const findAllSubspaces = (profiles) => {
                     const checked = new Set();
                     const subspaces = [];
@@ -545,6 +388,7 @@ const po = {//edges need to be unique
                     return subspaces;
                 };
                 const subspaces = findAllSubspaces(profiles)
+                
                 
                 
                 
@@ -702,36 +546,7 @@ const po = {//edges need to be unique
 
                 }
 
-                // Training process
-                // for (let t = 0; t < iterations; t++) {
-                //     const rate = learningRate * (1 - t / iterations); // Decaying learning rate
-
-                //     profiles.forEach(profile => {
-                //         // Step 1: Find the Best Matching Unit (BMU)
-                //         let bmuIndex = 0;
-                //         let minDist = Infinity;
-                //         neurons.forEach((neuron, index) => {
-                //             const dist = euclideanDistance(neuron.weights, profile);
-                //             if (dist < minDist) {
-                //                 minDist = dist;
-                //                 bmuIndex = index;
-                //             }
-                //         });
-
-                //         // Step 2: Update weights of the BMU and its neighbors
-                //         for (let i = 0; i < cells; i++) {
-                //             // Calculate neighborhood influence
-                //             const distance = Math.min(
-                //                 Math.abs(bmuIndex - i),
-                //                 cells - Math.abs(bmuIndex - i) // Wrap around for cylindrical grid
-                //             );
-                //             const influence = Math.exp(-distance / (2 * (1 - t / iterations)));
-
-                //             // Update weights
-                //             updateWeights(neurons[i], profile, rate * influence);
-                //         }
-                //     });
-                // }
+                
                 //TODO –> smoother learning spike (more neighbors)
                 //TODO –> EITHER nested subspace sorting – OR add interpolated neurons if neighbor has one
                 //?CONSIDER A GENERATOR FUNCTION THAT YIELDS AND IS TIED INDIRECTLY TO A LIST
@@ -791,20 +606,7 @@ const po = {//edges need to be unique
                     neurons[bmuIndex].bmusID.push(ids[n]);  // ← Usa ids[n] invece di n
                     neurons[bmuIndex].ref.push(ids[n]);     // ← Questo è ridondante ora
                 
-                    //break continuous conglomerates
-                    //const [prev,next] = getAdjacetns(neurons,bmuIndex)
-                    // if(next.neuron.bmus.length > 0){
-                    //     const newNeuron = interpolateNeurons(neurons[bmuIndex],next.neuron)
-                    //     neurons = neurons.slice(0,bmuIndex+1)
-                    //     .concat(newNeuron)
-                    //     .concat(neurons.slice(bmuIndex+1))
-                    // }
-                    // if(prev.neuron.bmus.length > 0){
-                    //     const newNeuron = interpolateNeurons(prev.neuron,neurons[bmuIndex])
-                    //     neurons = neurons.slice(0,bmuIndex)
-                    //     .concat(newNeuron)
-                    //     .concat(neurons.slice(bmuIndex))
-                    // }
+                    
                 });
 
                 
@@ -817,6 +619,665 @@ const po = {//edges need to be unique
                 
 
         },
+    widget: function (poset,where="body",f=()=>null,...args){
+        let selectedNode = "", selectedRing = null;
+        const ui = d3.select(where)
+      
+        const w = 300
+        const svg = ui.append("svg").attr("transform","scale(2.5) translate(100,100)")
+            .attr("id","widget")
+            .attr("width",w)
+            .attr("height",w)
+
+        const css = svg.append("style")
+            .html(` 
+            *{transition: opacity .2s ease-out} 
+            line,image{pointer-events:none} 
+            g {transform-box: fill-box; transform-origin: center; }
+            #lever{transition: filter .35s ease-out}
+            .utilsUI[data-state='button']{cursor:pointer !important}
+            .utilsUI[data-state='knob']{cursor:drag}
+            .ring{transition: .3s ease-out}
+            .rotLane{transition: .5s ease-out .1s}
+            .ring{fill: none;stroke: black;}
+            .invisible{opacity: 0;}
+            .dot{fill: black;}
+            `)
+        const defs = svg.append("defs")
+        const saturationGrad = defs.append("linearGradient").attr("id","satGrad")
+        
+        const lightnessGrad = defs.append("linearGradient").attr("id","liGrad")
+            
+        const rotationLane = defs.append("radialGradient").attr("id","rotGrad")
+            .attr("cx", "57%")   // Center X
+            .attr("cy", "48.5%")   // Center Y
+            .attr("r", "80%");   // Radius
+            rotationLane.append("stop")
+                .attr("offset", "0%")
+                .attr("stop-color", "white");
+            const rlmid = rotationLane.append("stop")
+                .attr("offset", "100%")
+                .attr("stop-color", "white");
+
+            rotationLane.append("stop")
+                .attr("offset", "100%")
+                .attr("stop-color", "lightgray");
+        
+        const rotateUI = svg.append("g")
+        .attr("transform","rotate(-35) skewX(30)")
+        .append("g")
+        .attr("transform","translate(100,80)")
+
+
+        // ── layer draw order / positioning ──────────────────────────
+        // poset.layers[0] is now the infimum end (suprema on top), but we
+        // want suprema drawn LAST so they occlude correctly in axonometry.
+        // Position and draw order are decoupled: layerData is reversed for
+        // painter's-algorithm draw order, while each datum still carries
+        // its true index `i` (== depth into poset.layers) for anything
+        // downstream that needs the real index (e.g. lowerBound lookups).
+        const n = poset.layers.length
+
+        const layerData = poset.layers
+            .map((layer, i) => ({ layer, i }))
+            .reverse()   // draw order: highest original index first, index 0 last (on top)
+
+        const layers = svg.selectAll(".layer")
+            .data(layerData, d => d.i)
+            .join("g")
+            .classed("layer",true)
+            .attr("transform", d => `translate(100,${120-((n-1-d.i)+2)*20}) rotate(0)`)
+
+        const rings = layers.append("g").classed("ring",true)
+            .attr("transform","rotate(-35) skewX(30)")
+            .append("g").classed("ring-content",true)
+        const ringR = 40, radialUnits = d3.range(0,360,30), cg = d3.range(0,360,1)
+        
+        rings.append("circle")
+            .attr("r",ringR)
+            .attr("stroke","black")
+            .attr("stroke-width","0.1")
+            .classed("ring",true)
+
+        const cx = w / 2;
+        const cy = d3.select("#widget").node().height / 2;
+        const containerSVG = svg.node()
+
+        function getPointInLocalSpace(element, targetGroup, svgNode) {
+            let pt = svgNode.createSVGPoint();
+            pt.x = element.cx.baseVal.value;
+            pt.y = element.cy.baseVal.value;
+
+            const toViewport = element.getCTM();
+            const viewportPt = pt.matrixTransform(toViewport);
+
+            const toLocal = targetGroup.getCTM().inverse();
+            return viewportPt.matrixTransform(toLocal);
+        }
+
+        let drag = d3.drag()
+          .on('drag', function(e,d) {
+            d3.select(this.parentElement).select(".ring").attr("stroke-width","0.1")
+                const angle = Math.atan2(e.y, e.x);
+                const x = Math.cos(angle) * r(d);
+                const y = Math.sin(angle) * r(d);
+                poset.featureOf(d, "pTheta", (angle * 180) / Math.PI)  
+                poset.updateFill(d)
+                utils.attr("opacity",0)
+                //const depth = poset.featureOf(d,"depth")
+                
+                //d3.selectAll(".reference_"+depth).attr("opacity",1)
+                d3.select(this)
+                    .attr("cx", x)
+                    .attr("cy", y);
+                updateEdges()
+                updateNodes()
+                f(...args)
+            })
+        //     .on('end',function(){
+        //     d3.select(this.parentElement).select(".ring").attr("stroke-width","0.1")
+        // })
+
+        const r = (d) => poset.featureOf(d,"pAlpha")*ringR
+        const lowerBoundsG = []
+        rings.each(function(d){
+
+            
+
+            const layer = d.layer
+            const depth = d.i          // real poset.layers index, not DOM/draw order
+
+            const l = d3.select(this)
+           
+            const lowerBound = layer.map(profile => poset.relations.filter(r=>r[0]===profile && poset.layers[depth+1]?.includes(r[1])))
+                .filter(p=>p.length!==0)
+                
+            if(lowerBound.length){
+                const lb = l
+                .append("g").classed("edges",true)
+                .selectAll("line")
+                .data(lowerBound[0])
+                
+                lowerBoundsG.push({ edgesG: l.append("g").classed("edges", true).node(), data: lowerBound.flat(), ringNode: this })
+
+            }
+            l
+            .selectAll(".cell")
+            .data(radialUnits)
+            .join("circle")
+            .attr("cx", d => Math.cos((d * Math.PI) / 180) * (ringR+20))
+            .attr("cy", d => Math.sin((d * Math.PI) / 180) * (ringR+20))
+            .attr("r",5)
+            .attr("opacity",0)
+            // l
+            // .selectAll(".reference_"+depth)
+            // .data(radialUnits)
+            // .join("circle")
+            // .classed("reference_"+depth,true)
+            // .attr("cx", d => Math.cos((d * Math.PI) / 180) * (ringR))
+            // .attr("cy", d => Math.sin((d * Math.PI) / 180) * (ringR))
+            // .attr("r",1)
+            // .attr("stroke",d =>poset.newFill((d * Math.PI) / 180), 10 ,depth*(100/poset.layers.length)))
+            // .attr("opacity",0)
+
+            let clickCount = 0
+            l
+            .selectAll("profile")
+            .data(layer)
+            .join("circle")
+            .attr("data-name",d=>d)
+            .classed("profile",true)
+            .attr("cx", (d) => Math.cos((poset.featureOf(d,"pTheta") * Math.PI) / 180) * r(d))
+            .attr("cy", (d) => Math.sin((poset.featureOf(d,"pTheta") * Math.PI) / 180) * r(d))
+            .attr("r",5)
+            .attr("fill",d=>poset.featureOf(d,"fill"))
+            .attr("stroke","white")
+            .attr("stroke-width","0.25")
+            .on("click",function(e,d) {
+                clickCount = (selectedNode === d) ? clickCount+1 : 0
+                
+                selectedNode = d
+                selectedRing = this.parentElement
+                
+                //TODO RESTORE STATES
+                satOpen = false
+                let lOpen = false
+                //update knobs
+                d3.select("#lightness").select("circle")
+                        .attr("cx",function(){
+                            if(d3.select(this).attr("data-state")==="knob"){
+                                return  poset.featureOf(selectedNode,"pL")/4
+                            }else{
+                                return d3.select(this).attr("cx")
+                            }
+                        })
+                d3.select("#saturation").select("circle")
+                        .attr("cx",function(){
+                            if(d3.select(this).attr("data-state")==="knob"){
+                             
+                                return  25-(poset.featureOf(selectedNode,"pAlpha")*25)
+                            }else{
+                                return d3.select(this).attr("cx")
+                            }
+                        })
+                        
+                //------------------
+                let pt = svg.node().createSVGPoint();
+                pt.x = this.cx.baseVal.value;
+                pt.y = this.cy.baseVal.value;
+                const screenPt = pt.matrixTransform(this.getCTM());
+                // screenPt is now in SVG viewport coordinates
+                utils
+                .attr("transform", `translate(${screenPt.x - 15}, ${screenPt.y - 10})`)
+                .attr("opacity", clickCount%2 === 1 ? 0 : 1)
+                d3.select(this).transition().duration(200).attr("stroke", "black");
+
+                //TODO : The limits of lightness
+                // should change depending on the other nodes
+                 const h = poset.featureOf(d,"pTheta"),l = poset.featureOf(d,"pL"),
+                            s = poset.featureOf(d,"pAlpha"), 
+                            s0 = 0, s1 = 1, l0=0, l1=100;
+                const sGrad = d3.interpolateHsl(poset.newFill(h,s1,l), poset.newFill(h,s0,l)),
+                    lGrad = d3.interpolateHsl(poset.newFill(h,s,l0),poset.newFill(h,s,l1/2) ,poset.newFill(h,s,l1))
+                saturationGrad.selectAll("stop")
+                    .data([sGrad(0),sGrad(1)])
+                    .join("stop")
+                    .attr("stop-color",d=>d)
+                    .attr("offset",(_,i)=>(i*100)+"%" )
+                lightnessGrad.selectAll("stop")
+                    .data([lGrad(0),lGrad(0.5),lGrad(1)])
+                    .join("stop")
+                    .attr("stop-color",d=>d)
+                    .attr("offset",(_,i)=>(i*(100/2))+"%" )
+            })
+            .on("mouseover",function(e,d){
+                d3.select(this).transition().duration(200).attr("stroke","black")
+                d3.select(this.parentElement).select(".ring").attr("stroke-width","0.2")
+                
+                // setTimeout(() => {
+                //    !hoveringUtils && utils.attr("opacity",0)
+                // }, 1000);
+            })
+            .on("mouseout",function(e,d){
+                d3.select(this).transition().duration(200).attr("stroke","white")
+                d3.select(this.parentElement).select(".ring").attr("stroke-width","0.1")
+                // setTimeout(() => {
+                //    !hoveringUtils && utils.attr("opacity",0)
+                // }, 1000);
+            })
+            .call(drag);
+
+            
+        })
+        function updateEdges() {
+            lowerBoundsG.forEach(({ edgesG, data, ringNode }) => {
+                d3.select(edgesG)
+                    .selectAll("line")
+                    .data(data)
+                    .join("line")
+                    .attr("x1", d => Math.cos((poset.featureOf(d[0], "pTheta") * Math.PI) / 180) * r(d[0]))
+                    .attr("y1", d => Math.sin((poset.featureOf(d[0], "pTheta") * Math.PI) / 180) * r(d[0]))
+                    .attr("x2", d => {
+                        const targetEl = document.querySelector(`circle[data-name="${d[1]}"]`);
+                        return getPointInLocalSpace(targetEl, ringNode, svg.node()).x;
+                    })
+                    .attr("y2", d => {
+                        const targetEl = document.querySelector(`circle[data-name="${d[1]}"]`);
+                        return getPointInLocalSpace(targetEl, ringNode, svg.node()).y;
+                    })
+                    .attr("stroke", "#707081")
+                    .attr("stroke-width", "0.25")
+                    .attr("stroke-dasharray", "1 1")
+            });
+        }
+        updateEdges()
+                    
+        function updateNodes(){
+            d3.selectAll(".profile")
+            //.attr("fill",d=>poset.toOklab(poset.featureOf(d,"fill")))
+            .attr("fill",d=>poset.featureOf(d,"fill"))
+            .attr("cx", (d) => Math.cos((poset.featureOf(d,"pTheta") * Math.PI) / 180) * r(d))
+            .attr("cy", (d) => Math.sin((poset.featureOf(d,"pTheta") * Math.PI) / 180) * r(d))
+        }
+
+        const defAngle = 3.17
+        let dragRotateUI = d3.drag().on("start",function(){
+            //TODO fix cursor
+            rlmid.transition().duration(700).attr("offset", "62%")
+            d3.select('body').style('cursor', 'grabbing');
+        })
+          .on('drag', function(e) {
+                // STYLE
+                rotLane.attr("opacity",1)
+                d3.select(this).style("cursor","grabbing")
+                d3.select("#lever")
+                    .style("-webkit-filter","drop-shadow( 0.3px 0.3px 1px rgba(150, 150, 150, 0.25))")
+                    .style("filter","drop-shadow( 0.3px 0.3px 1px rgba(150, 150, 150, 0.25))")
+                utils.attr("opacity",0)
+                // FUNC
+                // Calculate the angle of the CURRENT mouse position
+                const currentAngle = defAngle +Math.atan2(e.y, e.x);
+                const rotation = currentAngle*(180/Math.PI)
+                //if(rotation>250 || rotation < 210){
+                if(rotation>250 || rotation < 90){
+               
+                
+                rotate(rotation)
+                const angle = Math.atan2(e.y, e.x);
+                const x = Math.cos(angle) * (ringR+15);
+                const y = Math.sin(angle) * (ringR+15);
+                d3.select(this)
+                    .attr("cx", x)
+                    .attr("cy", y);
+                d3.select(this.parentElement).select("#lever")
+                    .attr("x1", x)
+                    .attr("y1", y);
+                d3.select(this.parentElement).select("#draggableUI")
+                    .attr("cx", x)
+                    .attr("cy", y)
+                    
+                    
+           
+               updateEdges()
+               }
+            }).on('end',function(){
+
+                rotLane.attr("opacity",0)
+                rlmid.transition().duration(700).attr("offset", "100%")
+                d3.select(this).style("cursor","grab")
+
+                d3.select("#lever")
+                .style("-webkit-filter","drop-shadow( 0.0px 0.0px 0px rgba(150, 150, 150, 0))")
+                .style("filter","drop-shadow( 0.0px 0.0px 0px rgba(150, 150, 150, 0))")
+
+                d3.select('body').style('cursor', 'auto')
+            });
+       
+        
+        rotateUI.append("circle").attr("r",(ringR+30)).attr("fill","none")//.attr("stroke","black")
+        const rotLane = rotateUI.append("circle").attr("r",(ringR+15)).attr("fill","url(#rotGrad)")
+            .attr("style", "fill: url(#rotGrad)")
+            .attr("opacity",0)
+            //.attr("cx",-5)
+            //.attr("cy",5)
+            .attr("stroke","lightgray")
+            .attr("stroke-width","0.2")
+            .attr("stroke-dashoffset","325")
+            .attr("stroke-dasharray","190 200")
+            .classed("rotLane",true)
+
+        rotateUI.append("line").attr("id","lever")
+            .attr("x1",0)
+            .attr("y1",0)
+            .attr("x2", 0)
+            .attr("y2", 0)
+            .attr("stroke","white")
+            .attr("stroke-width","4")
+            .attr("stroke-linecap","round")
+            .style("-webkit-filter","drop-shadow( 0.3px 0.3px 1px rgba(150, 150, 150, .0))")
+            .style("filter","drop-shadow( 0.3px 0.3px 1px rgba(150, 150, 150, .0))")
+
+        rotateUI.append("circle")
+        .attr("id","draggableUI")
+        .attr("r",1.5)
+        .attr("cx", Math.cos(defAngle) * (ringR+15))
+        .attr("cy", Math.sin(defAngle) * (ringR+15))
+        .attr("fill","darkgray")
+        
+        rotateUI.append("circle")
+        .attr("id","draggable")
+        .attr("r",0)
+        .attr("cx", Math.cos(defAngle) * (ringR+15))
+        .attr("cy", Math.sin(defAngle) * (ringR+15))
+        .style("cursor","grab")
+        .attr("opacity","0")
+        
+        .call(dragRotateUI);
+
+         const rotateIcon = rotateUI.append("g")
+         .attr("transform","skewX(-30) rotate(30)")
+         .on("click",function(){
+            d3.select(this).transition()
+            .attr("opacity",0)
+            .style("pointer-events","none")
+
+            rotateUI.select("#lever")
+            
+            .style("-webkit-filter","drop-shadow( 0.3px 0.3px 1px rgba(150, 150, 150, 0.25))")
+            .style("filter","drop-shadow( 0.3px 0.3px 1px rgba(150, 150, 150, 0.25))")
+            .transition()
+            .attr("x1",Math.cos(defAngle) * (ringR+15))
+            .attr("y1",Math.sin(defAngle) * (ringR+15))
+
+            rotateUI.select("#draggable")
+            .attr("r",9)
+        })
+        
+        rotateIcon.append("circle")
+        .attr("id","iconBG")
+        .attr("r",6)
+        .attr("cx", Math.cos(defAngle) * (ringR+15))
+        .attr("cy", Math.sin(defAngle) * (ringR+15))
+        .attr("fill","white")
+        .style("-webkit-filter","drop-shadow( 0.6px 0.6px 1px rgba(150, 150, 150, .25))")
+        .style("filter","drop-shadow( 0.6px 0.6px 1px rgba(150, 150, 150, .25))").style("cursor","pointer")
+        rotateIcon.append("image")
+        .attr("href","./icons/rotate.png")
+        .attr("x", Math.cos(defAngle) * (ringR+15)-4)
+        .attr("y", Math.sin(defAngle) * (ringR+15)-3)
+        .attr("width",8)
+        .style("pointer-events","none")
+        
+        
+
+        let rotation = 0
+        function rotate(rotation){
+            
+            //if(rotation>250 || rotation < 210){
+
+                const layer = svg.selectAll(".ring-content"),
+                rotate = `rotate(${rotation})`;
+                
+                layer.attr("transform", rotate)
+                //rotationUI.attr("transform",rotate)
+            //}
+            
+        }
+        // document.addEventListener("keydown",e=>{
+            
+        //     if(e.key==="ArrowRight"){
+        //        if(rotation < 180) rotation += 5
+        //        rotate(rotation)
+        //        updateEdges()
+        //     }
+        //     if(e.key==="ArrowLeft"){
+        //        if(rotation > 0) rotation -= 5
+        //        rotate(rotation)
+        //        updateEdges()
+        //     }
+
+        // })
+        
+        const utils = svg.append("g").classed("utils",true).attr("opacity",0)
+        
+        
+        const saturation = utils.append("g").attr("id","saturation")
+            const saturationCursor = saturation.append("rect")
+            .attr("width",0)
+            .attr("height",2.5)
+            .attr("y",2.9)
+            .attr("rx",1.25)
+            .classed("cursor",true)
+            .attr("fill","url(#satGrad)")
+            const margin = 1.25 +25
+            // const dragKnob = d3.drag()
+            //     .on("drag",function(e,d){
+            //             const [mx, my] = d3.pointer(e, svg.node());
+            //             d3.select(this)
+            //                 .attr("cx",mx)
+            //                 .attr("cy",my)
+                    
+            //     })
+            const dragKnobSaturation = d3.drag()
+            let satDragOffset = 0
+            .on("start", function(e) {
+                if(d3.select(this).attr("data-state") === "knob"){
+                d3.select('body').style('cursor', 'grabbing');
+                d3.select(this).style('cursor', 'grabbing');
+                satDragOffset = e.x - +d3.select(this).attr("cx")
+
+                d3.select(selectedRing)
+                .append("line")
+                .attr("id","satRadius")
+                .attr("stroke-linecap","round")
+                .attr("stroke-width","0.5")
+                .attr("opacity","0")
+                d3.select(selectedRing)
+                .append("circle")
+                .attr("id","satCentre")
+                .attr("r","1")
+                .attr("stroke","white")
+                .attr("stroke-width","0.5")
+                .attr("fill",poset.newFill(0,0,poset.featureOf(selectedNode,"pL")))
+                }
+            })
+            .on("drag", function(e,d) {
+                if(d3.select(this).attr("data-state") === "knob"){
+
+                    
+                    // clamp to bar range [8, 8+barWidth]
+                    const raw = e.x - satDragOffset
+                    const clamped = Math.max(1, Math.min(1 + barWidth, raw))
+                    const value = 1-(((clamped ) / barWidth )-0.04) // 0-1
+                    
+                    d3.select(this).attr("cx", clamped)
+                    
+                    if(selectedNode) {
+                        poset.featureOf(selectedNode, "pAlpha", value)
+                        poset.updateFill(selectedNode)
+                        updateNodes()
+                        updateEdges()
+
+                        d3.select("#satRadius")
+                            .attr("y2",0)
+                            .attr("x2",0)
+                            .attr("y1", Math.sin((poset.featureOf(selectedNode,"pTheta") * Math.PI) / 180) * r(selectedNode))
+                            .attr("x1", Math.cos((poset.featureOf(selectedNode,"pTheta") * Math.PI) / 180) * r(selectedNode))
+                            .attr("stroke",poset.featureOf(selectedNode,"fill"))
+                            .attr("opacity",value < 0.7 ? 1 : 0)
+                    }
+                }
+            })
+            .on('end',function(){
+                d3.select('body').style('cursor', 'auto')
+                d3.select(this).style('cursor', 'grab');
+                d3.select("#satRadius").remove()
+                d3.select("#satCentre").remove()
+                
+            })
+
+            const dragKnobLightness = d3.drag()
+            let liDragOffset = 0
+            .on("start", function(e) {
+                d3.select('body').style('cursor', 'grabbing');
+                d3.select(this).style('cursor', 'grabbing');
+                liDragOffset = e.x - +d3.select(this).attr("cx")
+            })
+            .on("drag", function(e,d) {
+                if(d3.select(this).attr("data-state") === "knob"){
+                    // clamp to bar range [8, 8+barWidth]
+                    const raw = e.x - liDragOffset
+                    const clamped = Math.max(1, Math.min(1 + barWidth, raw))
+                    const value = (((clamped ) / barWidth )-0.04) // 0-1
+
+                    
+                    d3.select(this).attr("cx", clamped)
+
+
+                    if(selectedNode) {
+                        poset.featureOf(selectedNode, "pL", value*100)
+                        poset.updateFill(selectedNode)
+                        updateNodes()
+                        updateEdges()
+                    }
+                }
+            })
+            .on('end',function(){
+                d3.select('body').style('cursor', 'auto')
+                d3.select(this).style('cursor', 'grab');
+            })
+            // toggle bar open/closed on icon click
+            let satOpen = false
+            let liOpen = false
+            // ── utils panel ──────────────────────────────────────────
+            const barWidth = 25
+            const barY = 4       // vertical center of the bar/knob
+            const iconR = 4.3
+            const knobR = 2
+            
+            saturation.append("circle")
+                .classed("utilsUI",true)
+                .attr("cx",4).attr("cy",4)
+                .attr("r",4.3)
+                .attr("fill","white")
+                .attr("data-state","button")
+                .style("-webkit-filter","drop-shadow( 0.4px 0.4px 1px rgba(150, 150, 150, .2))")
+                .style("filter","drop-shadow( 0.4px 0.4px 1px rgba(150, 150, 150, .2))")
+                .on("click",function(e){
+                    e.stopPropagation()
+                    if(d3.select(this).attr("data-state") === "button"){
+
+                        satOpen = !satOpen
+                        saturationCursor.transition().attr("width", satOpen ? barWidth : 0)
+                        //d3.select(this).transition().attr("opacity", satOpen ? 1 : 0)
+
+                        d3.select(this).attr("data-state","knob")
+                        saturationCursor.transition().attr("width",25)
+                        d3.select(this).style("pointer-events","none").transition().attr("r",2)
+                        .style("cursor","grab")
+                        //set to value between 0 and barWidth (25)
+                        .attr("cx",25-(poset.featureOf(selectedNode,"pAlpha")*25))
+                        .style("pointer-events","all")
+                        
+                        
+                        d3.select(this.parentElement).select("image").attr("opacity",0)
+                        
+                    }
+                   
+                    
+                })
+                .call(dragKnobSaturation)
+            saturation.append("image")
+                .attr("x",1).attr("y",1)
+                .attr("height",6).attr("width",6)
+                .attr("href","./icons/saturation.png")
+
+                
+        //knobs UI    
+        const lightness=utils.append("g").attr("id","lightness")
+        const lightnessCursor = lightness.append("rect")
+            .classed("cursor",true)
+            .attr("width",0)
+            .attr("height",2.5)
+            .attr("y",14)
+            .attr("rx",1.25)
+            .attr("fill","url(#liGrad)")
+            lightness.append("circle")
+                .classed("utilsUI",true)
+                .attr("cx",4).attr("cy",15)
+                .attr("r",4.3)
+                .attr("fill","white")
+                .attr("data-state","button")
+                .style("-webkit-filter","drop-shadow( 0.2px 0.2px 3px rgba(150, 150, 150, .2))")
+                .style("filter","drop-shadow( 0.2px 0.2px 3px rgba(150, 150, 150, .2))")
+                .on("click",function(e,d){
+                    e.stopPropagation()
+                    if(d3.select(this).attr("data-state") === "button"){
+
+                        liOpen = !liOpen
+                        lightnessCursor.transition().attr("width", liOpen ? barWidth : 0)
+                        
+                        //d3.select(this).transition().attr("opacity", liOpen ? 1 : 0)
+
+                        d3.select(this).attr("data-state","knob")
+                        lightnessCursor.transition().attr("width",25)
+                        d3.select(this).transition().attr("r",2)
+                        .attr("cx",poset.featureOf(selectedNode,"pL")/4)
+                        .style("cursor","grab")
+                        //.call(dragKnob)
+                        d3.select(this.parentElement).select("image").attr("opacity",0)
+                        
+                    }
+                   
+                    
+                })
+                
+                .call(dragKnobLightness)
+                
+            lightness.append("image")
+                .attr("x",1).attr("y",12)
+                .attr("height",6).attr("width",6)
+                .attr("href","./icons/lightness.png")
+    
+        
+
+        function resetKnobs(){
+            
+            const knobs = d3.selectAll("circle[data-state='knob']")
+                .transition()
+                .attr("cx",4)
+                .attr("r",4.3)
+                .attr("data-state","button")
+                
+                
+            d3.selectAll(".cursor").transition().attr("width",0)
+            utils.selectAll("image").transition().duration(200).delay(200).attr("opacity",1)
+            
+        }
+        ui.node().addEventListener("click",()=>{resetKnobs()})
+        ui.node().addEventListener("keydown",(e)=>e.code === "Enter" && resetKnobs())
+        },
+        
     createPoset:(input, elementNames = null) => {
         const isPoset = typeof input === 'object' && input?.type === 'poset'
         
@@ -824,8 +1285,9 @@ const po = {//edges need to be unique
         let elements, profiles, dominanceMatrix;
 
         if (isDominanceMatrix) {
+            
             // Input is a dominance matrix
-            dominanceMatrix = input;
+            dominanceMatrix = po.close(input);
             elements = elementNames || Array.from({length: dominanceMatrix.length}, (_, i) => `profile_${i}`);
             profiles = elements.map((_, i) => dominanceMatrix[i]);
         } else if(!isPoset) {
@@ -864,7 +1326,8 @@ const po = {//edges need to be unique
             
             
 
-            getUpset: function(element,mask=false) {
+            getDownset: function(element,mask=false) {
+                if(Array.isArray(element)) return element.map(e=>this.getDownset(e,mask))
                 const index = this.elements.indexOf(element);
                 return mask
                 ? this.elements.map((_, i) => 
@@ -873,7 +1336,8 @@ const po = {//edges need to be unique
                 : this.elements.filter((_,i)=>this.dominanceMatrix[index][i] === 1 ? 1 : 0)
             },
 
-            getDownset: function(element,mask=false) {
+            getUpset: function(element,mask=false) {
+                if(Array.isArray(element)) return element.map(e=>this.getUpset(e,mask))
                 const index = this.elements.indexOf(element);
                 return mask
                 ? this.elements.map((_, i) => 
@@ -881,38 +1345,14 @@ const po = {//edges need to be unique
                 )
                 : this.elements.filter((_,i)=>this.dominanceMatrix[i][index] === 1 ? 1 : 0)
             },
+            getCSet: function(element,mask=false) {
+                if(Array.isArray(element)) return element.map(e=>this.getCSet(e,mask))
+                return this.getUpset(element).concat(this.getDownset(element))
+            },
 
             getDomMatrix: function() {
                 return this.dominanceMatrix;
             },
-
-            // getCovMatrix: function() {
-            //     if (this.covMatrix) return this.covMatrix;
-
-            //     const n = this.dominanceMatrix.length;
-            //     const coveringMatrix = this.dominanceMatrix.map(row => [...row]);
-
-            //     // Remove transitive edges
-            //     for (let i = 0; i < n; i++) {
-            //         for (let j = 0; j < n; j++) {
-            //             if (i !== j && coveringMatrix[i][j] === 1) {
-            //                 for (let k = 0; k < n; k++) {
-            //                     if (i !== k && j !== k) {
-            //                         if (coveringMatrix[i][k] === 1 && coveringMatrix[k][j] === 1) {
-            //                             coveringMatrix[i][j] = 0;
-            //                             break;
-            //                         }
-            //                     }
-            //                 }
-            //             }
-            //         }
-            //     }
-                
-                
-
-            //     this.covMatrix = coveringMatrix;
-            //     return coveringMatrix;
-            // },
 
             getCovMatrix: function() {
                 if (this.covMatrix) return this.covMatrix;
@@ -963,7 +1403,8 @@ const po = {//edges need to be unique
             },
 
 
-            getUpper: function(element) {
+           getLower: function(element) {
+                if(Array.isArray(element))return element.map(e=>this.getLower(e))
                 const row = this.elements.indexOf(element);
                 return this.getCovMatrix()[row]
                     .map((e, n) => e === 1 ? n : -1)
@@ -971,13 +1412,21 @@ const po = {//edges need to be unique
             },
            
 
-            getLower: function(element) {
+           getUpper: function(element) {
+                if(Array.isArray(element))return element.map(e=>this.getUpper(e))
                 const col = this.elements.indexOf(element);
                 return this.getCovMatrix().map(row => row[col])
                     .map((e, n) => e === 1 ? n : -1)
                     .filter(e => e !== -1).map(n=>this.elements[n]);
             },
-            
+            getBound: function(element,upper){
+                if(Array.isArray(element))return element.map(e=>this.getBound(e,upper))
+                if(upper===undefined)return this.getUpper(element).concat(this.getLower(element))
+                if(upper){
+                    return this.getUpper(element)
+                }
+                return this.getLower(element)
+            },
 
 
 
@@ -990,18 +1439,32 @@ const po = {//edges need to be unique
                 this.delete = function(feature){this.elements.forEach(profile=>delete this.features[profile][feature])}
                 this.featureOf = function(node,feature,value){
                     const get = value === undefined
+                    
                     if(Array.isArray(node)){
+                        
                         if(get) {
-                            return node.map(node=>poset.features[node][feature])
+                            return node.map(node=>poset.features?.[node]?.[feature])
                         }
                         else {
-                            node.map(node=>poset.features[node][feature] = value)
+                            if(typeof value === 'function'){
+                                node.map((node,n)=>poset.features[node][feature] = value(node,n))
+                                
+                            }else{
+                                node.map(node=>poset.features[node][feature] = value)
+                            }
                             return this
                         }
                     }
-                    if(get) return this.features[node][feature]
                     
-                    this.features[node][feature] = value
+                    if(get) {return this.features?.[node]?.[feature]}
+                    
+                    if (typeof value === 'function'){
+                        this.features[node][feature] = value(node)
+                        
+                    }else{
+                        this.features[node][feature] = value
+                    }
+                    
                     return this
                 }
                 this.feature = function(key, value) {
@@ -1068,10 +1531,12 @@ const po = {//edges need to be unique
             poset.relationsMSI = input.relationsMSI
             
         }else{
+            
             for (let i = 0; i < dominanceMatrix.length; i++) {
                 for (let j = 0; j < dominanceMatrix.length; j++) {
                     if (i !== j && dominanceMatrix[i][j] === 1) {
                         poset.relationsP.push([i, j]);
+                        
                         poset.relations.push([elements[i], elements[j]]);
                         poset.relationsMSI.push([dominanceMatrix[i], dominanceMatrix[j]]);
                     }
@@ -1079,31 +1544,28 @@ const po = {//edges need to be unique
             }
             
             // Find suprema and infima
-            const dominants = poset.relations.map(e => e[1]);
+            const dominants = poset.relations.map(e => e[0]);
             poset.analytics.infima = poset.elements.filter(p => !dominants.includes(p));
             
-            const dominated = poset.relations.map(e => e[0]);
+            const dominated = poset.relations.map(e => e[1]);
             poset.analytics.suprema = poset.elements.filter(p => !dominated.includes(p));
         }
 
 
-        // function getCoverRelations() {
-        //     if(poset.coverRelations) return poset.coverRelations
 
-        //     const matrix = poset.getCovMatrix()
-        //     const coverRelations = [];
-        //     for (let i = 0; i < matrix.length; i++) {
-        //         for (let j = 0; j < matrix[i].length; j++) {
-        //             if (matrix[i][j] === 1) {
-        //                 coverRelations.push({ source: i, target: j });
-        //             }
-        //         }
-        //     }
-        //     poset.coverRelations = coverRelations
-        //     return coverRelations;
-        // }
-        // poset.getCoverRelations = getCoverRelations
+        
+        
 
+        function propagate (start,f,sorted=false) {
+            const {layers} = poset
+            const below = layers.slice(start + 1)
+            const above = layers.slice(0, start).reverse()
+            
+            below.forEach(l => f(l,layers.indexOf(l),true,sorted))
+            above.forEach(l => f(l,layers.indexOf(l),false,sorted))
+            return this
+        }
+        poset.propagate = propagate
 
         function drawHasse(container,poset=this) {
             container = container || document.querySelector("body")
@@ -1113,7 +1575,7 @@ const po = {//edges need to be unique
                 .feature("subScore",(node)=>poset.getUpset(node).length)
                 .feature("supScore",(node)=>poset.getDownset(node).length)
                 .setLayers()
-                .feature("depth",d=>poset.layers.length-poset.layers.findIndex(layer=>layer.includes(d)))
+                .feature("depth",d=>poset.layers.length+poset.layers.findIndex(layer=>layer.includes(d)))
 
                 
             
@@ -1229,9 +1691,10 @@ const po = {//edges need to be unique
             
             const nodePositions = levels.map((level, i) => ({
                 id: i,
-                x: 0, // Temporary x, will be adjusted later
+                name: poset.elements[i],
+                hasseX: 0, // Temporary x, will be adjusted later
                 y: height - (height / (Math.max(...levels) + 1) * level + 50), // Maxima at top, infima at bottom
-                depth: ((Object.values(poset.features)[i].depth) * 60) || height - (height / (Math.max(...levels) + 1) * level + 50)
+                depth: 50+poset.layers.findIndex(layer=>layer.includes(poset.elements[i]))*(300/poset.layers.length)//((Object.values(poset.features)[i].depth) * 60) || height - (height / (Math.max(...levels) + 1) * level + 50)
             }));
             
         
@@ -1241,12 +1704,12 @@ const po = {//edges need to be unique
                 return acc;
             }, {});
         
-            const getX = (node)=>poset.features[node]?.x
+            const getX = (node)=>poset.features[node]?.hasseX
             Object.keys(levelNodes).forEach(level => {
                 const nodesAtLevel = levelNodes[level];
                 const spacing = width / (nodesAtLevel.length + 1);
                 nodesAtLevel.forEach((node, index) => {
-                    node.x = getX(poset.elements[node.id]) ?? spacing * (index + 1);
+                    node.hasseX = getX(poset.elements[node.id]) ?? spacing * (index + 1);
                 });
             });
         
@@ -1288,21 +1751,23 @@ const po = {//edges need to be unique
                 .selectAll("circle")
                 .data(nodePositions)
                 .join("circle")
+                .on("click",(e,d)=>console.log(poset.getDownset(poset.elements[d.id])))
                 .attr("r", 15)
-                .attr("cx", d => getX(poset.elements[d.id]) ??d.x)
+                .attr("cx", d => getX(poset.elements[d.id]) ??d.hasseX)
                 .attr("cy", d => d.depth)
                 //.attr("fill", d=>(Object.values(poset.features)[d.id].isLeaf?"green":"lightgray"))
-                .attr("fill", d=>poset.features[poset.elements[0]]?.fill?poset.features[poset.elements[d.id]].fill:"lightgray")
+                //.attr("fill", d=>poset.features[poset.elements[0]]?.fill?poset.features[poset.elements[d.id]].fill:"lightgray")
+                .attr("fill", d=>(poset.featureOf(poset.elements[d.id],"fill")||"lightgray"))
                 //.attr("opacity",d => scaleOpacity(d.depth))
                 .call(d3.drag()
                     .on("start", function (event, d) {
                         d3.select(this).raise().attr("stroke", "black");
                     })
                     .on("drag", function (event, d) {
-                        d.x = event.x;
-                        d.y = event.y;
+                        d.hasseX = event.x;
+                        // d.y = event.y;
                         d3.select(this)
-                            .attr("cx", d.x)
+                            .attr("cx", d.hasseX)
                             .attr("cy", d.depth);
                         updateEdges();
                     })
@@ -1315,7 +1780,7 @@ const po = {//edges need to be unique
                 .selectAll("text")
                 .data(nodePositions)
                 .join("text")
-                .attr("x", d => getX(poset.elements[d.id]) ??d.x)
+                .attr("x", d => getX(poset.elements[d.id]) ??d.hasseX)
                 .attr("y", d => d.depth)
                 .text(d => poset.elements[d.id])
                 .attr("dy", 5)
@@ -1326,19 +1791,21 @@ const po = {//edges need to be unique
             function updateEdges() {
                 edgeSelection
                     
-                    .attr("x1", d => nodePositions[d.target].x)
-                    .attr("y1", d => nodePositions[d.target].depth)
-                    .attr("x2", d => nodePositions[d.source].x)
-                    .attr("y2", d => nodePositions[d.source].depth);
+                    .attr("x1", d => nodePositions[d.source].hasseX)
+                    .attr("y1", d => nodePositions[d.source].depth)
+                    .attr("x2", d => nodePositions[d.target].hasseX)
+                    .attr("y2", d => nodePositions[d.target].depth);
         
                 labelSelection
-                    .attr("x", d => d.x)
+                    .attr("x", d => d.hasseX)
                     .attr("y", d => d.depth);
             }
         
             // Initial edge rendering
             updateEdges();
-            }
+        return this    
+        
+    }
         poset.drawHasse = drawHasse
         
         function circularSOM(profiles,ids = Array.from({length:profiles.length},(_,n)=>n), cells = 12, iterations = 100, learningRate = 0.1, seed=42) {
@@ -1696,7 +2163,7 @@ const po = {//edges need to be unique
                 
                 function lImp(poset, impute=false) {
                     
-                    const nodes = poset.elements, edges = poset.relations
+                    const nodes = poset.elements, edges = poset.relations.map(rel=>JSON.parse(JSON.stringify(rel)).reverse())
                     const succ = new Map();
                     const predCount = new Map();
                     const layer = new Map();
@@ -1748,7 +2215,7 @@ const po = {//edges need to be unique
                         if (!acc[depth]) acc[depth] = [];
                         acc[depth].push(node);
                         return acc;
-                    }, []);
+                    }, []).reverse();
                 
                     if(impute){
                         grouped.forEach((layer,n)=>{
@@ -1764,7 +2231,18 @@ const po = {//edges need to be unique
                     
                     return grouped;
                 }
+                
                 this.layers = lImp(this,impute)
+                // function cascade(poset,bot,layers=[]){
+                //     console.log('L',bot)
+                //     layers.push(bot)
+                //     const next = bot.flatMap(e=>poset.getUpper(e))
+                    
+                //     return next.length ===0 ? layers.reverse() : cascade(poset,next,layers)
+                // }
+                
+                //this.layers = cascade(this,this.analytics.infima)
+                
             
 
             // this.flipLayers = function(){
@@ -1882,13 +2360,12 @@ const po = {//edges need to be unique
             const sim = (click,data,f=()=>{})=>{
                 
                 let alpha = 100
-                //const relaxation = setInterval (()=> {
+                
                 while (alpha > 0) {
                     alpha = alpha - 1
                     click(f,data)
                 }
-                    //if(alpha <= 0)clearInterval(relaxation)
-                //},0)
+                   
                 
             }
             
@@ -1901,23 +2378,8 @@ const po = {//edges need to be unique
 
 
         function climber(f=()=>null,args=[],reverse=false,startingPoint=0){
-            //poset = poset || this
-            poset.enrich().setLayers()
             
-            if(reverse){
-                
-                const layer =  poset.layers[startingPoint]
-                f(layer,startingPoint,startingPoint,...args)
-                
-                if(poset.layers.length > startingPoint+1)climber(f,args,reverse,startingPoint+1)
-            }else{
-
-                const i = poset.layers.length - 1 - startingPoint
-                const layer =  poset.layers[i]
-                
-                f(layer,startingPoint,i,...args)
-                if(poset.layers.length > startingPoint+1)climber(f,args,reverse,startingPoint+1)
-                }
+            poset.layers.forEach((layer,n)=>f(layer,0,n,...args))
                 
             return this
         }
@@ -1925,250 +2387,179 @@ const po = {//edges need to be unique
 
 
 
-        // function coloringLogic(layer,iNeg,i,delta,seed=12){
-            
-        //     if(iNeg===0){
-                
-        //         const rootIndexes = layer
-        //             .map(node=>poset.elements.indexOf(node))
-                    
-        //         const rootsDimensions = poset
-        //             .getCovMatrix()
-        //             .map(row=>row.filter((v,i)=>rootIndexes.includes(i)))
-        //         const roots = rootIndexes
-        //             .map((ri,n)=>[poset.elements[ri],rootsDimensions
-        //                 .map(line=>(line[n]))]
-        //             )
+       
+        function coloringLogic(delta=10,seed=12){
 
-                
-                    
-        //         //const categories = circularSOM(roots.map(r=>r[1]),roots.map(r=>r[0]),seed=seed)
-        //         const categories = po.circularEmbedding(roots.map(r=>r[1]),roots.map(r=>r[0]),cells = 12, iterations = 100, learningRate = 0.1,seed=seed)
-                
-        //         const rootsCategorized =  categories.neurons.filter(neuron=>neuron.bmus.length>0)
-        //             .map(neuron=>(neuron.ref
-        //                 .map(ref=>{
-                            
-        //                     const angle=categories.toHue(neuron.position);
-        //                     const theta=angle*Math.PI/180;
-        //                     return {
-        //                     "id":ref,
-        //                     "theta":angle,
-        //                     "x":Math.cos(theta),
-        //                     "y":Math.sin(theta)
-        //                     }})
-        //             ))
-        //             .flat()
+        //TODO : consider adjusting theta and alpha for readability and manipulability
+        const adjustTheta = (theta) => {
+          const normalized = ((theta % 360) + 360) % 360
+          return +normalized.toFixed(5)
+        }
+        // const adjustTheta = (theta)=> theta < 0 ? 360 - (+theta) : theta >360? (+theta)-360 : +theta
+        // const adjustTheta = (theta)=> theta 
+        //const adjustAlpha = (alpha)=> +alpha.toFixed(5)
+        const adjustAlpha = (alpha)=> +alpha.toFixed(5)
         
-                    
-        //         polarRepulsion(rootsCategorized,delta,1).forEach(pNode=>(
-        //             poset.features[pNode.id]["pX"] = pNode.x,
-        //             poset.features[pNode.id]["pY"] = pNode.y,
-        //             poset.features[pNode.id]["pTheta"] = pNode.theta,
-        //             poset.features[pNode.id]["pAlpha"] = Math.sqrt( Math.pow(pNode.x,2)+Math.pow(pNode.y,2)   ) 
-        //         )) 
-                
-        //     }
-        //     else{
-                
-        //         //const parents = poset.layers[i+1]
-                
+        poset.analyze("po-mcl",()=>po.getBiggestBound(poset))
+        
+        const supremaProfiles = poset.layers[0].map(node => poset.elements.indexOf(node)) 
+            .map((ri, n) => [
+                poset.elements[ri],
+                poset.elements.map(e=>
+                poset.getUpset(e).includes(poset.elements[ri])
+                || poset.getDownset(e).includes(poset.elements[ri])
+                ||  e === poset.elements[ri]
+                ?1:0)
+            ])
+        const subspaces = po.findSubspaces(supremaProfiles)
+       
+        const mcls = subspaces.subspaces.length > 1 ? 
+            po.separateSubspaces (subspaces,poset).map(ssp=>{
+                console.log("entered")
+            const {matrix,nodes} = po.domFromEdges(ssp)
+            const subPoset = po.createPoset(matrix,nodes)
+            const mcl = po.getBiggestBound(subPoset)
+            return mcl
+        }).filter((e,n,l)=>l.indexOf(e) === n)
+        : [poset.analytics["po-mcl"]]
+        
+        
+        
+        
+        const mcl = poset.analytics["po-mcl"]
+       
+        const rootIndexes = mcls.flatMap((mcl,n)=>poset.layers[mcl].map(node => poset.elements.indexOf(node)) )
+        
+        const roots = rootIndexes.map((ri, n) => [
+            poset.elements[ri],
+            poset.elements.map(e=>
+            poset.getUpset(e).includes(poset.elements[ri])
+            || poset.getDownset(e).includes(poset.elements[ri])
+            ?1:0)
+        ])
 
-                
-        //         const parents = poset.layers.slice(i+1).flat()
-        //             .map(node=>(
-        //                 {
-        //                     id:node,
-        //                     x:poset.features[node].pX,
-        //                     y:poset.features[node].pY,
-        //                     theta:poset.features[node].pTheta,
-        //                 }
-        //             ))
-                
-        //         //assign descendants to parents
-        //         parents.forEach((p,n)=>parents[n].descendants=poset.getLower(p.id))
-        //         //parents.forEach((p,n)=>parents[n].descendants=poset.getLower(p.id).map(i=>poset.elements[i]))
-                
-        //         const ancestorsPerPoint = {}
-        //         const points = layer.map(node=>{
-        //             //subset ancestor between parents 
-        //             const ancestors = parents.filter(p=>p.descendants.includes(node))
-        //             const id = node
-        //             const x = (ancestors.map(e=>e.x).reduce((a,e)=>a+e)/ancestors.length)
-        //             const y = (ancestors.map(e=>e.y).reduce((a,e)=>a+e)/ancestors.length)
-                    
-                    
-        //             const alpha = ancestors
-        //                 .map(a=>poset.features[a.id].pAlpha)
-        //                 .reduce((a,b)=>a+b)
-        //                 /ancestors.length
-                    
-        //             //TODO try backpropagation 
-        //             ancestorsPerPoint[id] = ancestors.map(a=>a.id)
-        //             console.log("____",ancestorsPerPoint)
-        //             //*----------------*//
-        //             const theta = Math.atan2(y,x) * (180 / Math.PI)
-                    
-        //             return { id,x,y,theta,alpha }
-        //         })
-                
-        //         const inputPoints = JSON.parse(JSON.stringify(points))
-        //         polarRepulsion(inputPoints,delta,inputPoints[0].alpha).forEach((pNode,n)=>{
-                    
-        //             poset.features[pNode.id]["pX"] = pNode.x;
-        //             poset.features[pNode.id]["pY"] = pNode.y;
-        //             poset.features[pNode.id]["pTheta"] = pNode.theta;
-        //             poset.features[pNode.id]["pAlpha"] = Math.sqrt( Math.pow(pNode.x,2)+Math.pow(pNode.y,2)   ); 
-        //             const bp = false
-        //             if(bp){
-        //             function sumAnglesDegrees(angle1, angle2) {
-        //               const sum = (angle1 + angle2) % 360;
-        //               return sum < 0 ? sum + 360 : sum; // Normalize to [0, 360)
-        //             }
-        //             //BACKPROPAGATION
-        //             //!STILL VERY MESSY
-        //             ancestorsPerPoint[pNode.id].forEach(a=>{
-        //                     poset.features[a].pTheta = ( pNode.theta + ((poset.features[a].pTheta-pNode.theta)/100)); 
-                            
-        //                     //poset.features[a].pX = ( pNode.theta + ((poset.features[a].pX-pNode.x)/100)); //((poset.features[a].pNode.x)+ ((pNode.theta+poset.features[a].pNode.x)*0.1)) 
-        //                     //poset.features[a].pY = ( pNode.theta + ((poset.features[a].pY-pNode.y)/100)); //((poset.features[a].pNode.x)+ ((pNode.theta+poset.features[a].pTheta)*0.1)) 
 
-        //             })
-        //                 //poset.features[pNode.id]["pTheta"] = pNode.theta + (ancestorsPerPoint[pNode.id].map(a=>poset.features[a].pTheta).reduce((acc,el)=>acc+el)/ancestorsPerPoint[pNode.id].length);
-        //                 //
-        //                 //poset.features[pNode.id]["pX"] = (pNode.x + (ancestorsPerPoint[pNode.id].map(a=>poset.features[a].pX).reduce((acc,el)=>acc+el)/ancestorsPerPoint[pNode.id].length)/2000);
-        //                 //poset.features[pNode.id]["pY"] = (pNode.y + (ancestorsPerPoint[pNode.id].map(a=>poset.features[a].pY).reduce((acc,el)=>acc+el)/ancestorsPerPoint[pNode.id].length)/2000);
-        //             }
-        //             //TODO
-        //             //? fixes the color but not xy Math.sqrt( Math.pow(points[n].x,2)+Math.pow(points[n].y,2)   ) 
-        //     }) 
-                
-                
-                
+        
+        
+        
+        // Topological sorting
+        roots
+            .sort((a,b)=>b[1].reduce((acc,el)=>acc+el)-a[1].reduce((acc,el)=>acc+el))
+            .sort((a,b)=>(a[1].join("")<b[1].join("")?-1:1))
             
-        // }
-        // }
-        function coloringLogic(layer,iNeg,i,delta,seed=12){
-            if(iNeg===0){
-                //TODO color based on layer position here
-                const rootIndexes = layer.map(node => poset.elements.indexOf(node))
-
-                //const rootsDimensions = poset
-                //    .getCovMatrix()
-                //    .map(row => row.filter((v, i) => rootIndexes.includes(i)))
-                //const rootsDimensions = poset.elements.map()
-                const roots = rootIndexes.map((ri, n) => [
-                    poset.elements[ri],
-                    //rootsDimensions.map(line => line[n])
-                    poset.elements.map(e=>poset.getUpset(e).includes(poset.elements[ri])?1:0)
-                ])
-                
-                // Topological sorting
-                roots
-                    .sort((a,b)=>b[1].reduce((acc,el)=>acc+el)-a[1].reduce((acc,el)=>acc+el))
-                    .sort((a,b)=>(a[1].join("")<b[1].join("")?-1:1))
+        
+        
+        // Estrai separatamente i vettori e gli ID nello stesso ordine
+        const vectors = roots.map(r => r[1])  // I profili
+        const ids = roots.map(r => r[0])      // Gli ID dei nodi
+        // Usa vectors e ids invece di roots.map
+        const categories = po.circularEmbedding(vectors, ids, Math.ceil(ids.length * (ids.length/2)), 1000, 0.1, seed)
+        
+        const rootsCategorized = categories.neurons.filter(neuron=>neuron.bmus.length>0)
+            .map(neuron=>(neuron.ref
+                .map(ref=>{
                     
-                
-                
-                // Estrai separatamente i vettori e gli ID nello stesso ordine
-                const vectors = roots.map(r => r[1])  // I profili
-                const ids = roots.map(r => r[0])      // Gli ID dei nodi
-                // Usa vectors e ids invece di roots.map
-                const categories = po.circularEmbedding(vectors, ids, Math.ceil(ids.length * (ids.length/2)), 1000, 0.1, seed)
-                
-                //po.visualizeEmbedding(categories)
-                const rootsCategorized = categories.neurons.filter(neuron=>neuron.bmus.length>0)
-                    .map(neuron=>(neuron.ref
-                        .map(ref=>{
-                            
-                            const angle=(categories.toHue(neuron.position ) + seed ) % 360;
-                            const theta=angle*Math.PI/180;
-                            return {
-                                
-                                "id":ref,
-                                "theta":angle,
-                                "x":Math.cos(theta),
-                                "y":Math.sin(theta),
-                            }
-                        })
-                    ))
-                    .flat()
-                
-                    
-                polarRepulsion(rootsCategorized,delta,1).forEach(pNode=>(
-                    poset.features[pNode.id]["pX"] = pNode.x,
-                    poset.features[pNode.id]["pY"] = pNode.y,
-                    poset.features[pNode.id]["pTheta"] = pNode.theta,
-                    poset.features[pNode.id]["pAlpha"] = Math.sqrt( Math.pow(pNode.x,2)+Math.pow(pNode.y,2) ) 
-                )) 
-                
-            }
-            else{
-                
-                const parents = poset.layers.slice(i+1).flat()
-                    .map(node=>(
-                        {
-                            id:node,
-                            x:poset.features[node].pX,
-                            y:poset.features[node].pY,
-                            theta:poset.features[node].pTheta,
-                        }
-                    ))
-                
-                //assign descendants to parents
-                parents.forEach((p,n)=>parents[n].descendants=poset.getLower(p.id))
-                
-                const ancestorsPerPoint = {}
-                const points = layer.map(node=>{
-                    //subset ancestor between parents 
-                    const ancestors = parents.filter(p=>p.descendants.includes(node))
-                    const id = node
-                    const x = (ancestors.map(e=>e.x).reduce((a,e)=>a+e)/ancestors.length)
-                    const y = (ancestors.map(e=>e.y).reduce((a,e)=>a+e)/ancestors.length)
-                    
-                    
-                    const alpha = ancestors
-                        .map(a=>poset.features[a.id].pAlpha)
-                        .reduce((a,b)=>a+b)
-                        /ancestors.length
-                    
-                    ancestorsPerPoint[id] = ancestors.map(a=>a.id)
-                    
-                    
-                    const theta = Math.atan2(y,x) * (180 / Math.PI)
-                    
-                    return { id,x,y,theta,alpha }
+                    const angle=(categories.toHue(neuron.position ) + seed ) % 360;
+                    const theta=angle*Math.PI/180;
+                    return {
+                        
+                        "id":ref,
+                        "theta":angle,
+                        "x":Math.cos(theta),
+                        "y":Math.sin(theta),
+                    }
                 })
-                
-                const inputPoints = JSON.parse(JSON.stringify(points))
-                polarRepulsion(inputPoints,delta,inputPoints[0].alpha).forEach((pNode,n)=>{
+            ))
+            .flat()
+        
+            
+        po.polarRepulsion(rootsCategorized,delta,1).forEach(pNode=>(
+            poset.features[pNode.id]["pX"] = pNode.x,
+            poset.features[pNode.id]["pY"] = pNode.y,
+            poset.features[pNode.id]["pTheta"] =adjustTheta(pNode.theta), 
+            poset.features[pNode.id]["pAlpha"] =adjustAlpha(Math.sqrt( Math.pow(pNode.x,2)+Math.pow(pNode.y,2) ) ) 
+        )) 
+
+        poset
+        .propagate(mcl, (l,n,up)=>{
+
+            
+            const startingPositions = poset
+                .getBound(l,up)
+                .map((bound,n)=>{
+                    const node = l[n]
+                    //if(bound.length>0){
+                        const previous = bound.length>0 ? poset.getBound(node,up) : poset.getBound(node,!up)
+                        // console.log(bound.length>0,node,previous)
+                        const prevPositions = previous.map(node=>(
+                            {
+                                id:node,
+                                x:poset.features[node].pX||0,
+                                y:poset.features[node].pY||0,
+                                theta:poset.features[node].pTheta,
+                            }
+                        ))
+                    
+                    // const boundPositions = bound
+                    
+
+                     
+                    
+
+                    
+                        const x = (prevPositions.map(e=>e.x).reduce((a,e)=>a+e)/prevPositions.length)
+                        const y = (prevPositions.map(e=>e.y).reduce((a,e)=>a+e)/prevPositions.length)
+                        
+                        const alpha = prevPositions
+                            .map(a=>poset.features[a.id].pAlpha)
+                            .reduce((a,b)=>a+b)
+                            /prevPositions.length
+                        const theta = Math.atan2(y,x) * (180 / Math.PI)
+                        const id = node
+                        return { id,x,y,theta,alpha }
+                    
+                // }else{
+                //         console.log(poset.getBound(node,!up))
+                //         return { id:node,x:0,y:0,theta:0,alpha:0 }
+
+                //     }
+
+                    })
+                po.polarRepulsion(startingPositions,delta,startingPositions[0].alpha).forEach((pNode,n)=>{
                     
                     poset.features[pNode.id]["pX"] = pNode.x;
                     poset.features[pNode.id]["pY"] = pNode.y;
-                    poset.features[pNode.id]["pTheta"] = pNode.theta;
-                    poset.features[pNode.id]["pAlpha"] = Math.sqrt( Math.pow(pNode.x,2)+Math.pow(pNode.y,2) ); 
-                    const bp = false
-                    if(bp){
-                        function sumAnglesDegrees(angle1, angle2) {
-                        const sum = (angle1 + angle2) % 360;
-                        return sum < 0 ? sum + 360 : sum;
-                        }
-                        
-                        ancestorsPerPoint[pNode.id].forEach(a=>{
-                            poset.features[a].pTheta = ( pNode.theta + ((poset.features[a].pTheta-pNode.theta)/100)); 
-                        })
-                    }
+                    poset.features[pNode.id]["pTheta"] = adjustTheta (pNode.theta);
+                    poset.features[pNode.id]["pAlpha"] = adjustAlpha (Math.sqrt( Math.pow(pNode.x,2)+Math.pow(pNode.y,2) )); 
+                    
                 }) 
-            }
-        }
-        poset.coloringLogic = coloringLogic
-        function color(delta=1,lThreshold=40,hThreshold=80,flip=false,seed=12){
+
             
+        })
+
+
+    }
+
+    
+    poset.coloringLogic = coloringLogic
+
+    function color(delta=10,lThreshold=40,hThreshold=80,flip=false,seed=100){
+            
+            poset.newFill = (pTheta,pAlpha,l)=> `hsl(${pTheta},${pAlpha*100}%,${l}%)` 
+            poset.toOklab = (fill)=> `oklab(from ${fill} l a b)` 
+            
+            
+            
+            poset.updateFill = (node)=> {
+                const {pTheta,pAlpha,pL} = poset.features[node]
+                poset.featureOf(node,"fill", poset.newFill(pTheta,pAlpha,pL))
+            }
+
             poset.setDepth()
             
             const {coloringLogic} = poset
             
-            poset.climber(coloringLogic,[delta,seed])
+            coloringLogic(delta,seed)
 
             poset.feature("fill",(node)=>{
                 const d = poset.features[node]
@@ -2184,12 +2575,19 @@ const po = {//edges need to be unique
                 
                 
                 //TODO
+                
                 //const fill = d3?.s?null:`hsl(${d.pTheta},${d.pAlpha*100}%,${l}%)` 
-                const fill = `hsl(${d.pTheta},${d.pAlpha*100}%,${l}%)` 
+                const fill = poset.newFill(d.pTheta,d.pAlpha,l)
+                //`hsl(${d.pTheta},${d.pAlpha*100}%,${l}%)` 
                 return fill
             })
             return this
         } 
+       
+
+
+        
+        
         poset.color = color
 
         return poset;

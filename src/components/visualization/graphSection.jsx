@@ -839,10 +839,11 @@ function GraphSection (props) {
                             .style('padding','0px 3px 0px 5px')
                             .style('margin',0)
                             .style('font-weight', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) ? 500 : 400)
-                        label.append('div')
-                            .classed('add-all checkBox',true)
-                            .style('border', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) ? '1px solid #36125d' : '1px solid #cccccc')
-                            .style('background-color', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) ? '#36125d' : 'transparent')
+                        const checkBox = label.append('div')
+                            .classed('source-check-box checkMarkBox marginRight',true)
+                            .style('width','12px')
+                            .style('height','12px')
+                            .style('border', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) ? '1px solid #808080' : '1px solid #dadada')
                             .on('click',(e,d) => {
                                 let sources = graphFilter.source
                                 const ids = d.codes.map(c => c.id)
@@ -859,11 +860,10 @@ function GraphSection (props) {
                                     source: sources
                                 })); 
                             })
-                        // checkBox.append('i')
-                        //     .classed('add-all-check fa-solid fa-check fa-2xs',true)
-                        //     .style('color','white')
-                        //     .style("pointer-events",'none')
-                        //     .style('display', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) ? 'block' : 'none')
+                        checkBox.append('i')
+                            .classed('source-check-mark fa-solid fa-check',true)
+                            .style('font-size','8px')
+                            .style('display', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) ? 'block' : 'none')
                         category.selectAll(".source-geometry").data(d => d.codes, d => d.key)
                             .join(enter => {
                                 enter.append('div')
@@ -929,9 +929,8 @@ function GraphSection (props) {
                     },update => {
                         update.selectAll('.category-p')
                             .style('font-weight', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) ? 500 : 400)
-                        update.selectAll('.add-all')
-                            .style('border', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) ? '1px solid #36125d' : '1px solid #cccccc')
-                            .style('background-color', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) ? '#36125d' : 'transparent')
+                        update.selectAll('.source-check-box')
+                            .style('border', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) ? '1px solid #808080' : '1px solid #dadada')
                             .on('click',(e,d) => {
                                 let sources = graphFilter.source
                                 const ids = d.codes.map(c => c.id)
@@ -948,8 +947,8 @@ function GraphSection (props) {
                                     source: sources
                                 })); 
                             })
-                        // update.selectAll('.add-all-check')
-                        //     .style('display', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) ? 'block' : 'none')
+                        update.selectAll('.source-check-mark')
+                            .style('display', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) ? 'block' : 'none')
                         update.selectAll(".source-geometry").data(d => d.codes, d => d.key)
                             .join(enter => {
                                 enter.append('div')
@@ -1220,15 +1219,15 @@ function GraphSection (props) {
                 <div className = "selectionsContainer removeLeftShadow">
                     <div className = 'filters' id = "graph-filters">
                         <div className = "filterContainerVert" id = "gender-container">
-                            <div className = 'flex' style = {{marginBottom:2}}>
-                                <p className = 'filterLabel' style = {{fontWeight: graphFilter.gender !== -1 ? 500 : 400,opacity: graphFilter.gender !== -1 ? 1 : 0.7}}>Sex</p>
-                                <FontAwesomeIcon style = {{display: graphFilter.gender !== -1 ? 'block' : 'none'}} className = "resetFilter fa-solid icon" id = "reset-gender" icon={faX} 
-                                    onClick = {() => {
-                                        setGraphFilter(prev => ({
-                                            ...prev,
-                                            gender: -1
-                                    }));}}
-                                />    
+                            <div className = {`btn flex ${graphFilter.gender !== -1 ? "greyBtn" : ""}`} onMouseEnter = {()=>d3.select('#reset-gender').style('opacity',1)} onMouseLeave = {()=>d3.select('#reset-gender').style('opacity',0.3)} style = {{padding: '3px 5px 3px 5px',borderRadius: '4px',marginBottom:4}} 
+                                onClick = {() => {
+                                    setGraphFilter(prev => ({
+                                        ...prev,
+                                        gender: -1
+                                }));}}
+                            >
+                                <p className = 'filterLabel' style = {{fontWeight: graphFilter.gender !== -1 ? 500 : 400,opacity: graphFilter.gender !== -1 ? 1 : 0.7}}>{graphFilter.gender !== -1 ? 'Clear Sex' : 'Sex'}</p>
+                                <FontAwesomeIcon style = {{display: graphFilter.gender !== -1 ? 'block' : 'none'}} className = "resetFilter fa-solid icon" id = "reset-gender" icon={faX} />    
                             </div>
                             <div className = "filterFlex">
                                 <div className = "filter-viz" id = "gender-viz"><svg id = "gender-svg"></svg></div>
@@ -1237,16 +1236,15 @@ function GraphSection (props) {
                         </div>
 
                         <div className = "filterContainerVert" id = "age-container">
-                            <div className = 'flex' style = {{marginBottom:2}}>
-                                <p className = 'filterLabel' style = {{fontWeight: graphFilter.age.length > 1 ? 500 : 400,opacity:graphFilter.age.length > 1 ? 1 : 0.7}}>Age</p>
-                                <FontAwesomeIcon style = {{display: graphFilter.age.length > 1 ? 'block' : 'none'}} className = "resetFilter fa-solid icon" id = "reset-age" icon={faX} 
-                                    onClick = {() => {
-                                        setGraphFilter(prev => ({
-                                            ...prev,
-                                            age: [-1]
-                                        }));
-                                    }}
-                                />    
+                            <div className = {`btn flex ${graphFilter.age.length > 1 ? "greyBtn" : ""}`} onMouseEnter = {()=>d3.select('#reset-age').style('opacity',1)} onMouseLeave = {()=>d3.select('#reset-age').style('opacity',0.3)} style = {{padding: '3px 5px 3px 5px',borderRadius: '4px',marginBottom:4}} 
+                                onClick = {() => {
+                                    setGraphFilter(prev => ({
+                                        ...prev,
+                                        age: [-1]
+                                }));}}
+                            >
+                                <p className = 'filterLabel' style = {{fontWeight: graphFilter.age.length > 1 ? 500 : 400,opacity:graphFilter.age.length > 1 ? 1 : 0.7}}>{graphFilter.age.length > 1 ? 'Clear Age' : 'Age'}</p>
+                                <FontAwesomeIcon style = {{display: graphFilter.age.length > 1 ? 'block' : 'none'}} className = "resetFilter fa-solid icon" id = "reset-age" icon={faX} />    
                             </div>
                             <div className = "filterFlex btn" id = "age-filter" onMouseDown = {(e) => ageBrush(e,'down')} onMouseUp = {(e) => ageBrush(e,'up')} onMouseMove = {(e) => ageBrush(e,'move')}>
                                 <div className = "filter-viz" id = "age-viz"></div>
@@ -1255,16 +1253,15 @@ function GraphSection (props) {
                         </div> 
 
                         <div className = "filterContainerVert" id = "source-container" style = {{borderRight:'none'}}>
-                            <div className = 'flex' style = {{marginBottom:2}}>
-                                <p className = 'filterLabel' style = {{fontWeight: !graphFilter.source.includes(-1) ? 500 : 400,opacity:!graphFilter.source.includes(-1) ? 1 : 0.7}}>Visit Type</p>
-                                <FontAwesomeIcon style = {{display: !graphFilter.source.includes(-1) ? 'block' : 'none'}} className = "resetFilter fa-solid icon" id = "reset-source" icon={faX} 
-                                    onClick = {() => {
-                                        setGraphFilter(prev => ({
-                                            ...prev,
-                                            source: [-1]
-                                        }));
-                                    }}
-                                />    
+                            <div className = {`btn flex ${!graphFilter.source.includes(-1) ? "greyBtn" : ""}`} onMouseEnter = {()=>d3.select('#reset-source').style('opacity',1)} onMouseLeave = {()=>d3.select('#reset-source').style('opacity',0.3)} style = {{padding: '3px 5px 3px 5px',borderRadius: '4px',marginBottom:4}} 
+                                onClick = {() => {
+                                    setGraphFilter(prev => ({
+                                        ...prev,
+                                        source: [-1]
+                                }));}}
+                            >
+                                <p className = 'filterLabel' style = {{fontWeight: !graphFilter.source.includes(-1) ? 500 : 400,opacity:!graphFilter.source.includes(-1) ? 1 : 0.7}}>{!graphFilter.source.includes(-1) ? 'Clear Visit Type' : 'Visit Type'}</p>
+                                <FontAwesomeIcon style = {{display: !graphFilter.source.includes(-1) ? 'block' : 'none'}} className = "resetFilter fa-solid icon" id = "reset-source" icon={faX} />    
                             </div>
                             <div className = "filterFlex" style = {{alignItems:'flex-start'}}>
                                 <div className = "filter-viz filterFlex" id = "source-viz" style = {{alignItems:'flex-start',alignSelf:'flex-end'}}></div>
@@ -1301,7 +1298,7 @@ function GraphSection (props) {
                             <p className = "textBtn" style = {{paddingRight:8}}>Expand filters</p>
                             <FontAwesomeIcon className = "iconLg" icon={faCaretDown} style = {{marginBottom:2}}/>    
                         </div>
-                        <div className = 'flex btn selectedText' id = 'close-btn' style = {{display:'flex',position:'absolute',right:'0.75em',top:60}} 
+                        <div className = 'flex btn' id = 'close-btn' style = {{display:'flex',position:'absolute',right:'0.75em',top:60}} 
                             onClick = {() => {
                                 d3.selectAll('.filter-viz').style('display', 'none')
                                 d3.select('#source-collapsed').style('visibility','visible').style('height','auto')
@@ -1309,7 +1306,7 @@ function GraphSection (props) {
                                 d3.select('#close-btn').style('display', 'none')
                                 setOpenFilters(false)
                             }}>
-                            <p style = {{paddingRight:8}}>Collapse filters</p>
+                            <p className = 'textBtn' style = {{paddingRight:8}}>Collapse filters</p>
                             <FontAwesomeIcon className = "iconLg" icon={faCaretUp} style = {{marginTop:2,opacity:1}}/>   
                         </div>
                     </div>     
@@ -1320,7 +1317,10 @@ function GraphSection (props) {
                         
                         <div className = 'selectedText' id = "y-label">Record Counts</div>
                         <div className = 'flex' id = "rootline-container">
-                            <div className = 'selectedText' id = "x-label" style = {{justifySelf:'flex-start'}}>{extent && extent[0]+'-'+extent[1]}</div>
+                            <div className='flex'>
+                                <div className = 'selectedText' id = "x-label" style = {{justifySelf:'flex-start'}}>{extent && extent[0]+'-'+extent[1]}</div> 
+                                <div className = 'greyBtn btn' id = "reset-zoom" style = {{display: zoomed ? 'block' : 'none'}} onClick = {() => resetZoom()}>Reset</div>   
+                            </div>
                             <div className='flex'>
                                 <div className = 'flex btn' style = {{pointerEvents:showRootLine ? 'all' : 'none'}} onMouseEnter={() => {setHovered(['rootline'])}} onMouseLeave={() => {setHovered([])}}>
                                     <img className = 'marginRight' id = "rootline-icon" style = {{opacity:showRootLine ? 1 : 0.3}} src={rootLineIcon} alt="root descendants line icon"/>
@@ -1337,7 +1337,6 @@ function GraphSection (props) {
                             </div>
                                 
                         </div>
-                        <div id = "reset-zoom" style = {{display: zoomed ? 'block' : 'none'}} onClick = {() => resetZoom()}>Reset</div>
                         <svg style = {{display:'block'}} id = "graph">
                             <g className = "brush"></g>
                             <g className = "x-grid"></g>

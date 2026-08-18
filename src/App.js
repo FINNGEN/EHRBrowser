@@ -90,6 +90,7 @@ function App() {
   const [stackData, setStackData] = useState([])
   const [expandedSearch, setExpandedSearch] = useState(true)
   const [showConfirmation, setShowConfirmation] = useState(false)
+  const [searchIndex, setSearchIndex] = useState(null)
   const fetchedRef = useRef(false)
   const [nWidth,setNWidth] = useState(200)
   const [annotations,setAnnotations] = useState([{key:'PURCH',year:1995},{key:'REIM',year:1964},{key:'PRIM_OUT',year:2011},{key:'INPAT',year:1969},{key:'OUTPAT',year:1998},{key:'CANC',year:1953},{key:'DEATH',year:1969},{key:'OPER_IN',year:1969},{key:'OPER_OUT',year:1969},{key:'BIRTH_MOTHER',year:1953}])
@@ -101,7 +102,6 @@ function App() {
   const conceptNames = useMemo(() => selectedConcepts.map(d => d.name).filter((e,n,l) => l.indexOf(e) === n),[selectedConcepts])
   const allCounts = useMemo(() => 
     {
-      console.log('selected',selectedConcepts)
       const counts = selectedConcepts.filter(d => !d.leaf).map(d => d.data.code_counts).flat()
       const descendantCounts = selectedConcepts.filter(d => d.leaf).map(d => ({name:d.name,counts:d.data.descendant_code_counts}))
       const allCounts = [...counts,...descendantCounts.map(d => d.counts).flat()]
@@ -149,24 +149,26 @@ function App() {
   }
 
   const filteredCounts = useMemo(() => {
-    const countsObj = allCounts
-    if (graphFilter.gender !== -1 || graphFilter.age.length > 1 || !graphFilter.source.includes(-1)) {
-      let counts = countsObj.counts
-      if (graphFilter.gender !== -1) counts = counts.filter(e => e.gender_concept_id === graphFilter.gender)
-      if (graphFilter.age.length > 1) counts = counts.filter(e => graphFilter.age.includes(e.age_decile))
-      if (!graphFilter.source.includes(-1)) counts = counts.filter(e => graphFilter.source.includes(getVisitGroupConceptId(e)))
-      let dCounts = []
-      countsObj.descendantCounts.forEach(obj => {
-        let counts = obj.counts
+    if (extent) {
+      const countsObj = allCounts
+      if (graphFilter.gender !== -1 || graphFilter.age.length > 1 || !graphFilter.source.includes(-1)) {
+        let counts = countsObj.counts
         if (graphFilter.gender !== -1) counts = counts.filter(e => e.gender_concept_id === graphFilter.gender)
         if (graphFilter.age.length > 1) counts = counts.filter(e => graphFilter.age.includes(e.age_decile))
         if (!graphFilter.source.includes(-1)) counts = counts.filter(e => graphFilter.source.includes(getVisitGroupConceptId(e)))
-        dCounts.push(counts)
-      })
-      const descendantCounts = countsObj.descendantCounts.map((obj,i) => ({...obj,counts:dCounts[i]}))
-      const allCounts = [...counts,...descendantCounts.map(d => d.counts).flat()]
-      return {counts:counts,descendantCounts:descendantCounts,all:allCounts}
-    } else {return allCounts}
+        let dCounts = []
+        countsObj.descendantCounts.forEach(obj => {
+          let counts = obj.counts
+          if (graphFilter.gender !== -1) counts = counts.filter(e => e.gender_concept_id === graphFilter.gender)
+          if (graphFilter.age.length > 1) counts = counts.filter(e => graphFilter.age.includes(e.age_decile))
+          if (!graphFilter.source.includes(-1)) counts = counts.filter(e => graphFilter.source.includes(getVisitGroupConceptId(e)))
+          dCounts.push(counts)
+        })
+        const descendantCounts = countsObj.descendantCounts.map((obj,i) => ({...obj,counts:dCounts[i]}))
+        const allCounts = [...counts,...descendantCounts.map(d => d.counts).flat()]
+        return {counts:counts,descendantCounts:descendantCounts,all:allCounts}
+      } else {return allCounts}  
+    }
   },[allCounts,graphFilter])
 
   useEffect(() => {
@@ -451,14 +453,14 @@ function App() {
   }
 
   const propagate = (layers,start,f,sorted=false) => {
-    const below = layers.slice(0, start).reverse()
-    const above = layers.slice(start + 1)
+    const above = layers.slice(0, start).reverse()
+    const below = layers.slice(start + 1)
     below.forEach(l => f(l,layers.indexOf(l),'up',sorted))
     above.forEach(l => f(l,layers.indexOf(l),'down',sorted))
   }
 
   const bottomUp = (layers,f,sorted=false) => {
-    for (let i = 1; i <= layers.length-1; i++) {
+    for (let i = layers.length-2; i <= 0; i--) {
         f(layers[i],i,'down',sorted)
     }
   }
@@ -590,11 +592,12 @@ function App() {
     }
 
     else {
-      let L = layers.length - 1
-      bbIds = layers[layers.length-1]
+      let L = 0
+      bbIds = layers[L]
       if (!tree) {
 
         // **** GET BB **** //
+        // L = po.getBarycenter(poset)
         const bb = layers.map((l,n)=>({n:n, l:l, deg:l.length === 0 ? 0 : l.map(node=>poset.featureOf(node,"node_degree")).reduce((acc,el)=>acc+el)})).sort((a,b)=>b.deg-a.deg)[0]
         const midPoint = Math.trunc((layers.length-1)/2)
         L = bb.n > midPoint ? bb.n : midPoint 
@@ -790,8 +793,8 @@ function App() {
     const fullPoset = po.createPoset(matrix,nodes)
 
     // coloring 
-    fullPoset.enrich().setLayers().color(80,25,90)
-    const layers = [...fullPoset.layers].reverse()
+    fullPoset.enrich().setLayers().color()
+    const layers = [...fullPoset.layers]
     const depthScale = d3.scaleLinear(d3.extent(layers.map((l,i)=>i)), [20,70])
     fullPoset.elements.forEach(name => {
       distances[name] = layers.findIndex(i => i.includes(name))
@@ -800,11 +803,9 @@ function App() {
 
     // subspace posets
     const posetArray = []
-    const subspaces = po.findSubspaces(po.dominanceScores(fullPoset,fullPoset.layers.length-1))
-    subspaces.nodes = subspaces.ids.map(ids => [...ids.map(id => fullPoset.getDownset(id)).flat(),...ids].filter((e,n,l) => l.indexOf(e) === n))
-    // set x positions
-    subspaces.nodes.forEach(sbsp => {
-      const edges = fullEdges.filter(e => sbsp.includes(e[0]) && sbsp.includes(e[1]))
+    const subspaces = po.findSubspaces(po.dominanceScores(fullPoset,0))
+    const edgeArray = po.separateSubspaces(subspaces,fullPoset)
+    edgeArray.forEach(edges => {
       const {matrix,nodes} = po.domFromEdges(edges)
       const pos = po.createPoset(matrix,nodes)
       pos.enrich()
@@ -831,10 +832,10 @@ function App() {
       'parents': fullPoset.getUpper(e.child_concept_id.toString()).map(d => parseInt(d)),
       'children': fullPoset.getLower(e.child_concept_id.toString()).map(d => parseInt(d)),
       'connections': [],
-      'total_counts': getCounts(combinedData.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),'node_record_counts'),
+      'total_counts': combinedData.concepts.find(d => d.concept_id === e.child_concept_id).record_counts,
       'person_counts': await getCounts(combinedData.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),'node_hll_person_counts'),
       'descendants': [...getAllDescendants(subsumesData,e.child_concept_id,[]),e.child_concept_id],
-      'data': {code_counts: combinedData.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id), concept: combinedData.concepts.filter(d => d.concept_id === e.child_concept_id)[0]}
+      'data': {code_counts: combinedData.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id), concept: combinedData.concepts.find(d => d.concept_id === e.child_concept_id)}
     })))
 
     // set max distance
@@ -898,9 +899,9 @@ function App() {
     setInclusions(inclusionList)
     nodeData = nodeData.map(e=>({
       ...e,
-      descendant_counts: d3.sum(nodeData.filter(n => e.descendants.includes(n.name)).map(n => n.total_counts)),
-      descendant_person_counts: d3.sum(nodeData.filter(n => e.descendants.includes(n.name)).map(n => n.person_counts)),
-      leaf:e.descendants.filter(d => d !== e.name).length > 0 && e.leaf ? true : false
+      'descendant_counts': e.data.concept.descendant_record_counts,
+      'descendant_person_counts': d3.sum(nodeData.filter(n => e.descendants.includes(n.name)).map(n => n.person_counts)),
+      'leaf':e.descendants.filter(d => d !== e.name).length > 0 && e.leaf ? true : false
     }))
     const selectedNodes = nodeData
       .filter(d => !d.leaf ? inclusionList.includes(d.name) : d)
@@ -912,7 +913,6 @@ function App() {
         data: {...d.data}
       }))
     selectedNodes.sort((a,b) => d3.ascending(a.distance, b.distance))
-    setSelectedConcepts(selectedNodes)
 
     // MAPPINGS
     nodeData = await Promise.all(
@@ -926,7 +926,7 @@ function App() {
               'distance': node.distance,
               'source': node,
               'color': generateColor(e.child_concept_id),
-              'total_counts': getCounts(combinedData.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),'node_record_counts'),
+              'total_counts': combinedData.concepts.find(c => c.concept_id === e.child_concept_id).record_counts,
               'person_counts': await getCounts(combinedData.stratified_code_counts.filter(d => d.concept_id === e.child_concept_id),'node_hll_person_counts'),
               'descendant_person_counts': 0,
               'descendant_counts': combinedData.concepts.find(c => c.concept_id === e.child_concept_id).descendant_record_counts,
@@ -935,14 +935,18 @@ function App() {
         )
         return {
           ...node,
-          included_descendants: node.descendants.filter(e => inclusionList.includes(e)),
-          mappings: mappings.sort((a, b) => b.total_counts - a.total_counts)
+          'included_descendants': node.descendants.filter(e => inclusionList.includes(e)),
+          'mappings': mappings.sort((a, b) => b.total_counts - a.total_counts)
         }
       })
     )
 
     // add code counts of all descendants and their mappings
-    nodeData = nodeData.map(node => ({...node,descendant_code_counts:combinedData.stratified_code_counts.filter(d => node.descendants.includes(d.concept_id) || nodeData.filter(n => node.descendants.includes(n.name)).map(n => n.mappings).flat().map(m => m.name).includes(d.concept_id))}))
+    nodeData = nodeData.map(node => (
+      {
+        ...node,
+        'descendant_code_counts':combinedData.stratified_code_counts.filter(d => node.descendants.includes(d.concept_id) || nodeData.filter(n => node.descendants.includes(n.name)).map(n => n.mappings).flat().map(m => m.name).includes(d.concept_id))
+      }))
     
     // add mapping colors to colorList
     nodeData.forEach(node => {node.mappings.forEach(map => colors[map.name] = map.color)})
@@ -960,6 +964,7 @@ function App() {
     setExtent(extentData) 
 
     // set states
+    setSelectedConcepts(selectedNodes)
     setEdges(edges)
     setPoset(posetArray)
     setSubspaces(posetArray)
@@ -987,6 +992,37 @@ function App() {
     )
   }
 
+  function buildSearchIndex(concepts, maxPrefixLength = 4) {
+    const nameIndex = new Map()
+    const codeIndex = new Map()
+    const idIndex = new Map()
+
+    function addToIndex(index, value, conceptIndex) {
+      if (!value) return
+      const maxLength = Math.min(value.length, maxPrefixLength)
+      for (let i = 1; i <= maxLength; i++) {
+        const prefix = value.slice(0, i)
+        let matches = index.get(prefix)
+        if (!matches) {
+          matches = []
+          index.set(prefix, matches)
+        }
+        matches.push(conceptIndex)
+      }
+    }
+
+    concepts.forEach((d, index) => {
+      addToIndex(nameIndex, d._name, index)
+      addToIndex(codeIndex, d._code, index)
+      addToIndex(idIndex, d._id, index)
+    })
+    return {
+      name: nameIndex,
+      code: codeIndex,
+      id: idIndex
+    }
+  }
+
   // on page load
   useEffect(()=>{
     console.log('start app')
@@ -1006,9 +1042,23 @@ function App() {
     fetch(`${API_BASE_URL}/getListOfConcepts`)
       .then(res=> res.json())
       .then(data=>{
-        const vocabList = data.map(d => d.vocabulary_id).filter((e,n,l) => l.indexOf(e) === n).filter(d => d !== undefined)
-        setConceptList(data)
-        setFilteredList(data)
+        const vocabList = [
+          ...new Set(
+            data
+              .map(d => d.vocabulary_id)
+              .filter(d => d !== undefined)
+          )
+        ]
+        const indexedData = data.map((d, index) => ({
+          ...d,
+          _index: index,
+          _name: d.concept_name.toLowerCase(),
+          _id: String(d.concept_id),
+          _code: String(d.concept_code)
+        }))
+        const index = buildSearchIndex(indexedData)
+        setConceptList(indexedData)
+        setSearchIndex(index)
         setAllVocabularies(vocabList)
       })
   }, [])
@@ -1041,6 +1091,7 @@ function App() {
         )
       )
       .then(data => {
+        console.log('data received',data)
         setDataArray(data)
       })
       .catch(err => {
@@ -1118,20 +1169,16 @@ function App() {
         color = {color}
         root = {root}
         getCounts = {getCounts}
-        // setRoot = {setRoot}
-        // reset = {reset}
         conceptList = {conceptList}
-        filteredList = {filteredList}
-        setFilteredList = {setFilteredList}
+        // filteredList = {filteredList}
+        searchIndex = {searchIndex}
+        // setFilteredList = {setFilteredList}
         listIndexes = {listIndexes}
         apiInfo = {apiInfo}
-        // searchIsLoaded = {searchIsLoaded}
         version = {version}
         allVocabularies = {allVocabularies}
         searchFilter = {searchFilter}
         setSearchFilter = {setSearchFilter}
-        // isConceptSet = {isConceptSet}
-        // setIsConceptSet = {setIsConceptSet}
         refresh = {refresh}
         setRefresh = {setRefresh}
         setExpression = {setExpression}
@@ -1151,6 +1198,7 @@ function App() {
       {(conceptList.length > 0 && !root) && <div className = "loading"><img style = {{width:60,opacity: 0.2}} src={finngen} alt="Finngen logo"/></div>}
       {(!conceptList || loading || initialPrune) && <div className = "loading" style={{ fontSize: '20px' }}>
         <div id = "loading-animation" class="lds-grid" style = {{visibility: 'visible'}}><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+        <p id = "loading-text">{!conceptList ? 'Loading search' : 'Loading visualization'}</p>
       </div>}
       <div style = {{display: 'none',fontSize:16}} id = "error-message">Concept not found</div>
       <div id = "content" style={{ visibility: loading ? 'hidden' : 'visible'}}>
@@ -1159,10 +1207,8 @@ function App() {
           <Route path="/:urlCode" element={
             <Visualization
               color = {color}
-              // setRoot = {setRoot}
               generateColor = {generateColor}
               getCounts = {getCounts}
-              // getValidity = {getValidity}
               selectedConcepts = {selectedConcepts}
               setSelectedConcepts = {setSelectedConcepts}
               rootConcepts = {rootConcepts} 
@@ -1199,7 +1245,6 @@ function App() {
               genderData = {genderData}
               sourceData = {sourceData}
               maxGender = {maxGender}
-              // getConceptInfo = {getConceptInfo}
               setLoading = {setLoading}
               poset = {poset}
               setPoset = {setPoset}
@@ -1226,13 +1271,10 @@ function App() {
               excludeList = {excludeList}
               setExcludeList = {setExcludeList}
               annotations = {annotations}
-              // centers = {centers}
-              // setCenters = {setCenters}
               inclusions = {inclusions}
               setInclusions = {setInclusions}
               getAllDescendants = {getAllDescendants}
               linearLayout = {linearLayout}
-              // linearLayoutTree = {linearLayoutTree}
               getInclusions = {getInclusions}
               edges = {edges}
               setEdges = {setEdges}

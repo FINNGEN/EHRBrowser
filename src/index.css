@@ -109,6 +109,15 @@ h4 {
   display: flex;
   justify-content: center;
   align-items: center;
+  flex-direction: column;
+  /* z-index: 5000; */
+}
+#loading-text {
+  font-size: 16px;
+  color: #6a23d6;
+  text-align: center;
+  margin-top: 20px;
+  margin-left: 7px;
 }
 .conceptName {
   font-weight: 500;
@@ -160,7 +169,7 @@ h4 {
   cursor: pointer;
 }
 .greyBtn {
-  border: 1px solid #e0e0e0;
+  border: 1px solid #dadada;
   background-color: transparent;
   font-weight: 400;
   color: #4c4c4c;
@@ -172,7 +181,7 @@ h4 {
   box-shadow: none;
 }
 .greyBtn:hover {
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 8px rgba(0, 0, 0, 0.06);
   font-weight: 500;
   color: #36126d;
 }
@@ -313,8 +322,8 @@ h4 {
 }
 .resetFilter {
   margin-left: 4px;
-  opacity: 1 !important; 
-  font-size: 8px !important;
+  /* opacity: 1 !important;  */
+  font-size: 7px !important;
 }
 .filterContainer {
   height: calc(100% - 14px);
@@ -558,7 +567,7 @@ h4 {
 }
 #search-container {
   position: absolute;
-  left: 106px;
+  left: 110px;
   top: 8px;
   display: flex;
   width: 700px;
@@ -579,21 +588,24 @@ h4 {
   font-family: "Inter", sans-serif;
   background-color: #f0f0f0;
   padding: 10px;
-  padding-left: 40px;
+  padding-left: 45px;
   border: none;
   resize: none;
   max-height: 330px;
-  color: #4c4c4c50;
+  color: #4c4c4c;
   border-radius: 7px;
+}
+#searchConcept::placeholder {
+    color: #4c4c4c50;
 }
 #searchBtn {
   position: absolute;
   left: 12px;
-  color: #b2b2b2;
-  font-size: 18px;
+  color: #949494;
+  font-size: 17px;
   margin-top:10px;
-  transition: 0.5s opacity;
-  opacity: 0.7;
+  transition: 0.2s opacity;
+  opacity: 0.5;
 }
 #searchBtn:hover {
   opacity: 1 !important;
@@ -693,7 +705,7 @@ textarea:focus {
   display: flex;
   align-items: center;
   justify-content: space-around;
-  width: 500px;
+  width: 450px;
   transition: 0.5s all;
 }
 #search-info {
@@ -1600,22 +1612,7 @@ input:checked + .rootline-slider::before {
   cursor: pointer;  
 }
 #reset-zoom {
-  display: none;
-  position: absolute;
-  text-align: end;
-  right: 102px;
-  top: -10px;
-  padding: 3px 6px 3px 6px;
-  border: 1px solid var(--textlightest);
-  background-color: transparent;
-  color: var(--text);
-  font-weight: 400;
-  cursor: pointer;
-}
-#reset-zoom:hover {
-  background-color: var(--text);
-  color: white;
-  font-weight: 700;
+  margin-left: 1em;
 }
 .lds-grid {
   /* change color here */

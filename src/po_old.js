@@ -1,8 +1,22 @@
+
+
+
+/**
+ * @namespace po
+ * @description
+ * Lightweight partial order and embedding utility library for working with posets.
+ * Provides helpers to build and analyze dominance matrices, derive cover relations,
+ * compute upsets and downsets, manage layered poset structures, apply polar repulsion
+ * layouts, and generate circular embeddings for visualization and classification.
+ * Po is designed to offer both ready-made chart helpers and D3-like compositional APIs,
+ * enabling quick visualization workflows as well as custom chart composition.
+**/
 //TODO closure (poset operations in general) 
     //* close edges down with phi (and pass it as infima)
     //* close edges up with higher node (and pass it as suprema)
 
 //TODO check if PO
+//TODO remove d3 dependency from radial scale
 import * as d3 from "d3";
 
 const po = {//edges need to be unique
@@ -57,6 +71,17 @@ const po = {//edges need to be unique
         
         return (value)=> value * ratio
     },
+    validateRelations: (profiles,relations) => {
+        const related = relations.flat().filter((e,n,l)=>l.indexOf(e) === n)
+        const rel= [...relations.map(r=>[...r])]
+        
+        if(profiles.length !== related.length){ 
+            profiles
+                .filter(p=>!related.includes(p))
+                .forEach((p,n)=>rel.push(["Θ"+p,p]))
+        }
+        return rel 
+    } ,
     dotProd: (a, b) => a.map((x, i) => x * b[i]).reduce((acc, el) => acc + el),
     findSubspaces : function(profiles) {
                     const labels = profiles.map(e=>e[0])
@@ -98,6 +123,24 @@ const po = {//edges need to be unique
         return rootIndexes.map((ri, n) => [
             poset.elements[ri],
             poset.elements.map(e=>poset.getUpset(e).includes(poset.elements[ri])?1:0)
+        ])
+    },
+    coneSize : (poset,layer)=>{ 
+        const l = poset.setLayers().layers[layer]
+        const rootIndexes = l.map(node => poset.elements.indexOf(node))
+
+        return rootIndexes.map((ri, n) => [
+            poset.elements[ri],
+            poset.elements.map(e=>poset.getUpset(e).includes(poset.elements[ri]) || poset.getDownset(e).includes(poset.elements[ri])?1:0)
+        ])
+    },
+    boundScores : (poset,layer)=>{ 
+        const l = poset.setLayers().layers[layer]
+        const rootIndexes = l.map(node => poset.elements.indexOf(node))
+
+        return rootIndexes.map((ri, n) => [
+            poset.elements[ri],
+            poset.elements.map(e=>poset.getUpper(e).includes(poset.elements[ri]) || poset.getLower(e).includes(poset.elements[ri])?1:0)
         ])
     },
     isSubset: (a,b) => po.dotProd(a,b) === a.filter(x=>x===1).length,
@@ -945,20 +988,20 @@ const po = {//edges need to be unique
                 }
                 this.enrich = function(){return this}
                 this.delete = function(feature){this.elements.forEach(profile=>delete this.features[profile][feature])}
-                this.featureOf = function(query,feature,value){
+                this.featureOf = function(node,feature,value){
                     const get = value === undefined
-                    if(Array.isArray(query)){
+                    if(Array.isArray(node)){
                         if(get) {
-                            return query.map(node=>poset.features[node][feature])
+                            return node.map(node=>poset.features[node][feature])
                         }
                         else {
-                            query.map(node=>poset.features[node][feature] = value)
+                            node.map(node=>poset.features[node][feature] = value)
                             return this
                         }
                     }
-                    if(get) return this.features[query][feature]
+                    if(get) return this.features[node][feature]
                     
-                    this.features[query][feature] = value
+                    this.features[node][feature] = value
                     return this
                 }
                 this.feature = function(key, value) {
