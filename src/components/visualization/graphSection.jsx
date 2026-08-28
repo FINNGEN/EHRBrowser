@@ -7,6 +7,7 @@ import { faCaretUp } from '@fortawesome/free-solid-svg-icons'
 import { faCheck } from '@fortawesome/free-solid-svg-icons'
 import { faX } from '@fortawesome/free-solid-svg-icons'
 import rootLineIcon from '../../img/root-line.svg'
+import YearFilter from '../yearFilter'
 import * as d3 from "d3";
 import textures from 'textures';
 
@@ -25,7 +26,7 @@ function GraphSection (props) {
     const openFilters = props.openFilters
     const setOpenFilters = props.setOpenFilters
     const stackData = props.stackData
-    const conceptNames = props.conceptNames
+    const inclusions = props.inclusions
     const generateColor = props.generateColor
     const rootLine = props.rootLine
     // const setRoot = props.setRoot
@@ -50,6 +51,12 @@ function GraphSection (props) {
     const setCountType = props.setCountType
     const moveSlider = props.moveSlider
     const fullTree = props.fullTree
+    const upsetData = props.upsetData
+    const formatThousands = props.formatThousands
+    const rootExtent = props.rootExtent
+    const yearSelection = props.yearSelection
+    const setYearSelection = props.setYearSelection
+    const personFilterData = props.personFilterData
     const graphContainerRef = useRef()
     const margin = 20
     let hoverLabelCircle = false
@@ -86,6 +93,417 @@ function GraphSection (props) {
             .attr("stroke-width", 1.5)
             .attr("fill", "none")
         return `url(#${patternId})`
+    }
+    function drawUpset() {
+
+        d3.select('#sets-layers').selectAll('*').remove()
+        d3.select('#upsets-layer').selectAll('*').remove()
+        d3.select('#types-layer').selectAll('*').remove()
+        const container = d3.select('#upset-container').node()
+
+        const width = container.clientWidth
+        const height = container.clientHeight
+
+        // // 4:3 plot that fills the width
+        // let plotWidth = width
+        // let plotHeight = width * 3 / 4
+
+        // // If that is too tall, scale the entire plot down
+        // if (plotHeight > height) {
+        //     plotHeight = height
+        //     plotWidth = height * 4 / 3
+        // }
+
+        // // Center it
+        // const plotLeft = (width - plotWidth) / 2
+        // const plotTop = (height - plotHeight) / 2
+
+        // // Scale relative to the original width
+        // const plotScale = plotWidth / width
+
+        const sortedData = [...upsetData].sort((a, b) => {
+            const aSize = a.group.split('-').length
+            const bSize = b.group.split('-').length
+
+            // Single concepts first
+            if (aSize === 1 && bSize > 1) return -1
+            if (aSize > 1 && bSize === 1) return 1
+
+            // Everything else sorted by descending count
+            return b.person_counts - a.person_counts
+        }).slice(0, 40)
+
+
+        const upsets = sortedData.map(d => [
+            d.group,
+            d.person_counts
+        ])
+
+        const types = sortedData.map(d =>
+            d.group.split('-')
+        )
+
+        const concepts = types
+            .flat()
+            .filter((e, n, l) => l.indexOf(e) === n)
+
+        const setTotals = concepts.map(concept => ({
+            concept,
+            total: sortedData
+                .filter(d => d.group.split('-').includes(concept))
+                .reduce((sum, d) => sum + d.person_counts, 0)
+        }))
+
+
+        const maxSetTotal = d3.max(
+            setTotals,
+            d => d.total
+        )
+
+        const setWidth = 140
+        const setGap = 25
+        const yAxisGap = 15
+        const labelWidth = d3.max(concepts.map(c => c.length)) * 5 + 15
+
+        const margin = {
+            top: 40,
+            right: 40,
+            bottom: 50,
+            left: setWidth + labelWidth + setGap * 2 + yAxisGap
+        }
+
+        // const matrixRowHeight = 30
+        // const matrixHeight = concepts.length * matrixRowHeight
+        // const barHeight = height - matrixHeight - margin.top - margin.bottom
+
+        // const matrixRowHeight = 30
+        // const matrixHeight = concepts.length * matrixRowHeight
+
+        // const barHeight =
+        //     plotHeight -
+        //     matrixHeight -
+        //     margin.top -
+        //     margin.bottom
+
+        const targetPlotHeight = width * 3 / 4
+
+        const matrixRowHeight = 30
+        const matrixHeight = concepts.length * matrixRowHeight
+
+        const barHeight = Math.max(
+            100,
+            targetPlotHeight -
+                matrixHeight -
+                margin.top -
+                margin.bottom
+        )
+
+        d3.select('#upset-svg')
+            .attr('width', width)
+            .attr('height', height)
+
+        // Drawing bars
+        const setXScale = d3.scaleLinear()
+            .domain([0, maxSetTotal])
+            .range([0, setWidth])
+
+        // Drawing axis
+        const setXAxisScale = d3.scaleLinear()
+            .domain([maxSetTotal, 0])
+            .range([0, setWidth])
+
+        const setXAxis = d3.axisBottom(setXAxisScale)
+            .ticks(4)
+            .tickFormat(d3.format(','))
+
+        const setYScale = d3.scaleBand()
+            .domain(concepts)
+            .range([0, matrixHeight])
+            .padding(0.2)
+
+
+        d3.select('#upsets-layer')
+            .attr(
+                'transform',
+                `translate(${margin.left},${margin.top})`
+            )
+
+        d3.select('#types-layer')
+            .attr(
+                'transform',
+                `translate(${margin.left},${margin.top + barHeight})`
+            )
+
+        d3.select('#sets-layer')
+            .attr(
+                'transform',
+                `translate(
+                    ${margin.left - setWidth - labelWidth - setGap},
+                    ${margin.top + barHeight}
+                )`
+            )
+
+        d3.select('#sets-layer')
+            .selectAll('.set-bar')
+            .data(setTotals, d => d.concept)
+            .join('rect')
+            .classed('set-bar', true)
+            .attr('x', d => setWidth - setXScale(d.total))
+            .attr(
+                'y',
+                d => setYScale(d.concept)
+            )
+            .attr(
+                'width',
+                d => setXScale(d.total)
+            )
+            .attr(
+                'height',
+                setYScale.bandwidth()
+            )
+            .attr('fill', d => colorList[parseInt(d.concept.replace(/\D/g, ""))])
+
+        d3.select('#sets-layer')
+            .selectAll('.set-label')
+            .data(setTotals, d => d.concept)
+            .join('text')
+            .classed('set-label num', true)
+            .attr('x', setWidth + labelWidth)
+            .attr(
+                'y',
+                d => setYScale(d.concept) +
+                    setYScale.bandwidth() / 2
+            )
+            .attr('text-anchor', 'end')
+            .attr('dominant-baseline', 'middle')
+            .text(d => d.concept)
+
+        d3.select('#sets-layer')
+            .selectAll('.set-x-axis')
+            .data([null])
+            .join('g')
+            .classed('set-x-axis num', true)
+            .attr(
+                'transform',
+                `translate(0,${matrixHeight + 5})`
+            )
+            .call(setXAxis)
+
+        /*
+        * X scale
+        */
+        const columnWidth = 30
+        const columnGap = 10
+
+        const totalColumnWidth =
+            upsets.length * columnWidth +
+            (upsets.length - 1) * columnGap
+
+        const xScale = d3.scaleBand()
+            .domain(d3.range(upsets.length))
+            .range([yAxisGap, totalColumnWidth])
+            .padding(0)
+
+
+        /*
+        * Y scale for bars
+        */
+        const maxValue = d3.max(upsets, d => d[1])
+
+        const yScale = d3.scaleLinear()
+            .domain([0, maxValue])
+            .range([barHeight, 0])
+
+        const yAxis = d3.axisLeft(yScale)
+            .ticks(5)
+            .tickFormat(d3.format(','))
+
+
+        /*
+        * Bars
+        */
+
+        d3.select('#upsets-layer')
+            .selectAll('.y-axis')
+            .data([null])
+            .join('g')
+            .classed('y-axis num', true)
+            .call(yAxis)
+
+        d3.select('#upsets-layer')
+            .selectAll('.upset-count')
+            .data(sortedData, d => d.group)
+            .join('text')
+            .classed('upset-count num', true)
+            .attr('x', (d, i) =>
+                xScale(i) + columnWidth / 2
+            )
+            .attr('y', d =>
+                yScale(d.person_counts) - 8
+            )
+            .attr('text-anchor', 'middle')
+            .text(d => abbreviateNumber(d.person_counts))
+            .style('font-size','8px')
+
+        const upsets_g = d3.select('#upsets-layer')
+            .selectAll('.upsets')
+            .data(upsets, d => d[0])
+            .join('g')
+            .classed('upsets', true)
+
+
+       upsets_g.selectAll('rect')
+            .data(d => [d])
+            .join('rect')
+            .attr('x', (d, i, nodes) => {
+                const parent = d3.select(nodes[i].parentNode).datum()
+                return xScale(upsets.indexOf(parent))
+            })
+            .attr('y', d => yScale(d[1]))
+            .attr('width', columnWidth)
+            .attr('height', d => barHeight - yScale(d[1]))
+            .attr('fill', d => !d[0].includes('-') ? colorList[parseInt(d[0].replace(/\D/g, ""))] : '#b2b2b2')
+
+
+
+        const matrixData = sortedData.flatMap(d =>
+            concepts.map(concept => ({
+                group: d.group,
+                concept,
+                active: d.group.split('-').includes(concept)
+            }))
+        )
+
+        d3.select('#types-layer')
+            .selectAll('.matrix-dot')
+            .data(
+                matrixData,
+                d => `${d.group}-${d.concept}`
+            )
+            .join('circle')
+            .classed('matrix-dot', true)
+            .attr(
+                'cx',
+                d => {
+                    const index = sortedData.findIndex(
+                        x => x.group === d.group
+                    )
+
+                    return xScale(index) +
+                        columnWidth / 2
+                }
+            )
+            .attr(
+                'cy',
+                d =>
+                    setYScale(d.concept) +
+                    setYScale.bandwidth() / 2
+            )
+            .attr('r', 6)
+            .attr('fill', d => colorList[parseInt(d.concept.replace(/\D/g, ""))])
+            .attr(
+                'opacity',
+                d => d.active ? 1 : 0.15
+            )
+        
+        const intersectionLines = sortedData
+            .filter(d => d.group.split('-').length > 1)
+            .map(d => {
+                const activeConcepts = d.group.split('-')
+
+                return {
+                    group: d.group,
+                    y1:
+                        setYScale(activeConcepts[0]) +
+                        setYScale.bandwidth() / 2,
+                    y2:
+                        setYScale(activeConcepts[activeConcepts.length - 1]) +
+                        setYScale.bandwidth() / 2
+                }
+            })
+
+        d3.select('#types-layer')
+            .selectAll('.intersection-line')
+            .data(
+                intersectionLines,
+                d => d.group
+            )
+            .join('line')
+            .classed('intersection-line', true)
+            .attr('x1', d => {
+                const i = sortedData.findIndex(
+                    x => x.group === d.group
+                )
+
+                return xScale(i) +
+                    columnWidth / 2
+            })
+            .attr('x2', d => {
+                const i = sortedData.findIndex(
+                    x => x.group === d.group
+                )
+
+                return xScale(i) +
+                    columnWidth / 2
+            })
+            .attr('y1', d => d.y1)
+            .attr('y2', d => d.y2)
+            .attr('stroke', 'black')
+            .attr('stroke-width', 2)
+            .attr('opacity', 0.5)
+
+        const content = d3.select('#upset-content').node()
+        const bbox = content.getBBox()
+
+        const availableWidth = width
+        const availableHeight = height
+
+        // Scale so the entire actual plot fits in the container
+        const scaleX = availableWidth / bbox.width
+        const scaleY = availableHeight / bbox.height
+
+        const contentScale = Math.min(scaleX, scaleY, 1)
+
+        // Actual scaled dimensions
+        const scaledWidth = bbox.width * contentScale
+        const scaledHeight = bbox.height * contentScale
+
+        // Center the entire plot
+        const translateX = (width - scaledWidth) / 2 - bbox.x * contentScale
+        const translateY = (height - scaledHeight) / 2 - bbox.y * contentScale
+
+        d3.select('#upset-content')
+            .attr(
+                'transform',
+                `translate(${translateX},${translateY}) scale(${contentScale})`
+            )
+
+        // const bbox = d3.select('#upset-content')
+        //     .node()
+        //     .getBBox()
+
+        // const contentScale = width / bbox.width
+
+        // d3.select('#upset-content')
+        //     .attr(
+        //         'transform',
+        //         `translate(${(width - bbox.width * contentScale) / 2},${plotTop}) scale(${contentScale})`
+        //     )
+
+        // const bbox = d3.select('#upset-content')
+        //     .node()
+        //     .getBBox()
+
+        // const contentScale = Math.min(
+        //     1,
+        //     width / bbox.width
+        // )
+
+        // d3.select('#upset-content')
+        //     .attr(
+        //         'transform',
+        //         `scale(${contentScale})`
+        //     )
     }
     // draw line chart
     function drawGraph(rollup, scaleX, scaleY) {
@@ -224,7 +642,7 @@ function GraphSection (props) {
             container.exit().remove()
         }
         const stackedData = d3.stack()
-            .keys(conceptNames)
+            .keys(selectedConcepts.map(c => c.name))
             (rollup)  
         updateStack(stackedData)  
         if (showRootLine) updateRootLine()
@@ -312,12 +730,13 @@ function GraphSection (props) {
             let extent = d3.extent(selectedConcepts.map(d => d.data.code_counts).flat().map(d => d.calendar_year))
             if (!extent[0] || !extent[1]) extent = d3.extent(rootLine, d => d[0])
             setExtent(extent)
+            setYearSelection(null)
             d3.select("#zoomUI").remove()
             zooming = false
             setZoomed(false)
         }
     }
-    // get graph
+    // get graph (this doesn't always need to be re-drawn)
     function getGraph(rollup, width, height, ticks) {
         // x and y scales
         let maxRollup = d3.max(rollup, obj => Object.entries(obj).reduce((sum, [key, val]) => key !== 'year' ? sum + val : sum, 0))
@@ -391,8 +810,8 @@ function GraphSection (props) {
             })
             .on("mouseup",(e)=>{
                 if ((x1 && x2) && (Math.round(scaleX.invert(x1)) !== Math.round(scaleX.invert(x2)))) {
-                    if (x1 < x2) {setExtent([Math.round(scaleX.invert(x1)), Math.round(scaleX.invert(x2))])}
-                    else {setExtent([Math.round(scaleX.invert(x2)), Math.round(scaleX.invert(x1))])} 
+                    if (x1 < x2) {setYearSelection([Math.round(scaleX.invert(x1)), Math.round(scaleX.invert(x2))])}
+                    else {setYearSelection([Math.round(scaleX.invert(x2)), Math.round(scaleX.invert(x1))])} 
                     setZoomed(true)   
                 }
                 d3.select("#zoomUI").remove()
@@ -559,7 +978,7 @@ function GraphSection (props) {
 
     // filters viz
     useEffect(() => {
-        if (sourceData) {
+        if (genderData && sourceData && ageData) {
             if (genderData.length > 0 && ageData.length > 0 && sourceData.length > 0) {
                 // gender
                 const genders = [8507,8532]
@@ -1050,37 +1469,54 @@ function GraphSection (props) {
     },[genderData,ageData,sourceData,graphSectionWidth])
 
     // update graph
+    // CALL THIS LESS
     useEffect(() => {
         if (graphContainerRef.current && extent) {
-            d3.select('#graph').append("defs")
+            // calculate size (only for graph section width change?)
             const fullHeight = document.getElementById('graph-section-container').clientHeight 
-            // const headerHeight = document.getElementById('graph-controls').clientHeight
-            const filterHeight = document.getElementById('graph-filters').clientHeight
+            const filterHeight = document.getElementById('graph-filters').clientHeight + document.getElementById('year-filter').clientHeight
             const containerWidth = document.getElementById('graph-section').clientWidth
             if (containerWidth < window.innerWidth*0.4 || graphSectionWidth === '40vw') d3.select('#graph-filters').style('display','none')
             else d3.select('#graph-filters').style('display','flex')
-            document.getElementById("graph-group").style.height = fullHeight - filterHeight + 'px'
-            const containerHeight = document.getElementById('graph-group').clientHeight*0.8
-            const width = containerWidth + (margin * 2)
-            const height = containerHeight + (margin * 2)
-            const ticks1 = ((extent[1]-extent[0])/(Math.round((extent[1]-extent[0])/10)))*Math.round((extent[1]-extent[0])/10)
-            const ticks2 = width < 400 ? Math.round(width/60) : ticks1 < 10 || !ticks1 ? Math.round(extent[1]-extent[0]) : 10
-            const ticks = {one:ticks1,two:ticks2}
-            document.getElementById("graph-container").style.height = containerHeight + 'px'
-            document.getElementById("graph-labels").style.maxHeight = document.getElementById('graph-group').clientHeight*0.15 - margin + 'px'
-            d3.select("#graph")
-                .attr("width", '94%')
-                .attr("height", '100%')
-                .attr("viewBox", `${-margin*3} ${-margin/2} ${width} ${height}`)
-                .attr("preserveAspectRatio", "xMidYMid meet")
-                .append("g")
-                .attr("transform", `translate(${margin}, ${margin})`)
-            d3.select("#clip rect")
-                .attr("width", width)
-                .attr("height", height)
-            if (rootLine) getGraph(stackData, width, height, ticks)  
+            // record counts
+            if (countType === 'record') {
+                d3.select('#graph').append("defs")
+                // set graph size
+                document.getElementById("graph-group").style.height = fullHeight - filterHeight - margin + 'px'
+                const containerHeight = document.getElementById('graph-group').clientHeight*0.8
+                document.getElementById("graph-labels").style.maxHeight = document.getElementById('graph-group').clientHeight*0.15 - margin + 'px'
+                const width = containerWidth + (margin * 2)
+                const height = containerHeight + (margin * 2)
+                document.getElementById("graph-container").style.height = containerHeight + 'px'
+                d3.select("#graph")
+                    .attr("width", '94%')
+                    .attr("height", '100%')
+                    .attr("viewBox", `${-margin*3} ${0} ${width} ${height}`)
+                    .attr("preserveAspectRatio", "xMidYMid meet")
+                    .append("g")
+                    .attr("transform", `translate(${margin}, ${margin})`)
+                d3.select("#clip rect")
+                    .attr("width", width)
+                    .attr("height", height)
+                // graph ticks
+                const ticks1 = ((extent[1]-extent[0])/(Math.round((extent[1]-extent[0])/10)))*Math.round((extent[1]-extent[0])/10)
+                const ticks2 = width < 400 ? Math.round(width/60) : ticks1 < 10 || !ticks1 ? Math.round(extent[1]-extent[0]) : 10
+                const ticks = {one:ticks1,two:ticks2}
+                // draw graph
+                getGraph(stackData, width, height, ticks)     
+            } 
+            else if (countType === 'person' && upsetData) {
+                // person counts
+                document.getElementById("upset-container").style.height = fullHeight - filterHeight - margin + 'px'
+                document.getElementById("upset-container").style.width = containerWidth - (margin*2) + 'px'
+                if (upsetData.length > 0) {
+                    d3.select('#upset-container').style('display','block')
+                    drawUpset()
+                }  
+                else d3.select('#upset-container').style('display','none')
+            }
         }
-    }, [stackData, rootLine, extent, graphSectionWidth, openFilters, showRootLine, conceptNames.length < 50 ? hovered : null])
+    }, [countType,extent,upsetData,stackData,graphSectionWidth,openFilters,showRootLine,selectedConcepts.map(c => c.name).length < 50 ? hovered : null])
 
     // update labels
     useEffect(()=> {
@@ -1128,13 +1564,13 @@ function GraphSection (props) {
                         .classed('label-circle', true)
                         .attr("id", d => "label-circle-" + d[0])
                         .style('background', d => {
-                            if (!d[1][0].data.concept.standard_concept) {
+                            if (!getConceptInfo(d[0]).standard_concept) {
                                 let colorVar = colorList[d[0]]
                                 return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ colorVar + " 0.5px," + colorVar + " 2px)"
                             } else {return "none"}    
                         })
                         .style("background-color", d => {
-                            if (d[1][0].data.concept.standard_concept) {
+                            if (getConceptInfo(d[0]).standard_concept) {
                                 return colorList[d[0]]
                             } else {return "none"}
                         }) 
@@ -1143,18 +1579,18 @@ function GraphSection (props) {
                     text.append('tspan')
                         .classed('label-text selectedText marginRight', true)
                         .attr("id", d => "label-text-" + d[0])
-                        .html(d => d[1][0].data.concept.concept_name)
+                        .html(d => getConceptInfo(d[0]).concept_name)
                     text.append('tspan')
                         .classed('label-code marginRight num',true)
                         .attr("id", d => "label-vocab-" + d[0])
                         .style('font-weight',500)
-                        .html(d => d[1][0].data.concept.concept_code)   
+                        .html(d => getConceptInfo(d[0]).concept_code)   
                     text.append('tspan')
                         .classed('label-vocab', true)
                         .attr("id", d => "label-vocab-" + d[0])
-                        .html(d => d[1][0].data.concept.vocabulary_id)
+                        .html(d => getConceptInfo(d[0]).vocabulary_id)
                 }, update => {
-                    const labels = update
+                    update
                         .style('border', d => rootConcepts.includes(d[0]) ? '1px solid #6a23d6' : 'none')
                         .on('mouseover', (e, d) => {
                             const el = e.currentTarget
@@ -1184,26 +1620,10 @@ function GraphSection (props) {
                             }
                         })
                         .style('opacity', d => hovered.length > 0 && !hovered.includes(d[0]) ? 0.2 : 1)
-                    labels.select('.label-circle')
-                        .style('background', d => {
-                            if (!d[1][0].data.concept.standard_concept) {
-                                let colorVar = colorList[d[0]]
-                                return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ colorVar + " 0.5px," + colorVar + " 2px)"
-                            } else {return "none"}    
-                        })
-                        .style("background-color", d => {
-                            if (d[1][0].data.concept.standard_concept) {
-                                return colorList[d[0]]
-                            } else {return "none"}
-                        }) 
-                    labels.select('.label-text')
-                        .html(d => d[1][0].data.concept.concept_name)
-                    labels.select('.label-vocab')
-                        .html(d => d[1][0].data.concept.vocabulary_id)
                 },exit => exit.remove())    
         }
         updateLabels(groups)
-    },[selectedConcepts,conceptNames.length < 50 ? hovered : null])
+    },[selectedConcepts,selectedConcepts.map(c => c.name).length < 50 ? hovered : null])
 
     return (
         <div id = "graph-section">
@@ -1217,6 +1637,17 @@ function GraphSection (props) {
             </div>
             <div id = "graph-section-container">
                 <div className = "selectionsContainer removeLeftShadow">
+                    <div id = "year-filter">
+                        {rootExtent && (
+                            <YearFilter
+                                minYear={rootExtent[0]}
+                                maxYear={rootExtent[1]}
+                                yearSelection={yearSelection}
+                                setYearSelection={setYearSelection}
+                                width={document.getElementById('graph-section-container').clientWidth}
+                            />
+                        )}    
+                    </div>
                     <div className = 'filters' id = "graph-filters">
                         <div className = "filterContainerVert" id = "gender-container">
                             <div className = {`btn flex ${graphFilter.gender !== -1 ? "greyBtn" : ""}`} onMouseEnter = {()=>d3.select('#reset-gender').style('opacity',1)} onMouseLeave = {()=>d3.select('#reset-gender').style('opacity',0.3)} style = {{padding: '3px 5px 3px 5px',borderRadius: '4px',marginBottom:4}} 
@@ -1287,7 +1718,7 @@ function GraphSection (props) {
                             </div>
                         </div> 
 
-                        <div className = 'flex btn' id = 'open-btn' style = {{display:'none',position:'absolute',right:'0.75em',top:60}} 
+                        <div className = 'flex btn' id = 'open-btn' style = {{display:'none',position:'absolute',right:'0.75em',top:115}} 
                             onClick = {() => {
                                 d3.selectAll('.filter-viz').style('display', 'flex')
                                 d3.select('#source-collapsed').style('visibility','hidden').style("height",0)
@@ -1298,7 +1729,7 @@ function GraphSection (props) {
                             <p className = "textBtn" style = {{paddingRight:8}}>Expand filters</p>
                             <FontAwesomeIcon className = "iconLg" icon={faCaretDown} style = {{marginBottom:2}}/>    
                         </div>
-                        <div className = 'flex btn' id = 'close-btn' style = {{display:'flex',position:'absolute',right:'0.75em',top:60}} 
+                        <div className = 'flex btn' id = 'close-btn' style = {{display:'flex',position:'absolute',right:'0.75em',top:115}} 
                             onClick = {() => {
                                 d3.selectAll('.filter-viz').style('display', 'none')
                                 d3.select('#source-collapsed').style('visibility','visible').style('height','auto')
@@ -1311,10 +1742,9 @@ function GraphSection (props) {
                         </div>
                     </div>     
                 </div>
-                <div id = "graph-group" style = {{position:'relative'}}>
-                    <div id = "graph-subheader"><div className = "margin" id = "graph-labels"></div>  </div> 
+                <div id = "graph-group" style = {{display: 'block',position:'relative'}}>
+                    <div id = "graph-subheader"><div className = "margin" id = "graph-labels"></div></div> 
                     <div ref={graphContainerRef} id = "graph-container" style = {{position:'relative'}}>
-                        
                         <div className = 'selectedText' id = "y-label">Record Counts</div>
                         <div className = 'flex' id = "rootline-container">
                             <div className='flex'>
@@ -1334,10 +1764,9 @@ function GraphSection (props) {
                                     />
                                     <span className="rootline-slider"></span>
                                 </label>
-                            </div>
-                                
+                            </div> 
                         </div>
-                        <svg style = {{display:'block'}} id = "graph">
+                        <svg id = "graph">
                             <g className = "brush"></g>
                             <g className = "x-grid"></g>
                             <g className = "axis-grid"></g>
@@ -1348,8 +1777,18 @@ function GraphSection (props) {
                             <g id = "graph-line"></g>
                             <circle id = "focus"></circle>
                         </svg>
-                    </div>  
-                </div>       
+                    </div> 
+                </div> 
+
+                <div ref={graphContainerRef} id = "upset-container" style = {{display: 'none',position: 'relative'}}>
+                    <svg id = 'upset-svg'>
+                        <g id = 'upset-content'>
+                            <g id = 'sets-layer'></g>
+                            <g id = 'upsets-layer'></g>
+                            <g id = 'types-layer'></g>    
+                        </g>
+                    </svg>
+                </div>      
             </div>  
         </div>    
     )

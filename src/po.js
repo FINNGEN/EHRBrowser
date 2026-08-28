@@ -2415,7 +2415,7 @@ const po = {//edges need to be unique
        
         const mcls = subspaces.subspaces.length > 1 ? 
             po.separateSubspaces (subspaces,poset).map(ssp=>{
-                console.log("entered")
+                // console.log("entered")
             const {matrix,nodes} = po.domFromEdges(ssp)
             const subPoset = po.createPoset(matrix,nodes)
             const mcl = po.getBiggestBound(subPoset)

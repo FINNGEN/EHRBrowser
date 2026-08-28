@@ -18,7 +18,7 @@ function Visualization (props) {
     const color = props.color
     // const setRoot = props.setRoot
     const generateColor = props.generateColor
-    const getCounts = props.getCounts
+    // const getCounts = props.getCounts
     // const getValidity = props.getValidity
     const selectedConcepts = props.selectedConcepts
     const setSelectedConcepts = props.setSelectedConcepts
@@ -28,7 +28,7 @@ function Visualization (props) {
     const extent = props.extent
     const setExtent = props.setExtent
     const stackData = props.stackData
-    const conceptNames = props.conceptNames
+    // const inclusions = props.inclusions
     const view = props.view
     const setView = props.setView
     const mapRoot = props.mapRoot
@@ -37,7 +37,6 @@ function Visualization (props) {
     const links = props.links
     const setNodes = props.setNodes
     const setLinks = props.setLinks
-    const list = props.list
     const rootLine = props.rootLine
     const relationship = props.relationship
     const setRelationship = props.setRelationship
@@ -88,8 +87,8 @@ function Visualization (props) {
     const linearLayout = props.linearLayout
     // const linearLayoutTree = props.linearLayoutTree
     const getInclusions = props.getInclusions
-    const maxDistance = props.maxDistance
-    const setMaxDistance = props.setMaxDistance
+    // const maxDistance = props.maxDistance
+    // const setMaxDistance = props.setMaxDistance
     const subspaces = props.subspaces
     const spaceSubspaces = props.spaceSubspaces
     const sourceData = props.sourceData
@@ -100,7 +99,7 @@ function Visualization (props) {
     const getMidX = props.getMidX
     const showConfirmation = props.showConfirmation
     const setShowConfirmation = props.setShowConfirmation
-    const rootLineData = props.rootLineData
+    const getConceptInfo = props.getConceptInfo
     const setRootLine = props.setRootLine
     const setRootExtent = props.setRootExtent
     const [showRootLine, setShowRootLine] = useState(true)
@@ -111,6 +110,11 @@ function Visualization (props) {
     const setEdges = props.setEdges
     const updateConcepts = props.updateConcepts
     const updateWidth = props.updateWidth
+    const upsetData = props.upsetData
+    const maxPersonLevel = props.maxPersonLevel
+    const yearSelection = props.yearSelection
+    const setYearSelection = props.setYearSelection
+    const personFilterData = props.personFilterData
     const hideTimer = useRef(null)
     const popupTimeout = useRef(null)
 
@@ -152,7 +156,7 @@ function Visualization (props) {
                     showConfirmationPopup(d, 'enter', e)
                 })
             d3.select('#tooltip-eye-closed')
-                .style('display', () => !conceptNames.includes(d.name) && (d.total_counts !== 0 || d.leaf) ? 'inline-block' : 'none')
+                .style('display', () => countType === 'person' && relationship === 'descendants' && fullTree.mappings.map(m => m.name).includes(d.name) ? 'none' : !inclusions.includes(d.name) && (d.record_counts !== 0 || d.leaf) ? 'inline-block' : 'none')
                 .on('mouseover', (e,i) => {
                     const el = e.currentTarget
                     el.__hoverTimeout__ = setTimeout(() => {
@@ -165,11 +169,11 @@ function Visualization (props) {
                 })
                 .on('click', () => {
                     const newInclusions = [...inclusions,d.name]
-                    updateConcepts(newInclusions,nodes,[d],[])
+                    updateConcepts(newInclusions)
                     setVisible(false)
                 })     
             d3.select('#tooltip-eye-opened')
-                .style('display', () => conceptNames.includes(d.name) ? 'inline-block' : 'none')
+                .style('display', () => countType === 'person' && relationship === 'descendanats' && fullTree.mappings.map(m => m.name).includes(d.name) ? 'none' : inclusions.includes(d.name) ? 'inline-block' : 'none')
                 .on('mouseover', (e,i) => {
                     const el = e.currentTarget
                     el.__hoverTimeout__ = setTimeout(() => {
@@ -182,15 +186,16 @@ function Visualization (props) {
                 })
                 .on('click', () => {
                     const newInclusions = inclusions.filter(e => e !== d.name)
-                    updateConcepts(newInclusions,nodes,[],[d])
+                    // updateConcepts(newInclusions,[],[d])
+                    updateConcepts(newInclusions)
                     setVisible(false)
                 }) 
             
             d3.select('#tooltip-counts').style('opacity', () => d.leaf ? 0.2 : 1)
             d3.select('#tooltip-desc-counts').style('opacity', () => d.leaf ? 1 : 0.2)
-            d3.select('#tooltip-counts-num').html(countType === 'record' ? d.total_counts : d.person_counts)
+            d3.select('#tooltip-counts-num').html(countType === 'record' ? d.record_counts : d.person_counts)
             d3.select('#tooltip-counts-label').html(() => countType === 'record' ? ' RC' : ' PC')
-            d3.select('#tooltip-desc-counts-num').html(countType === 'record' ? d.descendant_counts : d.descendant_person_counts)
+            d3.select('#tooltip-desc-counts-num').html(countType === 'record' ? d.descendant_record_counts : d.descendant_person_counts)
             d3.select('#tooltip-desc-counts-label').html(() => countType === 'record' ? ' DRC' : ' DPC')
             
             d3.select("#tooltip-title").html(concept_info.concept_name)
@@ -253,10 +258,6 @@ function Visualization (props) {
         else d3.select('#action-label').transition().style('opacity',0)
     }
 
-    function getConceptInfo(id) {
-        return fullTree.allNodes.find(n => n.name === id).data.concept
-    }
-
     function formatThousands(num) {
         return Number(num).toLocaleString('de-DE')
     }
@@ -275,176 +276,6 @@ function Visualization (props) {
             setVisible(false)
         }, 800)    
     }
-    
-    // filter tree data
-    useEffect(()=>{
-        if (fullTree.nodes) {
-            // filter nodes and links
-            let filteredNodes = fullTree.nodes
-                .filter(d => levelFilter === undefined || d.distance <= levelFilter)
-                .filter(d => classFilter.includes('All') ? d : d.class ? classFilter.includes(d.class) : d)
-            let filteredLinks = fullTree.links
-                .filter(d => filteredNodes.map(d => d.name).includes(d.source.name) && filteredNodes.map(d => d.name).includes(d.target.name))
-            const nodeNames = filteredNodes.map(d => d.name)
-            const stringNames = nodeNames.map(n => n.toString())
-
-            // new posets
-            let positions = {}
-            let newPosetArray = []
-
-            subspaces.forEach(fullPos => {
-                const names = fullPos.elements.filter(e => stringNames.includes(e))
-                let newEdges = fullTree.edges.filter(d => names.includes(d[0]) && names.includes(d[1]))
-                if (newEdges.length > 1) newEdges = newEdges.filter(d => d[0] !== d[1])
-                if (newEdges.length === 0) newEdges = stringNames.map(n => [n,n])
-                const includedInEdges = newEdges.flat().filter((e,n,l) => l.indexOf(e) === n)
-                if (names.length > includedInEdges.length) {
-                    const missingNodes = names.filter(n => !includedInEdges.includes(n))
-                    const missingEdges = missingNodes.map(n => [n,n])
-                    newEdges = [...newEdges,...missingEdges]
-                }
-                const {matrix,nodes} = po.domFromEdges(newEdges)
-                const newPos = po.createPoset(matrix,nodes)
-                newPos.enrich()
-                    .setLayers()
-                    .feature("node_degree",(node)=>fullPos.featureOf(node,'node_degree'))
-                    .print()
-                const nodeWidth = mapRoot.filter(r => newPos.elements.includes(r.toString())).length > 0 ? nWidth*2 : nWidth
-                linearLayout(newPos,newEdges,nodeWidth,fullPos)  
-                newPos.elements.forEach(e => positions[e] = newPos.featureOf(e,'x'))
-                newPosetArray.push(newPos)
-            })
-            spaceSubspaces(newPosetArray,mapRoot.length > 0 ? nWidth*2 : nWidth)
-            newPosetArray.forEach(pos => pos.elements.forEach(e => positions[e] = pos.featureOf(e,'x')))
-
-            // set updates nodes etc
-            const nodeDistances = filteredNodes.map(d => fullTree.nodes.find(n => n.name === d.name).distance).filter((e,n,l) => l.indexOf(e) === n).sort((a,b)=>a-b)
-            // *** maxD should be by tree not for all nodes ***
-            const maxD = nodeDistances[nodeDistances.length-1]
-            setMaxDistance(maxD)
-            filteredNodes = filteredNodes
-                .map(e => ({
-                    ...e,
-                    leaf: (e.distance === maxD && !filteredLinks.map(d => d.source).map(d => d.name).includes(e.name)) && e.levels !== '-1' ? true : false,
-                    parents: fullTree.nodes.find(n => n.name === e.name).parents.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)),
-                    children: fullTree.nodes.find(n => n.name === e.name).children.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)),
-                    descendants: fullTree.nodes.find(n => n.name === e.name).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)),
-                    x: positions[e.name] 
-                }))
-            // inclusions
-            const newInclusions = rootConcepts.map(r => filteredNodes.map(n => n.name).includes(r) ? getInclusions(rootConcepts,fullTree.nodes,r,excludeList,descendantsFilter,filteredNodes.find(n => n.name === r).descendants) : getInclusions(rootConcepts,fullTree.nodes,r,excludeList,descendantsFilter,fullTree.nodes.find(n => n.name === r).descendants.filter(d => classFilter.includes('All') ? d : classFilter.includes(fullTree.nodes.find(n => n.name === d).class)))).flat().filter((e,n,l) => l.indexOf(e) === n)
-                .filter(i => fullTree.nodes.find(n => n.name === i).levels !== '-1' && fullTree.nodes.find(n => n.name === i).levels)
-                .map(i => relationship.includes('mappings') ? fullTree.nodes.find(n => n.name === i).mappings.map(m => m.name) : i).flat()   
-                .filter(i => {
-                    if (relationship.includes('mappings')) {
-                        if (countType === 'record') return fullTree.mappings.find(n => n.name === i).total_counts !== 0
-                        else return fullTree.mappings.find(n => n.name === i).person_counts !== 0
-                    } else {
-                        if (countType === 'record') return fullTree.nodes.find(n => n.name === i).total_counts !== 0
-                        else return fullTree.nodes.find(n => n.name === i).person_counts  !== 0   
-                    }
-                })
-            filteredNodes = filteredNodes
-                .map(e => ({
-                    ...e,
-                    included_descendants: [...e.descendants.filter(d => newInclusions.includes(d)),...e.descendants.map(d => fullTree.nodes.find(n => n.name === d).mappings.map(m => m.name)).flat().filter(d => newInclusions.includes(d))]
-                }))
-                .map(e => ({
-                    ...e,
-                    descendant_counts:d3.sum(fullTree.allNodes.filter(node => e.included_descendants.includes(node.name)).map(node => node.total_counts)),
-                    descendant_person_counts:d3.sum(fullTree.allNodes.filter(node => e.included_descendants.includes(node.name)).map(node => node.person_counts)),
-                    leaf: e.included_descendants.filter(d => d !== e.name && !e.mappings.map(m => m.name).includes(d)).length > 0 && e.leaf ? true : false}
-                ))
-            // filter connections 
-            let filteredConnections = crossConnections
-                .filter(c => !filteredNodes.map(d => d.name).includes(c.child))
-                .filter(c => classFilter.includes('All') ? c : classFilter.includes(fullTree.nodes.find(n => n.name === c.child).class))
-                .map(d => ({
-                    ...d,
-                    parents:d.parents.filter(p => filteredNodes.map(d => d.name).includes(p)).filter(p => filteredNodes.filter(d => d.name === p)[0]?.leaf)
-                }))
-            filteredConnections = filteredConnections.filter(d => d.parents.length > 1)
-            const updatedSelections = filteredNodes
-                .filter(d => !d.leaf ? newInclusions.includes(d.name) : d)
-                .map(d => ({
-                    name: d.name, 
-                    leaf: d.leaf, 
-                    descendants: d.descendants, 
-                    distance: d.distance, 
-                    data: !d.leaf ? d.data : {...d.data,descendant_code_counts:d.descendant_code_counts.filter(c => newInclusions.includes(c.concept_id))}
-                })) 
-            const mapSelections = filteredNodes.map(d => d.mappings).flat()
-                .filter(d => newInclusions.includes(d.name) && !filteredNodes.find(n => n.name === d.source.name).leaf)
-                .map(d => ({
-                    name: d.name, 
-                    leaf: false, 
-                    distance: d.distance, 
-                    data: d.data
-                }))
-            const filteredSelected = [...updatedSelections,...mapSelections]
-            filteredSelected.sort((a,b) => d3.ascending(a.distance, b.distance))
-            setSelectedConcepts(filteredSelected)
-            setInclusions(newInclusions)
-            if (relationship.includes('mappings')) setMapRoot(filteredNodes.filter(n => n.mappings.length > 0).map(n => n.name))
-            // update nodes and links
-            filteredNodes = filteredNodes
-                .map(d => ({
-                    ...d,
-                    connections: filteredConnections.filter(c => c.parents.includes(d.name)).map(e => ({...e,source:d.name,x:d.x,mid:getMidX(e.parents,filteredNodes)})),
-                    mappings:d.mappings.map(m => ({...m,source:d}))
-                }))
-            filteredLinks = filteredLinks.map(d => ({
-                ...d,
-                source:filteredNodes[nodeNames.indexOf(d.source.name)],
-                target:filteredNodes[nodeNames.indexOf(d.target.name)]
-            }))
-            // pruned
-            let isPruned = false
-            filteredNodes.filter(d => d.leaf).forEach(d => d.children.length > 0 ? isPruned = true : null)
-            // set states
-            setEdges(edges)
-            setPoset(newPosetArray)
-            setPruned(isPruned)
-            setNodes(filteredNodes)
-            setLinks(filteredLinks)  
-            if (initialPrune) {
-                setTimeout(() => {
-                    setInitialPrune(false)
-                }, 1000)    
-            }
-        }    
-    }, [classFilter,levelFilter])
-
-    // update extent
-    useEffect(()=>{
-        if (rootConcepts && rootExtent) {
-            let newExtent = []
-            let extent = rootExtent
-            let selectedExtent = d3.extent(filteredCounts.all.map(d => d.calendar_year)) 
-            if (!selectedExtent[0] || !selectedExtent[1]) setExtent(extent)
-            else {
-                if (selectedExtent[0] <= extent[0]) newExtent[0] = selectedExtent[0] 
-                else newExtent[0] = extent[0]
-                if (selectedExtent[1] >= extent[1]) newExtent[1] = selectedExtent[1] 
-                else newExtent[1] = extent[1]
-                setExtent(newExtent) 
-            } 
-        }   
-    },[filteredCounts])
-
-    // update root line variable
-    useEffect(()=>{
-        if (rootLineData) {
-            if (countType === 'record') {
-                setRootLine(rootLineData.record.data)
-                setRootExtent(rootLineData.record.extent)
-            }
-            if (countType === 'person') {
-                setRootLine(rootLineData.person.data)
-                setRootExtent(rootLineData.person.extent)    
-            }    
-        }
-    },[countType])
 
     return ( rootConcepts ? 
         <div id = "visualization-container">
@@ -493,13 +324,11 @@ function Visualization (props) {
                 tooltipHover = {tooltipHover}
                 // conceptHover = {conceptHover}
                 updateConcepts = {updateConcepts}
-                conceptNames = {conceptNames}
                 view = {view}
                 setView = {setView}
                 // getValidity = {getValidity}
                 nodes = {nodes}
                 links = {links}
-                list = {list}
                 relationship = {relationship}
                 setRelationship = {setRelationship}
                 levelFilter = {levelFilter}
@@ -536,13 +365,13 @@ function Visualization (props) {
                 inclusions = {inclusions}
                 setInclusions = {setInclusions}
                 getInclusions = {getInclusions}
-                getCounts = {getCounts}
+                // getCounts = {getCounts}
                 setPruned = {setPruned}
                 edges = {edges}
                 linearLayout = {linearLayout}
                 setLoading = {setLoading}
                 getMidX = {getMidX}
-                maxDistance = {maxDistance}
+                // maxDistance = {maxDistance}
                 subspaces = {subspaces}
                 spaceSubspaces = {spaceSubspaces}
                 nWidth = {nWidth}
@@ -556,6 +385,7 @@ function Visualization (props) {
                 countType = {countType}
                 setVisible = {setVisible}
                 showRootLine = {showRootLine}
+                maxPersonLevel = {maxPersonLevel}
             ></SideBar> 
             <GraphSection
                 color = {color}
@@ -568,10 +398,12 @@ function Visualization (props) {
                 // conceptHover = {conceptHover}
                 extent = {extent}
                 setExtent = {setExtent}
+                yearSelection = {yearSelection}
+                setYearSelection = {setYearSelection}
                 openFilters = {openFilters}
                 setOpenFilters = {setOpenFilters}
                 stackData = {stackData}
-                conceptNames = {conceptNames}
+                inclusions = {inclusions}
                 generateColor = {generateColor}
                 rootLine = {rootLine}
                 // setRoot = {setRoot}
@@ -596,6 +428,10 @@ function Visualization (props) {
                 showConfirmationPopup = {showConfirmationPopup}
                 showActionLabel = {showActionLabel}
                 fullTree = {fullTree}
+                upsetData = {upsetData}
+                formatThousands = {formatThousands}
+                rootExtent = {rootExtent}
+                personFilterData = {personFilterData}
             />  
         </div> : null
     )

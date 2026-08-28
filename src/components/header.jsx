@@ -10,7 +10,7 @@ import * as d3 from "d3";
 function Header (props) {
     const color = props.color
     const root = props.root 
-    const getCounts = props.getCounts
+    // const getCounts = props.getCounts
     // const setRoot = props.setRoot
     const inputRef = useRef(null)
     // const reset = props.reset
@@ -42,6 +42,7 @@ function Header (props) {
     const setRelationship = props.setRelationship
     const updateInclusions = props.updateInclusions
     const nodes = props.nodes
+    const upsetData = props.upsetData
     // const listIndexes = props.listIndexes
     const codes = conceptList.map(d => d.concept_id.toString())
     const names = conceptList.map(d => d.concept_name.toLowerCase())
@@ -524,8 +525,8 @@ function Header (props) {
                 <div className = 'toggle' id = "counts-toggle">
                     <div className = 'mainBtn slider' id='slider-counts'>''</div>
 
-                    <div className = 'btn toggle-itm' id = 'record-toggle' onClick={() => {setCountType('record');moveSlider(0,100,'counts');updateInclusions(relationship,'record',true)}} style = {{fontWeight:countType === 'record' ? 500 : 400,color:countType === 'record' ? '#36126d' : '#999999'}}>Record Counts</div>
-                    <div className = 'btn toggle-itm' id = 'person-toggle' onClick={() => {setCountType('person');moveSlider(1,100,'counts');updateInclusions(relationship,'person',true)}} style = {{fontWeight:countType === 'person' ? 500 : 400,color:countType === 'person' ? '#36126d' : '#999999'}}>Person Counts</div>
+                    <div className = 'btn toggle-itm' id = 'record-toggle' onClick={() => {setCountType('record');moveSlider(0,100,'counts');updateInclusions(relationship,'record')}} style = {{fontWeight:countType === 'record' ? 500 : 400,color:countType === 'record' ? '#36126d' : '#999999'}}>Record Counts</div>
+                    <div className = 'btn toggle-itm' id = 'person-toggle' onClick={() => {setCountType('person');moveSlider(1,100,'counts');updateInclusions(relationship,'person')}} style = {{fontWeight:countType === 'person' ? 500 : 400,color:countType === 'person' ? '#36126d' : '#999999'}}>Person Counts</div>
                 </div>
             </div>
 
@@ -555,7 +556,7 @@ function Header (props) {
                 <p><span className = "api-popup-title">vocabulary version:</span>{apiInfo?.vocabulary_version}</p>
             </div>
 
-            <div className="overlay" id = 'feedback-overlay'>
+            <div className="overlayEl" id = 'feedback-overlay'>
                 <div className="popup" id = 'feedback-popup'>
                     <FontAwesomeIcon className = 'fa-lg close-popup' id = 'close-feedback' icon={faX} 
                         onClick={() => {
@@ -590,7 +591,7 @@ function Header (props) {
                 </div>
             </div>
 
-            <div className="overlay" id = 'json-overlay'>
+            <div className="overlayEl" id = 'json-overlay'>
                 <div className="popup" id = 'json-popup' style = {{height:'60%'}}>
                     <FontAwesomeIcon className = 'fa-lg close-popup' id = 'close-json' icon={faX} 
                         onClick={() => {
