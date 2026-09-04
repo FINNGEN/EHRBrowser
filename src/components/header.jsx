@@ -154,46 +154,43 @@ function Header (props) {
         setPrevSearch(rawInput)
     }
 
-    document.addEventListener('click', (e) => {
-        const input = document.getElementById('input-container')
-        const inputs = document.querySelectorAll('.name-container')
-        const clickedInsideInputs = Array.from(inputs).some(el => el.contains(e.target))
-        const filter = document.getElementById('search-filter-container')
-        if ((!input.contains(e.target) && !filter.contains(e.target)) || clickedInsideInputs) {
-            d3.select('#searchConcept').style('border','none')
-            d3.select('#suggestions-container').style('visibility','hidden')  
-            setRefresh(false)
-            setShowFilter(false)
-            setSearchResults([])
-            if (root) setExpandedSearch(false)
-            d3.select('#searchBtn').style('opacity',0.5)
-        }   
-        const jsonPopup = document.getElementById('json-popup')
-        const openJson = document.getElementById('upload-btn')
-        const feedbackPopup = document.getElementById('feedback-popup')
-        const openFeedback = document.getElementById('feedback-btn')
-        if (!jsonPopup.contains(e.target) && !openJson.contains(e.target)) {
-            d3.select('#json-overlay').style('display','none')
-            setJsonInput('')
-        }
-        if (!feedbackPopup.contains(e.target) && !openFeedback.contains(e.target)) {
-            d3.select('#feedback-overlay').style('display','none')
-            document.getElementById('feedback').value = ''
-        }
-    })
+    useEffect(() => {
+        function handleDocumentClick(e) {
+            const input = document.getElementById('input-container')
+            const filter = document.getElementById('search-filter-container')
+            if (input && filter) {
+                const inputs = document.querySelectorAll('.name-container')
+                const clickedInsideInputs = Array.from(inputs).some(el => el.contains(e.target))
+                if ((!input.contains(e.target) && !filter.contains(e.target)) || clickedInsideInputs) {
+                    d3.select('#searchConcept').style('border', 'none')
+                    d3.select('#suggestions-container').style('visibility', 'hidden')
+                    setRefresh(prev => prev ? false : prev)
+                    setShowFilter(prev => prev ? false : prev)
+                    setSearchResults(prev => prev.length > 0 ? [] : prev)
+                    // if (root) setExpandedSearch(prev => prev ? false : prev)
+                    d3.select('#searchBtn').style('opacity', 0.5)
+                }
+            }
 
-    // root label scrolling
-    // const el = document.querySelector('.scroll-container')
-    // let timeout
-    // if (el) {
-    //     el.addEventListener('scroll', () => {
-    //         el.classList.add('scrolling')
-    //         clearTimeout(timeout)
-    //         timeout = setTimeout(() => {
-    //             el.classList.remove('scrolling')
-    //         }, 500)
-    //     })    
-    // }
+            const jsonPopup = document.getElementById('json-popup')
+            const openJson = document.getElementById('upload-btn')
+            if (jsonPopup && openJson && !jsonPopup.contains(e.target) && !openJson.contains(e.target)) {
+                d3.select('#json-overlay').style('display', 'none')
+                setJsonInput(prev => prev !== '' ? '' : prev)
+            }
+
+            const feedbackPopup = document.getElementById('feedback-popup')
+            const openFeedback = document.getElementById('feedback-btn')
+            if (feedbackPopup && openFeedback && !feedbackPopup.contains(e.target) && !openFeedback.contains(e.target)) {
+                d3.select('#feedback-overlay').style('display', 'none')
+                const feedbackEl = document.getElementById('feedback')
+                if (feedbackEl) feedbackEl.value = ''
+            }
+        }
+
+        document.addEventListener('click', handleDocumentClick)
+        return () => document.removeEventListener('click', handleDocumentClick)
+    }, [])
 
     useEffect(() => {
         if (suggestions.length > 0) {
@@ -409,7 +406,7 @@ function Header (props) {
         inputRef.current.value = ''
         d3.select('#searchConcept').style('border','none')
         if (refresh) setExpandedSearch(false)
-        else setExpandedSearch(true)
+        // else setExpandedSearch(true)
     }, [refresh])
 
     useEffect(() => {
@@ -519,14 +516,14 @@ function Header (props) {
                 <div className = 'toggle' id = "relationship-toggle">
                     <div className = 'mainBtn slider' id='slider-relationship'>''</div>
 
-                    <div className = 'btn toggle-itm' id = 'descendants-toggle' onClick={() => {setRelationship('descendants');moveSlider(0,100,'relationship');updateInclusions('descendants',countType,true)}} style = {{fontWeight:relationship === 'descendants' ? 500 : 400,color:relationship === 'descendants' ? '#36126d' : '#999999'}}>Descendants</div>
-                    <div className = 'btn toggle-itm' id = 'mappings-toggle' onClick={() => {setRelationship('mappings');moveSlider(1,100,'relationship');updateInclusions('mappings',countType,true)}} style = {{fontWeight:relationship === 'dappings' ? 500 : 400,color:relationship === 'mappings' ? '#36126d' : '#999999'}}>Mappings</div>
+                    <div className = 'btn toggle-itm' id = 'descendants-toggle' onClick={() => {setRelationship('descendants');moveSlider(0,100,'relationship');updateInclusions('descendants',countType,true)}} style = {{fontWeight:relationship === 'descendants' ? 500 : 400,color:relationship === 'descendants' ? '#36126d' : '#9597a6'}}>Descendants</div>
+                    <div className = 'btn toggle-itm' id = 'mappings-toggle' onClick={() => {setRelationship('mappings');moveSlider(1,100,'relationship');updateInclusions('mappings',countType,true)}} style = {{fontWeight:relationship === 'mappings' ? 500 : 400,color:relationship === 'mappings' ? '#36126d' : '#9597a6'}}>Mappings</div>
                 </div>
                 <div className = 'toggle' id = "counts-toggle">
                     <div className = 'mainBtn slider' id='slider-counts'>''</div>
 
-                    <div className = 'btn toggle-itm' id = 'record-toggle' onClick={() => {setCountType('record');moveSlider(0,100,'counts');updateInclusions(relationship,'record')}} style = {{fontWeight:countType === 'record' ? 500 : 400,color:countType === 'record' ? '#36126d' : '#999999'}}>Record Counts</div>
-                    <div className = 'btn toggle-itm' id = 'person-toggle' onClick={() => {setCountType('person');moveSlider(1,100,'counts');updateInclusions(relationship,'person')}} style = {{fontWeight:countType === 'person' ? 500 : 400,color:countType === 'person' ? '#36126d' : '#999999'}}>Person Counts</div>
+                    <div className = 'btn toggle-itm' id = 'record-toggle' onClick={() => {setCountType('record');moveSlider(0,100,'counts')}} style = {{fontWeight:countType === 'record' ? 500 : 400,color:countType === 'record' ? '#36126d' : '#9597a6'}}>Record Counts</div>
+                    <div className = 'btn toggle-itm' id = 'person-toggle' onClick={() => {setCountType('person');moveSlider(1,100,'counts')}} style = {{fontWeight:countType === 'person' ? 500 : 400,color:countType === 'person' ? '#36126d' : '#9597a6'}}>Person Counts</div>
                 </div>
             </div>
 

@@ -106,6 +106,7 @@ function Visualization (props) {
     const [zoomed, setZoomed] = useState(false)
     const [biDirectional, setBiDirectional] = useState()
     const [graphSectionWidth, setGraphSectionWidth] = useState('60vw')
+    const [upsetZoomedOut, setUpsetZoomedOut] = useState(false)
     const edges = props.edges
     const setEdges = props.setEdges
     const updateConcepts = props.updateConcepts
@@ -115,6 +116,7 @@ function Visualization (props) {
     const yearSelection = props.yearSelection
     const setYearSelection = props.setYearSelection
     const personFilterData = props.personFilterData
+    const allNodesMap = props.allNodesMap
     const hideTimer = useRef(null)
     const popupTimeout = useRef(null)
 
@@ -156,7 +158,7 @@ function Visualization (props) {
                     showConfirmationPopup(d, 'enter', e)
                 })
             d3.select('#tooltip-eye-closed')
-                .style('display', () => countType === 'person' && relationship === 'descendants' && fullTree.mappings.map(m => m.name).includes(d.name) ? 'none' : !inclusions.includes(d.name) && (d.record_counts !== 0 || d.leaf) ? 'inline-block' : 'none')
+                .style('display', () => !inclusions.includes(d.name) && (d.record_counts !== 0 || d.leaf) ? 'inline-block' : 'none')
                 .on('mouseover', (e,i) => {
                     const el = e.currentTarget
                     el.__hoverTimeout__ = setTimeout(() => {
@@ -173,7 +175,7 @@ function Visualization (props) {
                     setVisible(false)
                 })     
             d3.select('#tooltip-eye-opened')
-                .style('display', () => countType === 'person' && relationship === 'descendanats' && fullTree.mappings.map(m => m.name).includes(d.name) ? 'none' : inclusions.includes(d.name) ? 'inline-block' : 'none')
+                .style('display', () => inclusions.includes(d.name) ? 'inline-block' : 'none')
                 .on('mouseover', (e,i) => {
                     const el = e.currentTarget
                     el.__hoverTimeout__ = setTimeout(() => {
@@ -432,7 +434,10 @@ function Visualization (props) {
                 formatThousands = {formatThousands}
                 rootExtent = {rootExtent}
                 personFilterData = {personFilterData}
-            />  
+                allNodesMap = {allNodesMap}
+                upsetZoomedOut = {upsetZoomedOut}
+                setUpsetZoomedOut = {setUpsetZoomedOut}
+            ></GraphSection>
         </div> : null
     )
 }

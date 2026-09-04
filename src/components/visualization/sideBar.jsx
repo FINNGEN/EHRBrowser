@@ -476,7 +476,7 @@
         }
         // tree
         function drawTree() {
-            console.log('nodes',nodes,'links',links,'included',inclusions)
+            // console.log('nodes',nodes,'links',links,'included',inclusions)
             // get extent of total counts
             let sums = []
             nodes.forEach(node => {
@@ -5119,24 +5119,46 @@
             }
         }
         // close filters
-        document.addEventListener('click', (e) => {
-            if (document.getElementById('header-levels')) {
-                const levelContainer = document.getElementById('header-levels')
-                if (!levelContainer.contains(e.target)) {
-                    d3.select('#open-levels').style('display', 'block')
-                    d3.select('#close-levels').style('display', 'none')  
-                    d3.select('#dropdown-levels').style('visibility','hidden') 
+        // document.addEventListener('click', (e) => {
+        //     if (document.getElementById('header-levels')) {
+        //         const levelContainer = document.getElementById('header-levels')
+        //         if (!levelContainer.contains(e.target)) {
+        //             d3.select('#open-levels').style('display', 'block')
+        //             d3.select('#close-levels').style('display', 'none')  
+        //             d3.select('#dropdown-levels').style('visibility','hidden') 
+        //         } 
+        //     }
+        //     if (document.getElementById('header-classes')) {
+        //         const classContainer = document.getElementById('header-classes')
+        //         if (!classContainer.contains(e.target)) {
+        //             d3.select('#open-classes').style('display', 'block')
+        //             d3.select('#close-classes').style('display', 'none') 
+        //             d3.select('#dropdown-classes').style('visibility','hidden')  
+        //         } 
+        //     } 
+        // })
+        useEffect(() => {
+            function handleClickOutside(e) {
+                if (document.getElementById('header-levels')) {
+                    const levelContainer = document.getElementById('header-levels')
+                    if (!levelContainer.contains(e.target)) {
+                        d3.select('#open-levels').style('display', 'block')
+                        d3.select('#close-levels').style('display', 'none')  
+                        d3.select('#dropdown-levels').style('visibility','hidden') 
+                    } 
+                }
+                if (document.getElementById('header-classes')) {
+                    const classContainer = document.getElementById('header-classes')
+                    if (!classContainer.contains(e.target)) {
+                        d3.select('#open-classes').style('display', 'block')
+                        d3.select('#close-classes').style('display', 'none') 
+                        d3.select('#dropdown-classes').style('visibility','hidden')  
+                    } 
                 } 
             }
-            if (document.getElementById('header-classes')) {
-                const classContainer = document.getElementById('header-classes')
-                if (!classContainer.contains(e.target)) {
-                    d3.select('#open-classes').style('display', 'block')
-                    d3.select('#close-classes').style('display', 'none') 
-                    d3.select('#dropdown-classes').style('visibility','hidden')  
-                } 
-            } 
-        })
+            document.addEventListener('click', handleClickOutside)
+            return () => document.removeEventListener('click', handleClickOutside)
+        }, [])
 
         // drag behavior
         useEffect(() => {
@@ -5183,9 +5205,9 @@
                             .style('font-weight', d => maxLevel === d ? 500 : 400)
                             .style('width','100%')
                             .style('text-align','center')
-                            .style('color', d => maxLevel === d  ? '#36126d' : '#b2b2b2')
+                            .style('color', d => maxLevel === d  ? '#36126d' : '#9597a6')
                             .on('mouseover', (e,d) => d3.select('#level-'+d).style('color', '#36126d').style('font-weight',500))
-                            .on('mouseout', (e,d) => d3.select('#level-'+d).style('color', d => maxLevel === d ? '#36126d' : '#b2b2b2').style('font-weight',() => maxLevel === d ? 500 : 400))
+                            .on('mouseout', (e,d) => d3.select('#level-'+d).style('color', d => maxLevel === d ? '#36126d' : '#9597a6').style('font-weight',() => maxLevel === d ? 500 : 400))
                             .on('click',(e,d) => {
                                 if (levelFilter !== d) {
                                     if (initialPrune) setInitialPrune(false)
@@ -5202,9 +5224,9 @@
                             .style('font-weight', d => maxLevel === d ? 500 : 400)
                             .style('opacity', d => countType === 'person' && maxPersonLevel ? d > maxPersonLevel ? 0.5 : 1 : 1)
                             .style('pointer-events', d => countType === 'person' && maxPersonLevel ? d > maxPersonLevel ? 'none' : 'all' : 'all')
-                            .style('color', d => maxLevel === d  ? '#36126d' : '#b2b2b2')
+                            .style('color', d => maxLevel === d  ? '#36126d' : '#9597a6')
                             .on('mouseover', (e,d) => d3.select('#level-'+d).style('color', '#36126d').style('font-weight',500))
-                            .on('mouseout', (e,d) => d3.select('#level-'+d).style('color', d => maxLevel === d ? '#36126d' : '#b2b2b2').style('font-weight',() => maxLevel === d ? 500 : 400))
+                            .on('mouseout', (e,d) => d3.select('#level-'+d).style('color', d => maxLevel === d ? '#36126d' : '#9597a6').style('font-weight',() => maxLevel === d ? 500 : 400))
                             .on('click',(e,d) => {
                                 if (levelFilter !== d) {
                                     if (initialPrune) setInitialPrune(false)
@@ -5219,7 +5241,7 @@
                     })
 
                 // classes
-                document.getElementById("header-classes").style.maxWidth = document.getElementById("sidebar-filters").clientWidth - document.getElementById('levels-container').clientWidth - document.getElementById('classes-label-container').clientWidth - 50 + 'px'
+                document.getElementById("header-classes").style.maxWidth =  document.getElementById("sidebar-filters").clientWidth - document.getElementById('levels-container').clientWidth - document.getElementById('classes-label-container').clientWidth - document.getElementById("filter-title").clientWidth - 40 + 'px'
                 d3.select('#dropdown-classes').selectAll('.class').data(fullClassList, d => d)
                     .join(enter => {
                         const container = enter.append('div')
@@ -5350,6 +5372,7 @@
         // call draw functions
         useEffect(()=>{
             if (nodes && nodes.length > 0) {
+                console.log('draw sidebar')
                 if (view === 'tree') {
                     d3.select('#tree-container').style('display','block')
                     d3.select('#set-container').style('display','none')
@@ -5393,90 +5416,96 @@
         return (
             <div id = "sidebar">
                 <div id = "drag-bar"></div>
-                <div className = "selectionsContainer removeRightShadow">
-                    <div className = "filters" id = "sidebar-filters">
-                        <div className="filterContainer" id = 'levels-container'>
-                            <div className = {`btn flex ${levelFilter < fullTreeMax ? "greyBtn" : ""}`} onMouseEnter = {()=>d3.select('#reset-levels').style('opacity',1)} onMouseLeave = {()=>d3.select('#reset-levels').style('opacity',0.3)} style = {{padding: '3px 5px 3px 5px',borderRadius: '4px'}} 
-                                onClick = {() => {
-                                    setLevelFilter(fullTreeMax)
-                                    d3.select('#open-levels').style('display', 'block')
-                                    d3.select('#close-levels').style('display', 'none') 
-                                    d3.select('#dropdown-levels').style('visibility','hidden')
-                                    d3.select('#header-levels').classed('filterActive', false) 
-                                }}
-                            >
-                                <p className = 'filterLabel' style = {{fontWeight: levelFilter < fullTreeMax ? 500 : 400,opacity: levelFilter < fullTreeMax ? 1 : 0.7}}>{levelFilter < fullTreeMax ? 'Clear Level' : 'Level'}</p>
-                                <FontAwesomeIcon style = {{display: levelFilter < fullTreeMax ? 'block' : 'none',marginTop:1}} className = "resetFilter fa-solid icon" id = "reset-levels" icon={faX} />
-                            </div>
-                            <div className = 'dropdownContainer'>
-                                <div className = "dropdownHeader btn filterMargin" id = "header-levels" style = {{border: levelFilter < fullTreeMax ? 'none' : '1px solid #e0e0e0',overflow:'hidden'}}
-                                    onClick = {() => {
-                                        if (d3.select('#open-levels').style('display') === 'block') {
-                                            d3.select('#open-levels').style('display', 'none')
-                                            d3.select('#close-levels').style('display', 'block') 
-                                            d3.select('#dropdown-levels').style('visibility','visible')
-                                        } else {
-                                            d3.select('#open-levels').style('display', 'block')
-                                            d3.select('#close-levels').style('display', 'none')  
-                                            d3.select('#dropdown-levels').style('visibility','hidden')
-                                        }
-                                    }}>
-                                    <p className = 'dropdownTitle'>{maxLevel}</p>
-                                    <FontAwesomeIcon className = "dropBtn icon" id = 'open-levels' icon={faCaretDown} style = {{display:'block'}}/>
-                                    <FontAwesomeIcon className = "dropBtn icon" id = 'close-levels' icon={faCaretUp} style = {{display:'none'}}/>     
-                                </div>   
-                                <div className = "dropdownContent dropShadow" id = "dropdown-levels" style = {{width:12}}></div> 
-                            </div>
-                                
-                        </div>
-                        <div className="filterContainer" id = 'classes-container' style = {{borderRight:'none'}}>
-                            <div id = 'classes-label-container' className = {`btn flex ${classFilter && fullClassList.length > 1 && !(classFilter.includes('All') || fullClassList.every(c => classFilter.includes(c))) ? "greyBtn" : ""}`} onMouseEnter = {()=>d3.select('#reset-classes').style('opacity',1)} onMouseLeave = {()=>d3.select('#reset-classes').style('opacity',0.3)} style = {{padding: '3px 5px 3px 5px',borderRadius: '4px'}} 
-                                onClick = {() => {
-                                        setClassFilter(fullClassList)
-                                        d3.select('#open-classes').style('display', 'block')
-                                        d3.select('#close-classes').style('display', 'none') 
-                                        d3.select('#dropdown-classes').style('visibility','hidden')
-                                        d3.select('#header-classes').classed('filterActive', false) 
-                                }}
-                            >
-                                <p className = 'filterLabel' style = {{fontWeight: classFilter && fullClassList.length > 1 && !(classFilter.includes('All') || fullClassList.every(c => classFilter.includes(c))) ? 500 : 400, opacity: classFilter && fullClassList.length > 1 && !(classFilter.includes('All') || fullClassList.every(c => classFilter.includes(c))) ? 1 : 0.7}}>{classFilter && fullClassList.length > 1 && !(classFilter.includes('All') || fullClassList.every(c => classFilter.includes(c))) ? 'Clear Classes' : 'Classes'}</p>
-                                <FontAwesomeIcon style = {{marginTop:1,display: classFilter && (classFilter.includes('All') || fullClassList.every(c => classFilter.includes(c))) ? 'none' : 'block'}} className = "resetFilter fa-solid icon" id = "reset-classes" icon={faX} />    
-                            </div>
-                            <div className = 'dropdownContainer'>
-                                <div className = "dropdownHeader btn filterMargin" id = "header-classes" 
-                                    onClick = {() => {
-                                        if (d3.select('#open-classes').style('display') === 'block') {
-                                            d3.select('#open-classes').style('display', 'none')
-                                            d3.select('#close-classes').style('display', 'block') 
-                                            d3.select('#dropdown-classes').style('visibility','visible')
-                                        } else {
-                                            d3.select('#open-classes').style('display', 'block')
-                                            d3.select('#close-classes').style('display', 'none')  
-                                            d3.select('#dropdown-classes').style('visibility','hidden')
-                                        }
-                                    }}>
-                                    <div className = "dropdownTitle dropdownTitleScrollable" id = 'class-selections'></div>
-                                    <FontAwesomeIcon className = "dropBtn icon" id = 'open-classes' icon={faCaretDown} style = {{display:'block'}}/>
-                                    <FontAwesomeIcon className = "dropBtn icon" id = 'close-classes' icon={faCaretUp} style = {{display:'none'}}/>     
-                                </div>   
-                                <div className = "dropdownContent dropShadow" id = "dropdown-classes"></div> 
-                            </div>   
-                        </div>
-                    </div>           
-                </div>
+                
                 <div id = "sidebar-content">
-                    <div className='flex margin' style = {{width:'calc(100% - 0.75em - 0.75em)',justifyContent:'space-between'}}>
+                    <div className='flex margin' style = {{width:'calc(100% - 2em)',justifyContent:'space-between'}}>
                         <div className = 'toggle' id = "view-toggle">
                             <div className = 'mainBtn slider' id='slider-view' style = {{left:5}}>''</div>
                             
-                            <div className = 'btn toggle-itm' id = "set-toggle" onClick={() => {setView('set');moveSlider(0,100,'view')}} style = {{fontWeight:view === 'set' ? 500 : 400,color:view === 'set' ? '#6a23d6' : '#999999'}}>Concept Set</div>
-                            <div className = 'btn toggle-itm' id = "list-toggle" onClick={() => {setView('list');moveSlider(1,100,'view')}} style = {{fontWeight:view === 'list' ? 500 : 400,color:view === 'list' ? '#6a23d6' : '#999999'}}>List</div>
-                            <div className = 'btn toggle-itm' id = "tree-toggle" onClick={() => {setView('tree');moveSlider(2,100,'view')}} style = {{fontWeight:view === 'tree' ? 500 : 400,color:view === 'tree' ? '#6a23d6' : '#999999'}}>Hierarchy</div>
+                            <div className = 'btn toggle-itm' id = "set-toggle" onClick={() => {setView('set');moveSlider(0,100,'view')}} style = {{fontWeight:view === 'set' ? 500 : 400,color:view === 'set' ? '#36126d' : '#9597a6'}}>Concept Set</div>
+                            <div className = 'btn toggle-itm' id = "list-toggle" onClick={() => {setView('list');moveSlider(1,100,'view')}} style = {{fontWeight:view === 'list' ? 500 : 400,color:view === 'list' ? '#36126d' : '#9597a6'}}>List</div>
+                            <div className = 'btn toggle-itm' id = "tree-toggle" onClick={() => {setView('tree');moveSlider(2,100,'view')}} style = {{fontWeight:view === 'tree' ? 500 : 400,color:view === 'tree' ? '#36126d' : '#9597a6'}}>Hierarchy</div>
                         </div> 
                         <div>
                             <FontAwesomeIcon style = {{display:'block'}} icon={faExpand} id = "expand" className = "fa-thin icon expand-compress" onClick={handleExpand} />
                             <FontAwesomeIcon style = {{display:'none'}} icon={faCompress} id = "compress" className = "fa-thin icon expand-compress" onClick={handleExpand} /> 
                         </div>  
+                    </div>
+                    <div className = "selectionsContainer removeRightShadow">
+                        <div className = "filters" id = "sidebar-filters" style = {{borderBottom:'none'}}>
+                            <p id = "filter-title" className='selectedText' style = {{paddingLeft:'1.5em',paddingRight:'1em',fontSize:'11px'}}>FILTERS</p>
+                            <div className="filterContainer" id = 'levels-container' style = {{borderRight:'none'}}>
+                                {/* <div className = {`btn flex ${levelFilter < fullTreeMax ? "greyBtn" : ""}`} onMouseEnter = {()=>d3.select('#reset-levels').style('opacity',1)} onMouseLeave = {()=>d3.select('#reset-levels').style('opacity',0.3)} style = {{padding: '3px 5px 3px 5px',borderRadius: '4px'}}  */}
+                                <div className = 'btn flex' onMouseEnter = {()=>d3.select('#reset-levels').style('color','#9597a6')} onMouseLeave = {()=>d3.select('#reset-levels').style('color','#c9c9d5')} 
+                                    onClick = {() => {
+                                        setLevelFilter(fullTreeMax)
+                                        d3.select('#open-levels').style('display', 'block')
+                                        d3.select('#close-levels').style('display', 'none') 
+                                        d3.select('#dropdown-levels').style('visibility','hidden')
+                                        d3.select('#header-levels').classed('filterActive', false) 
+                                    }}
+                                >
+                                    {/* <p className = 'filterLabel' style = {{fontWeight: levelFilter < fullTreeMax ? 500 : 400,opacity: levelFilter < fullTreeMax ? 1 : 0.7}}>{levelFilter < fullTreeMax ? 'Clear Level' : 'Level'}</p> */}
+                                    <p className = 'filterLabel'>Level</p>
+                                    <FontAwesomeIcon style = {{display: levelFilter < fullTreeMax ? 'block' : 'none',marginTop:1}} className = "resetFilter fa-solid icon" id = "reset-levels" icon={faX} />
+                                </div>
+                                <div className = 'dropdownContainer'>
+                                    <div className = "dropdownHeader btn filterMargin" id = "header-levels" style = {{border: levelFilter < fullTreeMax ? '1px solid #ddd4f7' : '1px solid #ecedf0',overflow:'hidden'}}
+                                        onClick = {() => {
+                                            if (d3.select('#open-levels').style('display') === 'block') {
+                                                d3.select('#open-levels').style('display', 'none')
+                                                d3.select('#close-levels').style('display', 'block') 
+                                                d3.select('#dropdown-levels').style('visibility','visible')
+                                            } else {
+                                                d3.select('#open-levels').style('display', 'block')
+                                                d3.select('#close-levels').style('display', 'none')  
+                                                d3.select('#dropdown-levels').style('visibility','hidden')
+                                            }
+                                        }}>
+                                        <p className = 'dropdownTitle'>{maxLevel}</p>
+                                        <FontAwesomeIcon className = "dropBtn icon" id = 'open-levels' icon={faCaretDown} style = {{display:'block'}}/>
+                                        <FontAwesomeIcon className = "dropBtn icon" id = 'close-levels' icon={faCaretUp} style = {{display:'none'}}/>     
+                                    </div>   
+                                    <div className = "dropdownContent dropShadow" id = "dropdown-levels" style = {{width:22}}></div> 
+                                </div>
+                                    
+                            </div>
+                            <div className="filterContainer" id = 'classes-container' style = {{borderRight:'none'}}>
+                                {/* <div id = 'classes-label-container' className = {`btn flex ${classFilter && fullClassList.length > 1 && !(classFilter.includes('All') || fullClassList.every(c => classFilter.includes(c))) ? "greyBtn" : ""}`} onMouseEnter = {()=>d3.select('#reset-classes').style('opacity',1)} onMouseLeave = {()=>d3.select('#reset-classes').style('opacity',0.3)} style = {{padding: '3px 5px 3px 5px',borderRadius: '4px'}}  */}
+                                <div id = 'classes-label-container' className = 'btn flex' onMouseEnter = {()=>d3.select('#reset-classes').style('color','#9597a6')} onMouseLeave = {()=>d3.select('#reset-classes').style('color','#c9c9d5')}     
+                                    onClick = {() => {
+                                            setClassFilter(fullClassList)
+                                            d3.select('#open-classes').style('display', 'block')
+                                            d3.select('#close-classes').style('display', 'none') 
+                                            d3.select('#dropdown-classes').style('visibility','hidden')
+                                            d3.select('#header-classes').classed('filterActive', false) 
+                                    }}
+                                >
+                                    {/* <p className = 'filterLabel' style = {{fontWeight: classFilter && fullClassList.length > 1 && !(classFilter.includes('All') || fullClassList.every(c => classFilter.includes(c))) ? 500 : 400, opacity: classFilter && fullClassList.length > 1 && !(classFilter.includes('All') || fullClassList.every(c => classFilter.includes(c))) ? 1 : 0.7}}>{classFilter && fullClassList.length > 1 && !(classFilter.includes('All') || fullClassList.every(c => classFilter.includes(c))) ? 'Clear Classes' : 'Classes'}</p> */}
+                                    <p className = 'filterLabel'>Class</p>
+                                    <FontAwesomeIcon style = {{marginTop:1,display: classFilter && (classFilter.includes('All') || fullClassList.every(c => classFilter.includes(c))) ? 'none' : 'block'}} className = "resetFilter fa-solid icon" id = "reset-classes" icon={faX} />    
+                                </div>
+                                <div className = 'dropdownContainer'>
+                                    <div className = "dropdownHeader btn filterMargin" id = "header-classes" 
+                                        onClick = {() => {
+                                            if (d3.select('#open-classes').style('display') === 'block') {
+                                                d3.select('#open-classes').style('display', 'none')
+                                                d3.select('#close-classes').style('display', 'block') 
+                                                d3.select('#dropdown-classes').style('visibility','visible')
+                                            } else {
+                                                d3.select('#open-classes').style('display', 'block')
+                                                d3.select('#close-classes').style('display', 'none')  
+                                                d3.select('#dropdown-classes').style('visibility','hidden')
+                                            }
+                                        }}>
+                                        <div className = "dropdownTitle dropdownTitleScrollable" id = 'class-selections'></div>
+                                        <FontAwesomeIcon className = "dropBtn icon" id = 'open-classes' icon={faCaretDown} style = {{display:'block'}}/>
+                                        <FontAwesomeIcon className = "dropBtn icon" id = 'close-classes' icon={faCaretUp} style = {{display:'none'}}/>     
+                                    </div>   
+                                    <div className = "dropdownContent dropShadow" id = "dropdown-classes"></div> 
+                                </div>   
+                            </div>
+                        </div>           
                     </div>
                     <div className = 'sidebarContainer' id = "set-container" style = {{display: view === 'Set' ? 'flex' : 'none'}}>
                         <div id = "set-header">

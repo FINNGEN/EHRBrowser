@@ -13,7 +13,7 @@ body {
   background-color: 'white';
   font-size: 10px;
   user-select: none;
-  color: #4c4c4c;
+  color: #565867;
 }
 :root {
     --darkpurple: #170540;
@@ -149,30 +149,33 @@ h4 {
 }
 .icon {
   font-size: 9px;
-  color: #36126d;
+  color: #c9c9d5;
+  /* color: #36126d; */
   cursor: pointer;
-  opacity: 0.3;
+  /* opacity: 0.3; */
 }
 .icon:hover {
-  opacity: 1;
+  /* opacity: 1; */
+  color: #9597a6;
 }
 .iconLg {
   font-size: 14px;
-  color: #36126d;
+  color: #c9c9d5;
   cursor: pointer;
-  opacity: 0.3;
+  /* opacity: 0.3; */
 }
 .iconLg:hover {
-  opacity: 1;
+  /* opacity: 1; */
+  color: #9597a6;
 }
 .btn {
   cursor: pointer;
 }
 .greyBtn {
-  border: 1px solid #dadada;
+  border: 1px solid #ecedf0;
   background-color: transparent;
   font-weight: 400;
-  color: #4c4c4c;
+  /* color: #4c4c4c; */
   padding: 6px 8px 6px 8px;
   border-radius: 5px;
   display: flex;
@@ -189,7 +192,7 @@ h4 {
   border-radius: 5px;
   background-color: white; 
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 8px rgba(0, 0, 0, 0.1);
-  padding: 8px 12px 8px 12px;
+  padding: 10px 14px 10px 14px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -214,21 +217,21 @@ h4 {
   justify-content: center;
   font-size: 10px;
   border: none;
-  background-color: #f5f5f5;
-  height: 22px;
+  background-color: #f2f2f4;
+  height: 26px;
   padding: 3px 0px 3px 0px; 
 }
 .toggle-itm {
   position: relative;
   background-color: transparent;
   width: 72px;
-  padding: 8px 12px 8px 12px;
+  padding: 10px 14px 10px 14px;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 800;
   font-weight: 400;
-  color: #808080;
+  color: #9597a6;
   border-radius: 5px;
   box-shadow: none;
 }
@@ -239,7 +242,7 @@ h4 {
 }
 .textBtn {
   font-weight: 400;
-  color: #4c4c4c;
+  color: #565867;
 }
 .textBtn:hover {
   font-weight: 500;
@@ -262,7 +265,7 @@ h4 {
 }
 .actionLabel {
   position: absolute;
-  background-color: #808080;
+  background-color: #9597a6;
   border-radius: 4px;
   padding: 4px;
   opacity: 0;
@@ -287,10 +290,10 @@ h4 {
   color: #6a23d6;
 }
 .padding {
-  padding: 0.5em 0.75em 0.5em 0.75em;
+  padding: 1em;
 }
 .margin {
-  padding: 0.5em 0.75em 0.5em 0.75em;
+  padding: 1em;
 }
 .flex {
   display: flex;
@@ -302,7 +305,7 @@ h4 {
   flex-direction: column;
   width: 100%;
   max-width: 100%;
-  background-color: #f7f7f7;
+  /* background-color: #f7f7f7; */
 }
 .controls {
   display: flex;
@@ -313,28 +316,28 @@ h4 {
 }
 .filters {
   max-width: 100%;
-  min-height: 56px;
+  min-height: 50px;
   height: auto;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid #eeeef2;
   display: flex;
   align-items: center;
   justify-content: flex-start;
 }
 .resetFilter {
-  margin-left: 4px;
+  margin-left: 5px;
   /* opacity: 1 !important;  */
-  font-size: 7px !important;
+  font-size: 9px !important;
 }
 .filterContainer {
   height: calc(100% - 14px);
   padding-top: 7px;
-  padding-left: 0.75em;
+  padding-left: 1em;
   padding-bottom: 7px;
   padding-right: 0px;
   display: flex;
   align-items: center;
   justify-content: flex-start; 
-  border-right: 1.5px solid #f0f0f0;
+  border-right: 1px solid #eeeef280;
 }
 .filterContainerVert {
   height: calc(100% - 14px);
@@ -342,17 +345,17 @@ h4 {
   flex-direction: column;
   align-items: flex-start;
   justify-content: space-between; 
-  border-right: 1.5px solid #f0f0f0;
+  border-right: 1px solid #eeeef280;
   padding-top: 7px;
-  padding-left: 0.75em;
+  padding-left: 1em;
   padding-bottom: 7px;
-  padding-right: 0.75em;
+  padding-right: 1em;
 }
 .filterLabel {
-  font-size: 9px;
+  /* font-size: 9px; */
   white-space: nowrap;
   margin: 0;
-  opacity: 0.5;
+  /* opacity: 0.5; */
 }
 .dropdownContainer {
   position: relative;
@@ -365,6 +368,7 @@ h4 {
   align-items: center;
   justify-content: space-between;
   width: auto;
+  min-width: 40px;
   height: 20px;
   min-height: 20px;
   max-height: 20px;
@@ -372,9 +376,9 @@ h4 {
   z-index: 500;
   overflow-x: scroll;
   overflow-y:hidden;
-  border: 1px solid #e0e0e0;
+  border: 1px solid #ecedf0;
   background-color: white;
-  color: #808080;
+  /* color: #9597a6; */
   font-weight: 400;
 }
 .dropdownHeader-flexPadding {
@@ -383,21 +387,29 @@ h4 {
 .filterActive {
   color: #36126d !important;
   font-weight: 500 !important;  
-  background-color: #cacaca !important;
-  fill: #cacaca !important;
+  background-color: #f8f6fe !important;
+  fill: #f8f6fe !important;
+  border: 1px solid #ddd4f7 !important;
+  stroke: #ddd4f7 !important;
 }
 .labelHover {
   color: #36126d !important;
 }
+.vizHover {
+  color: #36126d !important;
+  font-weight: 500 !important;  
+  fill: #c9c9d5 !important;
+  background-color: #c9c9d5 !important; 
+}
 .vizActive {
-  fill: #cacaca !important;
-  background-color: #cacaca !important; 
+  fill: #c9c9d5 !important;
+  background-color: #c9c9d5 !important; 
 }
 .viz {
-  background-color: #e0e0e0;
-  border-right: 1px solid #f7f7f7;
-  fill: #e0e0e0;
-  stroke: #f7f7f7;
+  background-color: #e8e8e8;
+  border-right: 1px solid white;
+  fill: #e8e8e8;
+  stroke: white;
   stroke-width: 2px;
 }
 .vizLabel {
@@ -409,8 +421,9 @@ h4 {
 .filterHover {
   color: #36126d !important;
   font-weight: 500 !important;  
-  background-color: #cacaca;
-  fill: #cacaca !important;
+  background-color: #f8f6fe !important;
+  border: 1px solid #ddd4f7 !important;
+  fill: #c9c9d5 !important;
 }
 .dropdownTitle {
   font-weight: 500;
@@ -426,7 +439,8 @@ h4 {
 .dropdownTitleEl {
   font-size: 9px;
   border-radius: 3px;
-  background-color: #cacaca;
+  background-color: #f8f6fe;
+  border: 1px solid #ddd4f7;
   padding: 2px 6px 2px 6px;
   height: 16px;
   margin-right: 3px;
@@ -434,12 +448,14 @@ h4 {
 }
 .dropdownTitleEl i {
   margin-left: 4px;
-  opacity: 0.3;
-  transition: 0.2s opacity;
+  /* opacity: 0.3; */
+  /* transition: 0.2s opacity; */
   font-size: 8px;
+  color: #c9c9d5;
 }
 .dropdownTitleEl:hover i {
-  opacity: 1;
+  /* opacity: 1; */
+  color: #9597a6
 }
 .dropBtn {
   font-size: 14px;
@@ -448,12 +464,12 @@ h4 {
 .dropdownContent {
   position: absolute;
   top: calc(100% + 4px);
-  left: calc(1em - 2px);
+  left: 1em;
   background-color: white;
   border-radius: 3px;
   visibility: hidden;
   white-space: nowrap;
-  padding: 10px 14px 10px 14px;
+  padding: 10px 16px 10px 16px;
   z-index: 2000;
   display: flex;
   flex-direction: column;
@@ -472,7 +488,7 @@ h4 {
   justify-content: flex-start;
 }
 .filterMargin {
-  margin: 0 0.75em 0 0.75em;
+  margin: 0 1em 0 1em;
 }
 .filterBtnContainer {
   display: flex;
@@ -483,28 +499,28 @@ h4 {
   padding: 3px;
   border-radius: 4px;
   z-index: 500;
-  color: #808080;
+  color: #9597a6;
   font-weight: 400;
-  border: 1px solid #e0e0e0;
+  border: 1px solid #ecedf0;
 }
 .filterBtn {
   font-size: 9px;
   height: 12px;
   width: 30px;
   padding: 3px;
-  color: #808080;
+  color: #9597a6;
   background-color: white;
   font-weight: 400;
-  border-top: 1px solid #e0e0e0;
-  border-bottom: 1px solid #e0e0e0;
-  border-left: 1px solid #e0e0e0;
+  border-top: 1px solid #ecedf0;
+  border-bottom: 1px solid #ecedf0;
+  border-left: 1px solid #ecedf0;
 }
 .edgeLeft {
   border-radius: 4px 0px 0px 4px;
 }
 .edgeRight {
   border-radius: 0px 4px 4px 0px;
-  border-right: 1px solid #e0e0e0;
+  border-right: 1px solid #ecedf0;
 }
 .sidebarContainer {
   height: 95%;
@@ -520,10 +536,10 @@ h4 {
 }
 .questionMark {
   border-radius: 50%;
-  background-color: #36126d24;
-  width: 12px;
-  height: 12px;
-  font-size: 9px;
+  background-color: #f2f2f4;
+  width: 14px;
+  height: 14px;
+  font-size: 10px;
 }
 .checkMarkBox {
   width: 14px;
@@ -532,7 +548,7 @@ h4 {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #e0e0e0;
+  border: 1px solid #ecedf0;
   cursor: pointer;
 }
 .checkMarkBox i {
@@ -553,7 +569,8 @@ h4 {
   z-index: 1000;
   overflow: visible;
   justify-content: flex-start;
-  box-shadow: 0px 0px 2px rgba(0, 0, 0, 0.2);  
+  border-bottom: 1px solid #eeeef2;
+  /* box-shadow: 0px 0px 2px rgba(0, 0, 0, 0.2);   */
 }
 #header-title {
   width: 100vw;
@@ -577,8 +594,8 @@ h4 {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  background-color: #f0f0f0;
-  border-radius: 10px;
+  background-color: #f2f2f4;
+  border-radius: 6px;
   transition: 0.5s width;
   height: 38px;
 }
@@ -586,22 +603,22 @@ h4 {
   width: 100%;
   height: 18px;
   font-family: "Inter", sans-serif;
-  background-color: #f0f0f0;
+  background-color: #f2f2f4;
   padding: 10px;
   padding-left: 45px;
   border: none;
   resize: none;
   max-height: 330px;
-  color: #4c4c4c;
-  border-radius: 7px;
+  color: #565867;
+  border-radius: 6px;
 }
 #searchConcept::placeholder {
-    color: #4c4c4c50;
+    color: #9597a680;
 }
 #searchBtn {
   position: absolute;
   left: 12px;
-  color: #949494;
+  color: #565867;
   font-size: 17px;
   margin-top:10px;
   transition: 0.2s opacity;
@@ -784,7 +801,7 @@ textarea:focus {
 #sidebar {
   flex-grow: 1;
   width: 40vw;
-  border-right: 1.5px solid #ededed;
+  border-right: 1px solid #eeeef2;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -808,14 +825,15 @@ textarea:focus {
   color: #6a23d6 !important;
 }
 .expand-compress {
-  margin-left: 0.5em;
+  margin-left: 1em;
+  /* margin-right: 1em; */
   font-size: 18px;
-  opacity: 0.3;
-  transition: 0.5s opacity;
+  /* opacity: 0.3; */
+  /* transition: 0.5s opacity; */
 }
-.expand-compress:hover {
+/* .expand-compress:hover {
   opacity: 1;
-}
+} */
 #sidebar-content {
   position: relative;
   flex-grow: 1;
@@ -1186,6 +1204,14 @@ input:checked + .rootline-slider::before {
 #year-filter {
   border-bottom: 1px solid #e0e0e0;
   z-index: 3000;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between; 
+  padding-top: 7px;
+  padding-left: 0.75em;
+  padding-bottom: 7px;
+  padding-right: 0.75em;
 }
 
 
@@ -1770,5 +1796,23 @@ input:checked + .rootline-slider::before {
   margin-top: 10px;
   font-size: 14px;
   color: #333;
+}
+
+#upset-right-panel {
+    scrollbar-width: auto;       /* Firefox: 'auto' = normal width, not 'thin' */
+    scrollbar-color: #999 #eee;  /* Firefox: thumb color, track color */
+}
+
+#upset-right-panel::-webkit-scrollbar {
+    height: 10px;                /* Chrome/Safari/Edge: force a visible height */
+}
+
+#upset-right-panel::-webkit-scrollbar-track {
+    background: #eee;
+}
+
+#upset-right-panel::-webkit-scrollbar-thumb {
+    background: #999;
+    border-radius: 5px;
 }
 
