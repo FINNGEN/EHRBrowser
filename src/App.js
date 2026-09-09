@@ -241,7 +241,8 @@ function App() {
 
   // get data for graph filters
   const genderData = useMemo(() => {
-    if (extent) {
+    console.log('make filters',filteredCounts,personFilterData,extent,countType)
+    if (extent && filteredCounts.all.length > 0) {
       if (countType === 'record') {
         let genderDataVar = []
         const genders = [8507,8532]
@@ -418,7 +419,7 @@ function App() {
     above.forEach(l => f(l,layers.indexOf(l),'down',sorted))
   }
   const bottomUp = (layers,f,sorted=false) => {
-    for (let i = layers.length-2; i <= 0; i--) {
+    for (let i = layers.length-2; i >= 0; i++) {
         f(layers[i],i,'down',sorted)
     }
   }
@@ -468,70 +469,72 @@ function App() {
     }
 
     const setX = (e,l,direction,sorted=false) => {
-      let idealPositions = []
-      let sortedPositions = []
-      let shiftToEnd = []
-      const lowerLayer = e.map(n => poset.getLower(n).filter(d => d !== n)).flat()
-      const upperLayer = e.map(n => poset.getUpper(n).filter(d => d !== n)).flat().filter((e,n,l) => l.indexOf(e) === n)
+      if (e) {
+        let idealPositions = []
+        let sortedPositions = []
+        let shiftToEnd = []
+        const lowerLayer = e.map(n => poset.getLower(n).filter(d => d !== n)).flat()
+        const upperLayer = e.map(n => poset.getUpper(n).filter(d => d !== n)).flat().filter((e,n,l) => l.indexOf(e) === n)
 
-      function shiftPositionsByGroup(group,sortedPositions,w) {
-        const ref = group[0]
-        const prevGroup = sortedPositions[sortedPositions.length-1]
-        const prev = prevGroup[prevGroup.length-1]
-        if (ref.x < prev.x || ref.x-prev.x < w) {
-          const shifted = group.map((d,i) => ({node:d.node,x:prev.x+w+(w*i)}))
-          sortedPositions = [...sortedPositions,shifted]
-        } else sortedPositions = [...sortedPositions,group] 
-        return sortedPositions
-      }
-
-      e.forEach(node => {
-        let x
-        const refs = direction === 'up' ? poset.getUpper(node).filter(n => n !== node) : poset.getLower(node).filter(n => n !== node)
-        const values = poset.featureOf(refs, "x").filter(v => v !== undefined)
-        const sum = d3.sum(values)
-        if (values.length !== 0) x = sum === 0 ? 0 : sum / values.length
-        if (x == null) {
-          if (poset.featureOf(node,'x') == null || !sorted) x = 0
-          else  x = poset.featureOf(node,'x')
+        function shiftPositionsByGroup(group,sortedPositions,w) {
+          const ref = group[0]
+          const prevGroup = sortedPositions[sortedPositions.length-1]
+          const prev = prevGroup[prevGroup.length-1]
+          if (ref.x < prev.x || ref.x-prev.x < w) {
+            const shifted = group.map((d,i) => ({node:d.node,x:prev.x+w+(w*i)}))
+            sortedPositions = [...sortedPositions,shifted]
+          } else sortedPositions = [...sortedPositions,group] 
+          return sortedPositions
         }
-        if (x !== null) {
-          // full dangling layer with nothing below and max one shared parent above, spread around center of lowest layer
-          if (sorted && lowerLayer.length === 0 && upperLayer.length <= 1) {
-            x = getCenter(layers[0])
-            idealPositions.push({node:node,x:x}) 
+
+        e.forEach(node => {
+          let x
+          const refs = direction === 'up' ? poset.getUpper(node).filter(n => n !== node) : poset.getLower(node).filter(n => n !== node)
+          const values = poset.featureOf(refs, "x").filter(v => v !== undefined)
+          const sum = d3.sum(values)
+          if (values.length !== 0) x = sum === 0 ? 0 : sum / values.length
+          if (x == null) {
+            if (poset.featureOf(node,'x') == null || !sorted) x = 0
+            else  x = poset.featureOf(node,'x')
           }
-          // dangling node in layer
-          else if (sorted && poset.getLower(node).filter(n => n !== node).length === 0 && poset.getUpper(node).filter(n => n !== node).length === 0) shiftToEnd.push(node)
-          else idealPositions.push({node:node,x:x}) 
-        }
-      })
+          if (x !== null) {
+            // full dangling layer with nothing below and max one shared parent above, spread around center of lowest layer
+            if (sorted && lowerLayer.length === 0 && upperLayer.length <= 1) {
+              x = getCenter(layers[0])
+              idealPositions.push({node:node,x:x}) 
+            }
+            // dangling node in layer
+            else if (sorted && poset.getLower(node).filter(n => n !== node).length === 0 && poset.getUpper(node).filter(n => n !== node).length === 0) shiftToEnd.push(node)
+            else idealPositions.push({node:node,x:x}) 
+          }
+        })
 
-      const groups = new Map()
-      for (const obj of idealPositions) {
-        if (!groups.has(obj.x)) groups.set(obj.x, [])
-        groups.get(obj.x).push(obj)
+        const groups = new Map()
+        for (const obj of idealPositions) {
+          if (!groups.has(obj.x)) groups.set(obj.x, [])
+          groups.get(obj.x).push(obj)
+        }
+        let groupedByPosition = Array.from(groups.values())
+
+        if (!sorted) groupedByPosition = groupedByPosition.sort((a,b) => a[0].x - b[0].x)
+        groupedByPosition.forEach(groupArray => {
+          let group
+          let nodes = groupArray.map(d => d.node)
+          let value = groupArray[0].x
+          if (groupArray.length > 1) {
+            group = spreadAroundCentroid(nodes,value,unit_w)
+            if (sortedPositions.length === 0) sortedPositions.push(group)
+            else sortedPositions = shiftPositionsByGroup(group,sortedPositions,unit_w)  
+          } else {
+            group = nodes.map(n => ({node:n,x:value}))
+            if (sortedPositions.length === 0) sortedPositions.push(group)
+            else sortedPositions = shiftPositionsByGroup(group,sortedPositions,unit_w)
+          }
+        })
+        const min = d3.min(sortedPositions.flat().map(d => d.x))
+        shiftToEnd.forEach((node,i) => poset.featureOf(node,'x',min - unit_w - (i*unit_w)))
+        sortedPositions.flat().forEach(d => poset.featureOf(d.node,'x',d.x))  
       }
-      let groupedByPosition = Array.from(groups.values())
-
-      if (!sorted) groupedByPosition = groupedByPosition.sort((a,b) => a[0].x - b[0].x)
-      groupedByPosition.forEach(groupArray => {
-        let group
-        let nodes = groupArray.map(d => d.node)
-        let value = groupArray[0].x
-        if (groupArray.length > 1) {
-          group = spreadAroundCentroid(nodes,value,unit_w)
-          if (sortedPositions.length === 0) sortedPositions.push(group)
-          else sortedPositions = shiftPositionsByGroup(group,sortedPositions,unit_w)  
-        } else {
-          group = nodes.map(n => ({node:n,x:value}))
-          if (sortedPositions.length === 0) sortedPositions.push(group)
-          else sortedPositions = shiftPositionsByGroup(group,sortedPositions,unit_w)
-        }
-      })
-      const min = d3.min(sortedPositions.flat().map(d => d.x))
-      shiftToEnd.forEach((node,i) => poset.featureOf(node,'x',min - unit_w - (i*unit_w)))
-      sortedPositions.flat().forEach(d => poset.featureOf(d.node,'x',d.x))
     }
 
     if (layers.length === 0) return
@@ -655,74 +658,75 @@ function App() {
 
   function getConceptInfo(id) {return treeData.concepts.find(n => n.concept_id === id)}
 
-  function getInclusions(roots,nodes,id,eList,dFilter,descendants) {
-    // both selected
-    if (eList.includes(id) && !dFilter.includes(id)) return []
-    else {
-        // descendants unselected
-        if (dFilter.includes(id)) {
-            let stillIncluded = roots.filter(r => r !== id && (nodes.find(n => n.name === r).distance < nodes.find(n => n.name === id).distance) && (!eList.includes(r) && !dFilter.includes(r))).map(r => nodes.find(n => n.name === r).descendants.filter(d => d !== r).filter(d => classFilter.includes('All') ? d : classFilter.includes(nodes.find(n => n.name === d).class))).flat().filter(d => descendants.includes(d))
-            const rootStillIncluded = descendants.filter(d => roots.includes(d) && !eList.includes(d))
-            stillIncluded = [...stillIncluded,...rootStillIncluded]
-            // exclude unselected
-            if (!eList.includes(id)) {
-                return stillIncluded.includes(id) ? stillIncluded : [...stillIncluded,id]
-            } else {
-                return stillIncluded.filter(d => d !== id)
-            }
-        // descendants selected
-        } else {
-          let stillExcluded = roots.filter(r => r !== id && (nodes.find(n => n.name === r).distance < nodes.find(n => n.name === id).distance) && (eList.includes(r) && !dFilter.includes(r))).map(r => nodes.find(n => n.name === r).descendants.filter(d => d !== r).filter(d => classFilter.includes('All') ? d : classFilter.includes(nodes.find(n => n.name === d).class))).flat().filter(d => descendants.includes(d))
-          const rootExclusions = descendants.filter(d => roots.includes(d) && eList.includes(d))
-          const rootDescendantExclusions = rootExclusions.filter(r => !dFilter.includes(r)).map(r => nodes.find(n => n.name === r).descendants.filter(d => d !== r).filter(d => classFilter.includes('All') ? d : classFilter.includes(nodes.find(n => n.name === d).class))).flat()
-          stillExcluded = [...stillExcluded,...rootExclusions,...rootDescendantExclusions]
-          return descendants.filter(d => !stillExcluded.includes(d))
-        }
-    }
-  }
-  // function getInclusions(roots, nodes, id, eList, dFilter, descendants) {
-  //   const eSet = eList instanceof Set ? eList : new Set(eList)
-  //   const dSet = dFilter instanceof Set ? dFilter : new Set(dFilter)
-  //   const descSet = new Set(descendants)
-  //   const nodeMap = new Map(nodes.map(n => [n, n]))
-
-  //   if (eSet.has(id) && !dSet.has(id)) return []
-
-  //   const idNode = nodeMap.get(id)
-
-  //   if (dSet.has(id)) {
-  //     let stillIncluded = roots
-  //       .filter(r => r !== id && nodeMap.get(r).distance < idNode.distance && !eSet.has(r) && !dSet.has(r))
-  //       .flatMap(r => nodeMap.get(r).descendants
-  //         .filter(d => d !== r)
-  //         .filter(d => classFilter.includes('All') ? true : classFilter.includes(nodeMap.get(d).class))
-  //       )
-  //       .filter(d => descSet.has(d))
-  //     const rootStillIncluded = descendants.filter(d => roots.includes(d) && !eSet.has(d))
-  //     stillIncluded = [...stillIncluded, ...rootStillIncluded]
-  //     if (!eSet.has(id)) {
-  //       return stillIncluded.includes(id) ? stillIncluded : [...stillIncluded, id]
-  //     }
-  //     return stillIncluded.filter(d => d !== id)
-  //   } else {
-  //     let stillExcluded = roots
-  //       .filter(r => r !== id && nodeMap.get(r).distance < idNode.distance && eSet.has(r) && !dSet.has(r))
-  //       .flatMap(r => nodeMap.get(r).descendants
-  //         .filter(d => d !== r)
-  //         .filter(d => classFilter.includes('All') ? true : classFilter.includes(nodeMap.get(d).class))
-  //       )
-  //       .filter(d => descSet.has(d))
-  //     const rootExclusions = descendants.filter(d => roots.includes(d) && eSet.has(d))
-  //     const rootDescendantExclusions = rootExclusions
-  //       .filter(r => !dSet.has(r))
-  //       .flatMap(r => nodeMap.get(r).descendants
-  //         .filter(d => d !== r)
-  //         .filter(d => classFilter.includes('All') ? true : classFilter.includes(nodeMap.get(d).class))
-  //       )
-  //     const stillExcludedSet = new Set([...stillExcluded, ...rootExclusions, ...rootDescendantExclusions])
-  //     return descendants.filter(d => !stillExcludedSet.has(d))
+  // function getInclusions(roots,nodes,id,eList,dFilter,descendants) {
+  //   // both selected
+  //   if (eList.includes(id) && !dFilter.includes(id)) return []
+  //   else {
+  //       // descendants unselected
+  //       if (dFilter.includes(id)) {
+  //           let stillIncluded = roots.filter(r => r !== id && (nodes.find(n => n.name === r).distance < nodes.find(n => n.name === id).distance) && (!eList.includes(r) && !dFilter.includes(r))).map(r => nodes.find(n => n.name === r).descendants.filter(d => d !== r).filter(d => classFilter.includes('All') ? d : classFilter.includes(nodes.find(n => n.name === d).class))).flat().filter(d => descendants.includes(d))
+  //           const rootStillIncluded = descendants.filter(d => roots.includes(d) && !eList.includes(d))
+  //           stillIncluded = [...stillIncluded,...rootStillIncluded]
+  //           // exclude unselected
+  //           if (!eList.includes(id)) {
+  //               return stillIncluded.includes(id) ? stillIncluded : [...stillIncluded,id]
+  //           } else {
+  //               return stillIncluded.filter(d => d !== id)
+  //           }
+  //       // descendants selected
+  //       } else {
+  //         console.log('nodes',nodes)
+  //         let stillExcluded = roots.filter(r => r !== id && (nodes.find(n => n.name === r).distance < nodes.find(n => n.name === id).distance) && (eList.includes(r) && !dFilter.includes(r))).map(r => nodes.find(n => n.name === r).descendants.filter(d => d !== r).filter(d => classFilter.includes('All') ? d : classFilter.includes(nodes.find(n => n.name === d).class))).flat().filter(d => descendants.includes(d))
+  //         const rootExclusions = descendants.filter(d => roots.includes(d) && eList.includes(d))
+  //         const rootDescendantExclusions = rootExclusions.filter(r => !dFilter.includes(r)).map(r => nodes.find(n => n.name === r).descendants.filter(d => d !== r).filter(d => classFilter.includes('All') ? d : classFilter.includes(nodes.find(n => n.name === d).class))).flat()
+  //         stillExcluded = [...stillExcluded,...rootExclusions,...rootDescendantExclusions]
+  //         return descendants.filter(d => !stillExcluded.includes(d))
+  //       }
   //   }
   // }
+  function getInclusions(roots, nodeMap, id, eList, dFilter, descendants) {
+    const eSet = eList instanceof Set ? eList : new Set(eList)
+    const dSet = dFilter instanceof Set ? dFilter : new Set(dFilter)
+    const descSet = new Set(descendants)
+    // const nodeMap = new Map(nodes.map(n => [n, n]))
+
+    if (eSet.has(id) && !dSet.has(id)) return []
+
+    const idNode = nodeMap.get(id)
+
+    if (dSet.has(id)) {
+      let stillIncluded = roots
+        .filter(r => r !== id && nodeMap.get(r).distance < idNode.distance && !eSet.has(r) && !dSet.has(r))
+        .flatMap(r => nodeMap.get(r).descendants
+          .filter(d => d !== r)
+          .filter(d => classFilter.includes('All') ? true : classFilter.includes(nodeMap.get(d).class))
+        )
+        .filter(d => descSet.has(d))
+      const rootStillIncluded = descendants.filter(d => roots.includes(d) && !eSet.has(d))
+      stillIncluded = [...stillIncluded, ...rootStillIncluded]
+      if (!eSet.has(id)) {
+        return stillIncluded.includes(id) ? stillIncluded : [...stillIncluded, id]
+      }
+      return stillIncluded.filter(d => d !== id)
+    } else {
+      let stillExcluded = roots
+        .filter(r => r !== id && nodeMap.get(r).distance < idNode.distance && eSet.has(r) && !dSet.has(r))
+        .flatMap(r => nodeMap.get(r).descendants
+          .filter(d => d !== r)
+          .filter(d => classFilter.includes('All') ? true : classFilter.includes(nodeMap.get(d).class))
+        )
+        .filter(d => descSet.has(d))
+      const rootExclusions = descendants.filter(d => roots.includes(d) && eSet.has(d))
+      const rootDescendantExclusions = rootExclusions
+        .filter(r => !dSet.has(r))
+        .flatMap(r => nodeMap.get(r).descendants
+          .filter(d => d !== r)
+          .filter(d => classFilter.includes('All') ? true : classFilter.includes(nodeMap.get(d).class))
+        )
+      const stillExcludedSet = new Set([...stillExcluded, ...rootExclusions, ...rootDescendantExclusions])
+      return descendants.filter(d => !stillExcludedSet.has(d))
+    }
+  }
 
   // UPDATE FOR PERSON COUNTS 
   function updateInclusions(relationship, countType, updateWidth = false) {
@@ -894,7 +898,7 @@ function App() {
 
   function getQueryString() {
     const conceptData = selectedConcepts.map(concept => ({name:concept.name.toString(),type: concept.map ? 'M' : 'S',include: concept.leaf ? 'D' : ''}))
-    const obj = {conceptIds:conceptData.map(d => `${d.name}${d.type}${d.include}`).join(','),yearsRange:yearSelection ? yearSelection[0] + ',' + yearSelection[1] : extent[0] + ',' + extent[1],sexStratum:graphFilter.gender !== -1 ? graphFilter.gender : '',ageStratum:graphFilter.age.length > 1 ? graphFilter.age.join(',') : '',visitStratum:!graphFilter.source.includes(-1) ? graphFilter.source.join(',') : ''}
+    const obj = {conceptIds:conceptData.map(d => `${d.name}${d.type}${d.include}`).join(','),yearsRange:yearSelection ? yearSelection[0] + ',' + yearSelection[1] : extent[0] + ',' + extent[1],sexStratum:graphFilter.gender !== -1 ? graphFilter.gender : '',ageStratum:graphFilter.age.length > 1 ? graphFilter.age.join(',').filter(a => a !== -1) : '',visitStratum:!graphFilter.source.includes(-1) ? graphFilter.source.join(',') : ''}
     const queryString = Object.entries(obj)
       .filter(([key, value]) => value !== '')
       .map(([key, value]) => `${key}=${value}`)
@@ -974,10 +978,10 @@ function App() {
       'parents': fullPoset.getUpper(e.child_concept_id.toString()).map(d => parseInt(d)),
       'children': fullPoset.getLower(e.child_concept_id.toString()).map(d => parseInt(d)),
       'connections': [],
-      'record_counts': data.concepts.find(d => d.concept_id === e.child_concept_id).record_counts,
-      'person_counts': data.concepts.find(d => d.concept_id === e.child_concept_id).person_counts,
-      'descendant_record_counts': data.concepts.find(d => d.concept_id === e.child_concept_id).descendant_record_counts,
-      'descendant_person_counts': data.concepts.find(d => d.concept_id === e.child_concept_id).descendant_person_counts,
+      'record_counts': data.concepts.find(d => d.concept_id === e.child_concept_id).record_counts ? data.concepts.find(d => d.concept_id === e.child_concept_id).record_counts : 0,
+      'person_counts': data.concepts.find(d => d.concept_id === e.child_concept_id).person_counts ? data.concepts.find(d => d.concept_id === e.child_concept_id).person_counts : 0,
+      'descendant_record_counts': data.concepts.find(d => d.concept_id === e.child_concept_id).descendant_record_counts ? data.concepts.find(d => d.concept_id === e.child_concept_id).descendant_record_counts : 0,
+      'descendant_person_counts': data.concepts.find(d => d.concept_id === e.child_concept_id).descendant_person_counts ? data.concepts.find(d => d.concept_id === e.child_concept_id).descendant_person_counts : 0,
       'descendants': [...getAllDescendants(subsumesData,e.child_concept_id,[]),e.child_concept_id],
       'data': {concept: data.concepts.find(d => d.concept_id === e.child_concept_id)}
     }))
@@ -996,8 +1000,11 @@ function App() {
     connections = connections.filter(d => d.parents.length > 1)
     setCrossConnections(connections)
 
+    const nodeMap = new Map()
+    nodeData.forEach(n => nodeMap.set(n.name, n))
+
     // set inclusions
-    const inclusionList = rootConcepts.map(r => getInclusions(rootConcepts,nodeData,r,excludeList,descendantsFilter,nodeData.find(n => n.name === r).descendants)).flat()
+    const inclusionList = rootConcepts.map(r => getInclusions(rootConcepts,nodeMap,r,excludeList,descendantsFilter,nodeData.find(n => n.name === r).descendants)).flat()
       .filter(i => nodeData.find(n => n.name === i).levels !== '-1')
       .filter(i => nodeData.find(n => n.name === i).record_counts !== 0)
     setInclusions(inclusionList) 
@@ -1012,10 +1019,10 @@ function App() {
             'distance': node.distance,
             'source': node,
             'color': generateColor(e.child_concept_id),
-            'record_counts': data.concepts.find(c => c.concept_id === e.child_concept_id).record_counts,
-            'person_counts': data.concepts.find(c => c.concept_id === e.child_concept_id).person_counts,
-            'descendant_record_counts': data.concepts.find(c => c.concept_id === e.child_concept_id).descendant_record_counts,
-            'descendant_person_counts': data.concepts.find(c => c.concept_id === e.child_concept_id).descendant_person_counts,
+            'record_counts': data.concepts.find(c => c.concept_id === e.child_concept_id).record_counts ? data.concepts.find(c => c.concept_id === e.child_concept_id).record_counts : 0,
+            'person_counts': data.concepts.find(c => c.concept_id === e.child_concept_id).person_counts ? data.concepts.find(c => c.concept_id === e.child_concept_id).person_counts : 0,
+            'descendant_record_counts': data.concepts.find(c => c.concept_id === e.child_concept_id).descendant_record_counts ? data.concepts.find(c => c.concept_id === e.child_concept_id).descendant_record_counts : 0,
+            'descendant_person_counts': data.concepts.find(c => c.concept_id === e.child_concept_id).descendant_person_counts ? data.concepts.find(c => c.concept_id === e.child_concept_id).descendant_person_counts : 0,
             'data': {concept: data.concepts.find(c => c.concept_id === e.child_concept_id)}
           }))
       return {
@@ -1073,6 +1080,7 @@ function App() {
         if (newEdges.length > 1) newEdges = newEdges.filter(d => d[0] !== d[1])
         if (newEdges.length === 0) newEdges = stringNames.map(n => [n, n])
         const includedInEdges = new Set(newEdges.flat())
+      // console.log('names',names,'includedInEdges',includedInEdges)
         if (names.length > includedInEdges.size) {
           const missingNodes = names.filter(n => !includedInEdges.has(n))
           const missingEdges = missingNodes.map(n => [n, n])
@@ -1080,6 +1088,7 @@ function App() {
         }
         const { matrix, nodes } = po.domFromEdges(newEdges)
         const newPos = po.createPoset(matrix, nodes)
+        console.log('new edges', newEdges,'full pos',fullPos)
         newPos.enrich()
           .setLayers()
           .feature("node_degree", (node) => fullPos.featureOf(node, 'node_degree'))
@@ -1372,7 +1381,7 @@ function App() {
           }
         }))
         let filteredData = treeDataArray
-        if (toHide.length > 0) filteredData = treeData.filter((data,i) => !toHide.includes(i))
+        if (toHide.length > 0) filteredData = treeDataArray.filter((data,i) => !toHide.includes(i))
         mergedTreeData.concept_relationships = filteredData.map(d => d.concept_relationships).flat()
         mergedTreeData.concepts = filteredData.map(d => d.concepts).flat().filter((e, i, a) => a.findIndex(x => deepEqual(x, e)) === i)
       }

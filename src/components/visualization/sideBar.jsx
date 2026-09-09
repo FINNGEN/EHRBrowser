@@ -124,22 +124,31 @@
             const {x,y,k} = e.transform
             d3.select("#tree-graphics").attr("transform", "translate(" + x + "," + y + ")" + " scale(" + k + ")");
         }
-        function zoomToFit(geometry,padding = 20) {
+        function zoomToFit(geometry, padding = 20) {
             const svgNode = d3.select('#tree-container').node()
             const gNode = geometry.node().parentElement
-            const svgWidth = window.innerWidth * ((100-parseInt(graphSectionWidth))/100) + padding*2
-            const svgHeight = svgNode.getBoundingClientRect().height - padding
+
+            // actual container dimensions — no padding baked in here
+            const svgWidth = window.innerWidth * ((100 - parseInt(graphSectionWidth)) / 100)
+            const svgHeight = svgNode.getBoundingClientRect().height
+
             const bbox = gNode.getBBox()
-            const width = bbox.width
-            const height = bbox.height 
-            const x = bbox.x
-            const y = bbox.y
+            const { width, height, x, y } = bbox
             if (width === 0 || height === 0) return
-            let scale = Math.min((svgWidth - padding) / width,(svgHeight - padding) / height) 
+
+            // subtract padding on both sides (top+bottom, left+right) exactly once
+            let scale = Math.min(
+                (svgWidth - padding * 2) / width,
+                (svgHeight - padding * 6) / height
+            )
             if (nodes.length === 1) scale = scale / 2
-            const translateX = (svgWidth - width * scale) / 2 - x * scale 
-            const translateY = (svgHeight - height * scale) / 2 - y * scale 
-            d3.select('#tree-graphics').transition().attr("transform", `translate(${translateX},${translateY}) scale(${scale})`)    
+
+            // center within the REAL container dimensions
+            const translateX = (svgWidth - width * scale) / 2 - x * scale
+            const translateY = (svgHeight - height * scale) / 2 - y * scale - padding*2
+
+            d3.select('#tree-graphics').transition()
+                .attr("transform", `translate(${translateX},${translateY}) scale(${scale})`)
         }
         function setExcludeInclude(type,id) {
             let eList = excludeList
@@ -289,15 +298,15 @@
                     .classed('set-info-icon fa-solid fa-circle-info icon',true)  
                     .attr('id', d => 'set-info-icon-'+d.name)  
                     .style('opacity', 0.2)
-                    .on('mouseover',(e,d) => {e.stopPropagation();d3.select('#set-trash-' + d.name).transition(1000).style('max-width', '0px').style('opacity', 0).style('margin-right', '0px');d3.select('#set-info-icon-'+d.name).transition().style('opacity',1)})
-                    .on('mouseout', (e,d) => {if(d3.select('#set-info-container-'+d.name).style('height') !== '45px') d3.select('#set-info-icon-'+d.name).transition().style('opacity',0.2)})
+                    .on('mouseover',(e,d) => {e.stopPropagation();d3.select('#set-trash-' + d.name).transition(1000).style('max-width', '0px').style('opacity', 0).style('margin-right', '0px');d3.select('#set-info-icon-'+d.name).transition().style('color','#9597a6')})
+                    .on('mouseout', (e,d) => {if(d3.select('#set-info-container-'+d.name).style('height') !== '45px') d3.select('#set-info-icon-'+d.name).transition().style('color','#c9c9d5')})
                     .on('click', (e,d) => {
                         if (d3.select('#set-info-container-'+d.name).style('height') === '45px') {
-                            d3.select('#set-info-icon-'+d.name).transition().style('opacity',0.2)
+                            d3.select('#set-info-icon-'+d.name).transition().style('color','#c9c9d5')
                             d3.select('#set-info-container-'+d.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                             d3.select('#set-card-'+d.name).transition().style('border-radius','20px')
                         } else {
-                            d3.select('#set-info-icon-'+d.name).transition().style('opacity',1)
+                            d3.select('#set-info-icon-'+d.name).transition().style('color','#9597a6')
                             d3.select('#set-info-container-'+d.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                             d3.select('#set-card-'+d.name).transition().style('border-radius','12px')
                         }
@@ -440,15 +449,15 @@
                 update.select('.set-title-p')
                     .style('opacity', d => inclusions.includes(d.name) || d.leaf ? 1 : 0.6)
                 update.select('.set-info-icon')
-                    .on('mouseover',(e,d) => {e.stopPropagation();d3.select('#set-trash-' + d.name).transition(1000).style('max-width', '0px').style('opacity', 0).style('margin-right', '0px');d3.select('#set-info-icon-'+d.name).transition().style('opacity',1)})
-                    .on('mouseout', (e,d) => {if(d3.select('#set-info-container-'+d.name).style('height') !== '45px') d3.select('#set-info-icon-'+d.name).transition().style('opacity',0.2)})
+                    .on('mouseover',(e,d) => {e.stopPropagation();d3.select('#set-trash-' + d.name).transition(1000).style('max-width', '0px').style('opacity', 0).style('margin-right', '0px');d3.select('#set-info-icon-'+d.name).transition().style('color','#9597a6')})
+                    .on('mouseout', (e,d) => {if(d3.select('#set-info-container-'+d.name).style('height') !== '45px') d3.select('#set-info-icon-'+d.name).transition().style('color','#c9c9d5')})
                     .on('click', (e,d) => {
                         if (d3.select('#set-info-container-'+d.name).style('height') === '45px') {
-                            d3.select('#set-info-icon-'+d.name).transition().style('opacity',0.2)
+                            d3.select('#set-info-icon-'+d.name).transition().style('color','#c9c9d5')
                             d3.select('#set-info-container-'+d.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                             d3.select('#set-card-'+d.name).transition().style('border-radius','20px')
                         } else {
-                            d3.select('#set-info-icon-'+d.name).transition().style('opacity',1)
+                            d3.select('#set-info-icon-'+d.name).transition().style('color','#9597a6')
                             d3.select('#set-info-container-'+d.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                             d3.select('#set-card-'+d.name).transition().style('border-radius','12px')
                         }
@@ -1414,6 +1423,7 @@
                             .style('opacity', d => inclusions.includes(d.name) ? 1 : 0.6)
                             .attr('x', d => getLabel(d).x)
                             .attr('y', d => getLabel(d).y - 7)
+                            .style('display',d => d.data.concept.concept_code ? 'block' : 'none')
                         line2.append('tspan')
                             .classed('label-code num',true)
                             .text(d => d.data.concept.concept_code + '  ')
@@ -1425,7 +1435,7 @@
                             .classed('label-rect', true)
                             .attr('id', d => 'label-rect-' + d.name)
                             .attr('width', d => d3.select("#label-text-" + d.name).node().getBBox().width + 16)
-                            .attr('height', 36)
+                            .attr('height', d => d.data.concept.concept_code ? 36 : 21)
                             .attr("rx", 8)
                             .attr("ry", 8)
                             .attr('x', d => getLabel(d).x - (d3.select("#label-text-" + d.name).node().getBBox().width + 16)/2)
@@ -2238,7 +2248,7 @@
                         d3.selectAll('.map-node').raise()
                         d3.selectAll('.prune-curve').lower()
                         return update
-                    },exit => exit.remove()).call(zoomToFit)
+                    },exit => exit.remove()).call(sel => requestAnimationFrame(() => zoomToFit(sel)))
             }
             updateLinks()
             updateNodes()
@@ -2336,12 +2346,12 @@
                         .style('align-items','center')
                     title1.append('div')
                         .classed('list-title-circle',true)
-                        .classed('list-circle-dash', d => (countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf ? true : false)
-                        .classed('list-circle', d => (countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf ? false : true)
+                        .classed('list-circle-dash', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? true : false)
+                        .classed('list-circle', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? false : true)
                         .classed('btn', d => inclusions.includes(d.name) || d.leaf ? true : false)
                         .style("pointer-events", d => inclusions.includes(d.name) || d.leaf ? 'all' : 'none')
                         .style('background', d => {
-                            if ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf) return "none"
+                            if (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) return "none"
                             if (inclusions.includes(d.name) || d.leaf) {
                                 if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
                                 else {return "none"}
@@ -2353,14 +2363,14 @@
                             }      
                         })
                         .style("background-color", d => {
-                            if ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf) return "transparent"
+                            if (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) return "transparent"
                             if (inclusions.includes(d.name) || d.leaf) {
                                 if (d.data.concept.standard_concept) {return d.color} 
                                 else {return "transparent"}
                             }
                             else return '#d6d6d6'
                         }) 
-                        .style('border', d => (countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf ? '1px solid #b2b2b2' : inclusions.includes(d.name) || d.leaf ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                        .style('border', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? '1px solid #b2b2b2' : inclusions.includes(d.name) || d.leaf ? `1px solid ${d.color}` : '1px solid #d6d6d6')
                         .style('display',d => d.levels === '-1' ? 'none' : 'block')
                         .on('mouseover',(e,d) => setHovered([d.name]))
                         .on('mouseout', (e,d) => setHovered([]))
@@ -2379,7 +2389,7 @@
                         .attr('id', d => 'list-closed-eye-'+d.name)
                         .attr("src", closedEye)
                         .style('opacity', 0.3)  
-                        .style('display', d => !inclusions.includes(d.name) && (d.record_counts > 0 || d.leaf) && d.levels !== '-1' ? 'inline-block' : 'none')
+                        .style('display', d => !inclusions.includes(d.name) && (d.record_counts > 0) && d.levels !== '-1' ? 'inline-block' : 'none')
                         .on('mouseover', (e, d) => {
                             d3.select('#list-closed-eye-'+d.name).transition().style('opacity',1)
                             const el = e.currentTarget
@@ -2409,7 +2419,7 @@
                         .attr('id', d => 'list-eye-'+d.name)
                         .attr("src", openedEye)
                         .style('opacity', 1)
-                        .style('display', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf) || d.levels === '-1' ? 'none' : !inclusions.includes(d.name) ? 'none' : 'inline-block')
+                        .style('display', d => (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) || d.levels === '-1' ? 'none' : !inclusions.includes(d.name) && !d.leaf ? 'none' : 'inline-block')
                         .on('mouseover', (e, d) => {
                             const el = e.currentTarget
                             el.__hoverTimeout__ = setTimeout(() => {
@@ -2481,17 +2491,17 @@
                     title.append('i')
                         .classed('info-icon fa-solid fa-circle-info icon',true)  
                         .attr('id', d => 'info-icon-'+d.name)  
-                        .style('opacity', 0.2)
+                        .style('color', '#c9c9d5')
                         .style('display', d => d.levels === '-1' || !d.levels ? 'none' : 'block')
-                        .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name).transition().style('opacity',1))
-                        .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name).style('height') !== '45px') d3.select('#info-icon-'+d.name).transition().style('opacity',0.2)})
+                        .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name).transition().style('color','#9597a6'))
+                        .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name).style('height') !== '45px') d3.select('#info-icon-'+d.name).transition().style('color','#c9c9d5')})
                         .on('click', (e,d) => {
                             if (d3.select('#info-container-'+d.name).style('height') === '45px') {
-                                d3.select('#info-icon-'+d.name).transition().style('opacity',0.2)
+                                d3.select('#info-icon-'+d.name).transition().style('color','#c9c9d5')
                                 d3.select('#info-container-'+d.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                                 d3.select('#list-card-'+d.name).transition().style('border-radius','20px')
                             } else {
-                                d3.select('#info-icon-'+d.name).transition().style('opacity',1)
+                                d3.select('#info-icon-'+d.name).transition().style('color','#9597a6')
                                 d3.select('#info-container-'+d.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                                 d3.select('#list-card-'+d.name).transition().style('border-radius','12px')
                             }
@@ -2573,20 +2583,20 @@
                     countsDRC.append('p')
                         .classed('counts-DRC-p list-counts-p num',true)
                         .style('text-align','left')
-                        .style('color', d => inclusions.includes(d.name) && d.leaf ? '#36126d' : '#808080')
-                        .style('font-weight', d => inclusions.includes(d.name) && d.leaf ? 500 : 400)
+                        .style('color', d => inclusions.includes(d.name) || d.leaf ? '#36126d' : '#808080')
+                        .style('font-weight', d => inclusions.includes(d.name) || d.leaf ? 500 : 400)
                         .html(d => countType === 'record' ? formatThousands(d.descendant_record_counts) : formatThousands(d.descendant_person_counts))
                     countsDRC.append('p')
                         .classed('counts-DRC-label list-counts-label',true)
-                        .style('color', d => inclusions.includes(d.name) && d.leaf ? '#36126d' : '#808080')
-                        .style('font-weight', d => inclusions.includes(d.name) && d.leaf ? 500 : 400)
+                        .style('color', d => inclusions.includes(d.name) || d.leaf ? '#36126d' : '#808080')
+                        .style('font-weight', d => inclusions.includes(d.name) || d.leaf ? 500 : 400)
                         .html(() => countType === 'record' ? 'DRC' : 'DPC')
                     const countsBarDRC = countsDRC.append('div')
                         .classed('list-counts-bar-container',true)
                     countsBarDRC.append('div')
                         .classed('counts-DRC-bar list-counts-bar',true)
                         .style('width', d => countType === 'record' ? scaleWidth(d.descendant_record_counts) + 'px' : scaleWidth(d.descendant_person_counts) + 'px')
-                        .style('background-color', d => inclusions.includes(d.name) && d.leaf ? d.color : '#e0e0e0')
+                        .style('background-color', d => inclusions.includes(d.name) || d.leaf ? d.color : '#e0e0e0')
 
                     const openMappings = dataSection.append('div')
                         .classed('list-open-mappings',true)
@@ -2809,15 +2819,15 @@
                             .classed('map-info-icon fa-solid fa-circle-info icon',true)  
                             .attr('id', d => 'info-icon-'+d.name+d.source.name)  
                             .style('opacity', 0.2)
-                            .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1))
-                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)})
+                            .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6'))
+                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')})
                             .on('click', (e,d) => {
                                 if (d3.select('#info-container-'+d.name+d.source.name).style('height') === '45px') {
-                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')
                                     d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','20px')
                                 } else {
-                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1)
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6')
                                     d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','12px')
                                 }
@@ -3040,15 +3050,15 @@
                             .transition()
                             .style('opacity', d => inclusions.includes(d.name) ? 1 : 0.6)
                         update.select('.map-info-icon')
-                            .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1))
-                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)})
+                            .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6'))
+                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')})
                             .on('click', (e,d) => {
                                 if (d3.select('#info-container-'+d.name+d.source.name).style('height') === '45px') {
-                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')
                                     d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','20px')
                                 } else {
-                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1)
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6')
                                     d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','12px')
                                 }
@@ -3084,12 +3094,12 @@
                         .style('box-shadow', d => inclusions.includes(d.name) || d.leaf ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
                         .style('background-color', d => d.levels === '-1' ? 'none' : inclusions.includes(d.name) || d.leaf ? 'white' : '#ebebeb')
                     update.select('.list-title-circle')
-                        .classed('list-circle-dash', d => (countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf ? true : false)
-                        .classed('list-circle', d => (countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf ? false : true)
+                        .classed('list-circle-dash', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? true : false)
+                        .classed('list-circle', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? false : true)
                         .classed('btn', d => inclusions.includes(d.name) || d.leaf ? true : false)
                         .style("pointer-events", d => inclusions.includes(d.name) || d.leaf ? 'all' : 'none')
                         .style('background', d => {
-                            if ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf) return "none"
+                            if (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) return "none"
                             if (inclusions.includes(d.name) || d.leaf) {
                                 if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
                                 else {return "none"}
@@ -3101,14 +3111,14 @@
                             }      
                         })
                         .style("background-color", d => {
-                            if ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf) return "transparent"
+                            if (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) return "transparent"
                             if (inclusions.includes(d.name) || d.leaf) {
                                 if (d.data.concept.standard_concept) {return d.color} 
                                 else {return "transparent"}
                             }
                             else return '#d6d6d6'
                         }) 
-                        .style('border', d => (countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf ? '1px solid #b2b2b2' : inclusions.includes(d.name) || d.leaf ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                        .style('border', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? '1px solid #b2b2b2' : inclusions.includes(d.name) || d.leaf ? `1px solid ${d.color}` : '1px solid #d6d6d6')
                         .on('mouseover',(e,d) => setHovered([d.name]))
                         .on('mouseout', (e,d) => setHovered([]))
                     update.select('.list-title-right')
@@ -3120,7 +3130,7 @@
                             if (!showConfirmation) d3.select('#list-icons-'+d.name).transition(1000).style('max-width','0px').style('opacity',0)
                         })
                     update.select('.list-closed-eye')
-                        .style('display', d => !inclusions.includes(d.name) && (d.record_counts > 0 || d.leaf) && d.levels !== '-1' ? 'inline-block' : 'none')
+                        .style('display', d => !inclusions.includes(d.name) && (d.record_counts > 0) && d.levels !== '-1' ? 'inline-block' : 'none')
                         .on('mouseover', (e, d) => {
                             d3.select('#list-closed-eye-'+d.name).transition().style('opacity',1)
                             const el = e.currentTarget
@@ -3134,7 +3144,7 @@
                             showActionLabel('','leave',e)
                         })
                     update.select('.list-eye')
-                        .style('display', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf) || d.levels === '-1' ? 'none' : !inclusions.includes(d.name) ? 'none' : 'inline-block')
+                        .style('display', d => (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) || d.levels === '-1' ? 'none' : !inclusions.includes(d.name) && !d.leaf ? 'none' : 'inline-block')
                         .on('mouseover', (e, d) => {
                             const el = e.currentTarget
                             el.__hoverTimeout__ = setTimeout(() => {
@@ -3191,15 +3201,15 @@
                         .style('opacity', d => inclusions.includes(d.name) || d.leaf ? 1 : 0.6)
                     update.select('.info-icon')
                         .style('display', d => d.levels === '-1' || !d.levels ? 'none' : 'block')
-                        .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name).transition().style('opacity',1))
-                        .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name).style('height') !== '45px') d3.select('#info-icon-'+d.name).transition().style('opacity',0.2)})
+                        .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name).transition().style('color','#9597a6'))
+                        .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name).style('height') !== '45px') d3.select('#info-icon-'+d.name).transition().style('color','#c9c9d5')})
                         .on('click', (e,d) => {
                             if (d3.select('#info-container-'+d.name).style('height') === '45px') {
-                                d3.select('#info-icon-'+d.name).transition().style('opacity',0.2)
+                                d3.select('#info-icon-'+d.name).transition().style('color','#c9c9d5')
                                 d3.select('#info-container-'+d.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                                 d3.select('#list-card-'+d.name).transition().style('border-radius','20px')
                             } else {
-                                d3.select('#info-icon-'+d.name).transition().style('opacity',1)
+                                d3.select('#info-icon-'+d.name).transition().style('color','#9597a6')
                                 d3.select('#info-container-'+d.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                                 d3.select('#list-card-'+d.name).transition().style('border-radius','12px')
                             }
@@ -3219,17 +3229,17 @@
                         .style('width', d => countType === 'record' ? scaleWidth(d.record_counts) + 'px' : scaleWidth(d.person_counts) + 'px' )
                         .style('background-color', d => inclusions.includes(d.name) && !d.leaf ? d.color : '#e0e0e0')
                     update.select('.counts-DRC-p')
-                        .style('color', d => inclusions.includes(d.name) && d.leaf ? '#36126d' : '#808080')
-                        .style('font-weight', d => inclusions.includes(d.name) && d.leaf ? 500 : 400)
+                        .style('color', d => inclusions.includes(d.name) || d.leaf ? '#36126d' : '#808080')
+                        .style('font-weight', d => inclusions.includes(d.name) || d.leaf ? 500 : 400)
                         .html(d => countType === 'record' ? formatThousands(d.descendant_record_counts) : formatThousands(d.descendant_person_counts))
                     update.select('.counts-DRC-label')
-                        .style('color', d => inclusions.includes(d.name) && d.leaf ? '#36126d' : '#808080')
-                        .style('font-weight', d => inclusions.includes(d.name) && d.leaf ? 500 : 400)
+                        .style('color', d => inclusions.includes(d.name) || d.leaf ? '#36126d' : '#808080')
+                        .style('font-weight', d => inclusions.includes(d.name) || d.leaf ? 500 : 400)
                         .html(() => countType === 'record' ? 'DRC' : 'DPC')
                     update.select('.counts-DRC-bar')
                         .transition()
                         .style('width', d => countType === 'record' ? scaleWidth(d.descendant_record_counts) + 'px' : scaleWidth(d.descendant_person_counts) + 'px' )
-                        .style('background-color', d => inclusions.includes(d.name) && d.leaf ? d.color : '#e0e0e0')
+                        .style('background-color', d => inclusions.includes(d.name) || d.leaf ? d.color : '#e0e0e0')
                     update.select('.list-caret-down')
                         .style('display', d => d.mappings.length > 0 ? mapRoot.includes(d.name) || d.mappings.map(m => m.name).some(map => hovered.includes(map)) ? 'none' : 'block' : 'none')
                         .on('click',(e,d) => {
@@ -3434,15 +3444,15 @@
                             .classed('map-info-icon fa-solid fa-circle-info icon',true)  
                             .attr('id', d => 'info-icon-'+d.name+d.source.name)  
                             .style('opacity', 0.2)
-                            .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1))
-                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)})
+                            .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6'))
+                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')})
                             .on('click', (e,d) => {
                                 if (d3.select('#info-container-'+d.name+d.source.name).style('height') === '45px') {
-                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')
                                     d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','20px')
                                 } else {
-                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1)
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6')
                                     d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','12px')
                                 }
@@ -3665,15 +3675,15 @@
                             .transition()
                             .style('opacity', d => inclusions.includes(d.name) ? 1 : 0.6)
                         update.select('.map-info-icon')
-                            .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1))
-                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)})
+                            .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6'))
+                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')})
                             .on('click', (e,d) => {
                                 if (d3.select('#info-container-'+d.name+d.source.name).style('height') === '45px') {
-                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')
                                     d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','20px')
                                 } else {
-                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1)
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6')
                                     d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','12px')
                                 }
@@ -3730,12 +3740,12 @@
                         .style('align-items','center')
                     title1.append('div')
                         .classed('list-title-circle',true)
-                        .classed('list-circle-dash', d => (countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf ? true : false)
-                        .classed('list-circle', d => (countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf ? false : true)
+                        .classed('list-circle-dash', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? true : false)
+                        .classed('list-circle', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? false : true)
                         .classed('btn', d => inclusions.includes(d.name) || d.leaf ? true : false)
                         .style("pointer-events", d => inclusions.includes(d.name) || d.leaf ? 'all' : 'none')
                         .style('background', d => {
-                            if ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf) return "none"
+                            if (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) return "none"
                             if (inclusions.includes(d.name) || d.leaf) {
                                 if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
                                 else {return "none"}
@@ -3747,14 +3757,14 @@
                             }      
                         })
                         .style("background-color", d => {
-                            if ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf) return "transparent"
+                            if (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) return "transparent"
                             if (inclusions.includes(d.name) || d.leaf) {
                                 if (d.data.concept.standard_concept) {return d.color} 
                                 else {return "transparent"}
                             }
                             else return '#d6d6d6'
                         }) 
-                        .style('border', d => (countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf ? '1px solid #b2b2b2' : inclusions.includes(d.name) || d.leaf ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                        .style('border', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? '1px solid #b2b2b2' : inclusions.includes(d.name) || d.leaf ? `1px solid ${d.color}` : '1px solid #d6d6d6')
                         .style('display',d => d.levels === '-1' ? 'none' : 'block')
                         .on('mouseover',(e,d) => setHovered([d.name]))
                         .on('mouseout', (e,d) => setHovered([]))
@@ -3773,7 +3783,7 @@
                         .attr('id', d => 'list-closed-eye-'+d.name)
                         .attr("src", closedEye)
                         .style('opacity', 0.3)  
-                        .style('display', d => !inclusions.includes(d.name) && (d.record_counts > 0 || d.leaf) && d.levels !== '-1' ? 'inline-block' : 'none')
+                        .style('display', d => !inclusions.includes(d.name) && (d.record_counts > 0) && d.levels !== '-1' ? 'inline-block' : 'none')
                         .on('mouseover', (e, d) => {
                             d3.select('#list-closed-eye-'+d.name).transition().style('opacity',1)
                             const el = e.currentTarget
@@ -3803,7 +3813,7 @@
                         .attr('id', d => 'list-eye-'+d.name)
                         .attr("src", openedEye)
                         .style('opacity', 1)
-                        .style('display', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf) || d.levels === '-1' ? 'none' : !inclusions.includes(d.name) ? 'none' : 'inline-block')
+                        .style('display', d => (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) || d.levels === '-1' ? 'none' : !inclusions.includes(d.name) && !d.leaf ? 'none' : 'inline-block')
                         .on('mouseover', (e, d) => {
                             const el = e.currentTarget
                             el.__hoverTimeout__ = setTimeout(() => {
@@ -3877,15 +3887,15 @@
                         .attr('id', d => 'info-icon-'+d.name)  
                         .style('opacity', 0.2)
                         .style('display', d => d.levels === '-1' || !d.levels ? 'none' : 'block')
-                        .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name).transition().style('opacity',1))
-                        .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name).style('height') !== '45px') d3.select('#info-icon-'+d.name).transition().style('opacity',0.2)})
+                        .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name).transition().style('color','#9597a6'))
+                        .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name).style('height') !== '45px') d3.select('#info-icon-'+d.name).transition().style('color','#c9c9d5')})
                         .on('click', (e,d) => {
                             if (d3.select('#info-container-'+d.name).style('height') === '45px') {
-                                d3.select('#info-icon-'+d.name).transition().style('opacity',0.2)
+                                d3.select('#info-icon-'+d.name).transition().style('color','#c9c9d5')
                                 d3.select('#info-container-'+d.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                                 d3.select('#list-card-'+d.name).transition().style('border-radius','20px')
                             } else {
-                                d3.select('#info-icon-'+d.name).transition().style('opacity',1)
+                                d3.select('#info-icon-'+d.name).transition().style('color','#9597a6')
                                 d3.select('#info-container-'+d.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                                 d3.select('#list-card-'+d.name).transition().style('border-radius','12px')
                             }
@@ -3967,20 +3977,20 @@
                     countsDRC.append('p')
                         .classed('counts-DRC-p list-counts-p num',true)
                         .style('text-align','left')
-                        .style('color', d => inclusions.includes(d.name) && d.leaf ? '#36126d' : '#808080')
-                        .style('font-weight', d => inclusions.includes(d.name) && d.leaf ? 500 : 400)
+                        .style('color', d => inclusions.includes(d.name) || d.leaf ? '#36126d' : '#808080')
+                        .style('font-weight', d => inclusions.includes(d.name) || d.leaf ? 500 : 400)
                         .html(d => countType === 'record' ? formatThousands(d.descendant_record_counts) : formatThousands(d.descendant_person_counts))
                     countsDRC.append('p')
                         .classed('counts-DRC-label list-counts-label',true)
-                        .style('color', d => inclusions.includes(d.name) && d.leaf ? '#36126d' : '#808080')
-                        .style('font-weight', d => inclusions.includes(d.name) && d.leaf ? 500 : 400)
+                        .style('color', d => inclusions.includes(d.name) || d.leaf ? '#36126d' : '#808080')
+                        .style('font-weight', d => inclusions.includes(d.name) || d.leaf ? 500 : 400)
                         .html(() => countType === 'record' ? 'DRC' : 'DPC')
                     const countsBarDRC = countsDRC.append('div')
                         .classed('list-counts-bar-container',true)
                     countsBarDRC.append('div')
                         .classed('counts-DRC-bar list-counts-bar',true)
                         .style('width', d => countType === 'record' ? scaleWidth(d.descendant_record_counts) + 'px' : scaleWidth(d.descendant_person_counts) + 'px')
-                        .style('background-color', d => inclusions.includes(d.name) && d.leaf ? d.color : '#e0e0e0')
+                        .style('background-color', d => inclusions.includes(d.name) || d.leaf ? d.color : '#e0e0e0')
 
                     const openMappings = dataSection.append('div')
                         .classed('list-open-mappings',true)
@@ -4203,15 +4213,15 @@
                             .classed('map-info-icon fa-solid fa-circle-info icon',true)  
                             .attr('id', d => 'info-icon-'+d.name+d.source.name)  
                             .style('opacity', 0.2)
-                            .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1))
-                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)})
+                            .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6'))
+                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')})
                             .on('click', (e,d) => {
                                 if (d3.select('#info-container-'+d.name+d.source.name).style('height') === '45px') {
-                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')
                                     d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','20px')
                                 } else {
-                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1)
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6')
                                     d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','12px')
                                 }
@@ -4434,15 +4444,15 @@
                             .transition()
                             .style('opacity', d => inclusions.includes(d.name) ? 1 : 0.6)
                         update.select('.map-info-icon')
-                            .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1))
-                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)})
+                            .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6'))
+                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')})
                             .on('click', (e,d) => {
                                 if (d3.select('#info-container-'+d.name+d.source.name).style('height') === '45px') {
-                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')
                                     d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','20px')
                                 } else {
-                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1)
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6')
                                     d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','12px')
                                 }
@@ -4478,12 +4488,12 @@
                         .style('box-shadow', d => inclusions.includes(d.name) || d.leaf ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
                         .style('background-color', d => d.levels === '-1' ? 'none' : inclusions.includes(d.name) || d.leaf ? 'white' : '#ebebeb')
                     update.select('.list-title-circle')
-                        .classed('list-circle-dash', d => (countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf ? true : false)
-                        .classed('list-circle', d => (countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf ? false : true)
+                        .classed('list-circle-dash', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? true : false)
+                        .classed('list-circle', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? false : true)
                         .classed('btn', d => inclusions.includes(d.name) || d.leaf ? true : false)
                         .style("pointer-events", d => inclusions.includes(d.name) || d.leaf ? 'all' : 'none')
                         .style('background', d => {
-                            if ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf) return "none"
+                            if (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) return "none"
                             if (inclusions.includes(d.name) || d.leaf) {
                                 if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
                                 else {return "none"}
@@ -4495,14 +4505,14 @@
                             }      
                         })
                         .style("background-color", d => {
-                            if ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf) return "transparent"
+                            if (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) return "transparent"
                             if (inclusions.includes(d.name) || d.leaf) {
                                 if (d.data.concept.standard_concept) {return d.color} 
                                 else {return "transparent"}
                             }
                             else return '#d6d6d6'
                         }) 
-                        .style('border', d => (countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf ? '1px solid #b2b2b2' : inclusions.includes(d.name) || d.leaf ? `1px solid ${d.color}` : '1px solid #d6d6d6')
+                        .style('border', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? '1px solid #b2b2b2' : inclusions.includes(d.name) || d.leaf ? `1px solid ${d.color}` : '1px solid #d6d6d6')
                         .on('mouseover',(e,d) => setHovered([d.name]))
                         .on('mouseout', (e,d) => setHovered([]))
                     update.select('.list-title-right')
@@ -4514,7 +4524,7 @@
                             if (!showConfirmation) d3.select('#list-icons-'+d.name).transition(1000).style('max-width','0px').style('opacity',0)
                         })
                     update.select('.list-closed-eye')
-                        .style('display', d => !inclusions.includes(d.name) && (d.record_counts > 0 || d.leaf) && d.levels !== '-1' ? 'inline-block' : 'none')
+                        .style('display', d => !inclusions.includes(d.name) && (d.record_counts > 0) && d.levels !== '-1' ? 'inline-block' : 'none')
                         .on('mouseover', (e, d) => {
                             d3.select('#list-closed-eye-'+d.name).transition().style('opacity',1)
                             const el = e.currentTarget
@@ -4528,7 +4538,7 @@
                             showActionLabel('','leave',e)
                         })
                     update.select('.list-eye')
-                        .style('display', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) && !d.leaf) || d.levels === '-1' ? 'none' : !inclusions.includes(d.name) ? 'none' : 'inline-block')
+                        .style('display', d => (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) || d.levels === '-1' ? 'none' : !inclusions.includes(d.name) && !d.leaf ? 'none' : 'inline-block')
                         .on('mouseover', (e, d) => {
                             const el = e.currentTarget
                             el.__hoverTimeout__ = setTimeout(() => {
@@ -4585,15 +4595,15 @@
                         .style('opacity', d => inclusions.includes(d.name) || d.leaf ? 1 : 0.6)
                     update.select('.info-icon')
                         .style('display', d => d.levels === '-1' || !d.levels ? 'none' : 'block')
-                        .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name).transition().style('opacity',1))
-                        .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name).style('height') !== '45px') d3.select('#info-icon-'+d.name).transition().style('opacity',0.2)})
+                        .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name).transition().style('color','#9597a6'))
+                        .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name).style('height') !== '45px') d3.select('#info-icon-'+d.name).transition().style('color','#c9c9d5')})
                         .on('click', (e,d) => {
                             if (d3.select('#info-container-'+d.name).style('height') === '45px') {
-                                d3.select('#info-icon-'+d.name).transition().style('opacity',0.2)
+                                d3.select('#info-icon-'+d.name).transition().style('color','#c9c9d5')
                                 d3.select('#info-container-'+d.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                                 d3.select('#list-card-'+d.name).transition().style('border-radius','20px')
                             } else {
-                                d3.select('#info-icon-'+d.name).transition().style('opacity',1)
+                                d3.select('#info-icon-'+d.name).transition().style('color','#9597a6')
                                 d3.select('#info-container-'+d.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                                 d3.select('#list-card-'+d.name).transition().style('border-radius','12px')
                             }
@@ -4613,17 +4623,17 @@
                         .style('width', d => countType === 'record' ? scaleWidth(d.record_counts) + 'px' : scaleWidth(d.person_counts) + 'px' )
                         .style('background-color', d => inclusions.includes(d.name) && !d.leaf ? d.color : '#e0e0e0')
                     update.select('.counts-DRC-p')
-                        .style('color', d => inclusions.includes(d.name) && d.leaf ? '#36126d' : '#808080')
-                        .style('font-weight', d => inclusions.includes(d.name) && d.leaf ? 500 : 400)
+                        .style('color', d => inclusions.includes(d.name) || d.leaf ? '#36126d' : '#808080')
+                        .style('font-weight', d => inclusions.includes(d.name) || d.leaf ? 500 : 400)
                         .html(d => countType === 'record' ? formatThousands(d.descendant_record_counts) : formatThousands(d.descendant_person_counts))
                     update.select('.counts-DRC-label')
-                        .style('color', d => inclusions.includes(d.name) && d.leaf ? '#36126d' : '#808080')
-                        .style('font-weight', d => inclusions.includes(d.name) && d.leaf ? 500 : 400)
+                        .style('color', d => inclusions.includes(d.name) || d.leaf ? '#36126d' : '#808080')
+                        .style('font-weight', d => inclusions.includes(d.name) || d.leaf ? 500 : 400)
                         .html(() => countType === 'record' ? 'DRC' : 'DPC')
                     update.select('.counts-DRC-bar')
                         .transition()
                         .style('width', d => countType === 'record' ? scaleWidth(d.descendant_record_counts) + 'px' : scaleWidth(d.descendant_person_counts) + 'px' )
-                        .style('background-color', d => inclusions.includes(d.name) && d.leaf ? d.color : '#e0e0e0')
+                        .style('background-color', d => inclusions.includes(d.name) || d.leaf ? d.color : '#e0e0e0')
                     update.select('.list-caret-down')
                         .style('display', d => d.mappings.length > 0 ? mapRoot.includes(d.name) || d.mappings.map(m => m.name).some(map => hovered.includes(map)) ? 'none' : 'block' : 'none')
                         .on('click',(e,d) => {
@@ -4828,15 +4838,15 @@
                             .classed('map-info-icon fa-solid fa-circle-info icon',true)  
                             .attr('id', d => 'info-icon-'+d.name+d.source.name)  
                             .style('opacity', 0.2)
-                            .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1))
-                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)})
+                            .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6'))
+                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')})
                             .on('click', (e,d) => {
                                 if (d3.select('#info-container-'+d.name+d.source.name).style('height') === '45px') {
-                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')
                                     d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','20px')
                                 } else {
-                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1)
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6')
                                     d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','12px')
                                 }
@@ -5059,15 +5069,15 @@
                             .transition()
                             .style('opacity', d => inclusions.includes(d.name) ? 1 : 0.6)
                         update.select('.map-info-icon')
-                            .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1))
-                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)})
+                            .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6'))
+                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')})
                             .on('click', (e,d) => {
                                 if (d3.select('#info-container-'+d.name+d.source.name).style('height') === '45px') {
-                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',0.2)
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')
                                     d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','20px')
                                 } else {
-                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('opacity',1)
+                                    d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6')
                                     d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','12px')
                                 }
@@ -5372,7 +5382,7 @@
         // call draw functions
         useEffect(()=>{
             if (nodes && nodes.length > 0) {
-                console.log('draw sidebar')
+                console.log('draw sidebar',nodes)
                 if (view === 'tree') {
                     d3.select('#tree-container').style('display','block')
                     d3.select('#set-container').style('display','none')
@@ -5432,7 +5442,7 @@
                         </div>  
                     </div>
                     <div className = "selectionsContainer removeRightShadow">
-                        <div className = "filters" id = "sidebar-filters" style = {{borderBottom:'none'}}>
+                        <div className = "filters" id = "sidebar-filters" style = {{borderTop:'1px solid #d3d3dd'}}>
                             <p id = "filter-title" className='selectedText' style = {{paddingLeft:'1.5em',paddingRight:'1em',fontSize:'11px'}}>FILTERS</p>
                             <div className="filterContainer" id = 'levels-container' style = {{borderRight:'none'}}>
                                 {/* <div className = {`btn flex ${levelFilter < fullTreeMax ? "greyBtn" : ""}`} onMouseEnter = {()=>d3.select('#reset-levels').style('opacity',1)} onMouseLeave = {()=>d3.select('#reset-levels').style('opacity',0.3)} style = {{padding: '3px 5px 3px 5px',borderRadius: '4px'}}  */}
@@ -5510,8 +5520,8 @@
                     <div className = 'sidebarContainer' id = "set-container" style = {{display: view === 'Set' ? 'flex' : 'none'}}>
                         <div id = "set-header">
                             <p className = "selectedText" style = {{marginLeft:'2px'}}>Concept</p>
-                            <div className = "flex" style = {{position:'absolute',right:'calc(172px + 0.75em)'}}>
-                                <p className = "selectedText marginRight">Expression</p> 
+                            <div className = "flex" style = {{position:'absolute',right:'calc(167px + 1em)'}}>
+                                <p className = "selectedText" style = {{marginRight:6}}>Expression</p> 
                                 <div className = "questionMark flex selectedText btn">?</div>   
                             </div>
                             <p className = "selectedText" >{countType === 'record' ? 'DRC' : 'DPC'}</p>

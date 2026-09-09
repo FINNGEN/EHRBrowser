@@ -121,7 +121,7 @@ function Visualization (props) {
     const popupTimeout = useRef(null)
 
     // tooltip
-    function tooltipHover(d, mode, event) {
+    function tooltipHover(d, mode, event = null) {
         let concept_info = d.data.concept
         if (mode === "enter") {
             clearHideTimer()
@@ -437,6 +437,8 @@ function Visualization (props) {
                 allNodesMap = {allNodesMap}
                 upsetZoomedOut = {upsetZoomedOut}
                 setUpsetZoomedOut = {setUpsetZoomedOut}
+                setLoading = {setLoading}
+                nodes = {nodes}
             ></GraphSection>
         </div> : null
     )

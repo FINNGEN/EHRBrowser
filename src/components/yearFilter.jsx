@@ -82,7 +82,7 @@ function YearFilter({ minYear, maxYear, yearSelection, setYearSelection, width =
       .attr("height", 10)
       .attr("rx", 3)
       .attr("fill", "#c9c9d5")
-      .attr("opacity", 0.85)
+      .attr("opacity", 1)
       .style("display", "none")
       .style("pointer-events", "none");
 
