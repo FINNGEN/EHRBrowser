@@ -419,10 +419,10 @@ function App() {
     above.forEach(l => f(l,layers.indexOf(l),'down',sorted))
   }
   const bottomUp = (layers,f,sorted=false) => {
-    for (let i = layers.length-2; i >= 0; i++) {
+    for (let i = layers.length-2; i >= 0; i--) {
         f(layers[i],i,'down',sorted)
     }
-  }
+}
   function spreadAroundCentroid(nodes,centroid,w) {
     const adjustment = nodes.length % 2 !== 0 ? 0 : w/2
     const median = Math.floor(nodes.length/2) 
@@ -1253,6 +1253,9 @@ function App() {
   // on root load
   useEffect(()=>{
     setLoading(true)
+    moveSlider(0,0,'relationship')
+    moveSlider(0,0,'view')
+    moveSlider(0,0,'counts')
     if (!root) {
       setLoading(false)
     } else {
