@@ -89,6 +89,7 @@ function App() {
   const [filteredCounts,setFilteredCounts] = useState()
   const [upsetData,setUpsetData] = useState()
   const [personFilterData,setPersonFilterData] = useState()
+  const [graphLoading,setGraphLoading] = useState(false)
   const fetchedRef = useRef(false)
   const [nWidth,setNWidth] = useState(200)
   const personMax = 25
@@ -97,7 +98,7 @@ function App() {
   const [annotations,setAnnotations] = useState([{key:'PURCH',year:1995},{key:'REIM',year:1964},{key:'PRIM_OUT',year:2011},{key:'INPAT',year:1969},{key:'OUTPAT',year:1998},{key:'CANC',year:1953},{key:'DEATH',year:1969},{key:'OPER_IN',year:1969},{key:'OPER_OUT',year:1969},{key:'BIRTH_MOTHER',year:1953}])
   const [categories, setCategories] = useState([
     {key:'Long.',codes:['INPAT','OPER_IN','OPER_OUT','OUTPAT','PRIM_OUT','REIM','DEATH','PURCH','CANC']},
-    {key:'Registry',codes:['KANTA','BIOBANK','KIDNEY','VISION','BIRTH_MOTHER']},
+    {key:'Reg.',codes:['KANTA','BIOBANK','KIDNEY','VISION','BIRTH_MOTHER']},
     {key:'Drug',codes:['PRESCRIPTION','DELIVERY','PRESCRIPTION_DELIVERY','DELIVERY_KELA','PRESCRIPTION_DELIVERY_KELA']}
   ])
 
@@ -898,7 +899,7 @@ function App() {
 
   function getQueryString() {
     const conceptData = selectedConcepts.map(concept => ({name:concept.name.toString(),type: concept.map ? 'M' : 'S',include: concept.leaf ? 'D' : ''}))
-    const obj = {conceptIds:conceptData.map(d => `${d.name}${d.type}${d.include}`).join(','),yearsRange:yearSelection ? yearSelection[0] + ',' + yearSelection[1] : extent[0] + ',' + extent[1],sexStratum:graphFilter.gender !== -1 ? graphFilter.gender : '',ageStratum:graphFilter.age.length > 1 ? graphFilter.age.join(',').filter(a => a !== -1) : '',visitStratum:!graphFilter.source.includes(-1) ? graphFilter.source.join(',') : ''}
+    const obj = {conceptIds:conceptData.map(d => `${d.name}${d.type}${d.include}`).join(','),yearsRange:yearSelection ? yearSelection[0] + ',' + yearSelection[1] : extent[0] + ',' + extent[1],sexStratum:graphFilter.gender !== -1 ? graphFilter.gender : '',ageStratum:graphFilter.age.length > 1 ? graphFilter.age.filter(a => a !== -1).join(',') : '',visitStratum:!graphFilter.source.includes(-1) ? graphFilter.source.join(',') : ''}
     const queryString = Object.entries(obj)
       .filter(([key, value]) => value !== '')
       .map(([key, value]) => `${key}=${value}`)
@@ -1283,9 +1284,11 @@ function App() {
       .then(data => {
         console.log('tree data received',data)
         setTreeDataArray(data)
+        setLoading(false)
       })
       .catch(err => {
         setLoading(false)
+        setGraphLoading(false)
         console.error("Fetch failed:", err.message)
         d3.select('#error-message').style('display','block')
       })  
@@ -1296,6 +1299,7 @@ function App() {
             .then(res => {
               if (!res.ok) {
                 setLoading(false)
+                setGraphLoading(false)
                 d3.select('#error-message').style('display','block')
                 throw new Error(`HTTP ${res.status} for conceptId ${r}`)
               }
@@ -1306,60 +1310,18 @@ function App() {
       .then(data => {
         console.log('counts data received',data)
         setCountsDataArray(data)
+        setGraphLoading(false)
       })
       .catch(err => {
         setLoading(false)
+        setGraphLoading(false)
         console.error("Fetch failed:", err.message)
         d3.select('#error-message').style('display','block')
       })  
-      // person counts upset
-      // Promise.all(
-      //   rootArray.map(r =>
-      //     fetch(`${API_BASE_URL}/getPersonCountsUpset?conceptIds=${r}SD`)
-      //       .then(res => {
-      //         if (!res.ok) {
-      //           setLoading(false)
-      //           d3.select('#error-message').style('display','block')
-      //           throw new Error(`HTTP ${res.status} for conceptId ${r}`)
-      //         }
-      //         return res.json()
-      //       })
-      //   )
-      // )
-      // .then(data => {
-      //   console.log('upset data received',data)
-      //   setUpsetData(data)
-      // })
-      // .catch(err => {
-      //   setLoading(false)
-      //   console.error("Fetch failed:", err.message)
-      //   d3.select('#error-message').style('display','block')
-      // }) 
-      // person counts filters
-      // Promise.all(
-      //   rootArray.map(r =>
-      //     fetch(`${API_BASE_URL}/getPersonCountsFilters?conceptId=${r}`)
-      //       .then(res => {
-      //         if (!res.ok) {
-      //           setLoading(false)
-      //           d3.select('#error-message').style('display','block')
-      //           throw new Error(`HTTP ${res.status} for conceptId ${r}`)
-      //         }
-      //         return res.json()
-      //       })
-      //   )
-      // )
-      // .then(data => {
-      //   console.log('person filter data received',data)
-      //   setPersonFilterData(data)
-      // })
-      // .catch(err => {
-      //   setLoading(false)
-      //   console.error("Fetch failed:", err.message)
-      //   d3.select('#error-message').style('display','block')
-      // }) 
     }
   },[root])
+
+  useEffect(()=>{if(treeDataArray && !countsDataArray && !loading && nodes.length > 0) setGraphLoading(true)},[loading])
 
   // on tree data load
   useEffect(()=>{
@@ -1462,7 +1424,7 @@ function App() {
         .map(d => ({
           name: d.name, 
           leaf: d.leaf ? d.leaf : false, 
-          map: d.leaf && relationship === 'mappings' ? true : false,
+          map: (d.leaf && relationship === 'mappings' && d.data.concept.standard_concept) || !d.data.concept.standard_concept ? true : false,
           distance: d.distance ? d.distance : d.source.distance, 
           data: {code_counts: d.leaf ? [] : countsData.filter(c => d.name === c.concept_id), descendant_code_counts: !d.leaf ? [] : relationship === 'descendants' ? countsData.filter(c => d.descendants.filter(d => inclusions.includes(d)).includes(c.concept_id)) : countsData.filter(c => d.descendants.map(name => fullTree.nodes.find(n => n.name === name).mappings.map(m => m.name)).flat().filter(d => inclusions.includes(d)).includes(c.concept_id))}
         }))
@@ -1472,7 +1434,7 @@ function App() {
           .map(d => ({
               name: d.name, 
               leaf: false, 
-              map: true,
+              map: !d.data.concept.standard_concept ? true : false,
               distance: d.source.distance, 
               data: {code_counts:countsData.filter(c => d.name === c.concept_id),descendant_code_counts:[]}
           }))
@@ -1503,19 +1465,50 @@ function App() {
   // upset plot
   useEffect(() => {
     if (!selectedConcepts || selectedConcepts.length > personMax || !extent || countType !== 'person') return
+
     const controller = new AbortController()
-    const timeout = setTimeout(() => {
+
+    // Delay before starting the fetch
+    const fetchTimeout = setTimeout(() => {
+
+      // Start loading indicator if fetch takes longer than 1 second
+      const loadingTimeout = setTimeout(() => {
+        setGraphLoading(true)
+      }, 500)
+
       const queryString = getQueryString()
-      fetch(`${API_BASE_URL}/getPersonCountsUpset?${queryString}`, { signal: controller.signal })
-        .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status} for upset data`); return res.json() })
-        .then(data => { console.log('upset data received', data); setUpsetData(data) })
+
+      fetch(`${API_BASE_URL}/getPersonCountsUpset?${queryString}`, {
+        signal: controller.signal
+      })
+        .then(res => {
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status} for upset data`)
+          }
+          return res.json()
+        })
+        .then(data => {
+          console.log('upset data received', data)
+          setUpsetData(data)
+          setGraphLoading(false)
+          clearTimeout(loadingTimeout)
+        })
         .catch(err => {
+          clearTimeout(loadingTimeout)
+
           if (err.name === 'AbortError') return
+
           console.error('Fetch failed:', err.message)
+          setGraphLoading(false)
           d3.select('#error-message').style('display', 'block')
         })
     }, 300)
-    return () => { clearTimeout(timeout); controller.abort() }
+
+    return () => {
+      clearTimeout(fetchTimeout)
+      controller.abort()
+    }
+
   }, [selectedConcepts, graphFilter, yearSelection, countType])
 
   useEffect(()=>{
@@ -1670,6 +1663,8 @@ function App() {
               maxPersonLevel = {maxPersonLevel}
               personFilterData = {personFilterData}
               allNodesMap = {allNodesMap}
+              fullTreeNodeMap = {fullTreeNodeMap}
+              graphLoading = {graphLoading}
             />      
           } />
         </Routes>

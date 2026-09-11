@@ -117,6 +117,8 @@ function Visualization (props) {
     const setYearSelection = props.setYearSelection
     const personFilterData = props.personFilterData
     const allNodesMap = props.allNodesMap
+    const graphLoading = props.graphLoading
+    const fullTreeNodeMap = props.fullTreeNodeMap
     const hideTimer = useRef(null)
     const popupTimeout = useRef(null)
 
@@ -388,6 +390,7 @@ function Visualization (props) {
                 setVisible = {setVisible}
                 showRootLine = {showRootLine}
                 maxPersonLevel = {maxPersonLevel}
+                fullTreeNodeMap = {fullTreeNodeMap}
             ></SideBar> 
             <GraphSection
                 color = {color}
@@ -439,6 +442,7 @@ function Visualization (props) {
                 setUpsetZoomedOut = {setUpsetZoomedOut}
                 setLoading = {setLoading}
                 nodes = {nodes}
+                graphLoading = {graphLoading}
             ></GraphSection>
         </div> : null
     )

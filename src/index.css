@@ -110,14 +110,43 @@ h4 {
   justify-content: center;
   align-items: center;
   flex-direction: column;
-  /* z-index: 5000; */
+  z-index: 1000;
+}
+#graphContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+#graph-loading-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.graphLoading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  z-index: 1000;
 }
 #loading-text {
   font-size: 16px;
   color: #6a23d6;
   text-align: center;
   margin-top: 20px;
-  margin-left: 7px;
+  margin-left: 7px; 
+}
+#graph-loading-text {
+  font-size: 14px;
+  color: #6a23d6;
+  text-align: center;
+  margin-top: 12px;
+  margin-left: 9px;  
 }
 .conceptName {
   font-weight: 500;
@@ -172,7 +201,7 @@ h4 {
   cursor: pointer;
 }
 .greyBtn {
-  border: 1px solid #d3d3d3;
+  border: 1px solid #d2d2d9;
   background-color: transparent;
   font-weight: 400;
   /* color: #4c4c4c; */
@@ -184,7 +213,7 @@ h4 {
   box-shadow: none;
 }
 .greyBtn:hover {
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   font-weight: 500;
   color: #36126d;
 }
@@ -242,7 +271,7 @@ h4 {
 }
 .textBtn {
   font-weight: 400;
-  color: #565867;
+  color: #9597a6;
 }
 .textBtn:hover {
   font-weight: 500;
@@ -281,7 +310,7 @@ h4 {
   width: 9px;
   height: 9px;
   border-radius: 6px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid #e8e8e8;
   cursor: pointer;
   flex-shrink: 0;
   margin-right: 4px;
@@ -408,6 +437,7 @@ h4 {
 }
 .labelHover {
   color: #36126d !important;
+  fill: #36126d !important;
 }
 .vizHover {
   color: #36126d !important;
@@ -418,6 +448,8 @@ h4 {
 .vizActive {
   fill: #c9c9d5 !important;
   background-color: #c9c9d5 !important; 
+  color: #36126d !important;
+  font-weight: 500 !important;  
 }
 .viz {
   background-color: #e8e8e8;
@@ -657,7 +689,7 @@ textarea:focus {
   position: absolute;
   left: 502px;
   top: 6.7px;
-  background-color: #e0e0e0;
+  background-color: #e8e8e8;
   padding: 6px 8px 6px 8px;
   border-radius: 4px;
 }
@@ -684,6 +716,7 @@ textarea:focus {
   background-color: white;
   border: 1px solid #6a23d6;
   padding-top: 10px;
+  z-index: 5500;
 }
 #search-filter-container {
   position: absolute;
@@ -697,7 +730,7 @@ textarea:focus {
 }
 .suggestion {
   width: 100%;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid #e8e8e8;
   background-color: transparent;
   display: flex;
   align-items: center;
@@ -753,7 +786,7 @@ textarea:focus {
 .search-info-line {
   width: 1px;
   height: 20px;
-  background-color: #e0e0e0;
+  background-color: #e8e8e8;
   margin-left: 1em;
   margin-right: 1em;
 }
@@ -872,7 +905,7 @@ textarea:focus {
 }
 #set-total {
   padding: 6px 10px 6px 10px;
-  background-color: #f0f0f0;
+  background-color: #f2f2f4;
   border-radius: 20px;
   margin: 1em;
   align-self: flex-end;
@@ -886,7 +919,7 @@ textarea:focus {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 0.5px solid #e0e0e0;
+  border-bottom: 0.5px solid #e8e8e8;
   padding: 5px 1em 5px 1em;
 }
 .set-expression-container {
@@ -917,7 +950,7 @@ textarea:focus {
   padding-left: 5px;
 }
 .list-item-container {
-  border-bottom: 0.5px solid #e0e0e0;
+  border-bottom: 0.5px solid #e8e8e8;
   z-index: 500;
 }
 .list-item, .map-list-item {
@@ -1187,7 +1220,7 @@ textarea:focus {
   position: absolute;
   cursor: pointer;
   inset: 0;
-  background-color: #d1d1d1;
+  background-color: #e8e8e8;
   border-radius: 26px;
   transition: 0.2s;
 }
@@ -1203,22 +1236,22 @@ textarea:focus {
   transition: 0.2s;
 }
 input:checked + .rootline-slider {
-  background-color: #36126d;
+  background-color: #b3b3bf;
 }
 input:checked + .rootline-slider::before {
   transform: translateX(12px);
 }
 #rootline-container {
   justify-content: space-between;
-  margin-bottom: 15px;
+  margin-bottom: 10px;
 }
 #rootline-icon {
   width: 20px;
 }
     
 #year-filter {
-  border-bottom: 1px solid #e0e0e0;
-  z-index: 3000;
+  border-bottom: 1px solid #e8e8e8;
+  /* z-index: 3000; */
   display: flex;
   flex-direction: row;
   align-items: flex-start;
@@ -1278,7 +1311,7 @@ input:checked + .rootline-slider::before {
   align-items: center;
   justify-content: flex-start;
   flex-wrap: wrap;
-  border-bottom: 1.5px solid #f0f0f0;
+  border-bottom: 1.5px solid #f2f2f4;
 }
 #graph-container {
   padding: 20px;

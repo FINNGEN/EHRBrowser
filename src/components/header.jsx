@@ -213,7 +213,7 @@ function Header (props) {
                     .style('cursor', d => !root.split(',').map(Number).includes(d.concept_id) ? 'pointer' : 'auto')
                     .on('mouseover',(e,d)=>{
                         if (!root.split(',').map(Number).includes(d.concept_id)) {
-                            d3.select('#suggestion-'+d.concept_id).style('background-color','#e0e0e080')
+                            d3.select('#suggestion-'+d.concept_id).style('background-color','#e8e8e880')
                             d3.select('#cs-btn-container-'+d.concept_id).style('background-color','#36126d')
                             d3.select('#cs-btn-i-'+d.concept_id).style('color','white')
                             d3.select('#cs-btn-label-'+d.concept_id).style('font-weight',500).style('color','#36126d')    
@@ -222,7 +222,7 @@ function Header (props) {
                     .on('mouseout',(e,d)=>{
                         if (!root.split(',').map(Number).includes(d.concept_id)) {
                             d3.select('#suggestion-'+d.concept_id).style('background-color','transparent')
-                            d3.select('#cs-btn-container-'+d.concept_id).style('background-color','#e0e0e0')
+                            d3.select('#cs-btn-container-'+d.concept_id).style('background-color','#e8e8e8')
                             d3.select('#cs-btn-i-'+d.concept_id).style('color','#36126d')
                             d3.select('#cs-btn-label-'+d.concept_id).style('font-weight',400).style('color','#4c4c4c')    
                         }
@@ -338,7 +338,7 @@ function Header (props) {
                     .style('cursor',d => !root.split(',').map(Number).includes(d.concept_id) ? 'pointer' : 'auto')
                     .on('mouseover',(e,d)=>{
                         if (!root.split(',').map(Number).includes(d.concept_id)) {
-                            d3.select('#suggestion-'+d.concept_id).style('background-color','#e0e0e080')
+                            d3.select('#suggestion-'+d.concept_id).style('background-color','#e8e8e880')
                             d3.select('#cs-btn-container-'+d.concept_id).style('background-color','#36126d')
                             d3.select('#cs-btn-i-'+d.concept_id).style('color','white')
                             d3.select('#cs-btn-label-'+d.concept_id).style('font-weight',500).style('color','#36126d')    
@@ -347,7 +347,7 @@ function Header (props) {
                     .on('mouseout',(e,d)=>{
                         if (!root.split(',').map(Number).includes(d.concept_id)) {
                             d3.select('#suggestion-'+d.concept_id).style('background-color','transparent')
-                            d3.select('#cs-btn-container-'+d.concept_id).style('background-color','#e0e0e0')
+                            d3.select('#cs-btn-container-'+d.concept_id).style('background-color','#e8e8e8')
                             d3.select('#cs-btn-i-'+d.concept_id).style('color','#36126d')
                             d3.select('#cs-btn-label-'+d.concept_id).style('font-weight',400).style('color','#4c4c4c9')    
                         }
@@ -433,7 +433,7 @@ function Header (props) {
                     .classed('vocab-p',true)
                     .style('width','100%')
                     .style('font-weight', d => searchFilter.includes(d) ? 500 : 400)
-                    .style('color', d => searchFilter.includes(d) ? '#36126d' : '#808080')
+                    .style('color', d => searchFilter.includes(d) ? '#36126d' : '#9597a6')
                     .html(d => d)
             },update =>{
                 update.select('.vocab-check-box')
@@ -448,7 +448,7 @@ function Header (props) {
                     })
                 update.select('.vocab-p')
                     .style('font-weight', d => searchFilter.includes(d) ? 500 : 400)
-                    .style('color', d => searchFilter.includes(d) ? '#36126d' : '#808080')
+                    .style('color', d => searchFilter.includes(d) ? '#36126d' : '#9597a6')
                     .html(d => d)
             })
     },[allVocabularies,searchFilter])
@@ -489,7 +489,7 @@ function Header (props) {
 
                     <FontAwesomeIcon className = "fa-search btn" id = "searchBtn" icon={faSearch} onClick = {() => setExpandedSearch(!expandedSearch)}></FontAwesomeIcon>
                     
-                    <div onMouseEnter = {()=>d3.select('#clear-set-icon').style('opacity',1)} onMouseLeave = {()=>d3.select('#clear-set-icon').style('opacity',0.3)} onClick = {()=>{navigate(``)}} style = {{display: !root || !expandedSearch ? 'none' : 'flex'}} className = 'btn greyBtn flex' id = "clear-concept-set">
+                    <div onMouseEnter = {()=>d3.select('#clear-set-icon').style('color','#848698')} onMouseLeave = {()=>d3.select('#clear-set-icon').style('color','#b2b2c3')} onClick = {()=>{navigate(``)}} style = {{display: !root || !expandedSearch ? 'none' : 'flex'}} className = 'btn greyBtn flex' id = "clear-concept-set">
                         <p style = {{margin:0}}>Clear Set</p>
                         <FontAwesomeIcon className = "icon" id = "clear-set-icon" icon={faX} />
                     </div>
@@ -498,7 +498,7 @@ function Header (props) {
                     
                     <div className="dropdown-content dropShadow" id = "suggestions-container"></div>
                     
-                    <div onClick = {()=>setShowFilter(!showFilter)} onMouseOver={()=>d3.select('#filter-search').style('color','#36126d')} onMouseOut={()=>d3.select('#filter-search').style('color',()=>searchFilter.length > 0 || showFilter ? '#36126d' : '#808080')} style = {{display: !expandedSearch ? 'none' : 'block', fontWeight: searchFilter.length > 0 ? 500 : 400, color: searchFilter.length > 0 || showFilter ? '#36126d' : '#808080'}} className = "btn" id = "filter-search">Filter</div>
+                    <div onClick = {()=>setShowFilter(!showFilter)} onMouseOver={()=>d3.select('#filter-search').style('color','#36126d')} onMouseOut={()=>d3.select('#filter-search').style('color',()=>searchFilter.length > 0 || showFilter ? '#36126d' : '#9597a6')} style = {{display: !expandedSearch ? 'none' : 'block', fontWeight: searchFilter.length > 0 ? 500 : 400, color: searchFilter.length > 0 || showFilter ? '#36126d' : '#9597a6'}} className = "btn" id = "filter-search">Filter</div>
                 </div>   
                 <button className = "btn mainBtn highlight" id = "upload-btn" onClick={()=>d3.select('#json-overlay').style('display','flex')}>Paste Concept Set</button>
             </div>
@@ -509,7 +509,7 @@ function Header (props) {
                     <div className = "btn textBtn" onClick = {() => setSearchFilter([])} style = {{display: searchFilter.length > 0 ? 'block' : 'none'}}>Clear</div> 
                 </div>
                 <div style = {{display:'flex',flexWrap:'wrap',maxWidth:'100%'}} id = "search-filters"></div>
-                {/* <div className = "btn greyBtn" onClick = {() => setShowFilter(false)} style = {{backgroundColor:searchFilter.length > 0 ? '#e0e0e0' : 'transparent',color:searchFilter.length > 0 ? '#36126d' : '#4c4c4c9',alignSelf:'flex-end'}}>Confirm</div> */}
+                {/* <div className = "btn greyBtn" onClick = {() => setShowFilter(false)} style = {{backgroundColor:searchFilter.length > 0 ? '#e8e8e8' : 'transparent',color:searchFilter.length > 0 ? '#36126d' : '#4c4c4c9',alignSelf:'flex-end'}}>Confirm</div> */}
             </div> 
 
             <div id = 'app-controls' style = {{left: expandedSearch && 800 > window.innerWidth/2 - 215 ? '810px' : '50%',transform:expandedSearch && 800 > window.innerWidth/2 - 215 ? 'translateX(0)' : 'translateX(-50%)',display: root && nodes.length > 0 ? 'flex' : 'none'}}>
