@@ -94,7 +94,7 @@ function Header (props) {
             const candidateIndexes = new Set()
             const prefix = input.slice(0, 4)
             const nameMatches = searchIndex.name.get(prefix)
-            const codeMatches = searchIndex.code.get(prefix)
+            const codeMatches = searchIndex.code.get(prefix.toUpperCase())
             const idMatches = searchIndex.id.get(prefix)
             nameMatches?.forEach(i => candidateIndexes.add(i))
             codeMatches?.forEach(i => candidateIndexes.add(i))
@@ -104,7 +104,7 @@ function Header (props) {
         return candidates.filter(d =>
             d._name.includes(input) ||
             d._id.includes(input) ||
-            d._code.includes(input)
+            d._code.includes(input.toUpperCase())
         )
     }
 
@@ -474,7 +474,6 @@ function Header (props) {
                 <div id = "input-container" onClick = {() => {if(!expandedSearch) setExpandedSearch(true)}} style = {{opacity: conceptList.length > 0 || root ? 1 : 0.3, pointerEvents: conceptList.length > 0 ? 'all' : 'none', transition: '0.5s opacity'}}>
                     <textarea
                         ref={inputRef}
-                        type="text"
                         id="searchConcept"
                         placeholder= {!refresh || !root || loading ? "Search by concept code, id, or name" : ''}
                         onClick = {() => {setRefresh(false);d3.select('#searchBtn').style('opacity',1)}}

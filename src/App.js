@@ -36,7 +36,7 @@ function App() {
   const [loaded,setLoaded] = useState(false)
   const [selectedConcepts,setSelectedConcepts] = useState([])
   const [rootConcepts,setRootConcepts] = useState()
-  const [graphFilter, setGraphFilter] = useState({gender:-1,age:[-1],source:[-1]})
+  const [graphFilter, setGraphFilter] = useState({gender:[-1],age:[-1],source:[-1]})
   const [extent,setExtent] = useState()
   const [mapRoot,setMapRoot] = useState([])
   const [conceptList, setConceptList] = useState([])
@@ -157,16 +157,16 @@ function App() {
 
     // apply graph filters if active
     let filtered = {}
-    if (graphFilter.gender !== -1 || graphFilter.age.length > 1 || !graphFilter.source.includes(-1)) {
+    if (!graphFilter.gender.includes(-1) || !graphFilter.age.includes(-1) || !graphFilter.source.includes(-1)) {
       let counts = countsObj.counts
-      if (graphFilter.gender !== -1) counts = counts.filter(e => e.gender_concept_id === graphFilter.gender)
-      if (graphFilter.age.length > 1) counts = counts.filter(e => graphFilter.age.includes(e.age_decile))
+      if (!graphFilter.gender.includes(-1)) counts = counts.filter(e => graphFilter.gender.includes(e.gender_concept_id))
+      if (!graphFilter.age.includes(-1)) counts = counts.filter(e => graphFilter.age.includes(e.age_decile))
       if (!graphFilter.source.includes(-1)) counts = counts.filter(e => graphFilter.source.includes(getVisitGroupConceptId(e)))
       let dCounts = []
       countsObj.descendantCounts.forEach(obj => {
         let counts = obj.counts
-        if (graphFilter.gender !== -1) counts = counts.filter(e => e.gender_concept_id === graphFilter.gender)
-        if (graphFilter.age.length > 1) counts = counts.filter(e => graphFilter.age.includes(e.age_decile))
+        if (!graphFilter.gender.includes(-1)) counts = counts.filter(e => graphFilter.gender.includes(e.gender_concept_id))
+        if (!graphFilter.age.includes(-1)) counts = counts.filter(e => graphFilter.age.includes(e.age_decile))
         if (!graphFilter.source.includes(-1)) counts = counts.filter(e => graphFilter.source.includes(getVisitGroupConceptId(e)))
         dCounts.push(counts)
       })
@@ -191,7 +191,6 @@ function App() {
   },[selectedConcepts,graphFilter])
 
   // make stack data 
-  // SHOULD EXTENT TRIGGER THIS INSTEAD OF HAVING YEARS MEMO? 
   function getStack() {
     if (!filteredCounts || filteredCounts.all.length === 0) return []
 
@@ -242,7 +241,6 @@ function App() {
 
   // get data for graph filters
   const genderData = useMemo(() => {
-    console.log('make filters',filteredCounts,personFilterData,extent,countType)
     if (extent && filteredCounts.all.length > 0) {
       if (countType === 'record') {
         let genderDataVar = []
@@ -659,32 +657,6 @@ function App() {
 
   function getConceptInfo(id) {return treeData.concepts.find(n => n.concept_id === id)}
 
-  // function getInclusions(roots,nodes,id,eList,dFilter,descendants) {
-  //   // both selected
-  //   if (eList.includes(id) && !dFilter.includes(id)) return []
-  //   else {
-  //       // descendants unselected
-  //       if (dFilter.includes(id)) {
-  //           let stillIncluded = roots.filter(r => r !== id && (nodes.find(n => n.name === r).distance < nodes.find(n => n.name === id).distance) && (!eList.includes(r) && !dFilter.includes(r))).map(r => nodes.find(n => n.name === r).descendants.filter(d => d !== r).filter(d => classFilter.includes('All') ? d : classFilter.includes(nodes.find(n => n.name === d).class))).flat().filter(d => descendants.includes(d))
-  //           const rootStillIncluded = descendants.filter(d => roots.includes(d) && !eList.includes(d))
-  //           stillIncluded = [...stillIncluded,...rootStillIncluded]
-  //           // exclude unselected
-  //           if (!eList.includes(id)) {
-  //               return stillIncluded.includes(id) ? stillIncluded : [...stillIncluded,id]
-  //           } else {
-  //               return stillIncluded.filter(d => d !== id)
-  //           }
-  //       // descendants selected
-  //       } else {
-  //         console.log('nodes',nodes)
-  //         let stillExcluded = roots.filter(r => r !== id && (nodes.find(n => n.name === r).distance < nodes.find(n => n.name === id).distance) && (eList.includes(r) && !dFilter.includes(r))).map(r => nodes.find(n => n.name === r).descendants.filter(d => d !== r).filter(d => classFilter.includes('All') ? d : classFilter.includes(nodes.find(n => n.name === d).class))).flat().filter(d => descendants.includes(d))
-  //         const rootExclusions = descendants.filter(d => roots.includes(d) && eList.includes(d))
-  //         const rootDescendantExclusions = rootExclusions.filter(r => !dFilter.includes(r)).map(r => nodes.find(n => n.name === r).descendants.filter(d => d !== r).filter(d => classFilter.includes('All') ? d : classFilter.includes(nodes.find(n => n.name === d).class))).flat()
-  //         stillExcluded = [...stillExcluded,...rootExclusions,...rootDescendantExclusions]
-  //         return descendants.filter(d => !stillExcluded.includes(d))
-  //       }
-  //   }
-  // }
   function getInclusions(roots, nodeMap, id, eList, dFilter, descendants) {
     const eSet = eList instanceof Set ? eList : new Set(eList)
     const dSet = dFilter instanceof Set ? dFilter : new Set(dFilter)
@@ -899,7 +871,7 @@ function App() {
 
   function getQueryString() {
     const conceptData = selectedConcepts.map(concept => ({name:concept.name.toString(),type: concept.map ? 'M' : 'S',include: concept.leaf ? 'D' : ''}))
-    const obj = {conceptIds:conceptData.map(d => `${d.name}${d.type}${d.include}`).join(','),yearsRange:yearSelection ? yearSelection[0] + ',' + yearSelection[1] : extent[0] + ',' + extent[1],sexStratum:graphFilter.gender !== -1 ? graphFilter.gender : '',ageStratum:graphFilter.age.length > 1 ? graphFilter.age.filter(a => a !== -1).join(',') : '',visitStratum:!graphFilter.source.includes(-1) ? graphFilter.source.join(',') : ''}
+    const obj = {conceptIds:conceptData.map(d => `${d.name}${d.type}${d.include}`).join(','),yearsRange:yearSelection ? yearSelection[0] + ',' + yearSelection[1] : extent[0] + ',' + extent[1],sexStratum:!graphFilter.gender.includes(-1) ? graphFilter.gender : '',ageStratum:!graphFilter.age.includes(-1) ? graphFilter.age.filter(a => a !== -1).join(',') : '',visitStratum:!graphFilter.source.includes(-1) ? graphFilter.source.join(',') : ''}
     const queryString = Object.entries(obj)
       .filter(([key, value]) => value !== '')
       .map(([key, value]) => `${key}=${value}`)
@@ -1056,7 +1028,6 @@ function App() {
     setLoading(false)
   }
 
-  // IMPROVE THIS
   // filter tree 
   useEffect(() => {
     if (fullTree.nodes) {
@@ -1242,7 +1213,7 @@ function App() {
           _index: index,
           _name: d.concept_name.toLowerCase(),
           _id: String(d.concept_id),
-          _code: String(d.concept_code)
+          _code: String(d.concept_code).toUpperCase()
         }))
         const index = buildSearchIndex(indexedData)
         setConceptList(indexedData)
@@ -1360,7 +1331,7 @@ function App() {
       setLinks([])
       setVisible(false)
       setShowConfirmation(false)
-      setGraphFilter({gender:-1,age:[-1],source:[-1]})
+      setGraphFilter({gender:[-1],age:[-1],source:[-1]})
       // setLevelFilter()
       d3.select("#graph-section").style('width', "60vw")
       if (d3.select('#suggestions-container').style('visibility') === 'hidden') setRefresh(true)
@@ -1468,10 +1439,8 @@ function App() {
 
     const controller = new AbortController()
 
-    // Delay before starting the fetch
     const fetchTimeout = setTimeout(() => {
 
-      // Start loading indicator if fetch takes longer than 1 second
       const loadingTimeout = setTimeout(() => {
         setGraphLoading(true)
       }, 500)
