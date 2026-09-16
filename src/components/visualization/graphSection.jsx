@@ -6,6 +6,8 @@ import { faCaretDown } from '@fortawesome/free-solid-svg-icons'
 import { faCaretUp } from '@fortawesome/free-solid-svg-icons'
 import { faCheck } from '@fortawesome/free-solid-svg-icons'
 import { faX } from '@fortawesome/free-solid-svg-icons'
+import rootLineIcon from '../../img/root-line.svg'
+import YearFilter from '../yearFilter'
 import * as d3 from "d3";
 import textures from 'textures';
 
@@ -14,7 +16,7 @@ function GraphSection (props) {
     const color = props.color
     const selectedConcepts = props.selectedConcepts
     const setSelectedConcepts = props.setSelectedConcepts
-    const sidebarRoot = props.sidebarRoot
+    const rootConcepts = props.rootConcepts
     const tooltipHover = props.tooltipHover
     const graphFilter = props.graphFilter
     const setGraphFilter = props.setGraphFilter
@@ -24,7 +26,7 @@ function GraphSection (props) {
     const openFilters = props.openFilters
     const setOpenFilters = props.setOpenFilters
     const stackData = props.stackData
-    const conceptNames = props.conceptNames
+    const inclusions = props.inclusions
     const generateColor = props.generateColor
     const rootLine = props.rootLine
     // const setRoot = props.setRoot
@@ -43,10 +45,32 @@ function GraphSection (props) {
     const relationship = props.relationship
     const showRootLine = props.showRootLine
     const setShowRootLine = props.setShowRootLine
+    const showConfirmationPopup = props.showConfirmationPopup
+    const showActionLabel = props.showActionLabel
     const countType = props.countType
     const setCountType = props.setCountType
     const moveSlider = props.moveSlider
+    const fullTree = props.fullTree
+    const upsetData = props.upsetData
+    const formatThousands = props.formatThousands
+    const rootExtent = props.rootExtent
+    const yearSelection = props.yearSelection
+    const setYearSelection = props.setYearSelection
+    const personFilterData = props.personFilterData
+    const allNodesMap = props.allNodesMap
+    const upsetZoomedOut = props.upsetZoomedOut
+    const setUpsetZoomedOut = props.setUpsetZoomedOut
+    const setLoading = props.setLoading
+    const nodes = props.nodes
+    const graphLoading = props.graphLoading
     const graphContainerRef = useRef()
+    const upsetContainerRef = useRef()
+    const upsetWrapperRef = useRef(null)     // the flex row holding both panels
+    const upsetScrollRef = useRef(null)      // the right, scrollable panel
+    const upsetNaturalSizeRef = useRef(null) // natural (unscaled) plot dimensions
+    const [upsetOverflowing, setUpsetOverflowing] = useState(false)
+    const [showLeftHint, setShowLeftHint] = useState(false)
+    const [showRightHint, setShowRightHint] = useState(false)
     const margin = 20
     let hoverLabelCircle = false
     let brushing = false
@@ -56,9 +80,12 @@ function GraphSection (props) {
     let currentTarget = null
 
     // DRAWING
+
     function createLinePattern(key, color) {
         const patternId = `pattern-${key}`
         const defs = d3.select('#graph').select("defs")
+        const existing = defs.select(`#${CSS.escape(patternId)}`)
+        if (!existing.empty()) return `url(#${patternId})`
         const size = 4
         const patt = defs.append("pattern")
             .attr("id", patternId)
@@ -66,25 +93,373 @@ function GraphSection (props) {
             .attr("width", size)
             .attr("height", size)
         patt.append("path")
-            .attr("d", `
-                M0,${size} L${size},0
-                M-${size/2},${size/2} L${size/2},-${size/2}
-            `)
+            .attr("d", `M0,${size} L${size},0 M-${size/2},${size/2} L${size/2},-${size/2}`)
             .attr("stroke", color)
             .attr("stroke-width", 1.5)
             .attr("fill", "none")
         patt.append("path")
-            .attr("d", `
-                M0,${size*2} L${size*2},-0
-                M-${size},${size} L${size},-${size}
-            `)
+            .attr("d", `M0,${size*2} L${size*2},-0 M-${size},${size} L${size},-${size}`)
             .attr("stroke", color)
             .attr("stroke-width", 1.5)
             .attr("fill", "none")
         return `url(#${patternId})`
     }
-    // draw line chart
+
+    function drawUpset() {
+        if (!Array.isArray(upsetData) || upsetData.length === 0) return
+        d3.select('#sets-layer').selectAll('*').remove()
+        d3.select('#upsets-layer').selectAll('*').remove()
+        d3.select('#types-layer').selectAll('*').remove()
+        d3.select('#y-axis-layer').selectAll('*').remove()
+
+        const sortedData = [...upsetData].sort((a, b) => {
+            const aSize = a.group.split('-').length
+            const bSize = b.group.split('-').length
+            if (aSize === 1 && bSize > 1) return -1
+            if (aSize > 1 && bSize === 1) return 1
+            return b.person_counts - a.person_counts
+        }).slice(0, 40)
+
+        const sortedIndexMap = new Map(sortedData.map((d, i) => [d.group, i]))
+        const upsets = sortedData.map(d => [d.group, d.person_counts])
+        const concepts = sortedData.flatMap(d => d.group.split('-')).filter((e, n, l) => l.indexOf(e) === n)
+
+        const setTotals = concepts.map(concept => {
+            const individual = sortedData
+                .filter(d => d.group === concept)
+                .reduce((sum, d) => sum + d.person_counts, 0)
+            const intersection = sortedData
+                .filter(d => d.group !== concept && d.group.split('-').includes(concept))
+                .reduce((sum, d) => sum + d.person_counts, 0)
+            const code = getConceptInfo(parseInt(concept.replace(/\D/g, ""))).concept_code
+            const name = parseInt(concept.replace(/\D/g, ""))
+            const node = fullTree.allNodes.find(n => n.name === name)
+            return { concept, name, code, node, individual, intersection, total: individual + intersection }
+        })
+        const maxSetTotal = d3.max(setTotals, d => d.total)
+
+        
+        const setWidth = 140
+        const setGap = 5
+        const yAxisGap = 0
+        const columnWidth = 30
+        const columnGap = 10
+
+        function measureTextWidth(text, fontSize = 10) {
+            const svg = d3.select('body').append('svg').attr('width', 0).attr('height', 0)
+            const textEl = svg.append('text').style('font-size', `${fontSize}px`).text(text)
+            const width = textEl.node().getBBox().width
+            svg.remove()
+            return width
+        }
+        const codes = concepts.map(concept => getConceptInfo(parseInt(concept.replace(/\D/g, ""))).concept_code)
+        const labelWidth = d3.max(codes.map(c => measureTextWidth(c))) + 10
+
+        const margin = {
+            top: 40, right: 40, bottom: 50,
+            left: setWidth + labelWidth + setGap * 2 + yAxisGap
+        }
+
+        const idealBarHeight = 260
+        const idealRowHeight = 30
+        const MIN_BAR_HEIGHT = 80
+        const MIN_ROW_HEIGHT = 12
+
+        const container = upsetContainerRef.current
+        const containerHeight = container ? container.clientHeight : 0
+
+        let barHeight = idealBarHeight
+        let matrixRowHeight = idealRowHeight
+
+        if (containerHeight > 0) {
+            const idealMatrixHeight = concepts.length * idealRowHeight
+            const idealTotalHeight = margin.top + idealBarHeight + idealMatrixHeight + margin.bottom
+
+            if (idealTotalHeight > containerHeight) {
+                const availableHeight = Math.max(containerHeight - margin.top - margin.bottom, 0)
+                const heightScale = availableHeight / (idealBarHeight + idealMatrixHeight)
+
+                barHeight = Math.max(idealBarHeight * heightScale, MIN_BAR_HEIGHT)
+                matrixRowHeight = Math.max(idealRowHeight * heightScale, MIN_ROW_HEIGHT)
+            }
+        }
+
+        const matrixHeight = concepts.length * matrixRowHeight
+        const totalHeight = margin.top + barHeight + matrixHeight + margin.bottom
+        const leftPanelWidth = margin.left
+
+        const totalColumnWidth = upsets.length * columnWidth + (upsets.length - 1) * columnGap
+        const rightContentWidth = yAxisGap + totalColumnWidth + margin.right
+
+        d3.select('#upset-left-svg').attr('width', leftPanelWidth).attr('height', totalHeight)
+        d3.select('#upset-right-svg').attr('width', rightContentWidth).attr('height', totalHeight)
+
+        const setXScale = d3.scaleLinear().domain([0, maxSetTotal]).range([0, setWidth])
+        const setYScale = d3.scaleBand().domain(concepts).range([0, matrixHeight]).padding(0.2)
+
+        const xScale = d3.scaleBand()
+            .domain(d3.range(upsets.length))
+            .range([yAxisGap, totalColumnWidth])
+            .padding(0)
+
+        const maxValue = d3.max(upsets, d => d[1])
+        const yScale = d3.scaleLinear().domain([0, maxValue]).range([barHeight, 0])
+
+        d3.select('#sets-layer')
+            .attr('transform', `translate(${setGap + yAxisGap},${margin.top + barHeight})`)
+
+        d3.select('#upsets-layer').attr('transform', `translate(0,${margin.top})`)
+        d3.select('#types-layer').attr('transform', `translate(0,${margin.top + barHeight})`)
+
+        const setSegments = setTotals.flatMap(d => {
+            const individualWidth = setXScale(d.individual)
+            const totalWidth = setXScale(d.total)
+            return [
+                {
+                    concept: d.concept,
+                    node: d.node,
+                    type: 'individual',
+                    x: setWidth - individualWidth,
+                    width: individualWidth,
+                    counts: d.individual 
+                },
+                {
+                    concept: d.concept,
+                    type: 'intersection',
+                    x: setWidth - totalWidth,
+                    width: totalWidth - individualWidth,
+                    counts: d.total - d.individual
+                }
+            ]
+        })
+
+        d3.select('#sets-layer').selectAll('.set-bar')
+            .data(setSegments, d => `${d.concept}-${d.type}`)
+            .join('rect')
+            .classed('set-bar btn', true)
+            .attr('x', d => d.x)
+            .attr('y', d => setYScale(d.concept))
+            .attr('width', d => Math.max(d.width, 0))
+            .attr('height', setYScale.bandwidth())
+            .attr('stroke-width',1)
+            .attr('stroke', d => d.type === 'individual' ? d.node.color : '#c9c9d5')
+            .attr('fill', d => d.type === 'individual' ? d.node.color : 'white')
+            .on('mouseover',(e,d)=>{
+                if (d.type === 'individual') showUpsetTooltip('enter',e,d.counts,'Individual counts') 
+                else showUpsetTooltip('enter',e,d.counts,'Intersection counts') 
+            })
+            .on('mouseout',(e,d)=>{
+                showUpsetTooltip('leave')
+            })
+
+        d3.select('#sets-layer').selectAll('.set-label')
+            .data(setTotals, d => d.concept)
+            .join('text')
+            .classed('set-label num btn', true)
+            .attr('x', setWidth + labelWidth)
+            .attr('y', d => setYScale(d.concept) + setYScale.bandwidth() / 2)
+            .attr('text-anchor', 'end')
+            .attr('dominant-baseline', 'middle')
+            .text(d => d.code)
+            .on('mouseover',(e,d)=>{
+                setHovered([d.name])
+                tooltipHover(d.node,'enter',e)
+            })
+            .on('mouseout',(e,d)=>{
+                setHovered([])
+                tooltipHover(d.node,'leave')
+            })
+
+
+        d3.select('#upsets-layer').selectAll('.grid-line')
+            .data(yScale.ticks(5).filter(d => d > 0))
+            .join('line')
+            .classed('grid-line', true)
+            .attr('x1', 0)
+            .attr('x2', rightContentWidth)
+            .attr('y1', d => yScale(d))
+            .attr('y2', d => yScale(d))
+            .attr('stroke', '#eeeef2')
+            .attr('stroke-width', 1)
+
+        function highlightUpset(activeGroup) {
+            const activeConcepts = activeGroup ? activeGroup.split('-') : []
+            d3.selectAll('.upsets')
+                .transition()
+                .style('opacity', d => !activeGroup ? 1 : d[0] === activeGroup ? 1 : 0.2)
+            d3.selectAll('.matrix-dot')
+                .transition()
+                .style('opacity', d => {
+                    if (!activeGroup) return d.active ? 1 : 0.1
+                    if (d.group !== activeGroup) return 0.2
+                    return d.active ? 1 : 0.1
+                })
+            d3.selectAll('.intersection-line')
+                .transition()
+                .style('opacity', d => !activeGroup ? 0.5 : d.group === activeGroup ? 0.5 : 0.1)
+            d3.selectAll('.set-bar')
+                .transition()
+                .style('opacity', d => !activeGroup ? 1 : activeConcepts.includes(d.concept) ? 1 : 0.2)
+            d3.selectAll('.set-label')
+                .transition()
+                .style('opacity', d => !activeGroup ? 1 : activeConcepts.includes(d.concept) ? 1 : 0.2)
+        }
+
+        const upsets_g = d3.select('#upsets-layer').selectAll('.upsets')
+            .data(upsets, d => d[0])
+            .join(enter => {
+                const g = enter.append('g')
+                    .classed('upsets', true)
+                g.append('rect')
+                    .classed('upset-hitbox btn', true)
+                    .attr('fill', 'transparent')
+                    .style('pointer-events', 'all')
+                g.append('rect')
+                    .classed('upset-bar', true)
+                    .style('pointer-events', 'none')
+                g.append('text')
+                    .classed('upset-count num', true)
+                    .attr('text-anchor', 'middle')
+                    .style('font-size', '8px')
+                    .style('pointer-events', 'none')
+                return g
+            })
+
+        upsets_g.select('.upset-hitbox')
+            .attr('x', d => xScale(sortedIndexMap.get(d[0])))
+            .attr('y', d => yScale(d[1]) - 16)
+            .attr('width', columnWidth)
+            .attr('height', d => (barHeight - yScale(d[1])) + 16)
+            .on('mouseover',(e,d)=>{
+                highlightUpset(d[0])
+                const el = e.currentTarget
+                el.__hoverTimeout__ = setTimeout(() => {
+                    setHovered(d[0].split('-').map(s => Number(s.replace(/[^0-9]/g, ''))))
+                }, 600)
+            })
+            .on('mouseout',(e,d)=>{
+                clearTimeout(e.currentTarget.__hoverTimeout__)
+                setHovered([])
+                highlightUpset(null)
+            })
+
+        upsets_g.select('.upset-bar')
+            .attr('x', d => xScale(sortedIndexMap.get(d[0])))
+            .attr('y', d => yScale(d[1]))
+            .attr('width', columnWidth)
+            .attr('height', d => barHeight - yScale(d[1]))
+            .attr('stroke', d => !d[0].includes('-') ? colorList[parseInt(d[0].replace(/\D/g, ""))] : '#c9c9d5')
+            .attr('stroke-width',1)
+            .attr('fill', d => !d[0].includes('-') ? colorList[parseInt(d[0].replace(/\D/g, ""))] : 'white')
+
+        upsets_g.select('.upset-count')
+            .attr('x', d => xScale(sortedIndexMap.get(d[0])) + columnWidth / 2)
+            .attr('y', d => yScale(d[1]) - 8)
+            .text(d => abbreviateNumber(d[1]))
+
+
+        const matrixData = sortedData.flatMap(d =>
+            concepts.map(concept => ({ group: d.group, concept, active: d.group.split('-').includes(concept) }))
+        )
+
+        d3.select('#types-layer').selectAll('.matrix-dot')
+            .data(matrixData, d => `${d.group}-${d.concept}`)
+            .join('circle')
+            .classed('matrix-dot', true)
+            .attr('cx', d => xScale(sortedIndexMap.get(d.group)) + columnWidth / 2)
+            .attr('cy', d => setYScale(d.concept) + setYScale.bandwidth() / 2)
+            .attr('r', 6)
+            .attr('fill', d => colorList[parseInt(d.concept.replace(/\D/g, ""))])
+            .attr('opacity', d => d.active ? 1 : 0.15)
+
+        const intersectionLines = sortedData
+            .filter(d => d.group.split('-').length > 1)
+            .map(d => {
+                const c = d.group.split('-')
+                const ys = c.map(concept => setYScale(concept) + setYScale.bandwidth() / 2)
+                return {
+                    group: d.group,
+                    y1: d3.min(ys),
+                    y2: d3.max(ys)
+                }
+            })
+
+        d3.select('#types-layer').selectAll('.intersection-line')
+            .data(intersectionLines, d => d.group)
+            .join('line')
+            .classed('intersection-line', true)
+            .attr('x1', d => xScale(sortedIndexMap.get(d.group)) + columnWidth / 2)
+            .attr('x2', d => xScale(sortedIndexMap.get(d.group)) + columnWidth / 2)
+            .attr('y1', d => d.y1)
+            .attr('y2', d => d.y2)
+            .attr('stroke', 'black')
+            .attr('stroke-width', 2)
+            .attr('opacity', 0.5)
+
+        upsetNaturalSizeRef.current = {
+            leftWidth: leftPanelWidth,
+            rightWidth: rightContentWidth,
+            totalWidth: leftPanelWidth + rightContentWidth,
+            height: totalHeight
+        }
+
+        layoutUpset()
+    }
+
+    function layoutUpset() {
+        const container = upsetContainerRef.current
+        const wrapper = upsetWrapperRef.current
+        const scrollPanel = upsetScrollRef.current
+        const natural = upsetNaturalSizeRef.current
+        if (!container || !wrapper || !scrollPanel || !natural) return
+
+        const containerWidth = container.clientWidth
+        const containerHeight = container.clientHeight
+
+        const overflowing = natural.totalWidth > containerWidth
+        setUpsetOverflowing(overflowing)
+
+        wrapper.style.transformOrigin = '0 0'
+
+        if (upsetZoomedOut) {
+            const scale = Math.min(
+                containerWidth / natural.totalWidth,
+                containerHeight / natural.height,
+                1
+            )
+            const scaledWidth = natural.totalWidth * scale
+            const scaledHeight = natural.height * scale
+            const translateX = Math.max((containerWidth - scaledWidth) / 2, 0)
+            const translateY = Math.max((containerHeight - scaledHeight) / 2, 0)
+
+            wrapper.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`
+            scrollPanel.style.overflowX = 'hidden'
+            scrollPanel.style.width = `${natural.rightWidth}px`
+            scrollPanel.scrollLeft = 0
+        } else {
+            wrapper.style.transform = 'translate(0px, 0px) scale(1)'
+            const availableRightWidth = Math.max(containerWidth - natural.leftWidth, 0)
+            scrollPanel.style.overflowX = overflowing ? 'scroll' : 'hidden'
+            scrollPanel.style.width = `${availableRightWidth}px`
+        }
+
+        updateUpsetScrollHints()
+    }
+
+    function updateUpsetScrollHints() {
+        const scrollPanel = upsetScrollRef.current
+        if (!scrollPanel || upsetZoomedOut) {
+            setShowLeftHint(false)
+            setShowRightHint(false)
+            return
+        }
+        const { scrollLeft, scrollWidth, clientWidth } = scrollPanel
+        setShowLeftHint(scrollLeft > 2)
+        setShowRightHint(scrollLeft + clientWidth < scrollWidth - 2)
+    }
+
     function drawGraph(rollup, scaleX, scaleY) {
+        const selectedConceptMap = new Map(selectedConcepts.map(c => [c.name, c]))
         function highestPoint(d) {
             return d[1].reduce((best, p) => {
                 return scaleY(+p[2]) < scaleY(+best[2]) ? p : best
@@ -92,6 +467,7 @@ function GraphSection (props) {
         }
         // draw stacked area
         function updateStack(stackedData) {
+            d3.select("#graph-stack").selectAll('.areas').interrupt()
             d3.select("#graph-stack").selectAll('.areas').data(stackedData, d => d.key)
             .join(enter => {
                 const geometry = enter.append('g')
@@ -105,13 +481,17 @@ function GraphSection (props) {
                     .attr("stroke-width", 1)
                     .attr('stroke','white')
                     .attr('fill', d => {
-                        if (!getConceptInfo(d.key).standard_concept || (relationship === 'mappings' && selectedConcepts.find(c => c.name === d.key).leaf)) {
-                            const url = createLinePattern(d.key, colorList[d.key])
-                            return url 
-                        } else return colorList[d.key]
+                        if (getConceptInfo(d.key)) {
+                            if (!getConceptInfo(d.key).standard_concept || (relationship === 'mappings' && selectedConceptMap.get(d.key).leaf)) {
+                                const url = createLinePattern(d.key, colorList[d.key])
+                                return url 
+                            } else return colorList[d.key]    
+                        } else return colorList[d.key] 
                     })
                     .style("transition", "0.5s all")
                     .transition()
+                    .duration(500)
+                    .ease(d3.easeCubicOut)
                     .attr("d", d3.area()
                         .x((d,i) => scaleX(d.data.year))
                         .y0(d => scaleY(d[0]))
@@ -122,25 +502,26 @@ function GraphSection (props) {
                     .classed("area-path-background", true)
                     .attr("cursor", "pointer")
                     .attr("id", d => "area-background-" + d.key)
-                    .on('click', (e,d) => navigate(`/${d.key}`))
                     .on("mouseover", function (e,d) {
-                        let element = selectedConcepts.filter(c => c.name === d.key)[0]
-                        const el = this
-                        el.__hoverTimeout__ = setTimeout(() => {
+                        const node = allNodesMap.get(d.key)
+                        const el = e.currentTarget
+                        el.hoverStateTimeout = setTimeout(() => {
                             setHovered([d.key])
-                            tooltipHover(element, "enter", e) 
-                        },600) 
+                            tooltipHover(node,'enter',e)
+                        }, 600)
                     })
                     .on("mouseout", function (e,d) {
-                        const el = this
-                        clearTimeout(el.__hoverTimeout__)
-                        let element = selectedConcepts.filter(c => c.name === d.key)[0]
+                        const node = allNodesMap.get(d.key)
+                        const el = e.currentTarget
+                        clearTimeout(el.hoverStateTimeout)
                         setHovered([])
-                        tooltipHover(element, "leave", e)    
+                        tooltipHover(node, "leave", e)    
                     })
                     .style("fill", "transparent")
                     .style("transition", "0.5s all")
                     .transition()
+                    .duration(500)
+                    .ease(d3.easeCubicOut)
                     .attr("d", d3.area()
                         .x((d,i) => scaleX(d.data.year))
                         .y0(d => scaleY(d[0]))
@@ -148,6 +529,11 @@ function GraphSection (props) {
                     )
             },update => {
                 update.select('.area-path')
+                    .attr("d", d3.area()
+                        .x((d,i) => scaleX(d.data.year))
+                        .y0(d => scaleY(0))
+                        .y1(d => scaleY(0))
+                    )
                     .transition()
                     .attr('opacity', d => hovered.length > 0 && !hovered.includes(d.key) ? 0.2 : 1)
                     .attr("d", d3.area()
@@ -156,28 +542,34 @@ function GraphSection (props) {
                         .y1(d => scaleY(d[1]))
                     )
                     .attr('fill', d => {
-                        if (!getConceptInfo(d.key).standard_concept || (relationship === 'mappings' && selectedConcepts.find(c => c.name === d.key).leaf)) {
-                            const url = createLinePattern(d.key, colorList[d.key])
-                            return url 
-                        } else return colorList[d.key]
+                        if (getConceptInfo(d.key)) {
+                            if (!getConceptInfo(d.key).standard_concept || (relationship === 'mappings' && selectedConceptMap.get(d.key).leaf)) {
+                                const url = createLinePattern(d.key, colorList[d.key])
+                                return url 
+                            } else return colorList[d.key]    
+                        } else return colorList[d.key] 
                     })
                 update.select('.area-path-background')
-                    .on('click', (e,d) => navigate(`/${d.key}`))
                     .on("mouseover", function (e,d) {
-                        let element = selectedConcepts.filter(c => c.name === d.key)[0]
-                        const el = this
-                        el.__hoverTimeout__ = setTimeout(() => {
+                        const node = allNodesMap.get(d.key)
+                        const el = e.currentTarget
+                        el.hoverStateTimeout = setTimeout(() => {
                             setHovered([d.key])
-                            tooltipHover(element, "enter", e) 
-                        },600) 
+                            tooltipHover(node,'enter',e)
+                        }, 600)
                     })
                     .on("mouseout", function (e,d) {
-                        const el = this
-                        clearTimeout(el.__hoverTimeout__)
-                        let element = selectedConcepts.filter(c => c.name === d.key)[0]
+                        const node = allNodesMap.get(d.key)
+                        const el = e.currentTarget
+                        clearTimeout(el.hoverStateTimeout)
                         setHovered([])
-                        tooltipHover(element, "leave", e)    
+                        tooltipHover(node, "leave", e)    
                     })
+                    .attr("d", d3.area()
+                        .x((d,i) => scaleX(d.data.year))
+                        .y0(d => scaleY(0))
+                        .y1(d => scaleY(0))
+                    )
                     .transition()
                     .attr("d", d3.area()
                         .x((d,i) => scaleX(d.data.year))
@@ -186,7 +578,7 @@ function GraphSection (props) {
                     )
             },exit => exit.remove())
         }
-        // draw root descendant count line *** add label ***
+        // draw root descendant count line
         function updateRootLine() {
             const line = d3.line()
                 .x(d => scaleX(d[0]))
@@ -221,37 +613,67 @@ function GraphSection (props) {
                 .attr("d", line)
             container.exit().remove()
         }
+        // const stackedData = d3.stack()
+        //     .keys(selectedConcepts.map(c => c.name))
+        //     (rollup)  
         const stackedData = d3.stack()
-            .keys(conceptNames)
-            (rollup)  
+            .keys(selectedConcepts.map(c => c.name))
+            .value((d, key) => d[key] ?? 0)
+            (rollup)
         updateStack(stackedData)  
         if (showRootLine) updateRootLine()
         else d3.select('#graph-line').selectAll('.lines').remove()
         d3.select("#graph-viz").raise()
     }
+    // show upset tooltip
+    function showUpsetTooltip(mode,event=null,value=null,name=null) {
+        if (mode === 'enter') {
+            d3.select('#upset-value').html(value)
+            d3.select('#upset-name').html(name)
+            d3.select("#upset-tooltip")
+                .style('left', function() {
+                    const gap = 5
+                    const w = document.getElementById('upset-tooltip').clientWidth
+                    if (event.x + w > window.innerWidth) return (event.x - w - gap + 'px')
+                    else return (event.x + gap + 'px')    
+                })
+                .style('top', function() {
+                    const gap = 5
+                    const h = document.getElementById('upset-tooltip').clientHeight
+                    if (event.y + h > window.innerHeight) return (event.y - h - gap + 'px')  
+                    else return (event.y + gap + 'px')
+                })
+                .transition().style('opacity',1)
+        } else {
+            d3.select("#upset-tooltip").transition().style('opacity',0)     
+        }
+    }
+    // show annotation tooltip
+    function showAnnotationTooltip(mode,event=null,value=null,name=null) {
+        if (mode === 'enter') {
+            const html = 'Start of ' + name.map(e => e.key).join("<br/>")
+            d3.select('#annotation-value').html(value)
+            d3.select('#annotation-name').html(html)
+            d3.select("#annotation-tooltip")
+                .style('left', function() {
+                    const gap = 5
+                    const w = document.getElementById('annotation-tooltip').clientWidth
+                    if (event.x + w > window.innerWidth) return (event.x - w - gap + 'px')
+                    else return (event.x + gap + 'px')    
+                })
+                .style('top', function() {
+                    const gap = 5
+                    const h = document.getElementById('annotation-tooltip').clientHeight
+                    if (event.y + h > window.innerHeight) return (event.y - h - gap + 'px')  
+                    else return (event.y + gap + 'px')
+                })
+                .transition().style('opacity',1)
+        } else {
+            d3.select("#annotation-tooltip").transition().style('opacity',0)     
+        }
+    }
     // draw annotations
     function drawAnnotations(scaleX,height) {
-        // const tooltip = d3.select("body")
-        //     .append("div")
-        //     .style("position", "absolute")
-        //     .style("background", "white")
-        //     .style("padding", "6px 10px")
-        //     .style("filter", "drop-shadow(0px 3px 5px rgba(0,0,0,0.2))")
-        //     .style("border-radius", "12px")
-        //     .style("font-size", "12px")
-        //     .style("display", "none")
-        const tooltip = d3.select("body")
-        .selectAll(".tooltip")
-        .data([null])
-        .join("div")
-        .attr("class", "tooltip")
-        .style("position", "absolute")
-        .style("background", "white")
-        .style("padding", "6px 10px")
-        .style("filter", "drop-shadow(0px 3px 5px rgba(0,0,0,0.2))")
-        .style("border-radius", "12px")
-        .style("font-size", "12px")
-        .style("display", "none")
         const filteredAnnotations = annotations.filter(a => a.year >= extent[0] && a.year <= extent[1])
         const grouped = d3.group(filteredAnnotations, d => d.year)
         const spreadAnnotations = []
@@ -266,9 +688,6 @@ function GraphSection (props) {
                 })
             })
         })
-        const triangle = d3.symbol()
-            .type(d3.symbolTriangle)
-            .size(80)
         const annotation = d3.select('#graph')
             .selectAll(".annotation")
             .data(spreadAnnotations, d => d.year)
@@ -283,30 +702,21 @@ function GraphSection (props) {
             .attr('x2', d => scaleX(d.year))
             .attr('y1', 0)
             .attr('y2', height - 5)
-            .attr('stroke',color.textmedium)
+            .attr('stroke','#36126d')
             .attr('stroke-width',1)
             .style("stroke-dasharray", ("5, 5"))
         annotationMerge.select("circle")
+            .classed('btn',true)
             .attr("cx", d => scaleX(d.year) + d.offsetX)
             .attr("cy", height)
             .attr("r", 5)
             .attr("fill", 'white')
-            .style("filter", "drop-shadow(0px 3px 3px rgba(0,0,0,0.3))")
-            .style('cursor','pointer')
+            .style("filter", "drop-shadow(0px 0px 4px rgba(0, 0, 0, 0.16))")
             .on("mouseover", function(event, d) {
                 const eventsThatYear = grouped.get(d.year)
-                const html = `
-                <strong>${d.year}</strong><br/>Start of 
-                ${eventsThatYear.map(e => e.key).join("<br/>")}
-                `
-                tooltip.style("display", "block").html(html)
+                showAnnotationTooltip('enter',event,d.year,eventsThatYear)
             })
-            .on("mousemove", function(event) {
-                tooltip.style("left", (event.pageX + 10) + "px").style("top", (event.pageY - 20) + "px")
-            })
-            .on("mouseout", function() {
-                tooltip.style("display", "none")
-            })
+            .on("mouseout", function() {showAnnotationTooltip('leave')})
         annotation.exit().remove()
     }
     // FUNCTIONS
@@ -319,12 +729,13 @@ function GraphSection (props) {
             let extent = d3.extent(selectedConcepts.map(d => d.data.code_counts).flat().map(d => d.calendar_year))
             if (!extent[0] || !extent[1]) extent = d3.extent(rootLine, d => d[0])
             setExtent(extent)
+            setYearSelection(null)
             d3.select("#zoomUI").remove()
             zooming = false
             setZoomed(false)
         }
     }
-    // get graph
+    // get graph 
     function getGraph(rollup, width, height, ticks) {
         // x and y scales
         let maxRollup = d3.max(rollup, obj => Object.entries(obj).reduce((sum, [key, val]) => key !== 'year' ? sum + val : sum, 0))
@@ -360,14 +771,14 @@ function GraphSection (props) {
             .attr("fill", "#B8B8B8")
             .raise()
         // clip path
-        d3.select("#graph").append("defs").append("svg:clipPath")
-            .attr("id", "clip")
-            .append("svg:rect")
-            .attr("width", width)
-            .attr("height", height)
-            .attr("x", 0)
-            .attr("y", 0)
-            .raise()
+        // d3.select("#graph").append("defs").append("svg:clipPath")
+        //     .attr("id", "clip")
+        //     .append("svg:rect")
+        //     .attr("width", width)
+        //     .attr("height", height)
+        //     .attr("x", 0)
+        //     .attr("y", 0)
+        //     .raise()
         let animationFrameId = null
         const handleMouseMove = (e) => {
             if (!zooming) return
@@ -398,8 +809,8 @@ function GraphSection (props) {
             })
             .on("mouseup",(e)=>{
                 if ((x1 && x2) && (Math.round(scaleX.invert(x1)) !== Math.round(scaleX.invert(x2)))) {
-                    if (x1 < x2) {setExtent([Math.round(scaleX.invert(x1)), Math.round(scaleX.invert(x2))])}
-                    else {setExtent([Math.round(scaleX.invert(x2)), Math.round(scaleX.invert(x1))])} 
+                    if (x1 < x2) {setYearSelection([Math.round(scaleX.invert(x1)), Math.round(scaleX.invert(x2))])}
+                    else {setYearSelection([Math.round(scaleX.invert(x2)), Math.round(scaleX.invert(x1))])} 
                     setZoomed(true)   
                 }
                 d3.select("#zoomUI").remove()
@@ -413,54 +824,58 @@ function GraphSection (props) {
     // hover filter
     function filterHover(id,mode,type) {
         if (mode === 'enter') {
-            if (!d3.select('#btn-' + id).classed('filterActive')) d3.select('#btn-'+id).classed('filterHover',true)
-            if (type !== 'source') {
-                if (!d3.select('#geometry-' + id).classed('filterActive')) d3.select('#geometry-'+id).classed('filterHover',true)
-                d3.select('#viz-label-'+id).classed('labelHover',true)
+            if (type === 'age' || type === 'gender') {
+                if (d3.select('#geometry-' + id).classed('vizActive')) {
+                    d3.select('#geometry-' + id).classed('vizHoverInactive',true)
+                    d3.select('#geometry-' + id).classed('vizHoverActive',false)
+                    d3.select('#btn-' + id).classed('filterHoverInactive',true)
+                    d3.select('#btn-' + id).classed('filterHoverActive',false)
+                }  else {
+                    d3.select('#geometry-' + id).classed('vizHoverInactive',false)
+                    d3.select('#geometry-' + id).classed('vizHoverActive',true)   
+                    d3.select('#btn-' + id).classed('filterHoverInactive',false)
+                    d3.select('#btn-' + id).classed('filterHoverActive',true) 
+                }
+            } else {
+                if (d3.select('#geometry-' + id).classed('vizActive')) {
+                    d3.select('#geometry-' + id).classed('vizHoverInactive',true)
+                    d3.select('#geometry-' + id).classed('vizHoverActive',false)
+                } else {
+                    d3.select('#geometry-' + id).classed('vizHoverInactive',false)
+                    d3.select('#geometry-' + id).classed('vizHoverActive',true)   
+                } 
             }
         } else {
-            d3.select('#btn-'+id).classed('filterHover', false)
-            if (type !== 'source') {
-                d3.select('#geometry-'+id).classed('filterHover', false)    
-                d3.select('#viz-label-'+id).classed('labelHover', false)  
+            if (type === 'age' || type === 'gender') {
+                d3.select('#geometry-' + id).classed('vizHoverInactive',false)
+                d3.select('#geometry-' + id).classed('vizHoverActive',false)
+                d3.select('#btn-' + id).classed('filterHoverInactive',false)
+                d3.select('#btn-' + id).classed('filterHoverActive',false)
+            } else {
+                d3.select('#geometry-' + id).classed('vizHoverInactive',false)
+                d3.select('#geometry-' + id).classed('vizHoverActive',false)    
             }
         }
     }
     // select filter
     function filterSelect(id,type) {
-        if (type === 'age') {
-            let ages = graphFilter.age
-            if (!ages.includes(id)) ages.push(id)
-            else {ages = ages.filter(age => age !== id)}
-            setGraphFilter(prev => ({
-                ...prev,
-                age: ages
-            })); 
-        } 
-        if (type === 'source') {
-            let sources = graphFilter.source
-            const allSources = sourceData.map(obj => obj.codes).flat().filter(s => s.sum > 0).map(s => s.id)
-            if (!sources.includes(id) && !graphFilter.source.includes(-1)) sources.push(id)
-            else {
-                if (graphFilter.source.includes(-1)) sources = allSources.filter(source => source !== id)
-                else sources = sources.filter(source => source !== id)
-            }
-            if (allSources.every(id => sources.includes(id))) sources = [-1]
-            setGraphFilter(prev => ({
-                ...prev,
-                source: sources
-            }));    
+        let all = []
+        let filtered = []
+        let curr = graphFilter[type]
+        if (type === 'age') all = ageData.map(d => d.id)
+        if (type === 'source') all = sourceData.map(obj => obj.codes).flat().filter(s => s.sum > 0).map(s => s.id)
+        if (type === 'gender') all = genderData.map(d => d.id)
+        if (curr.includes(-1)) filtered = all.filter(d => d !== id)  
+        else {
+            if (!curr.includes(id)) {
+                filtered = [...curr,id]
+                if (filtered.length === all.length) filtered = [-1]
+            } else filtered = curr.filter(d => d !== id)
         }
-        if (type === 'gender') {
-            if (graphFilter.gender !== id) setGraphFilter(prev => ({
-                ...prev,
-                gender: id
-            })); 
-            else setGraphFilter(prev => ({
-                ...prev,
-                gender: -1
-            }));   
-        }
+        console.log(type,'curr',curr,'filt',filtered,'all',all)
+        if (type === 'age') setGraphFilter(prev => ({...prev,age: filtered}))
+        if (type === 'source') setGraphFilter(prev => ({...prev,source: filtered}))
+        if (type === 'gender') setGraphFilter(prev => ({...prev,gender: filtered}))
     }
     // age filter brushing
     function ageBrush(e,mode) {
@@ -472,6 +887,7 @@ function GraphSection (props) {
         if (mode === 'up') {
             let startAge,endAge
             let ages = graphFilter.age
+            ages = graphFilter.age.includes(-1) ? ageData.map(d => d.id) : ages
             if (x1 !== x2) {
                 if (x1 < x2) {
                     startAge = Math.trunc(scaleX(x1)/38)
@@ -482,13 +898,13 @@ function GraphSection (props) {
                     endAge = Math.trunc(scaleX(x1)/38) 
                 }
                 for (let i = startAge; i <= endAge; i++) {
-                    if (!ages.includes(i)) ages.push(i)
+                    if (!ages.includes(i)) {
+                        ages = [...ages,i]
+                        if (ages.length === ageData.length) ages = [-1]
+                    }
                     else ages = ages.filter(age => age !== i)
                 }
-                setGraphFilter(prev => ({
-                    ...prev,
-                    age: ages
-                })); 
+                setGraphFilter(prev => ({...prev,age: ages}))
             }
             brushing = false
         } else {
@@ -504,14 +920,34 @@ function GraphSection (props) {
                     endAge = Math.trunc(scaleX(x1)/38) 
                 }
                 for (let i = startAge; i <= endAge; i++) {
-                    if (!graphFilter.age.includes(i)) {
-                        d3.select('#btn-'+i).classed('filterActive',true)
-                        d3.select('#geometry-'+i).classed('filterActive',true)   
-                        d3.select('#viz-label-'+i).classed('labelHover',true) 
+                    if (!graphFilter.age.includes(i) && !graphFilter.age.includes(-1)) {
+                        d3.select('#btn-'+i)
+                            .classed('filterHoverInactive',false)
+                            .classed('filterHoverActive',false)
+                            .classed('filterActiveDrag', true)
+                            .classed('filterActiveRight', true)
+                            .classed('filterInactiveDrag', false)
+                            .classed('filterInactiveRight', false)
+                        d3.select('#geometry-' + i)
+                            .classed('vizHoverInactive',false)
+                            .classed('vizHoverActive',false) 
+                            .classed('vizActive',true) 
+                            .classed('vizInactive',false)
+                        // d3.select('#viz-label-'+i).classed('labelActive',true) 
                     } else {
-                        d3.select('#btn-'+i).classed('filterActive',false)
-                        d3.select('#geometry-'+i).classed('filterActive',false)
-                        d3.select('#viz-label-'+i).classed('labelHover',false) 
+                        d3.select('#btn-'+i)
+                            .classed('filterHoverInactive',false)
+                            .classed('filterHoverActive',false)
+                            .classed('filterActiveDrag',false)
+                            .classed('filterActiveRight', false)
+                            .classed('filterInactiveDrag', true)
+                            .classed('filterInactiveRight', true)
+                        d3.select('#geometry-' + i)
+                            .classed('vizHoverInactive',false)
+                            .classed('vizHoverActive',false)    
+                            .classed('vizActive',false)
+                            .classed('vizInactive',true)
+                        // d3.select('#viz-label-'+i).classed('labelActive',false) 
                     }
                 }
             }
@@ -524,18 +960,18 @@ function GraphSection (props) {
             d3.select('#filter-value').html(abbreviateNumber(d.sum))
             d3.select('#filter-tooltip')
                 .style('left', function() {
+                    const gap = 5
                     const w = document.getElementById('filter-tooltip').clientWidth
-                    if (event.x + w > window.innerWidth) return (event.x - w - 5 + 'px')
-                    else return (event.x + 10 + 'px')    
+                    if (event.x + w > window.innerWidth) return (event.x - w - gap + 'px')
+                    else return (event.x + gap + 'px')    
                 })
                 .style('top', function() {
+                    const gap = 5
                     const h = document.getElementById('filter-tooltip').clientHeight
-                    if (event.y - h < 0) return (event.y + 10 + 'px')    
-                    else return (event.y - h + 'px')
+                    if (event.y + h > window.innerHeight) return (event.y - h - gap + 'px')  
+                    else return (event.y + gap + 'px')
                 })
-                .transition()
-                .style('opacity',1)
-                
+                .transition().style('opacity',1)
         } else d3.select('#filter-tooltip').transition().style('opacity',0)
     }
     function abbreviateNumber(num) {
@@ -551,28 +987,45 @@ function GraphSection (props) {
         }
         return String(num)
     }
-
-    // close source dropdown
-    document.addEventListener('click', (e) => {
-        if (document.getElementById('dropdown-sources')) {
-            const sourceContainer = document.getElementById('source-collapsed')
-            if (!sourceContainer.contains(e.target)) {
-                d3.select('#open-sources').style('display', 'block')
-                d3.select('#close-sources').style('display', 'none')  
-                d3.select('#dropdown-sources').style('visibility','hidden') 
-            } 
+    function addAllSourceCategory(all,d) {
+        let sources = graphFilter.source
+        const categoryIds = d.codes.map(c => c.id)
+        if (graphFilter.source.includes(-1)) {
+            sources = all.filter(source => !categoryIds.includes(source))
+            if (sources.length === 0) sources = graphFilter.source
         }
-    })
+        else if (categoryIds.every(id => graphFilter.source.includes(id))) {
+            sources = sources.filter(source => !categoryIds.includes(source))
+            if (sources.length === 0) sources = graphFilter.source
+        }
+        else sources = [...graphFilter.source,...categoryIds].filter((e,n,l) => l.indexOf(e) === n)
+        setGraphFilter(prev => ({...prev,source: sources}))
+    }
+
+    useEffect(() => {
+        function handleClickOutside(e) {
+            if (document.getElementById('dropdown-sources')) {
+                const sourceContainer = document.getElementById('source-collapsed')
+                if (sourceContainer && !sourceContainer.contains(e.target)) {
+                    d3.select('#open-sources').style('display', 'block')
+                    d3.select('#close-sources').style('display', 'none')
+                    d3.select('#dropdown-sources').style('visibility', 'hidden')
+                }
+            }
+        }
+        document.addEventListener('click', handleClickOutside)
+        return () => document.removeEventListener('click', handleClickOutside)
+    }, [])
 
     // filters viz
     useEffect(() => {
-        if (sourceData) {
+        if (genderData && sourceData && ageData) {
             if (genderData.length > 0 && ageData.length > 0 && sourceData.length > 0) {
                 // gender
                 const genders = [8507,8532]
                 const width = 40
                 const height = 40
-                const piMargin = 5
+                const piMargin = 6
                 const radius = Math.min(width, height) 
                 d3.select("#gender-svg")
                     .attr("width", width)
@@ -587,7 +1040,8 @@ function GraphSection (props) {
                     .join(enter => {
                         enter.append('div')
                             .classed('gender btn flex filterBtn',true)
-                            .classed('filterActive', (d) => graphFilter.gender === d.id ? true : false)
+                            .classed('filterInactive', (d) => !graphFilter.gender.includes(d.id) && !graphFilter.gender.includes(-1) ? true : false)
+                            .classed('filterActive', (d) => graphFilter.gender.includes(d.id) || graphFilter.gender.includes(-1) ? true : false)
                             .classed('edgeLeft', (d,i) => i === 0 ? true : false)
                             .classed('edgeRight', (d,i) => i !== 0 ? true : false)
                             .attr('id',d => 'btn-'+d.id)
@@ -598,7 +1052,8 @@ function GraphSection (props) {
                             .on('click',(e,d) => filterSelect(d.id,'gender'))
                     },update => {
                         update  
-                            .classed('filterActive', (d) => graphFilter.gender === d.id ? true : false)
+                            .classed('filterInactive', (d) => !graphFilter.gender.includes(d.id) && !graphFilter.gender.includes(-1) ? true : false)
+                            .classed('filterActive', (d) => graphFilter.gender.includes(d.id) || graphFilter.gender.includes(-1) ? true : false)
                             .on('mouseover',(e,d) => filterHover(d.id,'enter','gender'))
                             .on('mouseout',(e,d) => filterHover(d.id,'leave','gender'))
                             .on('click',(e,d) => filterSelect(d.id,'gender'))
@@ -609,40 +1064,44 @@ function GraphSection (props) {
                             .classed('arc',true)  
                         container.append('path')
                             .classed('arc-path btn viz',true)
-                            .classed('filterActive', (d) => graphFilter.gender === d.data.id ? true : false)
+                            .classed('vizInactive', (d) => !graphFilter.gender.includes(d.data.id) && !graphFilter.gender.includes(-1) ? true : false)
+                            .classed('vizActive', (d) => graphFilter.gender.includes(d.data.id) || graphFilter.gender.includes(-1) ? true : false)
                             .attr('id', d => 'geometry-'+d.data.id)
                             .attr("d", d => d.endAngle === d.startAngle ? null : arcGenerator(d))
                             .on("mouseover", (e,d) => filterHover(d.data.id, "enter",'gender'))
                             .on("mouseout", (e,d) => filterHover(d.data.id, "leave",'gender'))
                             .on("click", (e,d) => filterSelect(d.data.id, "gender"))
                             .attr("transform", `translate(${width/2}, ${height/2}) scale(0.5) rotate(180)`)
-                            .style('fill', d => d.data.id === maxGender ? '#d5d5d5' : '#e0e0e0')
+                            // .style('fill', d => graphFilter.gender.includes(-1) && d.data.id === maxGender ? '#c9c9d5' : 'color-mix(in srgb, #c9c9d5, white 20%)')
                         container.append('text')
                             .classed('arc-text vizLabel num',true)
+                            // .classed('labelActive', (d) => graphFilter.gender.includes(d.data.id) || graphFilter.gender.includes(-1) ? true : false)
                             .attr('id', d => 'viz-label-'+d.data.id)
                             .text(d => d.data.sum === 0 ? '' : abbreviateNumber(d.data.sum))
                             .attr("x", d => d.data.id === genders[0] ? -radius/2 : radius/2) 
                             .attr("y", radius/2 + piMargin) 
-                            .attr('font-weight', d => graphFilter.gender === d.data.id ? 500 : 400)
                             .attr("text-anchor", d => d.data.id === genders[0] ? "end" : "start") 
-                            .style('fill', d => graphFilter.gender === d.data.id ? '#36126d' : d.data.id === maxGender ? 'color-mix(in srgb, #808080, white 30%)' : 'color-mix(in srgb, #808080, white 50%)')
+                            .style('font-weight', d => graphFilter.gender.includes(d.data.id) || graphFilter.gender.includes(-1) ? 500 : 400)
+                            .style('fill', d => graphFilter.gender.includes(-1) || graphFilter.gender.includes(d.data.id) ? d.data.id === maxGender ? '#36126d' : 'color-mix(in srgb, #36126d, white 40%)' : '#9597a6')
                             .attr("transform", `translate(${width/2}, ${height/2 - piMargin})`)
                     },update=>{
                         update.select('.arc-path')
-                            .classed('filterActive', (d) => graphFilter.gender === d.data.id ? true : false)
+                            .classed('vizInactive', (d) => !graphFilter.gender.includes(d.data.id) && !graphFilter.gender.includes(-1) ? true : false)
+                            .classed('vizActive', (d) => graphFilter.gender.includes(d.data.id) || graphFilter.gender.includes(-1) ? true : false)
                             .on("mouseover", (e,d) => filterHover(d.data.id, "enter",'gender'))
                             .on("mouseout", (e,d) => filterHover(d.data.id, "leave",'gender'))
                             .on("click", (e,d) => filterSelect(d.data.id, "gender"))
-                            .transition()
+                            // .transition()
                             .attr("d", d => d.endAngle === d.startAngle ? null : arcGenerator(d))
-                            .style('fill', d => d.data.id === maxGender ? '#d5d5d5' : '#e0e0e0')
+                            // .style('fill', d => graphFilter.gender.includes(-1) && d.data.id === maxGender ? '#c9c9d5' : 'color-mix(in srgb, #c9c9d5, white 20%)')
                         update.select('.arc-text')
+                            // .classed('labelActive', (d) => graphFilter.gender.includes(d.data.id) || graphFilter.gender.includes(-1) ? true : false)
                             .text(d => d.data.sum === 0 ? '' : abbreviateNumber(d.data.sum))
                             .attr("x", d => d.data.id === genders[0] ? -radius/2 : radius/2) 
                             .attr("y", radius/2 + piMargin) 
                             .attr("text-anchor", d => d.data.id === genders[0] ? "end" : "start") 
-                            .attr('font-weight', d => graphFilter.gender === d.data.id ? 500 : 400)
-                            .style('fill', d => graphFilter.gender === d.data.id ? '#36126d' : d.data.id === maxGender ? 'color-mix(in srgb, #808080, white 30%)' : 'color-mix(in srgb, #808080, white 50%)')
+                            .style('font-weight', d => graphFilter.gender.includes(d.data.id) || graphFilter.gender.includes(-1) ? 500 : 400)
+                            .style('fill', d => graphFilter.gender.includes(-1) || graphFilter.gender.includes(d.data.id) ? d.data.id === maxGender ? '#36126d' : 'color-mix(in srgb, #36126d, white 40%)' : '#9597a6')
                     })
                 // age
                 const ageExtent = d3.extent(ageData.map(d => d.sum))
@@ -651,22 +1110,31 @@ function GraphSection (props) {
                     .join(enter => {
                         enter.append('div')
                             .classed('age btn flex filterBtn num',true)
-                            .classed('filterActive', (d) => graphFilter.age.includes(d.id) ? true : false)
+                            .classed('filterInactiveDrag', (d,i) => !graphFilter.age.includes(d.id) && !graphFilter.age.includes(-1) ? true : false)
+                            .classed('filterActiveDrag', (d,i) => graphFilter.age.includes(d.id) || graphFilter.age.includes(-1) ? true : false)
+                            .classed('filterInactiveRight', (d,i) => (!graphFilter.age.includes(d.id) && !graphFilter.age.includes(-1)) && (i === ageData.length - 1 || graphFilter.age.includes(i+1)) ? true : false)
+                            .classed('filterActiveRight',(d,i) => (graphFilter.age.includes(-1) && i === ageData.length - 1) || (graphFilter.age.includes(d.id) && (i === ageData.length - 1 || !graphFilter.age.includes(i+1))) ? true : false)
+                            .classed('edgeRight', (d,i) => i === ageData.length - 1 ? true : false)
                             .classed('edgeLeft', (d,i) => i === 0 ? true : false)
-                            .classed('edgeRight', (d,i) => i === ageData.length -1 ? true : false)
                             .attr('id',d => 'btn-'+d.id)
                             .html(d => d.id*10+'-'+(d.id*10+9))
-                            .style('width','32px')                    
+                            .style('width','36px')  
+                            .style('font-size','8px')                  
                             .on('mouseover',(e,d) => filterHover(d.id,'enter','age'))
                             .on('mouseout',(e,d) => filterHover(d.id,'leave','age'))
                             .on('click',(e,d) => filterSelect(d.id,'age'))
                     },update => {
                         update  
-                            .classed('filterActive', (d) => graphFilter.age.includes(d.id) ? true : false)
+                            .classed('filterInactiveDrag', (d,i) => !graphFilter.age.includes(d.id) && !graphFilter.age.includes(-1) ? true : false)
+                            .classed('filterActiveDrag', (d,i) => graphFilter.age.includes(d.id) || graphFilter.age.includes(-1) ? true : false)
+                            .classed('filterInactiveRight', (d,i) => (!graphFilter.age.includes(d.id) && !graphFilter.age.includes(-1)) && (i === ageData.length - 1 || graphFilter.age.includes(i+1)) ? true : false)
+                            .classed('filterActiveRight',(d,i) => (graphFilter.age.includes(-1) && i === ageData.length - 1) || (graphFilter.age.includes(d.id) && (i === ageData.length - 1 || !graphFilter.age.includes(i+1))) ? true : false)
+                            .classed('edgeRight', (d,i) => i === ageData.length - 1 ? true : false)
+                            .classed('edgeLeft', (d,i) => i === 0 ? true : false)
                             .on('mouseover',(e,d) => filterHover(d.id,'enter','age'))
                             .on('mouseout',(e,d) => filterHover(d.id,'leave','age'))
                             .on('click',(e,d) => filterSelect(d.id,'age'))
-                    })
+                    },exit => exit.remove())
                 d3.select('#age-viz').selectAll('.age-geometry').data(ageData, d => d.id)
                     .join(enter => {
                         const container = enter.append('div')
@@ -675,26 +1143,30 @@ function GraphSection (props) {
                             .style('flex-direction','column')
                         container.append('p')
                             .classed('age-p vizLabel num',true)
-                            .classed('labelHover', d => graphFilter.age.includes(d.id) ? true : false)
+                            // .classed('labelActive', d => graphFilter.age.includes(d.id) || graphFilter.age.includes(-1) ? true : false)
                             .attr('id',d=>'viz-label-'+d.id)
-                            .style('color', d => graphFilter.age.includes(d.id) ? '#36126d' : ageExtent.includes(d.sum) ? 'color-mix(in srgb, #808080, white 30%)' : 'color-mix(in srgb, #808080, white 70%)')
+                            .style('font-weight', d => graphFilter.age.includes(d.id) || graphFilter.age.includes(-1) ? 500 : 400)
+                            .style('color', d => graphFilter.age.includes(-1) || graphFilter.age.includes(d.id) ? ageExtent.includes(d.sum) ? '#36126d' : 'color-mix(in srgb, #36126d, white 40%)' : ageExtent.includes(d.sum) ? '#9597a6' : 'color-mix(in srgb, #9597a6, white 40%)')
                             .html(d => d.sum === 0 ? '' : abbreviateNumber(d.sum))
                         container.append('div')
                             .classed('age-rect btn viz',true)
-                            .classed('filterActive',(d) => graphFilter.age.includes(d.id) ? true : false)
+                            .classed('vizInactive',(d) => !graphFilter.age.includes(d.id) && !graphFilter.age.includes(-1) ? true : false)
+                            .classed('vizActive',(d) => graphFilter.age.includes(d.id) || graphFilter.age.includes(-1) ? true : false)
                             .attr('id', d => 'geometry-'+d.id)
-                            .style('width', '38px')
+                            .style('width', '42px')
                             .style('height', d => d.sum === 0 ? '0px' : scaleHeight(d.sum) + 'px')
                             .on('mouseover', (e,d) => filterHover(d.id, 'enter','age'))
                             .on('mouseout', (e,d) => filterHover(d.id, 'leave','age'))
                             .on('click', (e,d) => filterSelect(d.id, 'age'))
                     },update => {
                         update.select('.age-p')
-                            .classed('labelHover', d => graphFilter.age.includes(d.id) ? true : false)
-                            .style('color', d => graphFilter.age.includes(d.id) ? '#36126d' : ageExtent.includes(d.sum) ? 'color-mix(in srgb, #808080, white 30%)' : 'color-mix(in srgb, #808080, white 70%)')
+                            // .classed('labelActive', d => graphFilter.age.includes(d.id) || graphFilter.age.includes(-1) ? true : false)
+                            .style('font-weight', d => graphFilter.age.includes(d.id) || graphFilter.age.includes(-1) ? 500 : 400)
+                            .style('color', d => graphFilter.age.includes(-1) || graphFilter.age.includes(d.id) ? ageExtent.includes(d.sum) ? '#36126d' : 'color-mix(in srgb, #36126d, white 40%)' : ageExtent.includes(d.sum) ? '#9597a6' : 'color-mix(in srgb, #9597a6, white 40%)')
                             .html(d => d.sum === 0 ? '' : abbreviateNumber(d.sum))
                         update.select('.age-rect')
-                            .classed('filterActive',(d) => graphFilter.age.includes(d.id) ? true : false)
+                            .classed('vizInactive',(d) => !graphFilter.age.includes(d.id) && !graphFilter.age.includes(-1) ? true : false)
+                            .classed('vizActive',(d) => graphFilter.age.includes(d.id) || graphFilter.age.includes(-1) ? true : false)
                             .on('mouseover', (e,d) => filterHover(d.id, 'enter','age'))
                             .on('mouseout', (e,d) => filterHover(d.id, 'leave','age'))
                             .on('click', (e,d) => filterSelect(d.id, 'age'))
@@ -702,12 +1174,16 @@ function GraphSection (props) {
                             .style('height', d => d.sum === 0 ? '0px' : scaleHeight(d.sum) + 'px')
                     })   
                 // source viz
-                const sourceWidth = document.getElementById("graph-filters").clientWidth - document.getElementById('gender-container').clientWidth - document.getElementById('age-container').clientWidth - 70
-                document.getElementById("header-sources").style.maxWidth =  sourceWidth + 40 + 'px'
                 const allSources = sourceData.map(d => d.codes).flat()
+                const subtract = ageData.length < 11 ? 40 : 60
+                const add = ageData.length < 11 ? 40 : 30
+                const sourceWidth = document.getElementById("graph-filters").clientWidth - document.getElementById('gender-container').clientWidth - document.getElementById('age-container').clientWidth - (5*allSources.length) - subtract
+                const maxWidth = sourceWidth + add
+                document.getElementById("header-sources").style.maxWidth =  maxWidth + 'px'
                 const filteredSources = sourceData.map(obj => ({...obj,codes:obj.codes.filter(c => c.sum !== 0)})).filter(obj => obj.codes.length > 0)
+                const allFiltered = filteredSources.map(d => d.codes).flat().map(d => d.id)
                 const categorySums = filteredSources.map(obj => d3.sum(obj.codes.map(c => c.sum)))
-                const scaleWidth = d3.scaleLinear().domain([0,d3.extent(categorySums)[1]]).range([1,sourceWidth])
+                const scaleWidth = d3.scaleLinear().domain([0,d3.extent(categorySums)[1]]).range([5,sourceWidth])
                 d3.select('#dropdown-sources').selectAll('.source-section').data(filteredSources, d => d.key)
                     .join(enter => {
                         const category = enter.append('div')
@@ -716,27 +1192,20 @@ function GraphSection (props) {
                         const title = category.append('div')
                             .classed('flex',true)
                         title.append('p')
-                            .html(d => d.key == 'Long.' ? 'Longitudinal' : d.key)
-                        // title.append('p')
-                        //     .classed('dropdown-category-btn',true)
-                        //     .style('font-size','10px')
-                        //     .style('cursor','pointer')
-                        //     .style('color', color.textlightest)
-                        //     .style('display', d => d3.sum(d.codes.map(c => c.sum)) === 0 ? 'none' : 'block')
-                        //     .html(d => d.codes.filter(c => c.sum > 0).map(c => c.id).every(id => graphFilter.source.includes(id)) || graphFilter.source.includes(-1) ? 'Remove all' : 'Add all')
-                        //     .on('click',(e,d) => {
-                        //         let sources = graphFilter.source
-                        //         const ids = d.codes.filter(c => c.sum > 0).map(c => c.id)
-                        //         if (ids.every(id => graphFilter.source.includes(id))) {
-                        //             sources = sources.filter(source => !ids.includes(source))
-                        //         }
-                        //         else {
-                        //             if (graphFilter.source.includes(-1)) sources = allSources.filter(s => s.sum > 0).map(s => s.id).filter(id => !ids.includes(id))
-                        //             else sources = [...graphFilter.source,...ids].filter((e,n,l) => l.indexOf(e) === n)
-                        //         }
-                        //         // if (sources.length === 0) sources = [-1]
-                        //         setGraphFilter({gender:graphFilter.gender,age:graphFilter.age,source:sources})
-                        //     })
+                            .classed('category-dropdown-p',true)
+                            .style('padding-right','5px')
+                            .html(d => d.key == 'Long.' ? 'Longitudinal' : d.key === 'Reg.' ? 'Registry' : d.key)
+                            .style('font-weight', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) || graphFilter.source.includes(-1) ? 500 : 400)
+                        const checkBox = title.append('div')
+                            .classed('category-check-box checkMarkBox marginRight btn',true)
+                            .style('width','10px')
+                            .style('height','10px')
+                            .style('border', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) || graphFilter.source.includes(-1) ? '1px solid #9597a6' : '1px solid #e8e8e8')
+                            .on('click',(e,d) => {addAllSourceCategory(allFiltered,d)})
+                        checkBox.append('i')
+                            .classed('category-check-mark fa-solid fa-check',true)
+                            .style('font-size','8px')
+                            .style('display', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) || graphFilter.source.includes(-1) ? 'block' : 'none')
                         category.selectAll(".source").data(d => d.codes, d => d.key)
                             .join(enter => {
                                 const container = enter.append('div')
@@ -756,7 +1225,7 @@ function GraphSection (props) {
                                     .classed('source-p btn',true)
                                     .attr('id', d => 'source-'+d.id)
                                     .style('font-weight', d => graphFilter.source.includes(d.id) || (graphFilter.source.includes(-1) && d.sum > 0)? 500 : 400)
-                                    .style('color', d => graphFilter.source.includes(d.id) || (graphFilter.source.includes(-1) && d.sum > 0)? '#36125d' : '#808080')
+                                    .style('color', d => graphFilter.source.includes(d.id) || (graphFilter.source.includes(-1) && d.sum > 0)? '#36125d' : '#9597a6')
                                     .html(d => d.code)    
                             },update => {
                                 update 
@@ -771,28 +1240,17 @@ function GraphSection (props) {
                                     })
                                 update.select('.source-p')
                                     .style('font-weight', d => graphFilter.source.includes(d.id) || (graphFilter.source.includes(-1) && d.sum > 0)? 500 : 400)
-                                    .style('color', d => graphFilter.source.includes(d.id) || (graphFilter.source.includes(-1) && d.sum > 0)? '#36125d' : '#808080')
+                                    .style('color', d => graphFilter.source.includes(d.id) || (graphFilter.source.includes(-1) && d.sum > 0)? '#36125d' : '#9597a6')
                                     .html(d => d.code)
                             })      
                     },update => {
-                        // update.selectAll('.dropdown-source-section-title')
-                        //     .style('opacity', d => d3.sum(d.codes.map(c => c.sum)) === 0 ? 0.3 : 1)
-                        //     .style('color', d => d.codes.filter(c => c.sum > 0).map(c => c.id).every(id => graphFilter.source.includes(id)) || graphFilter.source.includes(-1) ? color.text : color.textlight)
-                        // update.selectAll('.dropdown-category-btn')
-                        //     .style('display', d => d3.sum(d.codes.map(c => c.sum)) === 0 ? 'none' : 'block')
-                        //     .html(d => d.codes.filter(c => c.sum > 0).map(c => c.id).every(id => graphFilter.source.includes(id)) || graphFilter.source.includes(-1) ? 'Remove all' : 'Add all')
-                        //     .on('click',(e,d) => {
-                        //         let sources = graphFilter.source
-                        //         const ids = d.codes.filter(c => c.sum > 0).map(c => c.id)
-                        //         if (ids.every(id => graphFilter.source.includes(id))) {
-                        //             sources = sources.filter(source => !ids.includes(source))
-                        //         }
-                        //         else {
-                        //             if (graphFilter.source.includes(-1)) sources = allSources.filter(s => s.sum > 0).map(s => s.id).filter(id => !ids.includes(id))
-                        //             else sources = [...graphFilter.source,...ids].filter((e,n,l) => l.indexOf(e) === n)
-                        //         }
-                        //         setGraphFilter({gender:graphFilter.gender,age:graphFilter.age,source:sources})
-                        //     })
+                        update.selectAll('.category-dropdown-p')
+                            .style('font-weight', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) || graphFilter.source.includes(-1) ? 500 : 400)
+                        update.selectAll('.category-check-box')
+                            .style('border', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) || graphFilter.source.includes(-1) ? '1px solid #9597a6' : '1px solid #e8e8e8')
+                            .on('click',(e,d) => {addAllSourceCategory(allFiltered,d)})
+                        update.selectAll('.category-check-mark')
+                            .style('display', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) || graphFilter.source.includes(-1) ? 'block' : 'none')
                         update.selectAll(".source").data(d => d.codes, d => d.key)
                             .join(enter => {
                                 const container = enter.append('div')
@@ -812,7 +1270,7 @@ function GraphSection (props) {
                                     .classed('source-p btn',true)
                                     .attr('id', d => 'source-'+d.id)
                                     .style('font-weight', d => graphFilter.source.includes(d.id) || (graphFilter.source.includes(-1) && d.sum > 0)? 500 : 400)
-                                    .style('color', d => graphFilter.source.includes(d.id) || (graphFilter.source.includes(-1) && d.sum > 0)? '#36125d' : '#808080')
+                                    .style('color', d => graphFilter.source.includes(d.id) || (graphFilter.source.includes(-1) && d.sum > 0)? '#36125d' : '#9597a6')
                                     .html(d => d.code)    
                             },update => {
                                 update 
@@ -827,7 +1285,7 @@ function GraphSection (props) {
                                     })
                                 update.select('.source-p')
                                     .style('font-weight', d => graphFilter.source.includes(d.id) || (graphFilter.source.includes(-1) && d.sum > 0)? 500 : 400)
-                                    .style('color', d => graphFilter.source.includes(d.id) || (graphFilter.source.includes(-1) && d.sum > 0)? '#36125d' : '#808080')
+                                    .style('color', d => graphFilter.source.includes(d.id) || (graphFilter.source.includes(-1) && d.sum > 0)? '#36125d' : '#9597a6')
                                     .html(d => d.code)
                             })      
                     })
@@ -837,49 +1295,47 @@ function GraphSection (props) {
                             .classed('category',true)
                             .style('margin','1px 0px 1px 0px')
                         const label = category.append('div')
-                            .classed('flex',true)
-                            .style("order",1)
+                            .classed('category-flex flex btn',true)
+                            .style("order",0)
+                            .on('click',(e,d) => {addAllSourceCategory(allFiltered,d)})
                         label.append('p')
-                            .classed('category-p btn',true)
+                            .classed('category-p',true)
                             .html(d => d.key)
                             .style('position','relative')
-                            .style('padding','0px 3px 0px 5px')
+                            .style('padding-right','5px')
                             .style('margin',0)
-                            .style('font-weight', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) ? 500 : 400)
-                        label.append('div')
-                            .classed('add-all checkBox',true)
-                            .style('border', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) ? '1px solid #36125d' : '1px solid #cccccc')
-                            .style('background-color', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) ? '#36125d' : 'transparent')
-                            .on('click',(e,d) => {
-                                let sources = graphFilter.source
-                                const ids = d.codes.map(c => c.id)
-                                if (ids.every(id => graphFilter.source.includes(id))) {
-                                    sources = sources.filter(source => !ids.includes(source))
-                                    if (sources.length === 0) sources = [-1]
-                                }
-                                else {
-                                    if (graphFilter.source.includes(-1)) sources = ids
-                                    else sources = [...graphFilter.source,...ids].filter((e,n,l) => l.indexOf(e) === n)
-                                }
-                                setGraphFilter(prev => ({
-                                    ...prev,
-                                    source: sources
-                                })); 
+                            .style('width','25px')
+                            .style('font-weight', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) || graphFilter.source.includes(-1) ? 500 : 400)
+                            .on('mouseover', (e,d) => {
+                                const el = e.currentTarget
+                                el.__hoverTimeout__ = setTimeout(() => {
+                                    if (d.key === 'Long.') showActionLabel('Longitudinal','enter',e)
+                                    if (d.key === 'Reg.') showActionLabel('Registry','enter',e)
+                                }, 1200) 
                             })
-                        // checkBox.append('i')
-                        //     .classed('add-all-check fa-solid fa-check fa-2xs',true)
-                        //     .style('color','white')
-                        //     .style("pointer-events",'none')
-                        //     .style('display', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) ? 'block' : 'none')
-                        category.selectAll(".source-geometry").data(d => d.codes, d => d.key)
+                            .on('mouseout', (e,d) => {
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
+                            })
+                        const checkBox = label.append('div')
+                            .classed('source-check-box checkMarkBox marginRight btn',true)
+                            .style('width','10px')
+                            .style('height','10px')
+                            .style('border', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) || graphFilter.source.includes(-1) ? '1px solid #9597a6' : '1px solid #e8e8e8')
+                        checkBox.append('i')
+                            .classed('source-check-mark fa-solid fa-check',true)
+                            .style('font-size','8px')
+                            .style('display', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) || graphFilter.source.includes(-1) ? 'block' : 'none')
+                        category.selectAll(".source-geometry").data(d => d.codes, d => d.id)
                             .join(enter => {
                                 enter.append('div')
                                     .classed('source-geometry viz flex btn',true)
-                                    .classed('filterActive', d => graphFilter.source.includes(d.id) ? true : false)
-                                    .attr('id',d => 'btn-'+d.id)
+                                    .classed('vizInactive', d => !graphFilter.source.includes(d.id) && !graphFilter.source.includes(-1) ? true : false)
+                                    .classed('vizActive', d => graphFilter.source.includes(d.id) || graphFilter.source.includes(-1) ? true : false)
+                                    .attr('id',d => 'geometry-'+d.id)
                                     .html(d => {
-                                        const max = scaleWidth(d.sum) / 5
-                                        return max === 0 ? '' : d.code.length > max ? d.code.substring(0,max) : d.code
+                                        const max = scaleWidth(d.sum) / 6
+                                        return max < 2 ? '' : d.code.length > max ? d.code.substring(0,max) : d.code
                                     })
                                     .style('width',d => scaleWidth(d.sum) + 'px') 
                                     .style('height','18px')
@@ -892,24 +1348,14 @@ function GraphSection (props) {
                                         filterTooltip(d,'leave',e)
                                         filterHover(d.id,'leave','source')
                                     })
-                                    .on('click',(e,d) => {
-                                        let sources = graphFilter.source
-                                        if (!sources.includes(d.id)) {
-                                            if (graphFilter.source.includes(-1)) sources = [d.id]
-                                            else sources.push(d.id)
-                                        } else sources = sources.filter(source => source !== d.id)
-                                        if (sources.length === 0) sources = [-1]
-                                        setGraphFilter(prev => ({
-                                            ...prev,
-                                            source: sources
-                                        }));     
-                                    })
+                                    .on('click',(e,d)=>filterSelect(d.id,'source'))
                             },update => {
                                 update  
-                                    .classed('filterActive', d => graphFilter.source.includes(d.id) ? true : false)
+                                    .classed('vizInactive', d => !graphFilter.source.includes(d.id) && !graphFilter.source.includes(-1) ? true : false)
+                                    .classed('vizActive', d => graphFilter.source.includes(d.id) || graphFilter.source.includes(-1) ? true : false)
                                     .html(d => {
-                                        const max = scaleWidth(d.sum) / 5
-                                        return max === 0 ? '' : d.code.length > max ? d.code.substring(0,max) : d.code
+                                        const max = scaleWidth(d.sum) / 6
+                                        return max < 2 ? '' : d.code.length > max ? d.code.substring(0,max) : d.code
                                     })
                                     .style('width',d => scaleWidth(d.sum) + 'px') 
                                     .on('mouseover',(e,d) => {
@@ -920,52 +1366,38 @@ function GraphSection (props) {
                                         filterTooltip(d,'leave',e)
                                         filterHover(d.id,'leave','source')
                                     })
-                                    .on('click',(e,d) => {
-                                        let sources = graphFilter.source
-                                        if (!sources.includes(d.id)) {
-                                            if (graphFilter.source.includes(-1)) sources = [d.id]
-                                            else sources.push(d.id)
-                                        } else sources = sources.filter(source => source !== d.id)
-                                        if (sources.length === 0) sources = [-1]
-                                        setGraphFilter(prev => ({
-                                            ...prev,
-                                            source: sources
-                                        }));      
-                                    })
+                                    .on('click',(e,d)=>filterSelect(d.id,'source'))
                             })   
                     },update => {
+                        update.selectAll('.category-flex')
+                            .on('click',(e,d) => {addAllSourceCategory(allFiltered,d)})
                         update.selectAll('.category-p')
-                            .style('font-weight', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) ? 500 : 400)
-                        update.selectAll('.add-all')
-                            .style('border', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) ? '1px solid #36125d' : '1px solid #cccccc')
-                            .style('background-color', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) ? '#36125d' : 'transparent')
-                            .on('click',(e,d) => {
-                                let sources = graphFilter.source
-                                const ids = d.codes.map(c => c.id)
-                                if (ids.every(id => graphFilter.source.includes(id))) {
-                                    sources = sources.filter(source => !ids.includes(source))
-                                    if (sources.length === 0) sources = [-1]
-                                }
-                                else {
-                                    if (graphFilter.source.includes(-1)) sources = ids
-                                    else sources = [...graphFilter.source,...ids].filter((e,n,l) => l.indexOf(e) === n)
-                                }
-                                setGraphFilter(prev => ({
-                                    ...prev,
-                                    source: sources
-                                })); 
+                            .style('font-weight', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) || graphFilter.source.includes(-1) ? 500 : 400)
+                            .on('mouseover', (e,d) => {
+                                const el = e.currentTarget
+                                el.__hoverTimeout__ = setTimeout(() => {
+                                    if (d.key === 'Long.') showActionLabel('Longitudinal','enter',e)
+                                    if (d.key === 'Reg.') showActionLabel('Registry','enter',e)
+                                }, 1200) 
                             })
-                        // update.selectAll('.add-all-check')
-                        //     .style('display', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) ? 'block' : 'none')
-                        update.selectAll(".source-geometry").data(d => d.codes, d => d.key)
+                            .on('mouseout', (e,d) => {
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
+                            })
+                        update.selectAll('.source-check-box')
+                            .style('border', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) || graphFilter.source.includes(-1) ? '1px solid #9597a6' : '1px solid #e8e8e8')
+                        update.selectAll('.source-check-mark')
+                            .style('display', d => d.codes.map(c => c.id).every(id => graphFilter.source.includes(id)) || graphFilter.source.includes(-1) ? 'block' : 'none')
+                        update.selectAll(".source-geometry").data(d => d.codes, d => d.id)
                             .join(enter => {
                                 enter.append('div')
                                     .classed('source-geometry viz flex btn',true)
-                                    .classed('filterActive', d => graphFilter.source.includes(d.id) ? true : false)
-                                    .attr('id',d => 'btn-'+d.id)
+                                    .classed('vizInactive', d => !graphFilter.source.includes(d.id) && !graphFilter.source.includes(-1) ? true : false)
+                                    .classed('vizActive', d => graphFilter.source.includes(d.id) || graphFilter.source.includes(-1) ? true : false)
+                                    .attr('id',d => 'geometry-'+d.id)
                                     .html(d => {
-                                        const max = scaleWidth(d.sum) / 5
-                                        return max === 0 ? '' : d.code.length > max ? d.code.substring(0,max) : d.code
+                                        const max = scaleWidth(d.sum) / 6
+                                        return max < 2 ? '' : d.code.length > max ? d.code.substring(0,max) : d.code
                                     })
                                     .style('width',d => scaleWidth(d.sum) + 'px') 
                                     .style('height','18px')
@@ -978,24 +1410,14 @@ function GraphSection (props) {
                                         filterTooltip(d,'leave',e)
                                         filterHover(d.id,'leave','source')
                                     })
-                                    .on('click',(e,d) => {
-                                        let sources = graphFilter.source
-                                        if (!sources.includes(d.id)) {
-                                            if (graphFilter.source.includes(-1)) sources = [d.id]
-                                            else sources.push(d.id)
-                                        } else sources = sources.filter(source => source !== d.id)
-                                        if (sources.length === 0) sources = [-1]
-                                        setGraphFilter(prev => ({
-                                            ...prev,
-                                            source: sources
-                                        }));     
-                                    })
+                                    .on('click',(e,d)=>filterSelect(d.id,'source'))
                             },update => {
                                 update  
-                                    .classed('filterActive', d => graphFilter.source.includes(d.id) ? true : false)
+                                    .classed('vizInactive', d => !graphFilter.source.includes(d.id) && !graphFilter.source.includes(-1) ? true : false)
+                                    .classed('vizActive', d => graphFilter.source.includes(d.id) || graphFilter.source.includes(-1) ? true : false)
                                     .html(d => {
-                                        const max = scaleWidth(d.sum) / 5
-                                        return max === 0 ? '' : d.code.length > max ? d.code.substring(0,max) : d.code
+                                        const max = scaleWidth(d.sum) / 6
+                                        return max < 2 ? '' : d.code.length > max ? d.code.substring(0,max) : d.code
                                     })
                                     .style('width',d => scaleWidth(d.sum) + 'px') 
                                     .on('mouseover',(e,d) => {
@@ -1006,18 +1428,7 @@ function GraphSection (props) {
                                         filterTooltip(d,'leave',e)
                                         filterHover(d.id,'leave','source')
                                     })
-                                    .on('click',(e,d) => {
-                                        let sources = graphFilter.source
-                                        if (!sources.includes(d.id)) {
-                                            if (graphFilter.source.includes(-1)) sources = [d.id]
-                                            else sources.push(d.id)
-                                        } else sources = sources.filter(source => source !== d.id)
-                                        if (sources.length === 0) sources = [-1]
-                                        setGraphFilter(prev => ({
-                                            ...prev,
-                                            source: sources
-                                        }));     
-                                    })
+                                    .on('click',(e,d)=>filterSelect(d.id,'source'))
                             }) 
                     })
                 const sourceSelections = !graphFilter.source.includes(-1) && !allSources.filter(s => s.sum > 0).map(s => s.id).every(id => graphFilter.source.includes(id)) ? graphFilter.source.map(id => allSources.find(d => d.id === id).code) : ['All']
@@ -1047,48 +1458,77 @@ function GraphSection (props) {
                         const id = allSources.find(s => s.code === d).id
                         let sources = graphFilter.source.filter(s => s !== id)
                         if (sources.length === 0) sources = [-1]
-                        setGraphFilter(prev => ({
-                            ...prev,
-                            source: sources
-                        }))
+                        setGraphFilter(prev => ({...prev,source: sources}))
                     })
-                document.getElementById("header-sources").style.minWidth =  document.getElementById('dropdown-sources').clientWidth - 12 + 'px'
-            }
+                const minWidth = document.getElementById('dropdown-sources').clientWidth - 12
+                document.getElementById("header-sources").style.minWidth = minWidth > maxWidth ? maxWidth + 'px' : minWidth  + 'px'
+            } 
         }
     },[genderData,ageData,sourceData,graphSectionWidth])
 
     // update graph
     useEffect(() => {
-        if (graphContainerRef.current && extent) {
-            d3.select('#graph').append("defs")
+        if (graphContainerRef.current && upsetContainerRef.current && extent) {
+            console.log('draw graph')
             const fullHeight = document.getElementById('graph-section-container').clientHeight 
-            // const headerHeight = document.getElementById('graph-controls').clientHeight
-            const filterHeight = document.getElementById('graph-filters').clientHeight
+            const filterHeight = document.getElementById('graph-filters').clientHeight + document.getElementById('year-filter').clientHeight
             const containerWidth = document.getElementById('graph-section').clientWidth
             if (containerWidth < window.innerWidth*0.4 || graphSectionWidth === '40vw') d3.select('#graph-filters').style('display','none')
             else d3.select('#graph-filters').style('display','flex')
-            document.getElementById("graph-group").style.height = fullHeight - filterHeight + 'px'
-            const containerHeight = document.getElementById('graph-group').clientHeight*0.8
-            const width = containerWidth + (margin * 2)
-            const height = containerHeight + (margin * 2)
-            const ticks1 = ((extent[1]-extent[0])/(Math.round((extent[1]-extent[0])/10)))*Math.round((extent[1]-extent[0])/10)
-            const ticks2 = width < 400 ? Math.round(width/60) : ticks1 < 10 || !ticks1 ? Math.round(extent[1]-extent[0]) : 10
-            const ticks = {one:ticks1,two:ticks2}
-            document.getElementById("graph-container").style.height = containerHeight + 'px'
-            document.getElementById("graph-labels").style.maxHeight = document.getElementById('graph-group').clientHeight*0.15 - margin + 'px'
-            d3.select("#graph")
-                .attr("width", '94%')
-                .attr("height", '100%')
-                .attr("viewBox", `${-margin*3} ${-margin/2} ${width} ${height}`)
-                .attr("preserveAspectRatio", "xMidYMid meet")
-                .append("g")
-                .attr("transform", `translate(${margin}, ${margin})`)
-            d3.select("#clip rect")
-                .attr("width", width)
-                .attr("height", height)
-            if (rootLine) getGraph(stackData, width, height, ticks)  
+            // record counts
+            if (countType === 'record') {
+                document.getElementById("graph-group").style.height = fullHeight - filterHeight - margin + 'px'
+                const containerHeight = document.getElementById('graph-group').clientHeight*0.8
+                document.getElementById("graph-labels").style.maxHeight = document.getElementById('graph-group').clientHeight*0.15 - margin + 'px'
+                const width = containerWidth + (margin * 2)
+                const height = containerHeight + (margin * 2)
+                document.getElementById("graph-container").style.height = containerHeight + 'px'
+                d3.select("#graph")
+                    .attr("width", '94%')
+                    .attr("height", '94%')
+                    .attr("viewBox", `${-margin*3} ${0} ${width} ${height}`)
+                    .attr("preserveAspectRatio", "xMidYMid meet")
+                d3.select("#clip rect")
+                    .attr("width", width)
+                    .attr("height", height)
+                    .attr("viewBox", `${-margin*3} ${0} ${width} ${height}`)
+                    .attr("preserveAspectRatio", "xMidYMid meet")
+                    .append("g")
+                    .attr("transform", `translate(${margin}, ${margin})`)
+                d3.select("#clip rect")
+                    .attr("width", width)
+                    .attr("height", height)
+                // graph ticks
+                const ticks1 = ((extent[1]-extent[0])/(Math.round((extent[1]-extent[0])/10)))*Math.round((extent[1]-extent[0])/10)
+                const ticks2 = width < 400 ? Math.round(width/60) : ticks1 < 10 || !ticks1 ? Math.round(extent[1]-extent[0]) : 10
+                const ticks = {one:ticks1,two:ticks2}
+                // draw graph
+                getGraph(stackData, width, height, ticks)     
+            } 
         }
-    }, [stackData, rootLine, extent, graphSectionWidth, openFilters, showRootLine, conceptNames.length < 50 ? hovered : null])
+    }, [countType,extent,stackData,graphSectionWidth,openFilters,showRootLine])
+
+    // update upset
+    useEffect(() => {
+        console.log('draw upset')
+        if (countType === 'person' && upsetData.length > 0) {
+            const fullHeight = document.getElementById('graph-section-container').clientHeight 
+            const filterHeight = document.getElementById('graph-filters').clientHeight + document.getElementById('year-filter').clientHeight
+            const containerWidth = document.getElementById('graph-section').clientWidth
+            document.getElementById("upset-container").style.height = fullHeight - filterHeight - margin + 'px'
+            document.getElementById("upset-container").style.width = containerWidth - (margin*2) + 'px'
+            drawUpset()
+        }
+    }, [upsetData, graphSectionWidth,openFilters])
+
+    useEffect(() => {
+        layoutUpset()
+    }, [upsetZoomedOut])
+
+    useEffect(() => {
+        window.addEventListener('resize', drawUpset) 
+        return () => window.removeEventListener('resize', drawUpset)
+    }, [])
 
     // update labels
     useEffect(()=> {
@@ -1101,19 +1541,34 @@ function GraphSection (props) {
                         .attr('id', d => 'label-' + d[0])
                         .style('background-color','white')
                         .style('box-shadow','0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.1)')
-                        .style('border', d => sidebarRoot.name.includes(d[0]) ? '1px solid #6a23d6' : 'none')
+                        .style('border', d => rootConcepts.includes(d[0]) ? '1px solid #6a23d6' : 'none')
                         .style('border-radius', '20px')
-                        .on('click', (e,d) => {
-                            navigate(`/${d[0]}`)
+                        .on('mouseover', (e, d) => {
+                            const el = e.currentTarget
+                            if (!rootConcepts.includes(d[0])) {
+                                el.hoverLabelTimeout = setTimeout(() => {
+                                    showActionLabel('Select concept', 'enter', e)
+                                }, 1200)    
+                            }
+                            el.hoverStateTimeout = setTimeout(() => {
+                                setHovered([d[0]])
+                            }, 600)
                         })
-                        .on("mouseover", function (e,d) {
-                            const el = this
-                            el.__hoverTimeout__ = setTimeout(() => {setHovered([d[0]])},200)
-                        })
-                        .on("mouseout", function (e,d) {
-                            const el = this
-                            clearTimeout(el.__hoverTimeout__)
+                        .on('mouseout', (e, d) => {
+                            const el = e.currentTarget
+                            clearTimeout(el.hoverLabelTimeout)
+                            clearTimeout(el.hoverStateTimeout)
+                            if (!rootConcepts.includes(d[0])) showActionLabel('', 'leave', e)
                             setHovered([])
+                        })
+                        .on('click', (e,d) => {
+                            const el = e.currentTarget
+                            clearTimeout(el.hoverLabelTimeout)
+                            clearTimeout(el.hoverStateTimeout)
+                            if (!rootConcepts.includes(d[0])) {
+                                showActionLabel('','leave')
+                                showConfirmationPopup(d[0], 'enter', e)    
+                            }
                         })
                         .style('transition','0.5s opacity')
                         .style('opacity', d => hovered.length > 0 && !hovered.includes(d[0]) ? 0.2 : 1)
@@ -1121,13 +1576,13 @@ function GraphSection (props) {
                         .classed('label-circle', true)
                         .attr("id", d => "label-circle-" + d[0])
                         .style('background', d => {
-                            if (!d[1][0].data.concept.standard_concept) {
+                            if (!getConceptInfo(d[0]).standard_concept) {
                                 let colorVar = colorList[d[0]]
                                 return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ colorVar + " 0.5px," + colorVar + " 2px)"
                             } else {return "none"}    
                         })
                         .style("background-color", d => {
-                            if (d[1][0].data.concept.standard_concept) {
+                            if (getConceptInfo(d[0]).standard_concept) {
                                 return colorList[d[0]]
                             } else {return "none"}
                         }) 
@@ -1136,72 +1591,110 @@ function GraphSection (props) {
                     text.append('tspan')
                         .classed('label-text selectedText marginRight', true)
                         .attr("id", d => "label-text-" + d[0])
-                        .html(d => d[1][0].data.concept.concept_name)
+                        .html(d => getConceptInfo(d[0]).concept_name)
                     text.append('tspan')
                         .classed('label-code marginRight num',true)
                         .attr("id", d => "label-vocab-" + d[0])
                         .style('font-weight',500)
-                        .html(d => d[1][0].data.concept.concept_code)   
+                        .html(d => getConceptInfo(d[0]).concept_code)   
                     text.append('tspan')
                         .classed('label-vocab', true)
                         .attr("id", d => "label-vocab-" + d[0])
-                        .html(d => d[1][0].data.concept.vocabulary_id)
+                        .html(d => getConceptInfo(d[0]).vocabulary_id)
                 }, update => {
-                    const labels = update
-                        .style('border', d => sidebarRoot.name.includes(d[0]) ? '1px solid #6a23d6' : 'none')
-                        .on('click', (e,d) => {
-                            navigate(`/${d[0]}`)
+                    update
+                        .style('border', d => rootConcepts.includes(d[0]) ? '1px solid #6a23d6' : 'none')
+                        .on('mouseover', (e, d) => {
+                            const el = e.currentTarget
+                            if (!rootConcepts.includes(d[0])) {
+                                el.hoverLabelTimeout = setTimeout(() => {
+                                    showActionLabel('Select concept', 'enter', e)
+                                }, 1200)    
+                            }
+                            el.hoverStateTimeout = setTimeout(() => {
+                                setHovered([d[0]])
+                            }, 600)
                         })
-                        .on("mouseover", function (e,d) {
-                            const el = this
-                            el.__hoverTimeout__ = setTimeout(() => {setHovered([d[0]])},200)
-                        })
-                        .on("mouseout", function (e,d) {
-                            const el = this
-                            clearTimeout(el.__hoverTimeout__)
+                        .on('mouseout', (e, d) => {
+                            const el = e.currentTarget
+                            clearTimeout(el.hoverLabelTimeout)
+                            clearTimeout(el.hoverStateTimeout)
+                            if (!rootConcepts.includes(d[0])) showActionLabel('', 'leave', e)
                             setHovered([])
                         })
-                        .style('opacity', d => hovered.length > 0 && !hovered.includes(d[0]) ? 0.2 : 1)
-                    labels.select('.label-circle')
-                        .style('background', d => {
-                            if (!d[1][0].data.concept.standard_concept) {
-                                let colorVar = colorList[d[0]]
-                                return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ colorVar + " 0.5px," + colorVar + " 2px)"
-                            } else {return "none"}    
+                        .on('click', (e,d) => {
+                            const el = e.currentTarget
+                            clearTimeout(el.hoverLabelTimeout)
+                            clearTimeout(el.hoverStateTimeout)
+                            if (!rootConcepts.includes(d[0])) {
+                                showActionLabel('','leave')
+                                showConfirmationPopup(d[0], 'enter', e)    
+                            }
                         })
-                        .style("background-color", d => {
-                            if (d[1][0].data.concept.standard_concept) {
-                                return colorList[d[0]]
-                            } else {return "none"}
-                        }) 
-                    labels.select('.label-text')
-                        .html(d => d[1][0].data.concept.concept_name)
-                    labels.select('.label-vocab')
-                        .html(d => d[1][0].data.concept.vocabulary_id)
+                        .style('opacity', d => hovered.length > 0 && !hovered.includes(d[0]) ? 0.2 : 1)
                 },exit => exit.remove())    
         }
         updateLabels(groups)
-    },[selectedConcepts,conceptNames.length < 50 ? hovered : null])
+    },[selectedConcepts,selectedConcepts.length < 50 ? hovered : null])
+
+    useEffect(() => {
+        d3.selectAll('.area-path')
+            .attr('opacity', d => hovered.length > 0 && !hovered.includes(d.key) ? 0.2 : 1)
+    }, [hovered])
+
+    useEffect(() => {
+        if (d3.select('#graph').select('defs').empty()) {
+            const defs = d3.select('#graph').append('defs')
+            defs.append('svg:clipPath')
+                .attr('id', 'clip')
+                .append('svg:rect')
+                .attr('x', 0)
+                .attr('y', 0)
+        }
+    }, [])
 
     return (
         <div id = "graph-section">
-            <div id = "filter-tooltip" className = 'toolTip dropShadow'>
-                <div style = {{paddingBottom:2,fontWeight:500}} id = "filter-name"></div>
-                <div id = "filter-value"></div>    
+            <div id = "filter-tooltip" style = {{borderRadius: '4px'}} className = 'toolTip dropShadow'>
+                <div style = {{paddingBottom:2}} id = "filter-name"></div>
+                <div className = 'num' id = "filter-value"></div>    
+            </div>
+            <div id = 'annotation-tooltip' style = {{borderRadius: '4px'}} className = 'toolTip dropShadow'>
+                <p id = "annotation-name"></p>
+                <p className = "selectedText num" style = {{paddingTop:2}} id = 'annotation-value'></p>   
+            </div>
+            <div id = 'upset-tooltip' style = {{borderRadius: '4px'}} className = 'toolTip dropShadow'>
+                <p id = "upset-name"></p>
+                <p className = "selectedText num" style = {{paddingTop:2}} id = 'upset-value'></p>   
             </div>
             <div id = "graph-section-container">
                 <div className = "selectionsContainer removeLeftShadow">
+                    <div id = "year-filter">
+                        <div className = {`btn flex ${yearSelection ? "filterActive" : ""}`} onMouseEnter = {()=>d3.select('#reset-year').style('color','#9597a6')} onMouseLeave = {()=>d3.select('#reset-year').style('color','#c9c9d5')} style = {{padding: '4px 8px 4px 8px',borderRadius: '4px',marginBottom:4}} onClick = {() => resetZoom()}>
+                            <p className = 'filterLabel'>Time range</p>
+                            <FontAwesomeIcon style = {{display: yearSelection ? 'block' : 'none'}} className = "resetFilter fa-solid icon" id = "reset-year" icon={faX} />
+                        </div>
+                        {rootExtent && document.getElementById('graph-section-container') && (
+                            <YearFilter
+                                minYear={rootExtent[0]}
+                                maxYear={rootExtent[1]}
+                                yearSelection={yearSelection}
+                                setYearSelection={setYearSelection}
+                                width={document.getElementById('graph-section-container').clientWidth - 120}
+                            />
+                        )}    
+                    </div>
                     <div className = 'filters' id = "graph-filters">
                         <div className = "filterContainerVert" id = "gender-container">
-                            <div className = 'flex' style = {{marginBottom:2}}>
-                                <p className = 'filterLabel' style = {{fontWeight: graphFilter.gender !== -1 ? 500 : 400,opacity: graphFilter.gender !== -1 ? 1 : 0.7}}>Sex</p>
-                                <FontAwesomeIcon style = {{display: graphFilter.gender !== -1 ? 'block' : 'none'}} className = "resetFilter fa-solid icon" id = "reset-gender" icon={faX} 
-                                    onClick = {() => {
-                                        setGraphFilter(prev => ({
-                                            ...prev,
-                                            gender: -1
-                                    }));}}
-                                />    
+                            <div className = {`btn flex ${!graphFilter.gender.includes(-1) ? "filterActive" : ""}`} onMouseEnter = {()=>d3.select('#reset-gender').style('color','#9597a6')} onMouseLeave = {()=>d3.select('#reset-gender').style('color','#c9c9d5')} style = {{padding: '4px 8px 4px 8px',borderRadius: '4px',marginBottom:4}}  
+                                onClick = {() => {
+                                    setGraphFilter(prev => ({
+                                        ...prev,
+                                        gender: [-1]
+                                }));}}
+                            >
+                                <p className = 'filterLabel'>Sex</p>
+                                <FontAwesomeIcon style = {{display: !graphFilter.gender.includes(-1) ? 'block' : 'none'}} className = "resetFilter fa-solid icon" id = "reset-gender" icon={faX} />    
                             </div>
                             <div className = "filterFlex">
                                 <div className = "filter-viz" id = "gender-viz"><svg id = "gender-svg"></svg></div>
@@ -1210,16 +1703,15 @@ function GraphSection (props) {
                         </div>
 
                         <div className = "filterContainerVert" id = "age-container">
-                            <div className = 'flex' style = {{marginBottom:2}}>
-                                <p className = 'filterLabel' style = {{fontWeight: graphFilter.age.length > 1 ? 500 : 400,opacity:graphFilter.age.length > 1 ? 1 : 0.7}}>Age</p>
-                                <FontAwesomeIcon style = {{display: graphFilter.age.length > 1 ? 'block' : 'none'}} className = "resetFilter fa-solid icon" id = "reset-age" icon={faX} 
-                                    onClick = {() => {
-                                        setGraphFilter(prev => ({
-                                            ...prev,
-                                            age: [-1]
-                                        }));
-                                    }}
-                                />    
+                            <div className = {`btn flex ${!graphFilter.age.includes(-1) ? "filterActive" : ""}`} onMouseEnter = {()=>d3.select('#reset-age').style('color','#9597a6')} onMouseLeave = {()=>d3.select('#reset-age').style('color','#c9c9d5')} style = {{padding: '4px 8px 4px 8px',borderRadius: '4px',marginBottom:4}}  
+                                onClick = {() => {
+                                    setGraphFilter(prev => ({
+                                        ...prev,
+                                        age: [-1]
+                                }));}}
+                            >
+                                <p className = 'filterLabel'>Age</p>
+                                <FontAwesomeIcon style = {{display: !graphFilter.age.includes(-1) ? 'block' : 'none'}} className = "resetFilter fa-solid icon" id = "reset-age" icon={faX} />    
                             </div>
                             <div className = "filterFlex btn" id = "age-filter" onMouseDown = {(e) => ageBrush(e,'down')} onMouseUp = {(e) => ageBrush(e,'up')} onMouseMove = {(e) => ageBrush(e,'move')}>
                                 <div className = "filter-viz" id = "age-viz"></div>
@@ -1228,19 +1720,18 @@ function GraphSection (props) {
                         </div> 
 
                         <div className = "filterContainerVert" id = "source-container" style = {{borderRight:'none'}}>
-                            <div className = 'flex' style = {{marginBottom:2}}>
-                                <p className = 'filterLabel' style = {{fontWeight: !graphFilter.source.includes(-1) ? 500 : 400,opacity:!graphFilter.source.includes(-1) ? 1 : 0.7}}>Visit Type</p>
-                                <FontAwesomeIcon style = {{display: !graphFilter.source.includes(-1) ? 'block' : 'none'}} className = "resetFilter fa-solid icon" id = "reset-source" icon={faX} 
-                                    onClick = {() => {
-                                        setGraphFilter(prev => ({
-                                            ...prev,
-                                            source: [-1]
-                                        }));
-                                    }}
-                                />    
+                            <div className = {`btn flex ${!graphFilter.source.includes(-1) ? "filterActive" : ""}`} onMouseEnter = {()=>d3.select('#reset-source').style('color','#9597a6')} onMouseLeave = {()=>d3.select('#reset-source').style('color','#c9c9d5')} style = {{padding: '4px 8px 4px 8px',borderRadius: '4px',marginBottom:4}}  
+                                onClick = {() => {
+                                    setGraphFilter(prev => ({
+                                        ...prev,
+                                        source: [-1]
+                                }));}}
+                            >
+                                <p className = 'filterLabel'>Visit type</p>
+                                <FontAwesomeIcon style = {{display: !graphFilter.source.includes(-1) ? 'block' : 'none'}} className = "resetFilter fa-solid icon" id = "reset-source" icon={faX} />    
                             </div>
                             <div className = "filterFlex" style = {{alignItems:'flex-start'}}>
-                                <div className = "filter-viz filterFlex" id = "source-viz" style = {{alignItems:'flex-start',alignSelf:'flex-end'}}></div>
+                                <div className = "filter-viz filterFlex" id = "source-viz" style = {{alignItems:'flex-start'}}></div>
                                 <div className = 'dropdownContainer' id = "source-collapsed" style = {{visibility:'hidden',height:0}}>
                                     <div className = "dropdownHeader btn" id = "header-sources" 
                                         onClick = {() => {
@@ -1263,7 +1754,7 @@ function GraphSection (props) {
                             </div>
                         </div> 
 
-                        <div className = 'flex btn' id = 'open-btn' style = {{display:'none',position:'absolute',right:'0.75em',top:60}} 
+                        <div className = 'flex btn' id = 'open-btn' style = {{display:'none',position:'absolute',right:'0.75em',top:108}} 
                             onClick = {() => {
                                 d3.selectAll('.filter-viz').style('display', 'flex')
                                 d3.select('#source-collapsed').style('visibility','hidden').style("height",0)
@@ -1274,7 +1765,7 @@ function GraphSection (props) {
                             <p className = "textBtn" style = {{paddingRight:8}}>Expand filters</p>
                             <FontAwesomeIcon className = "iconLg" icon={faCaretDown} style = {{marginBottom:2}}/>    
                         </div>
-                        <div className = 'flex btn selectedText' id = 'close-btn' style = {{display:'flex',position:'absolute',right:'0.75em',top:60}} 
+                        <div className = 'flex btn' id = 'close-btn' style = {{display:'flex',position:'absolute',right:'0.75em',top:108}} 
                             onClick = {() => {
                                 d3.selectAll('.filter-viz').style('display', 'none')
                                 d3.select('#source-collapsed').style('visibility','visible').style('height','auto')
@@ -1282,32 +1773,120 @@ function GraphSection (props) {
                                 d3.select('#close-btn').style('display', 'none')
                                 setOpenFilters(false)
                             }}>
-                            <p style = {{paddingRight:8}}>Collapse filters</p>
+                            <p className = 'textBtn' style = {{paddingRight:8}}>Collapse filters</p>
                             <FontAwesomeIcon className = "iconLg" icon={faCaretUp} style = {{marginTop:2,opacity:1}}/>   
                         </div>
                     </div>     
                 </div>
-                <div id = "graph-group" style = {{position:'relative'}}>
-                    <div id = "graph-subheader">
-                        <div className = "margin" id = "graph-labels"></div>  
+                <div className = 'flex' id = 'graphContainer'>
+                    {(graphLoading) && 
+                        <div id = 'graph-loading-container'>
+                        <div className = "graphLoading">
+                            <div id = "loading-animation" class="lds-grid" style = {{visibility: 'visible'}}><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+                            <p id = "graph-loading-text">{'Loading graph'}</p>
+                        </div>
+                    </div>}    
+                    <div id = "graph-group" style = {{display: countType === 'record' && !graphLoading ? 'block' : 'none',position:'relative'}}>
+                        <div id = "graph-subheader"><div className = "margin" id = "graph-labels"></div></div> 
+                        <div ref={graphContainerRef} id = "graph-container" style = {{position:'relative'}}>
+                            <div className = 'selectedText' id = "y-label">Record Counts</div>
+                            <div className = 'flex' id = "rootline-container">
+                                <div className = {`btn flex ${yearSelection ? "filterActive" : "selectedText"}`} onMouseEnter = {()=>d3.select('#reset-year-graph').style('color','#9597a6')} onMouseLeave = {()=>d3.select('#reset-year-graph').style('color','#c9c9d5')} style = {{padding: '4px 8px 4px 8px',borderRadius: '4px',marginBottom:4}} onClick = {() => resetZoom()}>
+                                    <p className = 'filterLabel'>{extent && extent[0]+'-'+extent[1]}</p>
+                                    <FontAwesomeIcon style = {{display: yearSelection ? 'block' : 'none'}} className = "resetFilter fa-solid icon" id = "reset-year-graph" icon={faX} />
+                                </div>
+                                <div className='flex'>
+                                    <div className = 'flex btn' style = {{pointerEvents:showRootLine ? 'all' : 'none'}} onMouseEnter={() => {setHovered(['rootline'])}} onMouseLeave={() => {setHovered([])}}>
+                                        <img className = 'marginRight' id = "rootline-icon" style = {{opacity:showRootLine ? 1 : 0.3}} src={rootLineIcon} alt="root descendants line icon"/>
+                                        <p className={`marginRight ${showRootLine ? 'selectedText' : ''}`} style = {{color:showRootLine ? '#36126d' : '#9597a6'}}>Total Descendant Counts</p>    
+                                    </div>
+                                    <label className="rootline-switch">
+                                        <input
+                                            type="checkbox"
+                                            checked={showRootLine}
+                                            onChange={() => setShowRootLine(prev => !prev)}
+                                        />
+                                        <span className="rootline-slider"></span>
+                                    </label>
+                                </div> 
+                            </div>
+                            <svg id = "graph">
+                                <g className = "brush"></g>
+                                <g className = "x-grid"></g>
+                                <g className = "axis-grid"></g>
+                                <g className = "x axis axis-grid num"></g>
+                                <g className = "y axis num"></g>
+                                <g className = "axis-base"></g>
+                                <g id = "graph-stack"></g>
+                                <g id = "graph-line"></g>
+                                <circle id = "focus"></circle>
+                            </svg>
+                        </div> 
                     </div> 
-                    <div ref={graphContainerRef} id = "graph-container" style = {{position:'relative'}}>
-                        <div id = "rootline-btn" style = {{backgroundColor: showRootLine ? color.text : 'transparent',color: showRootLine ? 'white' : color.text,fontWeight: showRootLine ? 700 : 400, border: showRootLine ? '1px solid var(--text)' : '1px solid var(--textlightest)'}} onClick = {() => setShowRootLine(!showRootLine)}>Root DRC</div>
-                        <div id = "reset-zoom" style = {{display: zoomed ? 'block' : 'none'}} onClick = {() => resetZoom()}>Reset</div>
-                        <svg style = {{display:'block'}} id = "graph">
-                            <g className = "brush"></g>
-                            <g className = "x-grid"></g>
-                            <g className = "axis-grid"></g>
-                            <g className = "x axis axis-grid num"></g>
-                            <g className = "y axis num"></g>
-                            <g className = "axis-base"></g>
-                            <g id = "graph-stack"></g>
-                            <g id = "graph-line"></g>
-                            <circle id = "focus"></circle>
-                        </svg>
-                    </div>  
-                    <div id = "y-label">Record Counts</div>
-                </div>       
+                    <div
+                        ref={upsetContainerRef}
+                        id="upset-container"
+                        style={{ display: countType === 'person' && !graphLoading ? 'block' : 'none', position: 'relative', overflow: 'hidden', width: '100%', height: '100%' }}
+                    >
+                        <div
+                            id="upset-plot-wrapper"
+                            ref={upsetWrapperRef}
+                            style={{ display: 'flex', alignItems: 'flex-start', transformOrigin: 'top left' }}
+                        >
+                            <div id="upset-left-panel" style={{ flex: '0 0 auto' }}>
+                                <svg id="upset-left-svg">
+                                    <g id="upset-left-content">
+                                        {/* <g id="y-axis-layer"></g> */}
+                                        <g id="sets-layer"></g>
+                                    </g>
+                                </svg>
+                            </div>
+
+                            <div
+                                id="upset-right-panel"
+                                ref={upsetScrollRef}
+                                onScroll={updateUpsetScrollHints}
+                                style={{ flex: '0 0 auto', overflowY: 'hidden' }}
+                            >
+                                <svg id="upset-right-svg">
+                                    <g id="upset-right-content">
+                                        <g id="upsets-layer"></g>
+                                        <g id="types-layer"></g>
+                                    </g>
+                                </svg>
+                            </div>
+                        </div>
+
+                        {/* scroll affordance */}
+                        <div
+                            style={{
+                                display: showRightHint ? 'block' : 'none',
+                                position: 'absolute', top: 0, right: 0, bottom: 0, width: 32,
+                                background: 'linear-gradient(to right, rgba(255,255,255,0), rgba(255,255,255,0.95))',
+                                pointerEvents: 'none'
+                            }}
+                        />
+                        <div
+                            style={{
+                                display: showLeftHint ? 'block' : 'none',
+                                position: 'absolute', top: 0,
+                                left: upsetNaturalSizeRef.current?.leftWidth ?? 0,
+                                bottom: 0, width: 32,
+                                background: 'linear-gradient(to left, rgba(255,255,255,0), rgba(255,255,255,0.95))',
+                                pointerEvents: 'none'
+                            }}
+                        />
+
+                        {(upsetOverflowing || upsetZoomedOut) && (
+                            <div className='btn greyBtn'
+                                style={{ position: 'absolute', top: 0, left: '1em' }}
+                                onClick={() => setUpsetZoomedOut(prev => !prev)}
+                            >
+                                {upsetZoomedOut ? 'Reset zoom' : 'Zoom to fit'}
+                            </div>
+                        )}
+                    </div>    
+                </div>
             </div>  
         </div>    
     )
