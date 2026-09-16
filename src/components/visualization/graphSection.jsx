@@ -467,6 +467,7 @@ function GraphSection (props) {
         }
         // draw stacked area
         function updateStack(stackedData) {
+            d3.select("#graph-stack").selectAll('.areas').interrupt()
             d3.select("#graph-stack").selectAll('.areas').data(stackedData, d => d.key)
             .join(enter => {
                 const geometry = enter.append('g')
@@ -489,6 +490,8 @@ function GraphSection (props) {
                     })
                     .style("transition", "0.5s all")
                     .transition()
+                    .duration(500)
+                    .ease(d3.easeCubicOut)
                     .attr("d", d3.area()
                         .x((d,i) => scaleX(d.data.year))
                         .y0(d => scaleY(d[0]))
@@ -517,6 +520,8 @@ function GraphSection (props) {
                     .style("fill", "transparent")
                     .style("transition", "0.5s all")
                     .transition()
+                    .duration(500)
+                    .ease(d3.easeCubicOut)
                     .attr("d", d3.area()
                         .x((d,i) => scaleX(d.data.year))
                         .y0(d => scaleY(d[0]))
@@ -524,6 +529,11 @@ function GraphSection (props) {
                     )
             },update => {
                 update.select('.area-path')
+                    .attr("d", d3.area()
+                        .x((d,i) => scaleX(d.data.year))
+                        .y0(d => scaleY(0))
+                        .y1(d => scaleY(0))
+                    )
                     .transition()
                     .attr('opacity', d => hovered.length > 0 && !hovered.includes(d.key) ? 0.2 : 1)
                     .attr("d", d3.area()
@@ -555,6 +565,11 @@ function GraphSection (props) {
                         setHovered([])
                         tooltipHover(node, "leave", e)    
                     })
+                    .attr("d", d3.area()
+                        .x((d,i) => scaleX(d.data.year))
+                        .y0(d => scaleY(0))
+                        .y1(d => scaleY(0))
+                    )
                     .transition()
                     .attr("d", d3.area()
                         .x((d,i) => scaleX(d.data.year))
@@ -598,9 +613,13 @@ function GraphSection (props) {
                 .attr("d", line)
             container.exit().remove()
         }
+        // const stackedData = d3.stack()
+        //     .keys(selectedConcepts.map(c => c.name))
+        //     (rollup)  
         const stackedData = d3.stack()
             .keys(selectedConcepts.map(c => c.name))
-            (rollup)  
+            .value((d, key) => d[key] ?? 0)
+            (rollup)
         updateStack(stackedData)  
         if (showRootLine) updateRootLine()
         else d3.select('#graph-line').selectAll('.lines').remove()
@@ -1072,7 +1091,7 @@ function GraphSection (props) {
                             .on("mouseover", (e,d) => filterHover(d.data.id, "enter",'gender'))
                             .on("mouseout", (e,d) => filterHover(d.data.id, "leave",'gender'))
                             .on("click", (e,d) => filterSelect(d.data.id, "gender"))
-                            .transition()
+                            // .transition()
                             .attr("d", d => d.endAngle === d.startAngle ? null : arcGenerator(d))
                             // .style('fill', d => graphFilter.gender.includes(-1) && d.data.id === maxGender ? '#c9c9d5' : 'color-mix(in srgb, #c9c9d5, white 20%)')
                         update.select('.arc-text')
@@ -1652,7 +1671,6 @@ function GraphSection (props) {
                 <div className = "selectionsContainer removeLeftShadow">
                     <div id = "year-filter">
                         <div className = {`btn flex ${yearSelection ? "filterActive" : ""}`} onMouseEnter = {()=>d3.select('#reset-year').style('color','#9597a6')} onMouseLeave = {()=>d3.select('#reset-year').style('color','#c9c9d5')} style = {{padding: '4px 8px 4px 8px',borderRadius: '4px',marginBottom:4}} onClick = {() => resetZoom()}>
-                            {/* <p className = 'filterLabel' style = {{fontWeight: yearSelection ? 500 : 400,opacity: yearSelection ? 1 : 0.7}}>{graphFilter.gender !== -1 ? 'Clear Time Range' : 'Time Range'}</p> */}
                             <p className = 'filterLabel'>Time range</p>
                             <FontAwesomeIcon style = {{display: yearSelection ? 'block' : 'none'}} className = "resetFilter fa-solid icon" id = "reset-year" icon={faX} />
                         </div>
@@ -1773,9 +1791,9 @@ function GraphSection (props) {
                         <div ref={graphContainerRef} id = "graph-container" style = {{position:'relative'}}>
                             <div className = 'selectedText' id = "y-label">Record Counts</div>
                             <div className = 'flex' id = "rootline-container">
-                                <div className='flex'>
-                                    <div className = 'selectedText' id = "x-label" style = {{justifySelf:'flex-start'}}>{extent && extent[0]+'-'+extent[1]}</div> 
-                                    <div className = 'greyBtn btn' id = "reset-zoom" style = {{display: zoomed ? 'block' : 'none'}} onClick = {() => resetZoom()}>Reset zoom</div>   
+                                <div className = {`btn flex ${yearSelection ? "filterActive" : "selectedText"}`} onMouseEnter = {()=>d3.select('#reset-year-graph').style('color','#9597a6')} onMouseLeave = {()=>d3.select('#reset-year-graph').style('color','#c9c9d5')} style = {{padding: '4px 8px 4px 8px',borderRadius: '4px',marginBottom:4}} onClick = {() => resetZoom()}>
+                                    <p className = 'filterLabel'>{extent && extent[0]+'-'+extent[1]}</p>
+                                    <FontAwesomeIcon style = {{display: yearSelection ? 'block' : 'none'}} className = "resetFilter fa-solid icon" id = "reset-year-graph" icon={faX} />
                                 </div>
                                 <div className='flex'>
                                     <div className = 'flex btn' style = {{pointerEvents:showRootLine ? 'all' : 'none'}} onMouseEnter={() => {setHovered(['rootline'])}} onMouseLeave={() => {setHovered([])}}>

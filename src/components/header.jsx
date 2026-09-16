@@ -471,7 +471,7 @@ function Header (props) {
             <div id = 'header-title'><img id = 'finnGen-logo' src={finngen} alt="FinnGen logo"/></div>
             
             <div id = 'search-container'>
-                <div id = "input-container" onClick = {() => {if(!expandedSearch) setExpandedSearch(true)}} style = {{opacity: conceptList.length > 0 || root ? 1 : 0.3, pointerEvents: conceptList.length > 0 ? 'all' : 'none', transition: '0.5s opacity'}}>
+                <div className = {`${!expandedSearch ? "searchAsBtn" : ""}`} id = "input-container" onClick = {() => {if(!expandedSearch) setExpandedSearch(true)}} style = {{opacity: conceptList.length > 0 || root ? 1 : 0.3, pointerEvents: conceptList.length > 0 ? 'all' : 'none', transition: '0.5s opacity'}}>
                     <textarea
                         ref={inputRef}
                         id="searchConcept"
@@ -486,7 +486,7 @@ function Header (props) {
                         onKeyDown = {(e) => {if (e.key === 'Enter') e.preventDefault()}}
                     />
 
-                    <FontAwesomeIcon className = "fa-search btn" id = "searchBtn" icon={faSearch} onClick = {() => setExpandedSearch(!expandedSearch)}></FontAwesomeIcon>
+                    <FontAwesomeIcon className = {`fa-search btn ${!expandedSearch ? "searchAsBtnColor" : ""}`} id = "searchBtn" icon={faSearch} onClick = {() => setExpandedSearch(!expandedSearch)}></FontAwesomeIcon>
                     
                     <div onMouseEnter = {()=>d3.select('#clear-set-icon').style('color','#848698')} onMouseLeave = {()=>d3.select('#clear-set-icon').style('color','#b2b2c3')} onClick = {()=>{navigate(``)}} style = {{display: !root || !expandedSearch ? 'none' : 'flex'}} className = 'btn greyBtn flex' id = "clear-concept-set">
                         <p style = {{margin:0}}>Clear Set</p>

@@ -195,7 +195,7 @@
         // DRAWING
         // concept set
         function drawSet() {
-            const conceptSetData = rootConcepts.map(root => ({name:root,color:fullTree.nodes.find(n => n.name === root).color,leaf:nodes.find(n => n.name === root) ? nodes.find(n => n.name === root).leaf : false, descendant_person_counts:nodes.find(n => n.name === root) ? nodes.find(n => n.name === root).descendant_person_counts : d3.sum(fullTree.allNodes.filter(node => !node.source ? fullTree.nodes.find(n => n.name === 4191479).descendants.includes(node.name) : (node.source && fullTree.nodes.find(n => n.name === 4191479).descendants.includes(node.source.name))).filter(node => inclusions.includes(node.name)).map(node => node.person_counts)),  descendant_counts: nodes.find(n => n.name === root) ? nodes.find(n => n.name === root).descendant_record_counts : d3.sum(fullTree.allNodes.filter(node => !node.source ? fullTree.nodes.find(n => n.name === 4191479).descendants.includes(node.name) : (node.source && fullTree.nodes.find(n => n.name === 4191479).descendants.includes(node.source.name))).filter(node => inclusions.includes(node.name)).map(node => node.record_counts)),concept:fullTree.nodes.find(n => n.name === root).data.concept,descendants:descendantsFilter.includes(root) ? false : true,exclude:excludeList.includes(root) ? true : false}))
+            const conceptSetData = rootConcepts.map(root => ({name:root,color:fullTree.nodes.find(n => n.name === root).color,leaf:nodes.find(n => n.name === root) ? nodes.find(n => n.name === root).leaf : false, descendant_person_counts:nodes.find(n => n.name === root) ? nodes.find(n => n.name === root).descendant_person_counts : d3.sum(fullTree.allNodes.filter(node => !node.source ? fullTree.nodes.find(n => n.name === 4191479).descendants.includes(node.name) : (node.source && fullTree.nodes.find(n => n.name === 4191479).descendants.includes(node.source.name))).filter(node => inclusions.includes(node.name)).map(node => node.person_counts)),  descendant_record_counts: nodes.find(n => n.name === root) ? nodes.find(n => n.name === root).descendant_record_counts : d3.sum(fullTree.allNodes.filter(node => !node.source ? fullTree.nodes.find(n => n.name === 4191479).descendants.includes(node.name) : (node.source && fullTree.nodes.find(n => n.name === 4191479).descendants.includes(node.source.name))).filter(node => inclusions.includes(node.name)).map(node => node.record_counts)),concept:fullTree.nodes.find(n => n.name === root).data.concept,descendants:descendantsFilter.includes(root) ? false : true,exclude:excludeList.includes(root) ? true : false}))
             d3.select('#set-items').selectAll('.set-item').data(conceptSetData, d => d.name)
             .join(enter => {
                 const container = enter.append('div')
@@ -239,8 +239,8 @@
                     .attr('id', d => 'set-card-'+d.name)
                     .style('display','flex')
                     .style('flex-direction','column')
-                    .style('box-shadow', d => inclusions.includes(d.name) || d.leaf ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
-                    .style('background-color', d => d.levels === '-1' ? 'none' : inclusions.includes(d.name) || d.leaf ? 'white' : '#f2f2f4')
+                    .style('box-shadow', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
+                    .style('background-color', d => d.levels === '-1' ? 'none' : inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 'white' : '#f2f2f4')
                     .style('border', '1px solid #6a23d6')
                     .style('margin-right','20px')
                 const title = conceptCard.append('div')
@@ -252,11 +252,11 @@
                     .classed('set-circle',true)
                     .classed('list-circle-dash', d => d.concept.record_counts === 0 && !d.leaf ? true : false)
                     .classed('list-circle', d => d.concept.record_counts === 0 && !d.leaf ? false : true)
-                    .classed('btn', d => inclusions.includes(d.name) || d.leaf ? true : false)
-                    .style("pointer-events", d => inclusions.includes(d.name) || d.leaf ? 'all' : 'none')
+                    .classed('btn', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? true : false)
+                    .style("pointer-events", d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 'all' : 'none')
                     .style('background', d => {
                         if (d.concept.record_counts === 0 && !d.leaf) return "none"
-                        if (inclusions.includes(d.name) || d.leaf) {
+                        if (inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings')) {
                             if (!d.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
                             else {return "none"}
                         }
@@ -268,13 +268,13 @@
                     })
                     .style("background-color", d => {
                         if (d.concept.record_counts === 0 && !d.leaf) return "transparent"
-                        if (inclusions.includes(d.name) || d.leaf) {
+                        if (inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings')) {
                             if (d.concept.standard_concept) {return d.color} 
                             else {return "transparent"}
                         }
                         else return '#d2d2d9'
                     }) 
-                    .style('border', d => d.concept.record_counts === 0 && !d.leaf ? '1px solid #b3b3bf' : inclusions.includes(d.name) || d.leaf ? `1px solid ${d.color}` : '1px solid #d2d2d9')
+                    .style('border', d => d.concept.record_counts === 0 && !d.leaf ? '1px solid #b3b3bf' : inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? `1px solid ${d.color}` : '1px solid #d2d2d9')
                     .on('mouseover',(e,d) => setHovered([d.name]))
                     .on('mouseout', (e,d) => setHovered([]))
                 const titleRight = title1.append('div')
@@ -284,7 +284,7 @@
                     .style('z-index','1000')
                 const titleP = titleRight.append('p')
                     .classed('set-title-p',true)
-                    .style('opacity', d => inclusions.includes(d.name) || d.leaf ? 1 : 0.6)
+                    .style('opacity', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 1 : 0.6)
                 titleP.append('span')
                     .classed('set-name selectedText marginRight',true)
                     .html(d => d.concept.concept_name)
@@ -315,7 +315,7 @@
                 const infoContainer = conceptCard.append('div')
                     .classed('set-info-container',true)
                     .attr('id', d => 'set-info-container-'+d.name)
-                    .style('border-top', d => inclusions.includes(d.name) || d.leaf ? '1px solid #e7e7eb' : '1px solid color-mix(in srgb, #36126d, white 85%)')
+                    .style('border-top', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? '1px solid #e7e7eb' : '1px solid color-mix(in srgb, #36126d, white 85%)')
                     .on('mouseover',(e,d) => {e.stopPropagation();d3.select('#set-trash-' + d.name).transition(1000).style('max-width', '0px').style('opacity', 0).style('margin-right', '0px')})
                 const infoCol1 = infoContainer.append('div')
                     .classed('info-col',true)
@@ -356,6 +356,22 @@
                 const selections = container.append('div')
                     .classed('set-expression-container flex',true)
 
+                const exclude = selections.append('div')
+                    .classed('flex',true)
+                    .style('justify-content','flex-start')
+                    .style('margin-right','10px')
+                const excludeBox = exclude.append('div')
+                    .classed('exclude-box checkMarkBox marginRight',true)
+                    .style('border', d => d.exclude ? '1px solid #9597a6' : '1px solid #e8e8e8')
+                    .on('click', (e,d) => setExcludeInclude('exclude',d.name))
+                excludeBox.append('i')
+                    .classed('exclude-check fa-solid fa-check',true)
+                    .style('display', d => d.exclude ? 'block' : 'none')    
+                exclude.append('p')
+                    .classed('exclude-p',true)
+                    .classed('selectedText', d => d.exclude ? true : false)
+                    .html('Exclude')
+
                 const descendants = selections.append('div')
                     .classed('flex',true)
                     .style('justify-content','flex-start')
@@ -371,24 +387,9 @@
                     .classed('descendants-p',true)
                     .classed('selectedText', d => d.descendants ? true : false)
                     .html('Descendants')
-                
-                const exclude = selections.append('div')
-                    .classed('flex',true)
-                    .style('justify-content','flex-start')
-                const excludeBox = exclude.append('div')
-                    .classed('exclude-box checkMarkBox marginRight',true)
-                    .style('border', d => d.exclude ? '1px solid #9597a6' : '1px solid #e8e8e8')
-                    .on('click', (e,d) => setExcludeInclude('exclude',d.name))
-                excludeBox.append('i')
-                    .classed('exclude-check fa-solid fa-check',true)
-                    .style('display', d => d.exclude ? 'block' : 'none')    
-                exclude.append('p')
-                    .classed('exclude-p',true)
-                    .classed('selectedText', d => d.exclude ? true : false)
-                    .html('Exclude')
 
                 container.append('div')
-                    .classed('set-counts num',true)
+                    .classed('set-counts num selectedText',true)
                     .html(d => countType === 'record' ? d.descendant_record_counts : d.descendant_person_counts)
             },update => {
                 update.select('.set-concept')
@@ -417,16 +418,16 @@
                         navigate(`/${arrayToString}`)
                     })
                 update.select('.set-card')
-                    .style('box-shadow', d => inclusions.includes(d.name) || d.leaf ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
-                    .style('background-color', d => d.levels === '-1' ? 'none' : inclusions.includes(d.name) || d.leaf ? 'white' : '#f2f2f4')
+                    .style('box-shadow', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
+                    .style('background-color', d => d.levels === '-1' ? 'none' : inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 'white' : '#f2f2f4')
                 update.select('.set-circle')
                     .classed('list-circle-dash', d => d.concept.record_counts === 0 && !d.leaf ? true : false)
                     .classed('list-circle', d => d.concept.record_counts === 0 && !d.leaf ? false : true)
-                    .classed('btn', d => inclusions.includes(d.name) || d.leaf ? true : false)
-                    .style("pointer-events", d => inclusions.includes(d.name) || d.leaf ? 'all' : 'none')
+                    .classed('btn', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? true : false)
+                    .style("pointer-events", d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 'all' : 'none')
                     .style('background', d => {
                         if (d.concept.record_counts === 0 && !d.leaf) return "none"
-                        if (inclusions.includes(d.name) || d.leaf) {
+                        if (inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings')) {
                             if (!d.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
                             else {return "none"}
                         }
@@ -438,17 +439,17 @@
                     })
                     .style("background-color", d => {
                         if (d.concept.record_counts === 0 && !d.leaf) return "transparent"
-                        if (inclusions.includes(d.name) || d.leaf) {
+                        if (inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings')) {
                             if (d.concept.standard_concept) {return d.color} 
                             else {return "transparent"}
                         }
                         else return '#d2d2d9'
                     }) 
-                    .style('border', d => d.concept.record_counts === 0 && !d.leaf ? '1px solid #b3b3bf' : inclusions.includes(d.name) || d.leaf ? `1px solid ${d.color}` : '1px solid #d2d2d9')
+                    .style('border', d => d.concept.record_counts === 0 && !d.leaf ? '1px solid #b3b3bf' : inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? `1px solid ${d.color}` : '1px solid #d2d2d9')
                     .on('mouseover',(e,d) => setHovered([d.name]))
                     .on('mouseout', (e,d) => setHovered([]))
                 update.select('.set-title-p')
-                    .style('opacity', d => inclusions.includes(d.name) || d.leaf ? 1 : 0.6)
+                    .style('opacity', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 1 : 0.6)
                 update.select('.set-info-icon')
                     .on('mouseover',(e,d) => {e.stopPropagation();d3.select('#set-trash-' + d.name).transition(1000).style('max-width', '0px').style('opacity', 0).style('margin-right', '0px');d3.select('#set-info-icon-'+d.name).transition().style('color','#9597a6')})
                     .on('mouseout', (e,d) => {if(d3.select('#set-info-container-'+d.name).style('height') !== '45px') d3.select('#set-info-icon-'+d.name).transition().style('color','#c9c9d5')})
@@ -465,14 +466,7 @@
                     })
                 update.select('.set-info-container')
                     .on('mouseover',(e,d) => {e.stopPropagation();d3.select('#set-trash-' + d.name).transition(1000).style('max-width', '0px').style('opacity', 0).style('margin-right', '0px')})
-                    .style('border-top', d => inclusions.includes(d.name) || d.leaf ? '1px solid #e7e7eb' : '1px solid color-mix(in srgb, #36126d, white 85%)')
-                update.select('.descendants-box')
-                    .style('border', d => d.descendants ? '1px solid #9597a6' : '1px solid #e8e8e8')
-                    .on('click', (e,d) => setExcludeInclude('descendants',d.name))
-                update.select('.descendants-check')
-                    .style('display', d => d.descendants ? 'block' : 'none') 
-                update.select('.descendants-p')
-                    .classed('selectedText', d => d.descendants ? true : false)
+                    .style('border-top', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? '1px solid #e7e7eb' : '1px solid color-mix(in srgb, #36126d, white 85%)')
                 update.select('.exclude-box')
                     .style('border', d => d.exclude ? '1px solid #9597a6' : '1px solid #e8e8e8')
                     .on('click', (e,d) => setExcludeInclude('exclude',d.name))
@@ -480,13 +474,20 @@
                     .style('display', d => d.exclude ? 'block' : 'none') 
                 update.select('.exclude-p')
                     .classed('selectedText', d => d.exclude ? true : false)
+                update.select('.descendants-box')
+                    .style('border', d => d.descendants ? '1px solid #9597a6' : '1px solid #e8e8e8')
+                    .on('click', (e,d) => setExcludeInclude('descendants',d.name))
+                update.select('.descendants-check')
+                    .style('display', d => d.descendants ? 'block' : 'none') 
+                update.select('.descendants-p')
+                    .classed('selectedText', d => d.descendants ? true : false)
+                
                 update.select('.set-counts')
                     .html(d => countType === 'record' ? d.descendant_record_counts : d.descendant_person_counts)
             })
         }
         // tree
         function drawTree() {
-            // console.log('nodes',nodes,'links',links,'included',inclusions)
             // get extent of total counts
             let sums = []
             nodes.forEach(node => {
@@ -1148,7 +1149,7 @@
                             .on('mouseover', function (e,d) {
                                 const el = this
                                 el.__hoverTimeout__ = setTimeout(() => {
-                                    if (inclusions.includes(d.name)) setHovered([d.name])
+                                    if (inclusions.includes(d.name) || (countType === 'record' && d.leaf) || (countType === 'person' && d.leaf && relationship !== 'mappings')) setHovered([d.name])
                                     if (d.levels !== '-1') tooltipHover(d, "enter", e)  
                                 }, 600)    
                             })
@@ -1174,7 +1175,7 @@
                             .attr('stroke-width',1.5)
                             .attr('stroke', d => (countType === 'record' && (countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) || (countType === 'person' && d.person_counts === 0) ? 'none' : inclusions.includes(d.name) && inclusions.includes(d.name) ? d.color : '#f3f3f5')
                             .attr('fill', d => {
-                                if ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) || (d.leaf && d.descendant_record_counts !== d.record_counts)) return 'white'
+                                if ((countType === 'record' && (d.record_counts === 0 || (d.leaf && (d.descendant_record_counts !== d.record_counts) && relationship !== 'mappings'))) || (countType === 'person' && (d.person_counts === 0 || (d.leaf && (d.person_record_counts !== d.person_counts) && relationship !== 'mappings')))) return 'white'
                                 else {
                                     if (!d.data.concept.standard_concept && inclusions.includes(d.name)) {
                                         let t = textures.lines()
@@ -1199,7 +1200,7 @@
                             .classed('total-counts num', true)
                             .attr('id', d => 'total-counts-' + d.name)
                             .text(d => countType === 'record' ? formatThousands(d.record_counts) : formatThousands(d.person_counts))
-                            .attr('fill', d => inclusions.includes(d.name) && inclusions.includes(d.name) && !d.leaf ? 'white' : '#36126d')
+                            .attr('fill', d => inclusions.includes(d.name) && !d.leaf ? 'white' : '#36126d')
                             .style('font-size', '9px')
                             .attr('x', d => d.x)
                             .attr('y', d => cy + (genHeight[d.distance]) - 1)
@@ -1207,7 +1208,7 @@
                             .classed('total-counts-label', true)
                             .style('font-size', '9px')
                             .text(() => countType === 'record' ? 'RC' : 'PC')
-                            .attr('fill', d => inclusions.includes(d.name) && inclusions.includes(d.name) && !d.leaf ? 'white' : '#36126d')
+                            .attr('fill', d => inclusions.includes(d.name) && !d.leaf ? 'white' : '#36126d')
                             .attr('x', d => d.x - 6)
                             .attr('y', d => cy + (genHeight[d.distance]) + 9)
                         const setExpression = geometry.append('g')
@@ -1314,11 +1315,17 @@
                                 e.stopPropagation()
                                 hoverMappings(d,'enter')
                                 setVisible(false)
+                                const el = e.currentTarget
+                                el.__hoverTimeout__ = setTimeout(() => {
+                                    !mapRoot.includes(d.name) ? showActionLabel('Open mappings','enter',e) : showActionLabel('Close mappings','enter',e)
+                                }, 1200)
                             })
                             .on('mouseout',(e,d) => {
                                 e.stopPropagation()
                                 hoverMappings(d,'leave')
                                 setVisible(false)
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
                             })
                             .on('click',(e,d) => {
                                 e.stopPropagation()
@@ -1358,8 +1365,8 @@
                         const drcText = drc.append('text')
                             .classed('drc-text',true)
                             .attr('id', d => 'drc-text-'+d.name)
-                            .attr('fill', d => d.leaf ? 'white' : '#36126d')
-                            .attr('opacity', d => d.leaf ? 1 : 0.6)
+                            .attr('fill', d => ((d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings')) ? 'white' : '#36126d')
+                            .attr('opacity', d => ((d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings')) ? 1 : 0.6)
                             .attr('x', d => d.x)
                             .attr('y', d => countType === 'record' ? cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.record_counts)) + 18 : cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.person_counts)) + 18)
                         drcText.append('tspan')
@@ -1374,7 +1381,7 @@
                             .attr('height',16)
                             .attr("rx", 8)
                             .attr("ry", 8)
-                            .attr('fill', d => d.leaf ? d.color : countType === 'record' ? d.descendant_record_counts === 0 || d.descendant_record_counts === d.record_counts ? 'transparent' : '#f3f3f5' : d.descendant_person_counts === 0 || d.descendant_person_counts === d.person_counts ? 'transparent' : '#f3f3f5')
+                            .attr('fill', d => ((d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings')) ? d.color : countType === 'record' ? d.descendant_record_counts === 0 || d.descendant_record_counts === d.record_counts ? 'transparent' : '#f3f3f5' : d.descendant_person_counts === 0 || d.descendant_person_counts === d.person_counts ? 'transparent' : '#f3f3f5')
                             .attr('width',d => d3.select('#drc-text-'+d.name).node().getBBox().width + 10)
                             .attr('x', d => d.x - (d3.select('#drc-text-'+d.name).node().getBBox().width + 10)/2)
                             .attr('y', d => countType === 'record' ? cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.record_counts)) + 7 : cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.person_counts)) + 7)
@@ -1424,12 +1431,12 @@
                             })
                             .attr('x', d => getLabel(d).x)
                             .attr('y', d => getLabel(d).y - 21)
-                            .style('opacity', d => inclusions.includes(d.name) ? 1 : 0.6)
+                            .style('opacity', d => inclusions.includes(d.name) || (countType === 'record' && d.leaf) || (countType === 'person' && d.leaf && relationship !== 'mappings') ? 1 : 0.6)
                         const line2 = text.append('text')
                             .classed('label-line2',true)
                             .attr('text-anchor', 'middle')
                             .attr('fill', '#4c4c4c')
-                            .style('opacity', d => inclusions.includes(d.name) ? 1 : 0.6)
+                            .style('opacity', d => inclusions.includes(d.name) || (countType === 'record' && d.leaf) || (countType === 'person' && d.leaf && relationship !== 'mappings') ? 1 : 0.6)
                             .attr('x', d => getLabel(d).x)
                             .attr('y', d => getLabel(d).y - 7)
                             .style('display',d => d.data.concept.concept_code ? 'block' : 'none')
@@ -1449,8 +1456,8 @@
                             .attr("ry", 8)
                             .attr('x', d => getLabel(d).x - (d3.select("#label-text-" + d.name).node().getBBox().width + 16)/2)
                             .attr('y', d => getLabel(d).y - 35)
-                            .attr('fill', d => inclusions.includes(d.name) ? 'white' : '#f2f2f4')
-                            .style("filter", d => inclusions.includes(d.name) ? "drop-shadow(0px 0px 4px rgba(0, 0, 0, 0.16))" : 'none')
+                            .attr('fill', d => inclusions.includes(d.name) || (countType === 'record' && d.leaf) || (countType === 'person' && d.leaf && relationship !== 'mappings') ? 'white' : '#f2f2f4')
+                            .style("filter", d => inclusions.includes(d.name) || (countType === 'record' && d.leaf) || (countType === 'person' && d.leaf && relationship !== 'mappings') ? "drop-shadow(0px 0px 4px rgba(0, 0, 0, 0.16))" : 'none')
                             .attr('stroke-width',1)
                             .attr('stroke', d => rootConcepts.includes(d.name) ? '#6a23d6' : 'transparent')
                             .lower()
@@ -1965,7 +1972,7 @@
                             .on('mouseover', function (e,d) {
                                 const el = this
                                 el.__hoverTimeout__ = setTimeout(() => {
-                                    if (inclusions.includes(d.name)) setHovered([d.name])
+                                    if (inclusions.includes(d.name) || (countType === 'record' && d.leaf) || (countType === 'person' && d.leaf && relationship !== 'mappings')) setHovered([d.name])
                                     if (d.levels !== '-1') tooltipHover(d, "enter", e)  
                                 }, 600)    
                             })
@@ -1986,7 +1993,7 @@
                             .attr('r', d => countType === 'record' ? scaleRadius(Math.sqrt(d.record_counts)) : scaleRadius(Math.sqrt(d.person_counts)))
                             .attr('stroke', d => (countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) ? 'none' : inclusions.includes(d.name) && inclusions.includes(d.name) ? d.color : '#f3f3f5')
                             .attr('fill', d => {
-                                if ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) || (d.leaf && d.descendant_record_counts !== d.record_counts)) return 'white'
+                                if ((countType === 'record' && (d.record_counts === 0 || (d.leaf && (d.descendant_record_counts !== d.record_counts) && relationship !== 'mappings'))) || (countType === 'person' && (d.person_counts === 0 || (d.leaf && (d.person_record_counts !== d.person_counts) && relationship !== 'mappings')))) return 'white'
                                 else {
                                     if (!d.data.concept.standard_concept && inclusions.includes(d.name)) {
                                         let t = textures.lines()
@@ -2007,12 +2014,12 @@
                         update.select('.total-counts')
                             .classed('total-counts num', true)
                             .text(d => countType === 'record' ? formatThousands(d.record_counts) : formatThousands(d.person_counts))
-                            .attr('fill', d => inclusions.includes(d.name) && inclusions.includes(d.name) && !d.leaf ? 'white' : '#36126d')
+                            .attr('fill', d => inclusions.includes(d.name) && !d.leaf ? 'white' : '#36126d')
                             .attr('x', d => d.x)
                             .attr('y', d => cy + (genHeight[d.distance]) - 1)
                         update.select('.total-counts-label')
                             .text(() => countType === 'record' ? 'RC' : 'PC')
-                            .attr('fill', d => inclusions.includes(d.name) && inclusions.includes(d.name) && !d.leaf ? 'white' : '#36126d')
+                            .attr('fill', d => inclusions.includes(d.name) && !d.leaf ? 'white' : '#36126d')
                             .attr('x', d => d.x - 6)
                             .attr('y', d => cy + (genHeight[d.distance]) + 9)
                         update.select('.set-expression')
@@ -2072,11 +2079,17 @@
                                 e.stopPropagation()
                                 hoverMappings(d,'enter')
                                 setVisible(false)
+                                const el = e.currentTarget
+                                el.__hoverTimeout__ = setTimeout(() => {
+                                    !mapRoot.includes(d.name) ? showActionLabel('Open mappings','enter',e) : showActionLabel('Close mappings','enter',e)
+                                }, 1200)
                             })
                             .on('mouseout',(e,d) => {
                                 e.stopPropagation()
                                 hoverMappings(d,'leave')
                                 setVisible(false)
+                                clearTimeout(e.currentTarget.__hoverTimeout__)
+                                showActionLabel('','leave',e)
                             })
                             .on('click',(e,d) => {
                                 e.stopPropagation()
@@ -2112,9 +2125,9 @@
                             .transition()
                             .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
                         update.select('.drc-text')
-                            .attr('fill', d => d.leaf ? 'white' : '#36126d')
+                            .attr('fill', d => ((d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings')) ? 'white' : '#36126d')
                             // .transition()
-                            .attr('opacity', d => d.leaf ? 1 : 0.6)
+                            .attr('opacity', d => ((d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings')) ? 1 : 0.6)
                             .attr('x', d => d.x)
                             .attr('y', d => countType === 'record' ? cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.record_counts)) + 18 : cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.person_counts)) + 18)
                         update.select('.drc-num')
@@ -2122,7 +2135,7 @@
                         update.select('.drc-label-tree')
                             .text(() => countType === 'record' ? ' DRC' : ' DPC')
                         update.select('.drc-rect')
-                            .attr('fill', d => d.leaf ? d.color : countType === 'record' ? d.descendant_record_counts === 0 || d.descendant_record_counts === d.record_counts ? 'transparent' : '#f3f3f5' : d.descendant_person_counts === 0 || d.descendant_person_counts === d.person_counts ? 'transparent' : '#f3f3f5')
+                            .attr('fill', d => ((d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings')) ? d.color : countType === 'record' ? d.descendant_record_counts === 0 || d.descendant_record_counts === d.record_counts ? 'transparent' : '#f3f3f5' : d.descendant_person_counts === 0 || d.descendant_person_counts === d.person_counts ? 'transparent' : '#f3f3f5')
                             .attr('width',d => d3.select('#drc-text-'+d.name).node().getBBox().width + 10)
                             .attr('x', d => d.x - (d3.select('#drc-text-'+d.name).node().getBBox().width + 10)/2)
                             .attr('y', d => countType === 'record' ? cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.record_counts)) + 7 : cy + (genHeight[d.distance]) + scaleRadius(Math.sqrt(d.person_counts)) + 7)
@@ -2166,17 +2179,17 @@
                             })
                             .attr('x', d => getLabel(d).x)
                             .attr('y', d => getLabel(d).y - 21)
-                            .style('opacity', d => inclusions.includes(d.name) ? 1 : 0.6)
+                            .style('opacity', d => inclusions.includes(d.name) || (countType === 'record' && d.leaf) || (countType === 'person' && d.leaf && relationship !== 'mappings') ? 1 : 0.6)
                         update.select('.label-line2')
-                            .style('opacity', d => inclusions.includes(d.name) ? 1 : 0.6)
+                            .style('opacity', d => inclusions.includes(d.name) || (countType === 'record' && d.leaf) || (countType === 'person' && d.leaf && relationship !== 'mappings') ? 1 : 0.6)
                             .attr('x', d => getLabel(d).x)
                             .attr('y', d => getLabel(d).y - 7)
                         update.select('.label-rect')
                             .attr('width', d => d3.select("#label-text-" + d.name).node().getBBox().width + 16)
                             .attr('x', d => getLabel(d).x - (d3.select("#label-text-" + d.name).node().getBBox().width + 16)/2)
                             .attr('y', d => getLabel(d).y - 35)
-                            .attr('fill', d => inclusions.includes(d.name) ? 'white' : '#f2f2f4')
-                            .style("filter", d => inclusions.includes(d.name) ? "drop-shadow(0px 0px 4px rgba(0, 0, 0, 0.16))" : 'none')
+                            .attr('fill', d => inclusions.includes(d.name) || (countType === 'record' && d.leaf) || (countType === 'person' && d.leaf && relationship !== 'mappings') ? 'white' : '#f2f2f4')
+                            .style("filter", d => inclusions.includes(d.name) || (countType === 'record' && d.leaf) || (countType === 'person' && d.leaf && relationship !== 'mappings') ? "drop-shadow(0px 0px 4px rgba(0, 0, 0, 0.16))" : 'none')
                             .attr('stroke', d => rootConcepts.includes(d.name) ? '#6a23d6' : 'transparent')
                         update.select('.prune-group')
                             .style('display', d => pruned && d.leaf && !d.children?.every(child => d.connections.map(d => d.child).includes(child)) ? 'block' : 'none')
@@ -2360,8 +2373,8 @@
                         .attr('id', d => 'list-card-'+d.name)
                         .style('display','flex')
                         .style('flex-direction','column')
-                        .style('box-shadow', d => inclusions.includes(d.name) || d.leaf ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
-                        .style('background-color', d => d.levels === '-1' ? 'none' : inclusions.includes(d.name) || d.leaf ? 'white' : '#f2f2f4')
+                        .style('box-shadow', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
+                        .style('background-color', d => d.levels === '-1' ? 'none' : inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 'white' : '#f2f2f4')
                         .style('border', d => rootConcepts.includes(d.name) ? '1px solid #6a23d6' : 'none')
                     const title = conceptCard.append('div')
                         .classed('list-item-title',true)
@@ -2372,11 +2385,12 @@
                         .classed('list-title-circle',true)
                         .classed('list-circle-dash', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? true : false)
                         .classed('list-circle', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? false : true)
-                        .classed('btn', d => inclusions.includes(d.name) || d.leaf ? true : false)
-                        .style("pointer-events", d => inclusions.includes(d.name) || d.leaf ? 'all' : 'none')
+                        .classed('btn', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? true : false)
+                        .style("pointer-events", d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 'all' : 'none')
                         .style('background', d => {
-                            if (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) return "none"
-                            if (inclusions.includes(d.name) || d.leaf) {
+                            if (countType === 'person' && relationship === 'mappings' && d.leaf ) return !d.data.concept.standard_concept ? "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, #d2d2d9 0.5px, #d2d2d9 2px)" : 'none'
+                            else if (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) return "none"
+                            else if (inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings')) {
                                 if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
                                 else {return "none"}
                             }
@@ -2387,14 +2401,15 @@
                             }      
                         })
                         .style("background-color", d => {
-                            if (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) return "transparent"
-                            if (inclusions.includes(d.name) || d.leaf) {
+                            if (countType === 'person' && relationship === 'mappings' && d.leaf) return '#d2d2d9'
+                            else if (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) return "transparent"
+                            else if (inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings')) {
                                 if (d.data.concept.standard_concept) {return d.color} 
                                 else {return "transparent"}
                             }
                             else return '#d2d2d9'
                         }) 
-                        .style('border', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? '1px solid #b3b3bf' : inclusions.includes(d.name) || d.leaf ? `1px solid ${d.color}` : '1px solid #d2d2d9')
+                        .style('border', d => ((countType === 'person' && relationship === 'mappings' && d.leaf) ? '1px solid #d2d2d9' : (countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? '1px solid #b3b3bf' : inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? `1px solid ${d.color}` : '1px solid #d2d2d9')
                         .style('display',d => d.levels === '-1' ? 'none' : 'block')
                         .on('mouseover',(e,d) => setHovered([d.name]))
                         .on('mouseout', (e,d) => setHovered([]))
@@ -2483,7 +2498,7 @@
                         })
                     const titleP = titleRight.append('p')
                         .classed('list-title-p btn',true)
-                        .style('opacity', d => inclusions.includes(d.name) || d.leaf ? 1 : 0.6)
+                        .style('opacity', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 1 : 0.6)
                         .on('mouseover', (e, d) => {
                             if (!rootConcepts.includes(d.name)) {
                                 const el = e.currentTarget
@@ -2534,7 +2549,7 @@
                         .classed('info-container',true)
                         .attr('id', d => 'info-container-'+d.name)
                         .style('display', d => d.levels === '-1' || !d.levels ? 'none' : 'flex')
-                        .style('border-top', d => inclusions.includes(d.name) || d.leaf ? '1px solid #e7e7eb' : '1px solid color-mix(in srgb, #36126d, white 85%)')
+                        .style('border-top', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? '1px solid #e7e7eb' : '1px solid color-mix(in srgb, #36126d, white 85%)')
                     const infoCol1 = infoContainer.append('div')
                         .classed('info-col',true)
                     infoCol1.append('p')
@@ -2607,20 +2622,20 @@
                     countsDRC.append('p')
                         .classed('counts-DRC-p list-counts-p num',true)
                         .style('text-align','left')
-                        .style('color', d => inclusions.includes(d.name) || d.leaf ? '#36126d' : '#9597a6')
-                        .style('font-weight', d => inclusions.includes(d.name) || d.leaf ? 500 : 400)
+                        .style('color', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? '#36126d' : '#9597a6')
+                        .style('font-weight', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 500 : 400)
                         .html(d => countType === 'record' ? formatThousands(d.descendant_record_counts) : formatThousands(d.descendant_person_counts))
                     countsDRC.append('p')
                         .classed('counts-DRC-label list-counts-label',true)
-                        .style('color', d => inclusions.includes(d.name) || d.leaf ? '#36126d' : '#9597a6')
-                        .style('font-weight', d => inclusions.includes(d.name) || d.leaf ? 500 : 400)
+                        .style('color', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? '#36126d' : '#9597a6')
+                        .style('font-weight', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 500 : 400)
                         .html(() => countType === 'record' ? 'DRC' : 'DPC')
                     const countsBarDRC = countsDRC.append('div')
                         .classed('list-counts-bar-container',true)
                     countsBarDRC.append('div')
                         .classed('counts-DRC-bar list-counts-bar',true)
                         .style('width', d => countType === 'record' ? scaleWidth(d.descendant_record_counts) + 'px' : scaleWidth(d.descendant_person_counts) + 'px')
-                        .style('background-color', d => inclusions.includes(d.name) || d.leaf ? d.color : '#e8e8e8')
+                        .style('background-color', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? d.color : '#e8e8e8')
 
                     const openMappings = dataSection.append('div')
                         .classed('list-open-mappings',true)
@@ -3115,16 +3130,17 @@
                         .transition()
                         .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
                     update.select('.list-card')
-                        .style('box-shadow', d => inclusions.includes(d.name) || d.leaf ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
-                        .style('background-color', d => d.levels === '-1' ? 'none' : inclusions.includes(d.name) || d.leaf ? 'white' : '#f2f2f4')
+                        .style('box-shadow', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
+                        .style('background-color', d => d.levels === '-1' ? 'none' : inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 'white' : '#f2f2f4')
                     update.select('.list-title-circle')
                         .classed('list-circle-dash', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? true : false)
                         .classed('list-circle', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? false : true)
-                        .classed('btn', d => inclusions.includes(d.name) || d.leaf ? true : false)
-                        .style("pointer-events", d => inclusions.includes(d.name) || d.leaf ? 'all' : 'none')
+                        .classed('btn', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? true : false)
+                        .style("pointer-events", d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 'all' : 'none')
                         .style('background', d => {
-                            if (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) return "none"
-                            if (inclusions.includes(d.name) || d.leaf) {
+                            if (countType === 'person' && relationship === 'mappings' && d.leaf ) return !d.data.concept.standard_concept ? "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, #d2d2d9 0.5px, #d2d2d9 2px)" : 'none'
+                            else if (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) return "none"
+                            else if (inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings')) {
                                 if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
                                 else {return "none"}
                             }
@@ -3135,14 +3151,15 @@
                             }      
                         })
                         .style("background-color", d => {
-                            if (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) return "transparent"
-                            if (inclusions.includes(d.name) || d.leaf) {
+                            if (countType === 'person' && relationship === 'mappings' && d.leaf) return '#d2d2d9'
+                            else if (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) return "transparent"
+                            else if (inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings')) {
                                 if (d.data.concept.standard_concept) {return d.color} 
                                 else {return "transparent"}
                             }
                             else return '#d2d2d9'
                         }) 
-                        .style('border', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? '1px solid #b3b3bf' : inclusions.includes(d.name) || d.leaf ? `1px solid ${d.color}` : '1px solid #d2d2d9')
+                        .style('border', d => ((countType === 'person' && relationship === 'mappings' && d.leaf) ? '1px solid #d2d2d9' : (countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? '1px solid #b3b3bf' : inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? `1px solid ${d.color}` : '1px solid #d2d2d9')
                         .on('mouseover',(e,d) => setHovered([d.name]))
                         .on('mouseout', (e,d) => setHovered([]))
                     update.select('.list-title-right')
@@ -3222,7 +3239,7 @@
                             if (!rootConcepts.includes(d.name)) showConfirmationPopup(d, 'enter', e)
                         })
                         .transition()
-                        .style('opacity', d => inclusions.includes(d.name) || d.leaf ? 1 : 0.6)
+                        .style('opacity', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 1 : 0.6)
                     update.select('.info-icon')
                         .style('display', d => d.levels === '-1' || !d.levels ? 'none' : 'block')
                         .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name).transition().style('color','#9597a6'))
@@ -3239,7 +3256,7 @@
                             }
                         })
                     update.select('.info-container')
-                        .style('border-top', d => inclusions.includes(d.name) || d.leaf ? '1px solid #e7e7eb' : '1px solid color-mix(in srgb, #36126d, white 85%)')
+                        .style('border-top', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? '1px solid #e7e7eb' : '1px solid color-mix(in srgb, #36126d, white 85%)')
                     update.select('.counts-RC-p')
                         .style('color', d => inclusions.includes(d.name) && !d.leaf ? '#36126d' : '#9597a6')
                         .style('font-weight', d => inclusions.includes(d.name) && !d.leaf ? 500 : 400)
@@ -3253,17 +3270,17 @@
                         .style('width', d => countType === 'record' ? scaleWidth(d.record_counts) + 'px' : scaleWidth(d.person_counts) + 'px' )
                         .style('background-color', d => inclusions.includes(d.name) && !d.leaf ? d.color : '#e8e8e8')
                     update.select('.counts-DRC-p')
-                        .style('color', d => inclusions.includes(d.name) || d.leaf ? '#36126d' : '#9597a6')
-                        .style('font-weight', d => inclusions.includes(d.name) || d.leaf ? 500 : 400)
+                        .style('color', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? '#36126d' : '#9597a6')
+                        .style('font-weight', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 500 : 400)
                         .html(d => countType === 'record' ? formatThousands(d.descendant_record_counts) : formatThousands(d.descendant_person_counts))
                     update.select('.counts-DRC-label')
-                        .style('color', d => inclusions.includes(d.name) || d.leaf ? '#36126d' : '#9597a6')
-                        .style('font-weight', d => inclusions.includes(d.name) || d.leaf ? 500 : 400)
+                        .style('color', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? '#36126d' : '#9597a6')
+                        .style('font-weight', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 500 : 400)
                         .html(() => countType === 'record' ? 'DRC' : 'DPC')
                     update.select('.counts-DRC-bar')
                         .transition()
                         .style('width', d => countType === 'record' ? scaleWidth(d.descendant_record_counts) + 'px' : scaleWidth(d.descendant_person_counts) + 'px' )
-                        .style('background-color', d => inclusions.includes(d.name) || d.leaf ? d.color : '#e8e8e8')
+                        .style('background-color', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? d.color : '#e8e8e8')
                     update.select('.list-caret-down')
                         .style('display', d => d.mappings.length > 0 ? mapRoot.includes(d.name) || d.mappings.map(m => m.name).some(map => hovered.includes(map)) ? 'none' : 'block' : 'none')
                         .on('click',(e,d) => {
@@ -3754,8 +3771,8 @@
                         .attr('id', d => 'list-card-'+d.name)
                         .style('display','flex')
                         .style('flex-direction','column')
-                        .style('box-shadow', d => inclusions.includes(d.name) || d.leaf ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
-                        .style('background-color', d => d.levels === '-1' ? 'none' : inclusions.includes(d.name) || d.leaf ? 'white' : '#f2f2f4')
+                        .style('box-shadow', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
+                        .style('background-color', d => d.levels === '-1' ? 'none' : inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 'white' : '#f2f2f4')
                         .style('border', d => rootConcepts.includes(d.name) ? '1px solid #6a23d6' : 'none')
                     const title = conceptCard.append('div')
                         .classed('list-item-title',true)
@@ -3766,11 +3783,12 @@
                         .classed('list-title-circle',true)
                         .classed('list-circle-dash', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? true : false)
                         .classed('list-circle', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? false : true)
-                        .classed('btn', d => inclusions.includes(d.name) || d.leaf ? true : false)
-                        .style("pointer-events", d => inclusions.includes(d.name) || d.leaf ? 'all' : 'none')
+                        .classed('btn', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? true : false)
+                        .style("pointer-events", d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 'all' : 'none')
                         .style('background', d => {
-                            if (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) return "none"
-                            if (inclusions.includes(d.name) || d.leaf) {
+                            if (countType === 'person' && relationship === 'mappings' && d.leaf ) return !d.data.concept.standard_concept ? "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, #d2d2d9 0.5px, #d2d2d9 2px)" : 'none'
+                            else if (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) return "none"
+                            else if (inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings')) {
                                 if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
                                 else {return "none"}
                             }
@@ -3781,14 +3799,15 @@
                             }      
                         })
                         .style("background-color", d => {
-                            if (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) return "transparent"
-                            if (inclusions.includes(d.name) || d.leaf) {
+                            if (countType === 'person' && relationship === 'mappings' && d.leaf) return '#d2d2d9'
+                            else if (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) return "transparent"
+                            else if (inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings')) {
                                 if (d.data.concept.standard_concept) {return d.color} 
                                 else {return "transparent"}
                             }
                             else return '#d2d2d9'
                         }) 
-                        .style('border', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? '1px solid #b3b3bf' : inclusions.includes(d.name) || d.leaf ? `1px solid ${d.color}` : '1px solid #d2d2d9')
+                        .style('border', d => ((countType === 'person' && relationship === 'mappings' && d.leaf) ? '1px solid #d2d2d9' : (countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? '1px solid #b3b3bf' : inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? `1px solid ${d.color}` : '1px solid #d2d2d9')
                         .style('display',d => d.levels === '-1' ? 'none' : 'block')
                         .on('mouseover',(e,d) => setHovered([d.name]))
                         .on('mouseout', (e,d) => setHovered([]))
@@ -3824,7 +3843,7 @@
                             clearTimeout(e.currentTarget.__hoverTimeout__)
                             showActionLabel('','leave')
                             const newInclusions = [...inclusions,d.name]
-                           updateConcepts(newInclusions)
+                            updateConcepts(newInclusions)
                         })
                     const icons = titleRight.append('div')
                         .classed('list-icons',true)
@@ -3877,7 +3896,7 @@
                         })
                     const titleP = titleRight.append('p')
                         .classed('list-title-p btn',true)
-                        .style('opacity', d => inclusions.includes(d.name) || d.leaf ? 1 : 0.6)
+                        .style('opacity', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 1 : 0.6)
                         .on('mouseover', (e, d) => {
                             if (!rootConcepts.includes(d.name)) {
                                 const el = e.currentTarget
@@ -3909,7 +3928,7 @@
                     title.append('i')
                         .classed('info-icon fa-solid fa-circle-info icon',true)  
                         .attr('id', d => 'info-icon-'+d.name)  
-                        .style('opacity', 0.2)
+                        .style('color', '#c9c9d5')
                         .style('display', d => d.levels === '-1' || !d.levels ? 'none' : 'block')
                         .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name).transition().style('color','#9597a6'))
                         .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name).style('height') !== '45px') d3.select('#info-icon-'+d.name).transition().style('color','#c9c9d5')})
@@ -3928,7 +3947,7 @@
                         .classed('info-container',true)
                         .attr('id', d => 'info-container-'+d.name)
                         .style('display', d => d.levels === '-1' || !d.levels ? 'none' : 'flex')
-                        .style('border-top', d => inclusions.includes(d.name) || d.leaf ? '1px solid #e7e7eb' : '1px solid color-mix(in srgb, #36126d, white 85%)')
+                        .style('border-top', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? '1px solid #e7e7eb' : '1px solid color-mix(in srgb, #36126d, white 85%)')
                     const infoCol1 = infoContainer.append('div')
                         .classed('info-col',true)
                     infoCol1.append('p')
@@ -4001,20 +4020,20 @@
                     countsDRC.append('p')
                         .classed('counts-DRC-p list-counts-p num',true)
                         .style('text-align','left')
-                        .style('color', d => inclusions.includes(d.name) || d.leaf ? '#36126d' : '#9597a6')
-                        .style('font-weight', d => inclusions.includes(d.name) || d.leaf ? 500 : 400)
+                        .style('color', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? '#36126d' : '#9597a6')
+                        .style('font-weight', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 500 : 400)
                         .html(d => countType === 'record' ? formatThousands(d.descendant_record_counts) : formatThousands(d.descendant_person_counts))
                     countsDRC.append('p')
                         .classed('counts-DRC-label list-counts-label',true)
-                        .style('color', d => inclusions.includes(d.name) || d.leaf ? '#36126d' : '#9597a6')
-                        .style('font-weight', d => inclusions.includes(d.name) || d.leaf ? 500 : 400)
+                        .style('color', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? '#36126d' : '#9597a6')
+                        .style('font-weight', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 500 : 400)
                         .html(() => countType === 'record' ? 'DRC' : 'DPC')
                     const countsBarDRC = countsDRC.append('div')
                         .classed('list-counts-bar-container',true)
                     countsBarDRC.append('div')
                         .classed('counts-DRC-bar list-counts-bar',true)
                         .style('width', d => countType === 'record' ? scaleWidth(d.descendant_record_counts) + 'px' : scaleWidth(d.descendant_person_counts) + 'px')
-                        .style('background-color', d => inclusions.includes(d.name) || d.leaf ? d.color : '#e8e8e8')
+                        .style('background-color', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? d.color : '#e8e8e8')
 
                     const openMappings = dataSection.append('div')
                         .classed('list-open-mappings',true)
@@ -4509,16 +4528,17 @@
                         .transition()
                         .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
                     update.select('.list-card')
-                        .style('box-shadow', d => inclusions.includes(d.name) || d.leaf ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
-                        .style('background-color', d => d.levels === '-1' ? 'none' : inclusions.includes(d.name) || d.leaf ? 'white' : '#f2f2f4')
+                        .style('box-shadow', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
+                        .style('background-color', d => d.levels === '-1' ? 'none' : inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 'white' : '#f2f2f4')
                     update.select('.list-title-circle')
                         .classed('list-circle-dash', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? true : false)
                         .classed('list-circle', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? false : true)
-                        .classed('btn', d => inclusions.includes(d.name) || d.leaf ? true : false)
-                        .style("pointer-events", d => inclusions.includes(d.name) || d.leaf ? 'all' : 'none')
+                        .classed('btn', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? true : false)
+                        .style("pointer-events", d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 'all' : 'none')
                         .style('background', d => {
-                            if (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) return "none"
-                            if (inclusions.includes(d.name) || d.leaf) {
+                            if (countType === 'person' && relationship === 'mappings' && d.leaf ) return !d.data.concept.standard_concept ? "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, #d2d2d9 0.5px, #d2d2d9 2px)" : 'none'
+                            else if (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) return "none"
+                            else if (inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings')) {
                                 if (!d.data.concept.standard_concept) {return "repeating-linear-gradient(-45deg, transparent, transparent 0.5px, "+ d.color + " 0.5px," + d.color + " 2px)"} 
                                 else {return "none"}
                             }
@@ -4529,14 +4549,15 @@
                             }      
                         })
                         .style("background-color", d => {
-                            if (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) return "transparent"
-                            if (inclusions.includes(d.name) || d.leaf) {
+                            if (countType === 'person' && relationship === 'mappings' && d.leaf) return '#d2d2d9'
+                            else if (((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf) return "transparent"
+                            else if (inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings')) {
                                 if (d.data.concept.standard_concept) {return d.color} 
                                 else {return "transparent"}
                             }
                             else return '#d2d2d9'
                         }) 
-                        .style('border', d => ((countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? '1px solid #b3b3bf' : inclusions.includes(d.name) || d.leaf ? `1px solid ${d.color}` : '1px solid #d2d2d9')
+                        .style('border', d => ((countType === 'person' && relationship === 'mappings' && d.leaf) ? '1px solid #d2d2d9' : (countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0)) && !d.leaf ? '1px solid #b3b3bf' : inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? `1px solid ${d.color}` : '1px solid #d2d2d9')
                         .on('mouseover',(e,d) => setHovered([d.name]))
                         .on('mouseout', (e,d) => setHovered([]))
                     update.select('.list-title-right')
@@ -4616,7 +4637,7 @@
                             if (!rootConcepts.includes(d.name)) showConfirmationPopup(d, 'enter', e)
                         })
                         .transition()
-                        .style('opacity', d => inclusions.includes(d.name) || d.leaf ? 1 : 0.6)
+                        .style('opacity', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 1 : 0.6)
                     update.select('.info-icon')
                         .style('display', d => d.levels === '-1' || !d.levels ? 'none' : 'block')
                         .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name).transition().style('color','#9597a6'))
@@ -4633,7 +4654,7 @@
                             }
                         })
                     update.select('.info-container')
-                        .style('border-top', d => inclusions.includes(d.name) || d.leaf ? '1px solid #e7e7eb' : '1px solid color-mix(in srgb, #36126d, white 85%)')
+                        .style('border-top', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? '1px solid #e7e7eb' : '1px solid color-mix(in srgb, #36126d, white 85%)')
                     update.select('.counts-RC-p')
                         .style('color', d => inclusions.includes(d.name) && !d.leaf ? '#36126d' : '#9597a6')
                         .style('font-weight', d => inclusions.includes(d.name) && !d.leaf ? 500 : 400)
@@ -4647,17 +4668,17 @@
                         .style('width', d => countType === 'record' ? scaleWidth(d.record_counts) + 'px' : scaleWidth(d.person_counts) + 'px' )
                         .style('background-color', d => inclusions.includes(d.name) && !d.leaf ? d.color : '#e8e8e8')
                     update.select('.counts-DRC-p')
-                        .style('color', d => inclusions.includes(d.name) || d.leaf ? '#36126d' : '#9597a6')
-                        .style('font-weight', d => inclusions.includes(d.name) || d.leaf ? 500 : 400)
+                        .style('color', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? '#36126d' : '#9597a6')
+                        .style('font-weight', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 500 : 400)
                         .html(d => countType === 'record' ? formatThousands(d.descendant_record_counts) : formatThousands(d.descendant_person_counts))
                     update.select('.counts-DRC-label')
-                        .style('color', d => inclusions.includes(d.name) || d.leaf ? '#36126d' : '#9597a6')
-                        .style('font-weight', d => inclusions.includes(d.name) || d.leaf ? 500 : 400)
+                        .style('color', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? '#36126d' : '#9597a6')
+                        .style('font-weight', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 500 : 400)
                         .html(() => countType === 'record' ? 'DRC' : 'DPC')
                     update.select('.counts-DRC-bar')
                         .transition()
                         .style('width', d => countType === 'record' ? scaleWidth(d.descendant_record_counts) + 'px' : scaleWidth(d.descendant_person_counts) + 'px' )
-                        .style('background-color', d => inclusions.includes(d.name) || d.leaf ? d.color : '#e8e8e8')
+                        .style('background-color', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? d.color : '#e8e8e8')
                     update.select('.list-caret-down')
                         .style('display', d => d.mappings.length > 0 ? mapRoot.includes(d.name) || d.mappings.map(m => m.name).some(map => hovered.includes(map)) ? 'none' : 'block' : 'none')
                         .on('click',(e,d) => {
@@ -5222,6 +5243,25 @@
             return () => document.removeEventListener('click', handleClickOutside)
         }, [])
 
+        function showSetExpressionPopup(mode) {
+            if (mode === 'enter') {
+                const event = document.getElementById('expression-question-mark').getBoundingClientRect()
+                d3.select('#set-expression-popup')
+                    .transition()
+                    .style('opacity',1)
+                    .style('left', function() {
+                        const w = document.getElementById('set-expression-popup').clientWidth
+                        if (event.x + w > window.innerWidth) return (event.x - w - 5 + 'px')
+                        else return (event.x + 20 + 'px')    
+                    })
+                    .style('top', function() {
+                        const h = document.getElementById('set-expression-popup').clientHeight
+                        if ((event.y-event.height-20) - h < 0) return ((event.y-event.height-20) + 10 + 'px')  
+                        else return ((event.y-event.height-20) + 'px')
+                    })
+            } else d3.select('#set-expression-popup').transition().style('opacity',0)
+        }
+
         // drag behavior
         useEffect(() => {
             const graph = document.getElementById('graph-section')
@@ -5478,7 +5518,10 @@
         return (
             <div id = "sidebar">
                 <div id = "drag-bar"></div>
-                
+                <div id = "set-expression-popup" className = 'toolTip dropShadow flex' style = {{flexDirection:'column',width:'220px',pointerEvents:'none'}}>
+                    <div className = 'flex' style = {{alignItems:'flex-start',marginBottom:4}}><div className = 'selectedText' style = {{color:'#6a23d6',width:'80px',flexShrink:0}}>Exclude:</div><div>Removes this concept from the set.</div></div>
+                    <div className = 'flex' style = {{alignItems:'flex-start'}}><div className = 'selectedText' style = {{color:'#6a23d6',width:'80px',flexShrink:0}}>Descendants:</div><div>Includes all concepts below this one in the hierarchy. Paired with Exclude, it removes this concept and its descendants.</div></div>
+                </div>
                 <div id = "sidebar-content">
                     <div className='flex margin' style = {{width:'calc(100% - 2em)',justifyContent:'space-between'}}>
                         <div className = 'toggle' id = "view-toggle">
@@ -5574,7 +5617,7 @@
                             <p className = "selectedText" style = {{marginLeft:'2px'}}>Concept</p>
                             <div className = "flex" style = {{position:'absolute',right:'calc(167px + 1em)'}}>
                                 <p className = "selectedText" style = {{marginRight:6}}>Expression</p> 
-                                <div className = "questionMark flex selectedText btn">?</div>   
+                                <div className = "questionMark flex selectedText btn" id = 'expression-question-mark' onMouseEnter={() => showSetExpressionPopup('enter')} onMouseLeave={() => showSetExpressionPopup('leave')}>?</div>   
                             </div>
                             <p className = "selectedText" >{countType === 'record' ? 'DRC' : 'DPC'}</p>
                         </div>

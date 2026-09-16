@@ -844,7 +844,7 @@ function App() {
   }
 
   function prunePersonCounts() {
-    const objects = nodes.filter(d => d.distance !== 0)
+    const objects = [...nodes,...nodes.map(n => n.mappings).flat()].filter(d => d.distance !== 0)
     const distances = [...new Set(objects.map(d => d.distance))].sort((a, b) => b - a)
     for (const distance of distances) {
         const filtered = objects.filter(d => d.distance < distance)
@@ -861,7 +861,13 @@ function App() {
   }
 
   function getFilterQueryString() {
-    const conceptData = selectedConcepts.map(concept => ({ name: concept.name.toString(), type: concept.map ? 'M' : 'S', include: concept.leaf ? 'D' : '' }))
+    let mapLeaf = []
+    let mappingData = []
+    if (relationship === 'mappings') mapLeaf = selectedConcepts.filter(c => c.leaf)
+    const mappingsToAdd = mapLeaf.map(c => nodes.find(n => n.name === c.name).mappings).flat().filter(m => inclusions.includes(m.name))
+    let conceptData = selectedConcepts.filter(c => !mapLeaf.map(l => l.name).includes(c.name)).map(concept => ({name:concept.name.toString(),type: concept.map ? 'M' : 'S',include: concept.leaf ? 'D' : ''}))
+    if (mappingsToAdd.length > 0) mappingData = mappingsToAdd.map(m => ({name:m.name.toString(),type:'M',include:''}))
+    conceptData = [...conceptData,...mappingData]
     const obj = { conceptIds: conceptData.map(d => `${d.name}${d.type}${d.include}`).join(','),yearsRange:yearSelection ? yearSelection[0] + ',' + yearSelection[1] : extent[0] + ',' + extent[1] }
     return Object.entries(obj)
       .filter(([key, value]) => value !== '')
@@ -870,7 +876,13 @@ function App() {
   }
 
   function getQueryString() {
-    const conceptData = selectedConcepts.map(concept => ({name:concept.name.toString(),type: concept.map ? 'M' : 'S',include: concept.leaf ? 'D' : ''}))
+    let mapLeaf = []
+    let mappingData = []
+    if (relationship === 'mappings') mapLeaf = selectedConcepts.filter(c => c.leaf)
+    const mappingsToAdd = mapLeaf.map(c => nodes.find(n => n.name === c.name).mappings).flat().filter(m => inclusions.includes(m.name))
+    let conceptData = selectedConcepts.filter(c => !mapLeaf.map(l => l.name).includes(c.name)).map(concept => ({name:concept.name.toString(),type: concept.map ? 'M' : 'S',include: concept.leaf ? 'D' : ''}))
+    if (mappingsToAdd.length > 0) mappingData = mappingsToAdd.map(m => ({name:m.name.toString(),type:'M',include:''}))
+    conceptData = [...conceptData,...mappingData]
     const obj = {conceptIds:conceptData.map(d => `${d.name}${d.type}${d.include}`).join(','),yearsRange:yearSelection ? yearSelection[0] + ',' + yearSelection[1] : extent[0] + ',' + extent[1],sexStratum:!graphFilter.gender.includes(-1) ? graphFilter.gender : '',ageStratum:!graphFilter.age.includes(-1) ? graphFilter.age.filter(a => a !== -1).join(',') : '',visitStratum:!graphFilter.source.includes(-1) ? graphFilter.source.join(',') : ''}
     const queryString = Object.entries(obj)
       .filter(([key, value]) => value !== '')
@@ -1395,7 +1407,7 @@ function App() {
         .map(d => ({
           name: d.name, 
           leaf: d.leaf ? d.leaf : false, 
-          map: (d.leaf && relationship === 'mappings' && d.data.concept.standard_concept) || !d.data.concept.standard_concept ? true : false,
+          map: !d.data.concept.standard_concept ? true : false,
           distance: d.distance ? d.distance : d.source.distance, 
           data: {code_counts: d.leaf ? [] : countsData.filter(c => d.name === c.concept_id), descendant_code_counts: !d.leaf ? [] : relationship === 'descendants' ? countsData.filter(c => d.descendants.filter(d => inclusions.includes(d)).includes(c.concept_id)) : countsData.filter(c => d.descendants.map(name => fullTree.nodes.find(n => n.name === name).mappings.map(m => m.name)).flat().filter(d => inclusions.includes(d)).includes(c.concept_id))}
         }))
@@ -1446,6 +1458,7 @@ function App() {
       }, 500)
 
       const queryString = getQueryString()
+      console.log('query',queryString)
 
       fetch(`${API_BASE_URL}/getPersonCountsUpset?${queryString}`, {
         signal: controller.signal
@@ -1482,7 +1495,9 @@ function App() {
 
   useEffect(()=>{
     if (countType === 'person') {
-      if (selectedConcepts.length > personMax) prunePersonCounts()
+      if (selectedConcepts.length > personMax) {
+        prunePersonCounts()
+      }
       else setMaxPersonLevel()
     }
   },[countType])
