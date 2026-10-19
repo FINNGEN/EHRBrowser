@@ -42,8 +42,7 @@ function Header (props) {
     const setRelationship = props.setRelationship
     const updateInclusions = props.updateInclusions
     const nodes = props.nodes
-    const upsetData = props.upsetData
-    // const listIndexes = props.listIndexes
+    const isMeasurement = props.isMeasurement
     const codes = conceptList.map(d => d.concept_id.toString())
     const names = conceptList.map(d => d.concept_name.toLowerCase())
     const [searchResults,setSearchResults] = useState([])
@@ -121,7 +120,7 @@ function Header (props) {
             return
         }
 
-        d3.select('#searchConcept').style('border', '1px solid #6a23d6');
+        d3.select('#searchConcept').style('border', '1px solid #7728ED');
 
         const base =
             input.startsWith(prevSearch) && searchResults.length
@@ -511,7 +510,7 @@ function Header (props) {
                 {/* <div className = "btn greyBtn" onClick = {() => setShowFilter(false)} style = {{backgroundColor:searchFilter.length > 0 ? '#e8e8e8' : 'transparent',color:searchFilter.length > 0 ? '#36126d' : '#4c4c4c9',alignSelf:'flex-end'}}>Confirm</div> */}
             </div> 
 
-            <div id = 'app-controls' style = {{left: expandedSearch && 800 > window.innerWidth/2 - 215 ? '810px' : '50%',transform:expandedSearch && 800 > window.innerWidth/2 - 215 ? 'translateX(0)' : 'translateX(-50%)',display: root && nodes.length > 0 ? 'flex' : 'none'}}>
+            <div id = 'app-controls' style = {{width: isMeasurement ? 600 : 500,left: expandedSearch && 800 > window.innerWidth/2 - 215 ? '810px' : '50%',transform:expandedSearch && 800 > window.innerWidth/2 - 215 ? 'translateX(0)' : 'translateX(-50%)',display: root && nodes.length > 0 ? 'flex' : 'none'}}>
                 <div className = 'toggle' id = "relationship-toggle">
                     <div className = 'mainBtn slider' id='slider-relationship'>''</div>
 
@@ -523,6 +522,7 @@ function Header (props) {
 
                     <div className = 'btn toggle-itm' id = 'record-toggle' onClick={() => {setCountType('record');moveSlider(0,100,'counts')}} style = {{fontWeight:countType === 'record' ? 500 : 400,color:countType === 'record' ? '#36126d' : '#9597a6'}}>Record Counts</div>
                     <div className = 'btn toggle-itm' id = 'person-toggle' onClick={() => {setCountType('person');moveSlider(1,100,'counts')}} style = {{fontWeight:countType === 'person' ? 500 : 400,color:countType === 'person' ? '#36126d' : '#9597a6'}}>Person Counts</div>
+                    <div className = 'btn toggle-itm' id = 'measurement-toggle' onClick={() => {setCountType('measurement');moveSlider(2,100,'counts')}} style = {{display: isMeasurement ? 'flex' : 'none',fontWeight:countType === 'measurement' ? 500 : 400,color:countType === 'measurement' ? '#36126d' : '#9597a6'}}>Lab Values</div>
                 </div>
             </div>
 

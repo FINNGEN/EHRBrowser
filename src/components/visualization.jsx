@@ -107,11 +107,12 @@ function Visualization (props) {
     const [biDirectional, setBiDirectional] = useState()
     const [graphSectionWidth, setGraphSectionWidth] = useState('60vw')
     const [upsetZoomedOut, setUpsetZoomedOut] = useState(false)
+    const [focused, setFocused] = useState(null)
     const edges = props.edges
     const setEdges = props.setEdges
     const updateConcepts = props.updateConcepts
     const updateWidth = props.updateWidth
-    const upsetData = props.upsetData
+    // const upsetData = props.upsetData
     const maxPersonLevel = props.maxPersonLevel
     const yearSelection = props.yearSelection
     const setYearSelection = props.setYearSelection
@@ -119,10 +120,88 @@ function Visualization (props) {
     const allNodesMap = props.allNodesMap
     const graphLoading = props.graphLoading
     const fullTreeNodeMap = props.fullTreeNodeMap
+    const zoomedNodes = props.zoomedNodes
+    const zoomedLinks = props.zoomedLinks
+    const setZoomedNodes = props.setZoomedNodes
+    const setZoomedLinks = props.setZoomedLinks
+    const personData = props.personData
+    const personVizType = props.personVizType
+    const setPersonVizType = props.setPersonVizType
+    const measurementData = props.measurementData
     const hideTimer = useRef(null)
     const popupTimeout = useRef(null)
+    const previewNodeRef = useRef(null)
+    const previewEventRef = useRef(null)
+
+    function isLeaf(d) {
+        if ((countType === 'person' && relationship === 'mappings') || d.source) return false
+        else {
+            let descendantInclusions = []
+            if (relationship === 'descendants') descendantInclusions = d.descendants.filter(desc => countType === 'record' ? fullTreeNodeMap.get(desc).record_counts > 0 : fullTreeNodeMap.get(desc).person_counts > 0)
+            else descendantInclusions = d.descendants.map(desc => allNodesMap.get(desc).mappings.map(m => m.name)).flat().filter(desc => countType === 'record' ? allNodesMap.get(desc).record_counts > 0 : allNodesMap.get(desc).person_counts > 0)
+            return d.distance === d3.max(nodes.map(n => n.distance)) && descendantInclusions.filter(desc => desc !== d.name).length > 0
+        } 
+    }
+
+    function getNewInclusions(d,mode) {
+        let newInclusions = []
+        if (mode === 'show') {
+            if (isLeaf(d)) {
+                let descendantInclusions = []
+                if (relationship === 'descendants') descendantInclusions = d.descendants.filter(desc => countType === 'record' ? fullTreeNodeMap.get(desc).record_counts > 0 : fullTreeNodeMap.get(desc).person_counts > 0)
+                else descendantInclusions = d.descendants.map(desc => allNodesMap.get(desc).mappings.map(m => m.name)).flat().filter(desc => countType === 'record' ? allNodesMap.get(desc).record_counts > 0 : allNodesMap.get(desc).person_counts > 0)
+                newInclusions = [...inclusions,...descendantInclusions]
+            }
+            else newInclusions = [...inclusions,d.name]
+        } else {
+            if (d.leaf) {
+                let descendantInclusions = []
+                if (relationship === 'descendants') descendantInclusions = d.descendants.filter(desc => countType === 'record' ? fullTreeNodeMap.get(desc).record_counts > 0 : fullTreeNodeMap.get(desc).person_counts > 0)
+                else descendantInclusions = d.descendants.map(desc => allNodesMap.get(desc).mappings.map(m => m.name)).flat().filter(desc => countType === 'record' ? allNodesMap.get(desc).record_counts > 0 : allNodesMap.get(desc).person_counts > 0)
+                newInclusions = inclusions.filter(e => !descendantInclusions.includes(e))
+            }
+            else newInclusions = inclusions.filter(e => e !== d.name)
+        } 
+        return newInclusions
+    }
 
     // tooltip
+    function showTooltipPreview(d, event) {
+        previewNodeRef.current = d;
+        previewEventRef.current = event;
+
+        const name = d.data.concept.concept_name;
+        const preview = name.length > 10
+            ? name.substring(0, 10) + '…'
+            : name;
+
+        const tooltip = d3.select('#tooltip-preview');
+
+        d3.select('#tooltip-preview-title')
+            .text(preview);
+
+        tooltip
+            .style('display', 'block')
+            .style('opacity', 1)
+            .style('pointer-events', 'auto');
+
+        const el = document.getElementById('tooltip-preview');
+        const gap = 8;
+
+        tooltip
+            .style('left', () => {
+                const w = el.clientWidth;
+                return event.x + w + gap > window.innerWidth
+                    ? `${event.x - w - gap}px`
+                    : `${event.x + gap}px`;
+            })
+            .style('top', () => {
+                const h = el.clientHeight;
+                return event.y + h + gap > window.innerHeight
+                    ? `${event.y - h - gap}px`
+                    : `${event.y + gap}px`;
+            });
+    }
     function tooltipHover(d, mode, event = null) {
         let concept_info = d.data.concept
         if (mode === "enter") {
@@ -132,7 +211,7 @@ function Visualization (props) {
                 .style('left', function() {
                     const gap = 5
                     const w = document.getElementById('tooltip').clientWidth
-                    if (event.x + w > window.innerWidth) return (event.x - w - gap + 'px')
+                    if ((event.x + w > window.innerWidth)) return (event.x - w - gap + 'px')
                     else return (event.x + gap + 'px')    
                 })
                 .style('top', function() {
@@ -160,7 +239,7 @@ function Visualization (props) {
                     showConfirmationPopup(d, 'enter', e)
                 })
             d3.select('#tooltip-eye-closed')
-                .style('display', () => !inclusions.includes(d.name) && (d.record_counts !== 0 || d.leaf) ? 'inline-block' : 'none')
+                .style('display', () => !inclusions.includes(d.name) && (d.record_counts !== 0 || isLeaf(d)) && !d.leaf ? 'inline-block' : 'none')
                 .on('mouseover', (e,i) => {
                     const el = e.currentTarget
                     el.__hoverTimeout__ = setTimeout(() => {
@@ -172,12 +251,11 @@ function Visualization (props) {
                     showActionLabel('','leave',e)
                 })
                 .on('click', () => {
-                    const newInclusions = [...inclusions,d.name]
-                    updateConcepts(newInclusions)
+                    updateConcepts(getNewInclusions(d,'show'))
                     setVisible(false)
                 })     
             d3.select('#tooltip-eye-opened')
-                .style('display', () => inclusions.includes(d.name) ? 'inline-block' : 'none')
+                .style('display', () => inclusions.includes(d.name) || d.leaf ? 'inline-block' : 'none')
                 .on('mouseover', (e,i) => {
                     const el = e.currentTarget
                     el.__hoverTimeout__ = setTimeout(() => {
@@ -189,9 +267,7 @@ function Visualization (props) {
                     showActionLabel('','leave',e)
                 })
                 .on('click', () => {
-                    const newInclusions = inclusions.filter(e => e !== d.name)
-                    // updateConcepts(newInclusions,[],[d])
-                    updateConcepts(newInclusions)
+                    updateConcepts(getNewInclusions(d,'hide'))
                     setVisible(false)
                 }) 
             
@@ -275,17 +351,48 @@ function Visualization (props) {
     }
 
     const scheduleHide = () => {
-        clearHideTimer()
-        hideTimer.current = setTimeout(() => { 
-            setVisible(false)
-        }, 800)    
-    }
+        clearHideTimer();
+
+        hideTimer.current = setTimeout(() => {
+            setVisible(false);
+
+            d3.select('#tooltip-preview')
+                .style('opacity', 0)
+                .style('pointer-events', 'none');
+
+            hideTimer.current = null;
+        }, 800);
+    };
 
     return ( rootConcepts ? 
         <div id = "visualization-container">
+            <div id="tooltip-preview" className="toolTip dropShadow"
+                style={{
+                    opacity: 0,
+                    pointerEvents: 'none',
+                    position: 'fixed',
+                    zIndex: 1000
+                }}
+                onMouseEnter={() => {
+                    clearHideTimer();
+
+                    const node = previewNodeRef.current;
+                    const event = previewEventRef.current;
+
+                    if (node && event) {
+                        tooltipHover(node, 'enter', event);
+                        d3.select('#tooltip-preview')
+                            .style('opacity', 0)
+                            .style('pointer-events', 'none');
+                    }
+                }}
+                onMouseLeave={() => scheduleHide()}
+            >
+                <div id="tooltip-preview-title"></div>
+            </div>
             <div className = "toolTip dropShadow" id = "tooltip" style = {{opacity: visible ? 1 : 0, pointerEvents: visible ? 'all' : 'none'}} 
-                onMouseEnter={() => {clearHideTimer()}}
-                onMouseLeave={() => {setVisible(false)}}
+                onMouseEnter={() => clearHideTimer()}
+                onMouseLeave={() => scheduleHide()}
             >
                 <div id = "tooltip-header">
                     <div id = "tooltip-btn-container">
@@ -391,6 +498,14 @@ function Visualization (props) {
                 showRootLine = {showRootLine}
                 maxPersonLevel = {maxPersonLevel}
                 fullTreeNodeMap = {fullTreeNodeMap}
+                isLeaf = {isLeaf}
+                getNewInclusions = {getNewInclusions}
+                zoomedNodes = {zoomedNodes}
+                zoomedLinks = {zoomedLinks}
+                setZoomedNodes = {setZoomedNodes}
+                setZoomedLinks = {setZoomedLinks}
+                focused = {focused}
+                setFocused = {setFocused}
             ></SideBar> 
             <GraphSection
                 color = {color}
@@ -433,7 +548,10 @@ function Visualization (props) {
                 showConfirmationPopup = {showConfirmationPopup}
                 showActionLabel = {showActionLabel}
                 fullTree = {fullTree}
-                upsetData = {upsetData}
+                personData = {personData}
+                // upsetData = {upsetData}
+                // prevalenceData = {prevalenceData}
+                // incidenceData = {incidenceData}
                 formatThousands = {formatThousands}
                 rootExtent = {rootExtent}
                 personFilterData = {personFilterData}
@@ -443,6 +561,15 @@ function Visualization (props) {
                 setLoading = {setLoading}
                 nodes = {nodes}
                 graphLoading = {graphLoading}
+                personVizType = {personVizType}
+                setPersonVizType = {setPersonVizType}
+                measurementData = {measurementData}
+                showConfirmation = {showConfirmation}
+                isLeaf = {isLeaf}
+                updateConcepts = {updateConcepts}
+                getNewInclusions = {getNewInclusions}
+                showTooltipPreview = {showTooltipPreview}
+                scheduleHide = {scheduleHide}
             ></GraphSection>
         </div> : null
     )

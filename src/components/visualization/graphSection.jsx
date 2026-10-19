@@ -6,6 +6,8 @@ import { faCaretDown } from '@fortawesome/free-solid-svg-icons'
 import { faCaretUp } from '@fortawesome/free-solid-svg-icons'
 import { faCheck } from '@fortawesome/free-solid-svg-icons'
 import { faX } from '@fortawesome/free-solid-svg-icons'
+import openedEye from '../../img/opened-eye.svg'
+import closedEye from '../../img/closed-eye.svg'
 import rootLineIcon from '../../img/root-line.svg'
 import YearFilter from '../yearFilter'
 import * as d3 from "d3";
@@ -51,7 +53,7 @@ function GraphSection (props) {
     const setCountType = props.setCountType
     const moveSlider = props.moveSlider
     const fullTree = props.fullTree
-    const upsetData = props.upsetData
+    // const personData.upset = props.personData.upset
     const formatThousands = props.formatThousands
     const rootExtent = props.rootExtent
     const yearSelection = props.yearSelection
@@ -63,11 +65,23 @@ function GraphSection (props) {
     const setLoading = props.setLoading
     const nodes = props.nodes
     const graphLoading = props.graphLoading
+    // const prevalenceData = props.prevalenceData
+    // const incidenceData = props.incidenceData
+    const personData = props.personData
+    const personVizType = props.personVizType
+    const setPersonVizType = props.setPersonVizType
+    const measurementData = props.measurementData
+    const showConfirmation = props.showConfirmation
+    const isLeaf = props.isLeaf
+    const updateConcepts = props.updateConcepts
+    const getNewInclusions = props.getNewInclusions
+    const showTooltipPreview = props.showTooltipPreview
+    const scheduleHide = props.scheduleHide
     const graphContainerRef = useRef()
     const upsetContainerRef = useRef()
-    const upsetWrapperRef = useRef(null)     // the flex row holding both panels
-    const upsetScrollRef = useRef(null)      // the right, scrollable panel
-    const upsetNaturalSizeRef = useRef(null) // natural (unscaled) plot dimensions
+    const upsetWrapperRef = useRef(null)     
+    const upsetScrollRef = useRef(null)      
+    const upsetNaturalSizeRef = useRef(null) 
     const [upsetOverflowing, setUpsetOverflowing] = useState(false)
     const [showLeftHint, setShowLeftHint] = useState(false)
     const [showRightHint, setShowRightHint] = useState(false)
@@ -104,15 +118,14 @@ function GraphSection (props) {
             .attr("fill", "none")
         return `url(#${patternId})`
     }
-
     function drawUpset() {
-        if (!Array.isArray(upsetData) || upsetData.length === 0) return
+        if (!Array.isArray(personData.upset) || personData.upset.length === 0) return
         d3.select('#sets-layer').selectAll('*').remove()
         d3.select('#upsets-layer').selectAll('*').remove()
         d3.select('#types-layer').selectAll('*').remove()
         d3.select('#y-axis-layer').selectAll('*').remove()
 
-        const sortedData = [...upsetData].sort((a, b) => {
+        const sortedData = [...personData.upset].sort((a, b) => {
             const aSize = a.group.split('-').length
             const bSize = b.group.split('-').length
             if (aSize === 1 && bSize > 1) return -1
@@ -260,6 +273,8 @@ function GraphSection (props) {
             .attr('y', d => setYScale(d.concept) + setYScale.bandwidth() / 2)
             .attr('text-anchor', 'end')
             .attr('dominant-baseline', 'middle')
+            .attr('font-weight',500)
+            .attr('fill','#565867')
             .text(d => d.code)
             .on('mouseover',(e,d)=>{
                 setHovered([d.name])
@@ -321,6 +336,7 @@ function GraphSection (props) {
                     .classed('upset-count num', true)
                     .attr('text-anchor', 'middle')
                     .style('font-size', '8px')
+                    .style('fill','#36126d')
                     .style('pointer-events', 'none')
                 return g
             })
@@ -392,8 +408,8 @@ function GraphSection (props) {
             .attr('x2', d => xScale(sortedIndexMap.get(d.group)) + columnWidth / 2)
             .attr('y1', d => d.y1)
             .attr('y2', d => d.y2)
-            .attr('stroke', 'black')
-            .attr('stroke-width', 2)
+            .attr('stroke', '#36126d')
+            .attr('stroke-width',1.5)
             .attr('opacity', 0.5)
 
         upsetNaturalSizeRef.current = {
@@ -405,7 +421,6 @@ function GraphSection (props) {
 
         layoutUpset()
     }
-
     function layoutUpset() {
         const container = upsetContainerRef.current
         const wrapper = upsetWrapperRef.current
@@ -414,7 +429,7 @@ function GraphSection (props) {
         if (!container || !wrapper || !scrollPanel || !natural) return
 
         const containerWidth = container.clientWidth
-        const containerHeight = container.clientHeight
+        const containerHeight = container.clientHeight 
 
         const overflowing = natural.totalWidth > containerWidth
         setUpsetOverflowing(overflowing)
@@ -428,7 +443,7 @@ function GraphSection (props) {
                 1
             )
             const scaledWidth = natural.totalWidth * scale
-            const scaledHeight = natural.height * scale
+            const scaledHeight = natural.height * scale 
             const translateX = Math.max((containerWidth - scaledWidth) / 2, 0)
             const translateY = Math.max((containerHeight - scaledHeight) / 2, 0)
 
@@ -445,7 +460,6 @@ function GraphSection (props) {
 
         updateUpsetScrollHints()
     }
-
     function updateUpsetScrollHints() {
         const scrollPanel = upsetScrollRef.current
         if (!scrollPanel || upsetZoomedOut) {
@@ -457,8 +471,165 @@ function GraphSection (props) {
         setShowLeftHint(scrollLeft > 2)
         setShowRightHint(scrollLeft + clientWidth < scrollWidth - 2)
     }
+    function drawTimePlot(data, scaleX, scaleY) {
+        const svg = d3.select('#graph')
+        const height = scaleY.range()[0]
+        const [minYear, maxYear] = scaleX.domain()
 
+        // the stacked-area layers aren't used in this mode
+        d3.select('#graph-stack').selectAll('*').remove()
+        d3.select('#graph-line').selectAll('*').remove()
+
+        // layer for the time plot (created once)
+        let layer = svg.select('#graph-plot')
+        if (layer.empty()) layer = svg.append('g').attr('id', 'graph-plot')
+
+        // tagged_concept_id like '312950S' -> 312950, same parsing used in drawUpset
+        const points = data
+            .filter(d => d.calendar_year >= minYear && d.calendar_year <= maxYear && d.observed_persons_counts > 0)
+            .map(d => {
+                const id = parseInt(String(d.tagged_concept_id).replace(/\D/g, ''))
+                return {
+                    key: `${d.tagged_concept_id}-${d.calendar_year}`,
+                    id,
+                    year: d.calendar_year,
+                    value: d.person_counts / d.observed_persons_counts,
+                    person_counts: d.person_counts,
+                    observed: d.observed_persons_counts
+                }
+            })
+        const years = [...new Set(points.map(p => p.year))]
+
+        // one vertical line per year, from the baseline up to that year's highest dot
+        // one vertical line per year, from that year's lowest dot to its highest dot
+        const yearRange = Array.from(
+            d3.rollup(
+                points,
+                v => ({ min: d3.min(v, p => p.value), max: d3.max(v, p => p.value) }),
+                p => p.year
+            ),
+            ([year, r]) => ({ year, min: r.min, max: r.max })
+        )
+
+        const lineLayer = layer.selectAll('g.plot-lines').data([null]).join('g').attr('class', 'plot-lines')
+        lineLayer.selectAll('line.year-line')
+            .data(yearRange, d => d.year)
+            .join(
+                enter => enter.append('line')
+                    .classed('year-line', true)
+                    .attr('stroke', '#c9c9d5')
+                    .attr('stroke-width', 1)
+                    .attr('x1', d => scaleX(d.year))
+                    .attr('x2', d => scaleX(d.year))
+                    .attr('y1', height)
+                    .attr('y2', height)
+                    .call(sel => sel.transition().duration(500).ease(d3.easeCubicOut)
+                        .attr('y1', d => scaleY(d.max))
+                        .attr('y2', d => scaleY(d.min))),
+                update => update
+                    .call(sel => sel.transition().duration(500)
+                        .attr('x1', d => scaleX(d.year))
+                        .attr('x2', d => scaleX(d.year))
+                        .attr('y1', d => scaleY(d.max))
+                        .attr('y2', d => scaleY(d.min))),
+                exit => exit.remove()
+            )
+
+        // connector line for one concept, drawn beneath the dots
+        const connector = d3.line()
+            .x(p => scaleX(p.year))
+            .y(p => scaleY(p.value))
+
+        function showConnector(id) {
+            const pts = points
+                .filter(p => p.id === id)
+                .sort((a, b) => a.year - b.year);
+
+            // Connecting line
+            layer.selectAll('path.plot-connector')
+                .data(pts.length > 1 ? [pts] : [])
+                .join(enter => enter.insert('path', 'g.plot-dots')
+                    .attr('class', 'plot-connector')
+                    .attr('fill', 'none')
+                    .attr('stroke-width', 1.5)
+                    .style('pointer-events', 'none'))
+                .attr('stroke', colorList[id])
+                .attr('opacity', 0.8)
+                .attr('d', connector);
+
+            // Y-axis value labels for every point
+            const labels = layer.selectAll('g.plot-value-labels')
+                .data([pts])
+                .join('g')
+                .attr('class', 'plot-value-labels num')
+                .style('pointer-events', 'none');
+
+            labels.selectAll('text')
+                .data(pts, d => d.key)
+                .join('text')
+                .attr('x', d => scaleX(d.year))
+                .attr('y', d => scaleY(d.value) - 9)
+                .attr('text-anchor', 'middle')
+                .attr('fill', '#565867')
+                .text(d => d.value.toFixed(6));
+        }
+
+        function hideConnector() {
+            layer.selectAll('path.plot-connector').remove();
+            layer.selectAll('g.plot-value-labels').remove();
+        }
+
+        // one dot per concept per year
+        const dotLayer = layer.selectAll('g.plot-dots').data([null]).join('g').attr('class', 'plot-dots')
+        dotLayer.selectAll('circle.plot-dot')
+            .data(points, d => d.key)
+            .join(
+                enter => enter.append('circle')
+                    .classed('plot-dot btn', true)
+                    .attr('r', 4)
+                    .attr('cx', d => scaleX(d.year))
+                    .attr('cy', height)
+                    .attr('fill', d => colorList[d.id])
+                    .attr('stroke', 'white')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', d => hovered.length > 0 && !hovered.includes(d.id) ? 0.2 : 1)
+                    .call(sel => sel.transition().duration(500).ease(d3.easeCubicOut)
+                        .attr('cy', d => scaleY(d.value))),
+                update => update
+                    .call(sel => sel.transition().duration(500)
+                        .attr('cx', d => scaleX(d.year))
+                        .attr('cy', d => scaleY(d.value))
+                        .attr('fill', d => colorList[d.id])),
+                exit => exit.remove()
+            )
+            .on('mouseover', (e, d) => {
+                const node = allNodesMap.get(d.id);
+                const el = e.currentTarget;
+
+                clearTimeout(el.hoverStateTimeout);
+
+                el.hoverStateTimeout = setTimeout(() => {
+                    setHovered([d.id]);
+                    showConnector(d.id);
+
+                    if (node) {
+                        showTooltipPreview(node, e);
+                    }
+                }, 600);
+            })
+            .on('mouseout', (e, d) => {
+                clearTimeout(e.currentTarget.hoverStateTimeout);
+
+                setHovered([]);
+                hideConnector();
+
+                scheduleHide();
+            })
+        if (hovered.length === 1) showConnector(hovered[0])
+        else hideConnector()
+    }
     function drawGraph(rollup, scaleX, scaleY) {
+        d3.select('#graph-plot').remove()
         const selectedConceptMap = new Map(selectedConcepts.map(c => [c.name, c]))
         function highestPoint(d) {
             return d[1].reduce((best, p) => {
@@ -625,6 +796,291 @@ function GraphSection (props) {
         else d3.select('#graph-line').selectAll('.lines').remove()
         d3.select("#graph-viz").raise()
     }
+    function drawHistogram(data, scaleX, scaleY, concepts) {
+        const graph = d3.select("#histogram .chart-content");
+
+        graph.selectAll(".histogram-bars, .histogram-hover-labels").remove();
+
+        const buckets = scaleX.domain();
+        const bucketTotals = new Map();
+
+        const groupedData = buckets.map(bucket => {
+            const row = { bucket };
+
+            concepts.forEach(concept => {
+                row[concept] = d3.sum(
+                    data.filter(d =>
+                        d.measured_value_bucket === bucket &&
+                        d.tagged_conceptid === concept
+                    ),
+                    d => +d.n_events
+                );
+            });
+
+            bucketTotals.set(bucket, row);
+            return row;
+        });
+
+        const stackedData = d3.stack()
+            .keys(concepts)(groupedData);
+
+        const bars = graph.append("g")
+            .attr("class", "histogram-bars");
+
+        let activeBucket = null;
+
+        // All stacked segments, including their exact values.
+        const segments = stackedData.flatMap(series =>
+            series.map(d => ({
+                bucket: d.data.bucket,
+                concept: series.key,
+                id: parseInt(series.key.replace(/\D/g, "")),
+                value: d.data[series.key],
+                y0: d[0],
+                y1: d[1]
+            }))
+        );
+
+        const rects = bars.selectAll("rect.histogram-segment")
+            .data(segments, d => `${d.bucket}-${d.concept}`)
+            .join("rect")
+            .attr("class", "histogram-segment btn")
+            .attr("data-bucket", d => d.bucket)
+            .attr("x", d => scaleX(d.bucket))
+            .attr("y", d => scaleY(d.y1))
+            .attr("width", scaleX.bandwidth())
+            .attr("height", d =>
+                Math.max(0, scaleY(d.y0) - scaleY(d.y1))
+            )
+            .attr("fill", d => colorList[d.id])
+            .attr("stroke", "none")
+            .attr("opacity", d =>
+                hovered.length > 0 && !hovered.includes(d.id) ? 0.2 : 1
+            );
+
+        function updateHighlight() {
+            rects
+                .attr("opacity", d => {
+                    if (activeBucket !== null) {
+                        return d.bucket === activeBucket ? 1 : 0.2;
+                    }
+
+                    return hovered.length > 0 && !hovered.includes(d.id)
+                        ? 0.2
+                        : 1;
+                })
+                .attr("stroke", d =>
+                    activeBucket !== null && d.bucket === activeBucket
+                        ? "white"
+                        : "none"
+                )
+                .attr("stroke-width", 0.75);
+        }
+
+        // Draw exact-value labels, separated with a force simulation.
+        function showBucketLabels(bucket) {
+            graph.selectAll(".histogram-hover-labels").remove();
+
+            const bucketSegments = segments.filter(d => d.bucket === bucket);
+
+            if (!bucketSegments.length) return;
+
+            const labelWidth = 60; // Approximate maximum label width
+            const gap = 5;
+
+            const barX = scaleX(bucket);
+            const barWidth = scaleX.bandwidth();
+            const plotWidth = +graph.node().getBoundingClientRect().width;
+
+            // If there's insufficient room on the right, put labels on the left
+            const placeLeft = barX + barWidth + gap + labelWidth > plotWidth;
+
+            const labels = bucketSegments.map(d => ({
+                ...d,
+                targetY: (scaleY(d.y0) + scaleY(d.y1)) / 2,
+                x: placeLeft
+                    ? barX - gap
+                    : barX + barWidth + gap,
+                y: (scaleY(d.y0) + scaleY(d.y1)) / 2,
+                placeLeft
+            }));
+
+            const labelLayer = graph.append("g")
+                .attr("class", "histogram-hover-labels num")
+                .style("pointer-events", "none");
+
+            const labelGroups = labelLayer.selectAll("g.value-label")
+                .data(labels)
+                .join("g")
+                .attr("class", "value-label");
+
+            // Connector from each segment's center to its label.
+            labelGroups.append("line")
+                .attr("stroke", d => colorList[d.id])
+                .attr("stroke-width", 1)
+                .attr("opacity", 0.9);
+
+            labelGroups.append("text")
+                .text(d => d.value)
+                .attr("font-size", 11)
+                .attr("dominant-baseline", "middle")
+                .attr("fill", "currentColor")
+                .attr("stroke", "none");
+
+            // Use the actual rendered text width to place labels beyond the bar.
+            labelGroups.each(function(d) {
+                d.labelWidth = this.querySelector("text").getComputedTextLength();
+            });
+
+            const yRange = scaleY.range();
+            const labelHeight = 13;
+            const halfLabel = labelHeight / 2;
+
+            // Keep labels within the plot's vertical range.
+            const minY = Math.min(...yRange) + halfLabel;
+            const maxY = Math.max(...yRange) - halfLabel;
+
+            labels.forEach(d => {
+                d.targetY = Math.max(minY, Math.min(maxY, d.targetY));
+                d.y = d.targetY;
+            });
+
+            const simulation = d3.forceSimulation(labels)
+                .force("y", d3.forceY(d => d.targetY).strength(0.9))
+                .force("x", d3.forceX(d => d.x).strength(0.8))
+                .force("collide", d3.forceCollide(labelHeight))
+                .stop();
+
+            // Run synchronously so labels are separated before being drawn.
+            for (let i = 0; i < 120; i++) simulation.tick();
+
+            labels.forEach(d => {
+                d.y = Math.max(minY, Math.min(maxY, d.y));
+            });
+
+            labelGroups
+                .attr("transform", d => `translate(${d.x},${d.y})`);
+
+            labelGroups.select("line")
+                .attr("x1", d => scaleX(bucket) - d.x + scaleX.bandwidth())
+                .attr("y1", d => d.targetY - d.y)
+                .attr("x2", -3)
+                .attr("y2", 0);
+
+            labelGroups.select("text")
+                .attr("x", d => d.placeLeft ? 0 : 0)
+                .attr("y", 0)
+                .attr("text-anchor", d => d.placeLeft ? "end" : "start");
+        }
+
+        rects
+            .on("mouseover", (e, d) => {
+                activeBucket = d.bucket;
+                updateHighlight();
+                showBucketLabels(d.bucket);
+
+                // Preserve your existing concept-hover behavior.
+                const node = allNodesMap.get(d.id);
+                const el = e.currentTarget;
+
+                clearTimeout(el.hoverStateTimeout);
+
+                el.hoverStateTimeout = setTimeout(() => {
+                    setHovered([d.id]);
+
+                    if (node) {
+                        showTooltipPreview(node, e);
+                    }
+                }, 600);
+            })
+            .on("mouseout", (e, d) => {
+                clearTimeout(e.currentTarget.hoverStateTimeout);
+
+                // Don't clear the bucket when moving between segments
+                // that belong to the same bucket.
+                const related = e.relatedTarget;
+                const nextRect = related?.closest?.("rect.histogram-segment");
+
+                if (nextRect && nextRect.dataset.bucket === String(d.bucket)) {
+                    return;
+                }
+
+                activeBucket = null;
+                graph.selectAll(".histogram-hover-labels").remove();
+                updateHighlight();
+
+                setHovered([]);
+                scheduleHide();
+            });
+
+        updateHighlight();
+    }
+    function drawHistogramRuler(scaleX, innerWidth, innerHeight) {
+        const chart = d3.select("#histogram .chart-content")
+        const buckets = scaleX.domain()
+        const step = scaleX.step()
+        const bw = scaleX.bandwidth()
+        const firstCenter = scaleX(buckets[0]) + bw / 2
+
+        const ruler = chart.selectAll(".hist-ruler")
+            .data([null])
+            .join("g")
+            .attr("class", "hist-ruler")
+            .style("display", "none")
+            .style("pointer-events", "none")
+
+        ruler.selectAll(".hist-ruler-band")
+            .data([null])
+            .join("rect")
+            .attr("class", "hist-ruler-band")
+            .attr("y", 0)
+            .attr("height", innerHeight)
+            .attr("width", bw)
+            .attr("fill", "none")
+            .attr("opacity", 0.15)
+
+        ruler.selectAll(".hist-ruler-line")
+            .data([null])
+            .join("line")
+            .attr("class", "hist-ruler-line")
+            .attr("y1", 0)
+            .attr("y2", innerHeight)
+            .attr("stroke", "#a0a0b6")
+            .attr("stroke-width", 1)
+            .attr("stroke-dasharray", "3,3")
+
+        ruler.selectAll(".hist-ruler-label")
+            .data([null])
+            .join("text")
+            .attr("class", "hist-ruler-label")
+            .attr("y", -8)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "11px")
+            .attr("fill", "#565867")
+
+        const hide = () => ruler.style("display", "none")
+
+        chart
+            .on("mousemove.ruler", function (e) {
+                const [x, y] = d3.pointer(e, this)
+                if (x < 0 || x > innerWidth || y < 0 || y > innerHeight) return hide()
+
+                const i = Math.max(0, Math.min(buckets.length - 1, Math.round((x - firstCenter) / step)))
+                const cx = scaleX(buckets[i]) + bw / 2
+
+                ruler.style("display", null)
+                ruler.select(".hist-ruler-band").attr("x", cx - bw / 2)
+                ruler.select(".hist-ruler-line").attr("x1", cx).attr("x2", cx)
+
+                const label = ruler.select(".hist-ruler-label").text(buckets[i])
+                const labelWidth = label.node().getComputedTextLength()
+                const labelX = Math.max(labelWidth / 2, Math.min(innerWidth - labelWidth / 2, cx))
+                label.attr("x", labelX)
+            })
+            .on("mouseleave.ruler", hide)
+
+        ruler.raise()
+    }
     // show upset tooltip
     function showUpsetTooltip(mode,event=null,value=null,name=null) {
         if (mode === 'enter') {
@@ -702,9 +1158,9 @@ function GraphSection (props) {
             .attr('x2', d => scaleX(d.year))
             .attr('y1', 0)
             .attr('y2', height - 5)
-            .attr('stroke','#36126d')
+            .attr('stroke','#a0a0b6')
             .attr('stroke-width',1)
-            .style("stroke-dasharray", ("5, 5"))
+            .attr("stroke-dasharray", "3,3")
         annotationMerge.select("circle")
             .classed('btn',true)
             .attr("cx", d => scaleX(d.year) + d.offsetX)
@@ -735,50 +1191,101 @@ function GraphSection (props) {
             setZoomed(false)
         }
     }
+    function updateRuler(x, scaleX, extent, height) {
+        const year = Math.round(scaleX.invert(x))
+        const clampedYear = Math.max(extent[0], Math.min(extent[1], year))
+        const snappedX = scaleX(clampedYear)
+
+        const rulerSel = d3.select("#graph").select(".hover-ruler")
+        rulerSel.style("display", null)
+            .attr("transform", `translate(${snappedX},0)`)
+        rulerSel.select(".ruler-label").text(clampedYear)
+    }
+    function hideRuler() {
+        d3.select("#graph").select(".hover-ruler").style("display", "none")
+    }
+    function drawAxes(scaleX, scaleY, width, height, ticks, xAxisType = "year") {
+        const graph = xAxisType === 'year' ? d3.select("#graph") : d3.select("#histogram .chart-content")
+
+        const yAxisGrid = d3.axisLeft(scaleY)
+            .tickSize(-width)
+            .tickFormat("")
+            .ticks(5)
+            .tickSizeOuter(0);
+
+        graph.select(".axis-grid").call(yAxisGrid);
+
+        let xAxis;
+
+        if (xAxisType === "year") {
+            xAxis = d3.axisBottom(scaleX)
+                .tickSize(5)
+                .ticks(ticks.two)
+                .tickFormat(d3.format("d"))
+                .tickSizeOuter(0)
+                .tickPadding(8);
+        } else {
+            xAxis = d3.axisBottom(scaleX)
+                .tickSize(5)
+                .tickValues(
+                    scaleX.domain().filter((bucket, i, buckets) => {
+                        const step = Math.ceil(buckets.length / 10);
+                        return i % step === 0;
+                    })
+                )
+                .tickSizeOuter(0)
+                .tickPadding(8);
+        }
+
+        graph.select(".x")
+            .attr("transform", `translate(0,${height})`)
+            .call(xAxis);
+
+        graph.select(".y")
+            .call(d3.axisLeft(scaleY).ticks(5).tickSizeOuter(0));
+    }
+    function drawAxisLabels(innerWidth, innerHeight, chartMargin, xLabel, yLabel, xAxisType = 'year') {
+        const chart = xAxisType === 'year' ? d3.select("#graph") : d3.select("#histogram .chart-content")
+
+        chart.selectAll(".x-axis-label")
+            .data([xLabel])
+            .join("text")
+            .attr("class", "x-axis-label selectedText")
+            .attr("x", innerWidth / 2)
+            .attr("y", xAxisType === 'year' ? innerHeight + chartMargin.bottom - 15 : innerHeight + chartMargin.bottom - 25)
+            .attr("text-anchor", "middle")
+            .attr("fill", "currentColor")
+            .style("font-size", "10px")
+            .text(d => d)
+
+        chart.selectAll(".y-axis-label")
+            .data([yLabel])
+            .join("text")
+            .attr("class", "y-axis-label selectedText")
+            .attr("transform", "rotate(-90)")
+            .attr("x", -innerHeight / 2)
+            .attr("y", xAxisType === 'year' ? -chartMargin.left - 5 : -chartMargin.left + 20)
+            .attr("text-anchor", "middle")
+            .attr("fill", "currentColor")
+            .style("font-size", "10px")
+            .text(d => d)
+    }
     // get graph 
-    function getGraph(rollup, width, height, ticks) {
-        // x and y scales
-        let maxRollup = d3.max(rollup, obj => Object.entries(obj).reduce((sum, [key, val]) => key !== 'year' ? sum + val : sum, 0))
-        let maxRootLine = d3.max(rootLine, d => d[1])
-        let maxY = rollup.length > 0 ? showRootLine ? maxRollup > maxRootLine ? maxRollup : maxRootLine : maxRollup : maxRootLine
+    function getGraph(rollup, width, height, ticks, type) {
+        let maxY
+        if (type === 'graph') {
+            // x and y scales
+            let maxRollup = d3.max(rollup, obj => Object.entries(obj).reduce((sum, [key, val]) => key !== 'year' ? sum + val : sum, 0))
+            let maxRootLine = d3.max(rootLine, d => d[1])
+            maxY = rollup.length > 0 ? showRootLine ? maxRollup > maxRootLine ? maxRollup : maxRootLine : maxRollup : maxRootLine
+        } 
+        if (type === 'plot') {
+            const values = rollup.map(d => d.person_counts / d.observed_persons_counts)
+            maxY = d3.max(values)
+        }
         let scaleX = d3.scaleLinear().domain(extent).range([0, width])
         let scaleY = d3.scaleLinear().domain([0, maxY*1.05]).range([height, 0])
-        // grid lines
-        const xAxisGrid = d3.axisBottom(scaleX).tickSize(-height).tickFormat('').ticks(ticks.one).tickSizeOuter(0)
-        const yAxisGrid = d3.axisLeft(scaleY).tickSize(-width).tickFormat('').ticks(5).tickSizeOuter(0)
-        d3.select("#graph").select(".x-grid")
-            .attr('transform', 'translate(0,' + height + ')')
-            .call(xAxisGrid)
-        d3.select("#graph").select(".axis-grid")
-            .call(yAxisGrid)
-        // axis lines
-        d3.select("#graph").select(".x")
-            .attr("transform", "translate(0," + height + ")")
-            .call(d3.axisBottom(scaleX).tickSize(-height).ticks(ticks.two).tickFormat(d3.format("d")).tickSizeOuter(0).tickPadding(8))
-        d3.select("#graph").select(".y")
-            .call(d3.axisLeft(scaleY).ticks(5).tickSizeOuter(0))
-        d3.select("#graph").select(".axis-base")
-            .call(d3.axisTop(scaleX).tickFormat('').tickSize(-height).tickSizeOuter(0))
-        const rightBorder = d3.select("#graph")
-            .selectAll(".right-border")
-            .data([null])
-        rightBorder.join("rect")
-            .attr("class", "right-border")
-            .attr("x", width)
-            .attr("y", 0)
-            .attr("width", 0.75)
-            .attr("height", height)
-            .attr("fill", "#B8B8B8")
-            .raise()
-        // clip path
-        // d3.select("#graph").append("defs").append("svg:clipPath")
-        //     .attr("id", "clip")
-        //     .append("svg:rect")
-        //     .attr("width", width)
-        //     .attr("height", height)
-        //     .attr("x", 0)
-        //     .attr("y", 0)
-        //     .raise()
+        drawAxes(scaleX, scaleY, width, height, ticks)
         let animationFrameId = null
         const handleMouseMove = (e) => {
             if (!zooming) return
@@ -795,6 +1302,7 @@ function GraphSection (props) {
         }
         //zoom
         let x1,x2
+        let rulerFrameId = null
         d3.select('#graph')
             .on("mousedown",function(e){
                 const [x] = d3.pointer(e, this)
@@ -816,10 +1324,43 @@ function GraphSection (props) {
                 d3.select("#zoomUI").remove()
                 zooming = false
             })
-            .on("mousemove", handleMouseMove)
+            .on("mousemove.zoom", handleMouseMove)
+            .on("mousemove.ruler", (e) => {
+                if (zooming) { hideRuler(); return }
+                if (rulerFrameId) cancelAnimationFrame(rulerFrameId)
+                rulerFrameId = requestAnimationFrame(() => {
+                    const [x] = d3.pointer(e, d3.select('#graph').node())
+                    updateRuler(x, scaleX, extent, height)
+                })
+            })
+            .on("mouseleave.ruler", hideRuler)
             .on("dblclick", resetZoom)
         drawAnnotations(scaleX,height)
-        drawGraph(rollup, scaleX, scaleY)
+        if (type === 'graph') drawGraph(rollup, scaleX, scaleY)
+        if (type === 'plot') drawTimePlot(rollup, scaleX, scaleY)
+
+        const ruler = d3.select("#graph").selectAll(".hover-ruler").data([null])
+        const rulerEnter = ruler.join("g")
+            .attr("class", "hover-ruler")
+            .style("display", "none")
+            .style("pointer-events", "none")
+
+        rulerEnter.selectAll(".ruler-line").data([null]).join("line")
+            .attr("class", "ruler-line")
+            .attr("y1", 0)
+            .attr("y2", height)
+            .attr("stroke", "#a0a0b6")
+            .attr("stroke-width", 1)
+            .attr("stroke-dasharray", "3,3")
+
+        rulerEnter.selectAll(".ruler-label").data([null]).join("text")
+            .attr("class", "ruler-label")
+            .attr("y", -8)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "11px")
+            .attr("fill", "#565867")
+
+        d3.select("#graph").select(".hover-ruler").raise()
     }
     // hover filter
     function filterHover(id,mode,type) {
@@ -872,10 +1413,12 @@ function GraphSection (props) {
                 if (filtered.length === all.length) filtered = [-1]
             } else filtered = curr.filter(d => d !== id)
         }
-        console.log(type,'curr',curr,'filt',filtered,'all',all)
-        if (type === 'age') setGraphFilter(prev => ({...prev,age: filtered}))
-        if (type === 'source') setGraphFilter(prev => ({...prev,source: filtered}))
-        if (type === 'gender') setGraphFilter(prev => ({...prev,gender: filtered}))
+        if (filtered.length === 0) return 
+        else {
+            if (type === 'age') setGraphFilter(prev => ({...prev,age: filtered}))
+            if (type === 'source') setGraphFilter(prev => ({...prev,source: filtered}))
+            if (type === 'gender') setGraphFilter(prev => ({...prev,gender: filtered}))    
+        }
     }
     // age filter brushing
     function ageBrush(e,mode) {
@@ -1017,7 +1560,7 @@ function GraphSection (props) {
         return () => document.removeEventListener('click', handleClickOutside)
     }, [])
 
-    // filters viz
+    // FILTERS
     useEffect(() => {
         if (genderData && sourceData && ageData) {
             if (genderData.length > 0 && ageData.length > 0 && sourceData.length > 0) {
@@ -1466,60 +2009,190 @@ function GraphSection (props) {
         }
     },[genderData,ageData,sourceData,graphSectionWidth])
 
-    // update graph
+    // RECORD COUNTS
     useEffect(() => {
         if (graphContainerRef.current && upsetContainerRef.current && extent) {
-            console.log('draw graph')
             const fullHeight = document.getElementById('graph-section-container').clientHeight 
-            const filterHeight = document.getElementById('graph-filters').clientHeight + document.getElementById('year-filter').clientHeight
+            const filterHeight = 150 + margin
             const containerWidth = document.getElementById('graph-section').clientWidth
             if (containerWidth < window.innerWidth*0.4 || graphSectionWidth === '40vw') d3.select('#graph-filters').style('display','none')
             else d3.select('#graph-filters').style('display','flex')
-            // record counts
             if (countType === 'record') {
+                const chartMargin = { top: 20, right: 0, bottom: 60, left: 50 }
                 document.getElementById("graph-group").style.height = fullHeight - filterHeight - margin + 'px'
-                const containerHeight = document.getElementById('graph-group').clientHeight*0.8
-                document.getElementById("graph-labels").style.maxHeight = document.getElementById('graph-group').clientHeight*0.15 - margin + 'px'
-                const width = containerWidth + (margin * 2)
-                const height = containerHeight + (margin * 2)
-                document.getElementById("graph-container").style.height = containerHeight + 'px'
+                const containerHeight = document.getElementById('graph-group').clientHeight - (document.getElementById('graph-group').clientHeight * 0.15 - margin) - (margin*2)
+                document.getElementById("graph-labels").style.maxHeight = document.getElementById('graph-group').clientHeight * 0.15 - margin + 'px'
+                document.getElementById("graph-container").style.height = document.getElementById("graph-group").clientHeight - filterHeight - margin + 'px'
+
+                const outerWidth = containerWidth - margin * 2
+                const outerHeight = containerHeight
+                const innerWidth = outerWidth - chartMargin.left - chartMargin.right
+                const innerHeight = outerHeight - chartMargin.top - chartMargin.bottom
+
                 d3.select("#graph")
-                    .attr("width", '94%')
-                    .attr("height", '94%')
-                    .attr("viewBox", `${-margin*3} ${0} ${width} ${height}`)
-                    .attr("preserveAspectRatio", "xMidYMid meet")
+                    .attr("width", outerWidth)
+                    .attr("height", outerHeight)
+                    .attr("viewBox", `${-chartMargin.left} ${-chartMargin.top} ${outerWidth} ${outerHeight}`)
+
                 d3.select("#clip rect")
-                    .attr("width", width)
-                    .attr("height", height)
-                    .attr("viewBox", `${-margin*3} ${0} ${width} ${height}`)
-                    .attr("preserveAspectRatio", "xMidYMid meet")
-                    .append("g")
-                    .attr("transform", `translate(${margin}, ${margin})`)
-                d3.select("#clip rect")
-                    .attr("width", width)
-                    .attr("height", height)
+                    .attr("width", innerWidth)
+                    .attr("height", innerHeight)
+
                 // graph ticks
                 const ticks1 = ((extent[1]-extent[0])/(Math.round((extent[1]-extent[0])/10)))*Math.round((extent[1]-extent[0])/10)
-                const ticks2 = width < 400 ? Math.round(width/60) : ticks1 < 10 || !ticks1 ? Math.round(extent[1]-extent[0]) : 10
-                const ticks = {one:ticks1,two:ticks2}
-                // draw graph
-                getGraph(stackData, width, height, ticks)     
+                const ticks2 = innerWidth < 400 ? Math.round(innerWidth/60) : ticks1 < 10 || !ticks1 ? Math.round(extent[1]-extent[0]) : 10
+                const ticks = { one: ticks1, two: ticks2 }
+
+                getGraph(stackData, innerWidth, innerHeight, ticks, 'graph')
+                drawAxisLabels(innerWidth, innerHeight, chartMargin, "Year", "Record counts")
             } 
         }
     }, [countType,extent,stackData,graphSectionWidth,openFilters,showRootLine])
 
-    // update upset
+    // PERSON COUNTS
     useEffect(() => {
-        console.log('draw upset')
-        if (countType === 'person' && upsetData.length > 0) {
-            const fullHeight = document.getElementById('graph-section-container').clientHeight 
-            const filterHeight = document.getElementById('graph-filters').clientHeight + document.getElementById('year-filter').clientHeight
-            const containerWidth = document.getElementById('graph-section').clientWidth
-            document.getElementById("upset-container").style.height = fullHeight - filterHeight - margin + 'px'
-            document.getElementById("upset-container").style.width = containerWidth - (margin*2) + 'px'
-            drawUpset()
+        if (countType === 'person') {
+            if (personVizType === 'upset') {
+                if (personData.upset.length > 0) {
+                    const fullHeight = document.getElementById('graph-section-container').clientHeight 
+                    const filterHeight = document.getElementById('graph-filters').clientHeight + document.getElementById('year-filter').clientHeight + document.getElementById('viz-toggle').clientHeight + (margin*2)
+                    const containerWidth = document.getElementById('graph-section').clientWidth
+                    document.getElementById("upset-container").style.height = fullHeight - filterHeight - margin + 'px'
+                    document.getElementById("upset-container").style.width = containerWidth - (margin*2) + 'px'
+                    drawUpset()    
+                } else {
+                    d3.select('#sets-layer').selectAll('*').remove()
+                    d3.select('#upsets-layer').selectAll('*').remove()
+                    d3.select('#types-layer').selectAll('*').remove()
+                    d3.select('#y-axis-layer').selectAll('*').remove()    
+                }    
+            } else {
+                const chartMargin = { top: 20, right: 0, bottom: 60, left: 50 }
+
+                const fullHeight = document.getElementById('graph-section-container').clientHeight
+                const filterHeight = 150 + document.getElementById('viz-toggle').clientHeight + margin
+                const containerWidth = document.getElementById('graph-section').clientWidth
+                if (containerWidth < window.innerWidth * 0.4 || graphSectionWidth === '40vw') d3.select('#graph-filters').style('display', 'none')
+                else d3.select('#graph-filters').style('display', 'flex')
+                document.getElementById("graph-group").style.height = fullHeight - filterHeight - margin + 'px'
+                const containerHeight = document.getElementById('graph-group').clientHeight - (document.getElementById('graph-group').clientHeight * 0.15 - margin) - (margin*2)
+                document.getElementById("graph-labels").style.maxHeight = document.getElementById('graph-group').clientHeight * 0.15 - margin + 'px'
+                document.getElementById("graph-container").style.height = document.getElementById("graph-group").clientHeight - filterHeight - margin + 'px'
+
+                const outerWidth = containerWidth - margin * 2
+                const outerHeight = containerHeight
+                const innerWidth = outerWidth - chartMargin.left - chartMargin.right
+                const innerHeight = outerHeight - chartMargin.top - chartMargin.bottom
+
+                d3.select("#graph")
+                    .attr("width", outerWidth)
+                    .attr("height", outerHeight)
+                    .attr("viewBox", `${-chartMargin.left} ${-chartMargin.top} ${outerWidth} ${outerHeight}`)
+
+                d3.select("#clip rect")
+                    .attr("width", innerWidth)
+                    .attr("height", innerHeight)
+
+                // graph ticks
+                const ticks1 = ((extent[1] - extent[0]) / (Math.round((extent[1] - extent[0]) / 10))) * Math.round((extent[1] - extent[0]) / 10)
+                const ticks2 = innerWidth < 400 ? Math.round(innerWidth / 60) : ticks1 < 10 || !ticks1 ? Math.round(extent[1] - extent[0]) : 10
+                const ticks = { one: ticks1, two: ticks2 }
+
+                // draw graph
+                const yLabel = personVizType === 'prevalence' ? 'Prevalence' : 'Incidence'
+                const plotData = personVizType === 'prevalence' ? personData.prevalence : personData.incidence
+
+                getGraph(plotData, innerWidth, innerHeight, ticks, 'plot')
+                drawAxisLabels(innerWidth, innerHeight, chartMargin, "Year", yLabel)
+            }
         }
-    }, [upsetData, graphSectionWidth,openFilters])
+    }, [personData,personVizType,graphSectionWidth,openFilters,extent])
+
+    // LAB VALUES
+    useEffect(()=>{
+        if (countType === 'measurement' && measurementData.length > 0) {
+            const fullHeight = document.getElementById('graph-section-container').clientHeight 
+            const filterHeight = 100
+            const containerWidth = document.getElementById('graph-section').clientWidth + margin
+            document.getElementById("histogram-container").style.height = fullHeight - filterHeight - margin + 'px'
+            document.getElementById("histogram-container").style.width = containerWidth - (margin*2) + 'px'
+
+            const chartMargin = {
+                top: 20,
+                right: 0,
+                bottom: 70,
+                left: 70
+            }
+            const outerWidth = containerWidth - margin * 2
+            const outerHeight = fullHeight - filterHeight - margin
+            const innerWidth = outerWidth - chartMargin.left - chartMargin.right
+            const innerHeight = outerHeight - chartMargin.top - chartMargin.bottom
+
+            const svg = d3.select("#histogram")
+                .attr("width", outerWidth)
+                .attr("height", outerHeight)
+                .attr("viewBox", `0 0 ${outerWidth} ${outerHeight}`)
+
+            const chart = svg.selectAll(".chart-content")
+                .data([null])
+                .join("g")
+                .attr("class", "chart-content")
+                .attr(
+                    "transform",
+                    `translate(${chartMargin.left}, ${chartMargin.top})`
+                )
+
+            chart.selectAll(".axis-grid")
+                .data([null])
+                .join("g")
+                .attr("class", "axis-grid")
+
+            chart.selectAll(".x")
+                .data([null])
+                .join("g")
+                .attr("class", "x axis-grid num bucket-label")
+
+            chart.selectAll(".y")
+                .data([null])
+                .join("g")
+                .attr("class", "y axis num")
+
+            const filteredData = measurementData.filter(d => +d.n_events > 0)
+
+            const buckets = Array.from(new Set(filteredData.map(d => d.measured_value_bucket)))
+
+            const concepts = Array.from(new Set(filteredData.map(d => d.tagged_conceptid)))
+
+            const scaleX = d3.scaleBand()
+                .domain(buckets)
+                .range([0, innerWidth])
+                .padding(0.15)
+
+            const bucketTotals = d3.rollup(
+                filteredData,
+                v => d3.sum(v, d => +d.n_events),
+                d => d.measured_value_bucket
+            )
+
+            const maxY = d3.max(
+                buckets,
+                bucket => bucketTotals.get(bucket) || 0
+            ) || 0  
+
+            const scaleY = d3.scaleLinear()
+                .domain([0, maxY * 1.05 || 1])
+                .range([innerHeight, 0])
+                .nice()
+
+            console.log(filteredData[0])
+            const unit = filteredData[0]?.unit ?? ""
+
+            drawAxes(scaleX, scaleY, innerWidth, innerHeight, null, "bucket");
+            drawHistogram(filteredData, scaleX, scaleY, concepts); 
+            drawHistogramRuler(scaleX, innerWidth, innerHeight); 
+            drawAxisLabels(innerWidth,innerHeight,chartMargin,unit ? `Measured value (${unit})` : "Measured value","Number of events",'bucket')
+        }
+    },[measurementData,graphSectionWidth,openFilters,extent])
 
     useEffect(() => {
         layoutUpset()
@@ -1530,9 +2203,107 @@ function GraphSection (props) {
         return () => window.removeEventListener('resize', drawUpset)
     }, [])
 
-    // update labels
+    // LABELS
     useEffect(()=> {
         const groups = d3.group(selectedConcepts, d => d.name)
+        function getNode(name) {return nodes.find(n => n.name === name)}
+
+        // cross-fade code/vocab and icons; no size changes
+        function setActionsVisible(el, show) {
+            const label = d3.select(el)
+            label.select('.label-meta').transition().duration(200)
+                .style('opacity', show ? 0 : 1)
+            label.select('.label-icons').transition().duration(200)
+                .style('opacity', show ? 1 : 0)
+            // hidden icons shouldn't catch clicks
+            label.select('.label-icons').style('pointer-events', show ? 'auto' : 'none')
+        }
+
+        // label-level events, shared by enter and update
+        function bindLabelEvents(sel) {
+            sel.on('mouseenter', (e, d) => {
+                    const el = e.currentTarget
+                    setActionsVisible(el, true)
+                    el.hoverStateTimeout = setTimeout(() => setHovered([d[0]]), 600)
+                })
+                .on('mouseleave', (e, d) => {
+                    const el = e.currentTarget
+                    clearTimeout(el.hoverStateTimeout)
+                    if (!showConfirmation) setActionsVisible(el, false)
+                    setHovered([])
+                })
+                // .on('click', (e, d) => {
+                //     if (rootConcepts.includes(d[0])) return
+                //     showActionLabel('', 'leave')
+                //     showConfirmationPopup(d[0], 'enter', e)
+                // })
+        }
+
+        // icon visibility and click handlers, same rules as the list
+        function bindActions(labels) {
+            labels.each(function (d) {
+                const name = d[0]
+                const node = getNode(name)
+                const label = d3.select(this)
+
+                label.select('.label-closed-eye')
+                    .style('display', node && !inclusions.includes(name) && (node.record_counts !== 0 || isLeaf(node)) && !node.leaf && node.levels !== '-1' ? 'inline-block' : 'none')
+                    .on('mouseover', e => {
+                        d3.select(e.currentTarget).transition().style('opacity', 1)
+                        const el = e.currentTarget
+                        el.__hoverTimeout__ = setTimeout(() => showActionLabel('Show concept', 'enter', e), 1200)
+                    })
+                    .on('mouseout', e => {
+                        d3.select(e.currentTarget).transition().style('opacity', 0.3)
+                        clearTimeout(e.currentTarget.__hoverTimeout__)
+                        showActionLabel('', 'leave', e)
+                    })
+                    .on('click', e => {
+                        e.stopPropagation()
+                        clearTimeout(e.currentTarget.__hoverTimeout__)
+                        showActionLabel('', 'leave')
+                        updateConcepts(getNewInclusions(node, 'show'))
+                    })
+
+                label.select('.label-eye')
+                    .style('display', !node ? 'none'
+                        : (((countType === 'record' && node.record_counts === 0) || (countType === 'person' && node.person_counts === 0)) && !node.leaf) || node.levels === '-1' ? 'none'
+                        : !inclusions.includes(name) && !node.leaf ? 'none' : 'inline-block')
+                    .on('mouseover', e => {
+                        const el = e.currentTarget
+                        el.__hoverTimeout__ = setTimeout(() => showActionLabel('Hide concept', 'enter', e), 1200)
+                    })
+                    .on('mouseout', e => {
+                        clearTimeout(e.currentTarget.__hoverTimeout__)
+                        showActionLabel('', 'leave', e)
+                    })
+                    .on('click', e => {
+                        e.stopPropagation()
+                        clearTimeout(e.currentTarget.__hoverTimeout__)
+                        showActionLabel('', 'leave')
+                        updateConcepts(getNewInclusions(node, 'hide'))
+                    })
+
+                label.select('.label-search')
+                    .style('display', rootConcepts.includes(name) ? 'none' : 'inline-block')
+                    .on('mouseover', e => {
+                        const el = e.currentTarget
+                        el.__hoverTimeout__ = setTimeout(() => showActionLabel('Select concept', 'enter', e), 1200)
+                    })
+                    .on('mouseout', e => {
+                        clearTimeout(e.currentTarget.__hoverTimeout__)
+                        showActionLabel('', 'leave', e)
+                        showConfirmationPopup(name, 'leave', e)
+                    })
+                    .on('click', e => {
+                        e.stopPropagation()
+                        clearTimeout(e.currentTarget.__hoverTimeout__)
+                        showActionLabel('', 'leave')
+                        showConfirmationPopup(name, 'enter', e)
+                    })
+            })
+        }
+
         function updateLabels(groups) {
             d3.select('#graph-labels').selectAll('.labels').data(groups, d => d[0])
                 .join(enter => {
@@ -1541,35 +2312,8 @@ function GraphSection (props) {
                         .attr('id', d => 'label-' + d[0])
                         .style('background-color','white')
                         .style('box-shadow','0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.1)')
-                        .style('border', d => rootConcepts.includes(d[0]) ? '1px solid #6a23d6' : 'none')
+                        .style('border', d => rootConcepts.includes(d[0]) ? '1px solid #7728ED' : 'none')
                         .style('border-radius', '20px')
-                        .on('mouseover', (e, d) => {
-                            const el = e.currentTarget
-                            if (!rootConcepts.includes(d[0])) {
-                                el.hoverLabelTimeout = setTimeout(() => {
-                                    showActionLabel('Select concept', 'enter', e)
-                                }, 1200)    
-                            }
-                            el.hoverStateTimeout = setTimeout(() => {
-                                setHovered([d[0]])
-                            }, 600)
-                        })
-                        .on('mouseout', (e, d) => {
-                            const el = e.currentTarget
-                            clearTimeout(el.hoverLabelTimeout)
-                            clearTimeout(el.hoverStateTimeout)
-                            if (!rootConcepts.includes(d[0])) showActionLabel('', 'leave', e)
-                            setHovered([])
-                        })
-                        .on('click', (e,d) => {
-                            const el = e.currentTarget
-                            clearTimeout(el.hoverLabelTimeout)
-                            clearTimeout(el.hoverStateTimeout)
-                            if (!rootConcepts.includes(d[0])) {
-                                showActionLabel('','leave')
-                                showConfirmationPopup(d[0], 'enter', e)    
-                            }
-                        })
                         .style('transition','0.5s opacity')
                         .style('opacity', d => hovered.length > 0 && !hovered.includes(d[0]) ? 0.2 : 1)
                     labels.append("div")
@@ -1586,60 +2330,123 @@ function GraphSection (props) {
                                 return colorList[d[0]]
                             } else {return "none"}
                         }) 
-                    const text = labels.append("div")
-                        .style('margin-bottom','1px')
+                    bindLabelEvents(labels)
+                    const text = labels.append('div')
+                        .style('display', 'flex')
+                        .style('align-items', 'center')
+                        .style('margin-bottom', '1px')
                     text.append('tspan')
                         .classed('label-text selectedText marginRight', true)
-                        .attr("id", d => "label-text-" + d[0])
+                        .attr('id', d => 'label-text-' + d[0])
                         .html(d => getConceptInfo(d[0]).concept_name)
-                    text.append('tspan')
-                        .classed('label-code marginRight num',true)
-                        .attr("id", d => "label-vocab-" + d[0])
-                        .style('font-weight',500)
-                        .html(d => getConceptInfo(d[0]).concept_code)   
-                    text.append('tspan')
+
+                    // code/vocab and icons share one grid cell
+                    const swap = text.append('span')
+                        .classed('label-swap', true)
+                        .style('display', 'inline-grid')
+                        .style('align-items', 'center')
+
+                    const meta = swap.append('span')
+                        .classed('label-meta', true)
+                        .style('grid-area', '1 / 1')
+                        .style('white-space', 'nowrap')
+                    meta.append('tspan')
+                        .classed('label-code marginRight num', true)
+                        .attr('id', d => 'label-code-' + d[0])
+                        .style('font-weight', 500)
+                        .html(d => getConceptInfo(d[0]).concept_code)
+                    meta.append('tspan')
                         .classed('label-vocab', true)
-                        .attr("id", d => "label-vocab-" + d[0])
+                        .attr('id', d => 'label-vocab-' + d[0])
                         .html(d => getConceptInfo(d[0]).vocabulary_id)
+
+                    const icons = swap.append('span')
+                        .classed('label-icons', true)
+                        .style('grid-area', '1 / 1')
+                        .style('display', 'flex')
+                        .style('align-items', 'center')
+                        .style('opacity', 0)
+                        .style('pointer-events', 'none')
+                        .style("z-index",500)
+                    icons.append('img')
+                        .classed('label-eye icon marginRight eye', true)
+                        .attr('src', openedEye)
+                        .style('margin-left','6px')
+                    icons.append('i')
+                        .classed('label-search fa fa-search iconLg marginRight', true)
+                        .style('transform', 'scaleX(-1)')
+
+                    // the closed eye stays outside the swap, always faintly visible
+                    const right = labels.append('div')
+                        .classed('label-right', true)
+                        .style('display', 'flex')
+                        .style('align-items', 'center')
+                    right.append('img')
+                        .classed('label-closed-eye icon marginRight eye', true)
+                        .attr('src', closedEye)
+                        .style('opacity', 0.3)
+
+                    bindActions(labels)
                 }, update => {
                     update
-                        .style('border', d => rootConcepts.includes(d[0]) ? '1px solid #6a23d6' : 'none')
-                        .on('mouseover', (e, d) => {
-                            const el = e.currentTarget
-                            if (!rootConcepts.includes(d[0])) {
-                                el.hoverLabelTimeout = setTimeout(() => {
-                                    showActionLabel('Select concept', 'enter', e)
-                                }, 1200)    
-                            }
-                            el.hoverStateTimeout = setTimeout(() => {
-                                setHovered([d[0]])
-                            }, 600)
-                        })
-                        .on('mouseout', (e, d) => {
-                            const el = e.currentTarget
-                            clearTimeout(el.hoverLabelTimeout)
-                            clearTimeout(el.hoverStateTimeout)
-                            if (!rootConcepts.includes(d[0])) showActionLabel('', 'leave', e)
-                            setHovered([])
-                        })
-                        .on('click', (e,d) => {
-                            const el = e.currentTarget
-                            clearTimeout(el.hoverLabelTimeout)
-                            clearTimeout(el.hoverStateTimeout)
-                            if (!rootConcepts.includes(d[0])) {
-                                showActionLabel('','leave')
-                                showConfirmationPopup(d[0], 'enter', e)    
-                            }
-                        })
+                        .style('border', d => rootConcepts.includes(d[0]) ? '1px solid #7728ED' : 'none')
                         .style('opacity', d => hovered.length > 0 && !hovered.includes(d[0]) ? 0.2 : 1)
+                    bindLabelEvents(update)
+                    bindActions(update)
                 },exit => exit.remove())    
         }
         updateLabels(groups)
-    },[selectedConcepts,selectedConcepts.length < 50 ? hovered : null])
+    },[selectedConcepts,hovered])
 
     useEffect(() => {
+        const FADE = 0.8 
+        const fade = c => d3.interpolateRgb(c, '#fff')(FADE)
+        const fade2 = c => d3.interpolateRgb(c, '#fff')(0.5)
+        const dim = id => hovered.length > 0 && !hovered.includes(id)
+
         d3.selectAll('.area-path')
-            .attr('opacity', d => hovered.length > 0 && !hovered.includes(d.key) ? 0.2 : 1)
+            .attr('fill', d => dim(d.key) ? fade(colorList[d.key]) : colorList[d.key])
+
+        d3.selectAll('.plot-dot')
+            .attr('fill', d => dim(d.id) ? fade(colorList[d.id]) : colorList[d.id])
+
+        d3.selectAll('.year-line')
+            .attr('stroke', hovered.length > 0 ? fade2('#c9c9d5') : '#c9c9d5')
+
+        d3.selectAll('.concept-stack')
+            .attr('fill', d => {
+                const id = parseInt(d.key.replace(/\D/g, ''))
+                return dim(id) ? fade(colorList[id]) : colorList[id]
+            })
+    }, [hovered])
+
+    // scroll to label
+    useEffect(() => {
+        if (hovered.length !== 1) return
+        const container = document.getElementById('graph-labels')
+        const label = document.getElementById('label-' + hovered[0])
+        if (!container || !label) return
+
+        const PAD = 8 // breathing room so the shadow isn't clipped
+
+        const c = container.getBoundingClientRect()
+        const l = label.getBoundingClientRect()
+
+        // visible area, excluding borders and scrollbars
+        const visibleTop = c.top + container.clientTop
+        const visibleBottom = visibleTop + container.clientHeight
+
+        if (l.top - PAD < visibleTop) {
+            container.scrollTo({
+                top: container.scrollTop - (visibleTop - (l.top - PAD)),
+                behavior: 'smooth'
+            })
+        } else if (l.bottom + PAD > visibleBottom) {
+            container.scrollTo({
+                top: container.scrollTop + ((l.bottom + PAD) - visibleBottom),
+                behavior: 'smooth'
+            })
+        }
     }, [hovered])
 
     useEffect(() => {
@@ -1681,11 +2488,12 @@ function GraphSection (props) {
                                 yearSelection={yearSelection}
                                 setYearSelection={setYearSelection}
                                 width={document.getElementById('graph-section-container').clientWidth - 120}
+                                resetZoom = {resetZoom}
                             />
                         )}    
                     </div>
                     <div className = 'filters' id = "graph-filters">
-                        <div className = "filterContainerVert" id = "gender-container">
+                        <div className = "filterContainerVert" id = "gender-container" style = {{display: genderData ? genderData.length === 0 ? 'none' : 'flex' : 'none'}}>
                             <div className = {`btn flex ${!graphFilter.gender.includes(-1) ? "filterActive" : ""}`} onMouseEnter = {()=>d3.select('#reset-gender').style('color','#9597a6')} onMouseLeave = {()=>d3.select('#reset-gender').style('color','#c9c9d5')} style = {{padding: '4px 8px 4px 8px',borderRadius: '4px',marginBottom:4}}  
                                 onClick = {() => {
                                     setGraphFilter(prev => ({
@@ -1702,7 +2510,7 @@ function GraphSection (props) {
                             </div>
                         </div>
 
-                        <div className = "filterContainerVert" id = "age-container">
+                        <div className = "filterContainerVert" id = "age-container" style = {{display: ageData ? ageData.length === 0 ? 'none' : 'flex' : 'none'}}>
                             <div className = {`btn flex ${!graphFilter.age.includes(-1) ? "filterActive" : ""}`} onMouseEnter = {()=>d3.select('#reset-age').style('color','#9597a6')} onMouseLeave = {()=>d3.select('#reset-age').style('color','#c9c9d5')} style = {{padding: '4px 8px 4px 8px',borderRadius: '4px',marginBottom:4}}  
                                 onClick = {() => {
                                     setGraphFilter(prev => ({
@@ -1719,7 +2527,7 @@ function GraphSection (props) {
                             </div>
                         </div> 
 
-                        <div className = "filterContainerVert" id = "source-container" style = {{borderRight:'none'}}>
+                        <div className = "filterContainerVert" id = "source-container" style = {{display: sourceData ? sourceData.length === 0 ? 'none' : 'flex' : 'none',borderRight:'none'}}>
                             <div className = {`btn flex ${!graphFilter.source.includes(-1) ? "filterActive" : ""}`} onMouseEnter = {()=>d3.select('#reset-source').style('color','#9597a6')} onMouseLeave = {()=>d3.select('#reset-source').style('color','#c9c9d5')} style = {{padding: '4px 8px 4px 8px',borderRadius: '4px',marginBottom:4}}  
                                 onClick = {() => {
                                     setGraphFilter(prev => ({
@@ -1778,7 +2586,14 @@ function GraphSection (props) {
                         </div>
                     </div>     
                 </div>
-                <div className = 'flex' id = 'graphContainer'>
+                <div className = 'flex' id = 'graphContainer' style = {{position: 'relative',flexDirection:'column'}}>
+                    <div className = 'toggle toggleSm' id = "viz-toggle" style = {{marginTop: '1em',display: countType === 'person' ? 'flex' : 'none'}}>
+                        <div className = 'mainBtn slider' id='slider-viz'>''</div>
+                        <div className = 'btn toggle-itm' id = 'upset-toggle' onClick={() => {setPersonVizType('upset');moveSlider(0,100,'viz') }} style = {{fontWeight:personVizType === 'upset' ? 500 : 400,color:personVizType === 'upset' ? '#36126d' : '#9597a6'}}>Intersections</div>
+                        <div className = 'btn toggle-itm' id = 'prevalence-toggle' onClick={() => {setPersonVizType('prevalence');moveSlider(1,100,'viz') }} style = {{fontWeight:personVizType === 'prevalence' ? 500 : 400,color:personVizType === 'prevalence' ? '#36126d' : '#9597a6'}}>Prevalence</div>
+                        <div className = 'btn toggle-itm' id = 'incidence-toggle' onClick={() => {setPersonVizType('incidence');moveSlider(2,100,'viz') }} style = {{fontWeight:personVizType === 'incidence' ? 500 : 400,color:personVizType === 'incidence' ? '#36126d' : '#9597a6'}}>Incidence</div>
+                    </div>  
+                
                     {(graphLoading) && 
                         <div id = 'graph-loading-container'>
                         <div className = "graphLoading">
@@ -1786,18 +2601,17 @@ function GraphSection (props) {
                             <p id = "graph-loading-text">{'Loading graph'}</p>
                         </div>
                     </div>}    
-                    <div id = "graph-group" style = {{display: countType === 'record' && !graphLoading ? 'block' : 'none',position:'relative'}}>
+                    <div id = "graph-group" style = {{display: !graphLoading ? 'block' : 'none',position:'relative'}}>
                         <div id = "graph-subheader"><div className = "margin" id = "graph-labels"></div></div> 
-                        <div ref={graphContainerRef} id = "graph-container" style = {{position:'relative'}}>
-                            <div className = 'selectedText' id = "y-label">Record Counts</div>
+                        <div id = "graph-container" ref={graphContainerRef} style = {{display: countType === 'record' || (countType === 'person' && personVizType !== 'upset') ? 'block' : 'none',position:'relative'}}>
                             <div className = 'flex' id = "rootline-container">
                                 <div className = {`btn flex ${yearSelection ? "filterActive" : "selectedText"}`} onMouseEnter = {()=>d3.select('#reset-year-graph').style('color','#9597a6')} onMouseLeave = {()=>d3.select('#reset-year-graph').style('color','#c9c9d5')} style = {{padding: '4px 8px 4px 8px',borderRadius: '4px',marginBottom:4}} onClick = {() => resetZoom()}>
                                     <p className = 'filterLabel'>{extent && extent[0]+'-'+extent[1]}</p>
                                     <FontAwesomeIcon style = {{display: yearSelection ? 'block' : 'none'}} className = "resetFilter fa-solid icon" id = "reset-year-graph" icon={faX} />
                                 </div>
-                                <div className='flex'>
+                                <div className='flex' style = {{display: countType === 'record' ? 'flex' : 'none'}}>
                                     <div className = 'flex btn' style = {{pointerEvents:showRootLine ? 'all' : 'none'}} onMouseEnter={() => {setHovered(['rootline'])}} onMouseLeave={() => {setHovered([])}}>
-                                        <img className = 'marginRight' id = "rootline-icon" style = {{opacity:showRootLine ? 1 : 0.3}} src={rootLineIcon} alt="root descendants line icon"/>
+                                        <img className = 'marginRightLg' id = "rootline-icon" style = {{opacity:showRootLine ? 1 : 0.3}} src={rootLineIcon} alt="root descendants line icon"/>
                                         <p className={`marginRight ${showRootLine ? 'selectedText' : ''}`} style = {{color:showRootLine ? '#36126d' : '#9597a6'}}>Total Descendant Counts</p>    
                                     </div>
                                     <label className="rootline-switch">
@@ -1822,70 +2636,67 @@ function GraphSection (props) {
                                 <circle id = "focus"></circle>
                             </svg>
                         </div> 
-                    </div> 
-                    <div
-                        ref={upsetContainerRef}
-                        id="upset-container"
-                        style={{ display: countType === 'person' && !graphLoading ? 'block' : 'none', position: 'relative', overflow: 'hidden', width: '100%', height: '100%' }}
-                    >
-                        <div
-                            id="upset-plot-wrapper"
-                            ref={upsetWrapperRef}
-                            style={{ display: 'flex', alignItems: 'flex-start', transformOrigin: 'top left' }}
-                        >
-                            <div id="upset-left-panel" style={{ flex: '0 0 auto' }}>
-                                <svg id="upset-left-svg">
-                                    <g id="upset-left-content">
-                                        {/* <g id="y-axis-layer"></g> */}
-                                        <g id="sets-layer"></g>
-                                    </g>
-                                </svg>
-                            </div>
-
+                        <div id="upset-container" ref={upsetContainerRef} style={{ display: countType === 'person' && personVizType === 'upset' && !graphLoading ? 'block' : 'none', position: 'relative', overflow: 'hidden', width: '100%', height: '100%' }}>
+                            {((upsetOverflowing || upsetZoomedOut) && (countType === 'person' && personVizType === 'upset')) && (
+                                <div className='btn greyBtn' 
+                                    style = {{zIndex:2000,position:'absolute',top: 0, left: 0,marginTop:'1em'}}
+                                    onClick={() => setUpsetZoomedOut(prev => !prev)}>
+                                    {upsetZoomedOut ? 'Reset zoom' : 'Zoom to fit'}
+                                </div>
+                            )}  
                             <div
-                                id="upset-right-panel"
-                                ref={upsetScrollRef}
-                                onScroll={updateUpsetScrollHints}
-                                style={{ flex: '0 0 auto', overflowY: 'hidden' }}
+                                id="upset-plot-wrapper"
+                                ref={upsetWrapperRef}
+                                style={{ display: 'flex', alignItems: 'flex-start', transformOrigin: 'top left' }}
                             >
-                                <svg id="upset-right-svg">
-                                    <g id="upset-right-content">
-                                        <g id="upsets-layer"></g>
-                                        <g id="types-layer"></g>
-                                    </g>
-                                </svg>
-                            </div>
-                        </div>
+                                <div id="upset-left-panel" style={{ flex: '0 0 auto' }}>
+                                    <svg id="upset-left-svg">
+                                        <g id="upset-left-content">
+                                            {/* <g id="y-axis-layer"></g> */}
+                                            <g id="sets-layer"></g>
+                                        </g>
+                                    </svg>
+                                </div>
 
-                        {/* scroll affordance */}
-                        <div
-                            style={{
-                                display: showRightHint ? 'block' : 'none',
-                                position: 'absolute', top: 0, right: 0, bottom: 0, width: 32,
-                                background: 'linear-gradient(to right, rgba(255,255,255,0), rgba(255,255,255,0.95))',
-                                pointerEvents: 'none'
-                            }}
-                        />
-                        <div
-                            style={{
-                                display: showLeftHint ? 'block' : 'none',
-                                position: 'absolute', top: 0,
-                                left: upsetNaturalSizeRef.current?.leftWidth ?? 0,
-                                bottom: 0, width: 32,
-                                background: 'linear-gradient(to left, rgba(255,255,255,0), rgba(255,255,255,0.95))',
-                                pointerEvents: 'none'
-                            }}
-                        />
-
-                        {(upsetOverflowing || upsetZoomedOut) && (
-                            <div className='btn greyBtn'
-                                style={{ position: 'absolute', top: 0, left: '1em' }}
-                                onClick={() => setUpsetZoomedOut(prev => !prev)}
-                            >
-                                {upsetZoomedOut ? 'Reset zoom' : 'Zoom to fit'}
+                                <div
+                                    id="upset-right-panel"
+                                    ref={upsetScrollRef}
+                                    onScroll={updateUpsetScrollHints}
+                                    style={{ flex: '0 0 auto', overflowY: 'hidden' }}
+                                >
+                                    <svg id="upset-right-svg">
+                                        <g id="upset-right-content">
+                                            <g id="upsets-layer"></g>
+                                            <g id="types-layer"></g>
+                                        </g>
+                                    </svg>
+                                </div>
                             </div>
-                        )}
-                    </div>    
+
+                            {/* scroll affordance */}
+                            <div
+                                style={{
+                                    display: showRightHint ? 'block' : 'none',
+                                    position: 'absolute', top: 0, right: 0, bottom: 0, width: 32,
+                                    background: 'linear-gradient(to right, rgba(255,255,255,0), rgba(255,255,255,0.95))',
+                                    pointerEvents: 'none'
+                                }}
+                            />
+                            <div
+                                style={{
+                                    display: showLeftHint ? 'block' : 'none',
+                                    position: 'absolute', top: 0,
+                                    left: upsetNaturalSizeRef.current?.leftWidth ?? 0,
+                                    bottom: 0, width: 32,
+                                    background: 'linear-gradient(to left, rgba(255,255,255,0), rgba(255,255,255,0.95))',
+                                    pointerEvents: 'none'
+                                }}
+                            />
+                        </div>   
+                        <div id="histogram-container" style={{ display: countType === 'measurement' && !graphLoading ? 'block' : 'none', position: 'relative', overflow: 'visible', width: '100%', height: '100%' }}>
+                            <svg id="histogram"></svg>
+                        </div> 
+                    </div> 
                 </div>
             </div>  
         </div>    

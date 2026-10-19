@@ -3300,7 +3300,7 @@ const po = {//edges need to be unique
         const mcls = subGraphs.map(g=>{
             return po.getBiggestBound(g)
         })//.filter((e,n,l)=>l.indexOf(e) === n)
-        console.log(mcls)
+        // console.log(mcls)
         //color roots in the same nn
         const rootIndexes = mcls.flatMap((mcl,n)=>poset.layers[mcl].map(node => poset.elements.indexOf(node)) )
         
@@ -3379,7 +3379,7 @@ const po = {//edges need to be unique
                             }
                         ))
                         
-                        console.log(node,prevPositions)
+                        // console.log(node,prevPositions)
                         // const boundPositions = bound
                         
                         

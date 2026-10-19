@@ -1,11 +1,13 @@
 import { useEffect, useRef } from "react";
 import * as d3 from "d3";
 
-function YearFilter({ minYear, maxYear, yearSelection, setYearSelection, width = 600 }) {
+function YearFilter({ minYear, maxYear, yearSelection, setYearSelection, width = 600, resetZoom }) {
   const svgRef = useRef();
   const chartRef = useRef(null);
   const setYearSelectionRef = useRef(setYearSelection);
   setYearSelectionRef.current = setYearSelection;
+  const resetZoomRef = useRef(resetZoom);
+  resetZoomRef.current = resetZoom;
 
   const height = 30;
   const lineY = 15;
@@ -154,6 +156,7 @@ function YearFilter({ minYear, maxYear, yearSelection, setYearSelection, width =
         selectionRef.current = [lo, hi];
         if (lo === minYear && hi === maxYear) {
           setYearSelectionRef.current(null);
+          resetZoomRef.current?.();
         } else {
           setYearSelectionRef.current([lo, hi]);
         }
@@ -175,6 +178,7 @@ function YearFilter({ minYear, maxYear, yearSelection, setYearSelection, width =
           const [lo, hi] = selectionRef.current;
           if (lo === minYear && hi === maxYear) {
             setYearSelectionRef.current(null);
+            resetZoomRef.current?.();
           } else {
             setYearSelectionRef.current(selectionRef.current);
           }
