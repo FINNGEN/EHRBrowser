@@ -47,8 +47,8 @@ function Visualization (props) {
     const allClasses = props.allClasses
     const classFilter = props.classFilter
     const setClassFilter = props.setClassFilter
-    const ageData = props.ageData
-    const genderData = props.genderData
+    // const ageData = props.ageData
+    // const genderData = props.genderData
     const maxGender = props.maxGender
     // const getConceptInfo = props.getConceptInfo
     const openFilters = props.openFilters
@@ -91,7 +91,7 @@ function Visualization (props) {
     // const setMaxDistance = props.setMaxDistance
     const subspaces = props.subspaces
     const spaceSubspaces = props.spaceSubspaces
-    const sourceData = props.sourceData
+    // const sourceData = props.sourceData
     const nWidth = props.nWidth
     const countType = props.countType
     const setCountType = props.setCountType
@@ -108,6 +108,7 @@ function Visualization (props) {
     const [graphSectionWidth, setGraphSectionWidth] = useState('60vw')
     const [upsetZoomedOut, setUpsetZoomedOut] = useState(false)
     const [focused, setFocused] = useState(null)
+    const [zoomClosed,setZoomClosed] = useState(false)
     const edges = props.edges
     const setEdges = props.setEdges
     const updateConcepts = props.updateConcepts
@@ -128,6 +129,9 @@ function Visualization (props) {
     const personVizType = props.personVizType
     const setPersonVizType = props.setPersonVizType
     const measurementData = props.measurementData
+    const prevalenceData = props.prevalenceData
+    const incidenceData = props.incidenceData
+    const filterData = props.filterData
     const hideTimer = useRef(null)
     const popupTimeout = useRef(null)
     const previewNodeRef = useRef(null)
@@ -506,6 +510,8 @@ function Visualization (props) {
                 setZoomedLinks = {setZoomedLinks}
                 focused = {focused}
                 setFocused = {setFocused}
+                zoomClosed = {zoomClosed}
+                setZoomClosed = {setZoomClosed}
             ></SideBar> 
             <GraphSection
                 color = {color}
@@ -527,9 +533,10 @@ function Visualization (props) {
                 generateColor = {generateColor}
                 rootLine = {rootLine}
                 // setRoot = {setRoot}
-                ageData = {ageData}
-                genderData = {genderData}
-                sourceData = {sourceData}
+                // ageData = {ageData}
+                // genderData = {genderData}
+                // sourceData = {sourceData}
+                filterData = {filterData}
                 maxGender = {maxGender}
                 getConceptInfo = {getConceptInfo}
                 zoomed = {zoomed}
@@ -570,6 +577,9 @@ function Visualization (props) {
                 getNewInclusions = {getNewInclusions}
                 showTooltipPreview = {showTooltipPreview}
                 scheduleHide = {scheduleHide}
+                prevalenceData = {prevalenceData}
+                incidenceData = {incidenceData}
+                resetRef = {props.resetRef}
             ></GraphSection>
         </div> : null
     )

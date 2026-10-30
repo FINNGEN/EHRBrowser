@@ -102,6 +102,8 @@
         const setZoomedLinks = props.setZoomedLinks
         const focused = props.focused
         const setFocused = props.setFocused
+        const zoomClosed = props.zoomClosed
+        const setZoomClosed = props.setZoomClosed
         const margin = 10
         let hoverTimeout = null
         let currentTarget = null
@@ -263,6 +265,9 @@
                 .call(zoomRef.current.transform, d3.zoomIdentity.translate(tx, ty).scale(scale))
             
             d3.select('#zoom-to-fit').style('display','block')
+            setTimeout(() => {
+                d3.select('#neighborhood-outline').transition().style('opacity',0)
+            }, 1000)
         }
 
         function zoomToNeighborhood() {
@@ -6252,6 +6257,7 @@
         useEffect(() => {
             if (view === 'tree' && focused && zoomedNodes.length > 0 && nodes.length > 10) {
                 let zNodes,zLinks
+                if (!zoomClosed) expandMinimap()
                 if (relationship === 'descendants') {
                     let positions = {}
                     const {matrix,nodes} = po.domFromEdges(zoomedLinks.map(l => ([l.source.name.toString(),l.target.name.toString()])))
@@ -6421,7 +6427,7 @@
                                 <g id = "nodes"></g>    
                             </g>
                         </svg>  
-                        <div id="minimap-tab" title="Show zoom window" onClick={expandMinimap} style={{ display: 'none' }}>
+                        <div id="minimap-tab" title="Show zoom window" onClick={() => {expandMinimap();setZoomClosed(false)}} style={{ display: 'none' }}>
                             <FontAwesomeIcon icon={faCaretLeft} />
                         </div>
                         {createPortal(
@@ -6465,8 +6471,8 @@
                                         </g>
                                     </g>
                                 </svg>
-                                <button className="minimap-zoom btn greyBtn" onClick={() => zoomToNeighborhood()}>Zoom</button>
-                                <button className="minimap-collapse btn" title="Collapse" onClick={collapseMinimap}>
+                                <button className="minimap-zoom btn greyBtn" onClick={() => {zoomToNeighborhood();collapseMinimap()}}>Zoom</button>
+                                <button className="minimap-collapse btn" title="Collapse" onClick={() => {collapseMinimap();setZoomClosed(true)}}>
                                     <FontAwesomeIcon icon={faCaretRight} />
                                 </button>
                             </div>,
