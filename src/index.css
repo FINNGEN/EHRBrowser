@@ -223,7 +223,7 @@ h4 {
 }
 .greyBtn {
   border: 1px solid #d2d2d9;
-  background-color: transparent;
+  background-color: white;
   font-weight: 400;
   /* color: #4c4c4c; */
   padding: 6px 8px 6px 8px;
@@ -862,7 +862,7 @@ textarea:focus {
   display: flex;
   align-items: center;
   justify-content: space-around;
-  width: 500px;
+  width: 700px;
   transition: 0.5s all;
 }
 #search-info {
@@ -1353,9 +1353,9 @@ input:checked + .rootline-slider::before {
   padding-bottom: 7px;
   padding-right: 1em;
 }
-.bucket-label {
+/* .bucket-label {
   font-size: 7px !important;
-}
+} */
 
 #visualization-container {
   width: 100vw;

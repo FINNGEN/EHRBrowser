@@ -89,12 +89,15 @@ function App() {
   const [countsDataArray,setCountsDataArray] = useState()
   const [countsData,setCountsData] = useState()
   const [filteredCounts,setFilteredCounts] = useState()
-  const [personData,setPersonData] = useState({'upset':[],'prevalence':[],'incidence':[]})
+  const [prevalenceData,setPrevalenceData] = useState()
+  const [incidenceData,setIncidenceData] = useState()
+  const [personData,setPersonData] = useState()
   const [personFilterData,setPersonFilterData] = useState()
   const [graphLoading,setGraphLoading] = useState(false)
   const [personVizType,setPersonVizType] = useState('upset')
   const [isMeasurement,setIsMeasurement] = useState()
   const [measurementData,setMeasurementData] = useState([])
+  const [filterData,setFilterData] = useState({gender:[],age:[],source:[]})
   const fetchedRef = useRef(false)
   const [nWidth,setNWidth] = useState(200)
   const personMax = 25
@@ -253,54 +256,37 @@ function App() {
   }
   useEffect(() => {setStackData(getStack())}, [filteredCounts])
 
-  // get data for graph filters
-  const genderData = useMemo(() => {
-    let genderDataVar = []
-    const genders = [8507,8532]
-    if (!filteredCounts) return 
-    if (filteredCounts.all.length > 0) {
-      if (extent) {
-        if (countType === 'record') {
-          let sums = []
-          genders.forEach(g => selectedConcepts.forEach(d => sums.push({id: g, sum: d.leaf ? getCounts(d.data.descendant_code_counts.filter(e => (e.calendar_year >= extent[0] && e.calendar_year <= extent[1])).filter(e => e.gender_concept_id === g),'node_record_counts') : getCounts(d.data.code_counts.filter(e => (e.calendar_year >= extent[0] && e.calendar_year <= extent[1])).filter(e => e.gender_concept_id === g),'node_record_counts')})))
-          genders.forEach(g => genderDataVar.push({id:g, sum:d3.sum(sums.filter(d => d.id === g).map(d => d.sum))}))
-          return genderDataVar   
-        } 
-        else if (countType === 'person' && personFilterData) {
-          if (personFilterData.length > 0) {
-            return personFilterData.filter(f => f.filter === 'sex').map(f => ({id:f.stratum,sum:f.person_counts})) 
-          }
-        }
-      } 
-    } else return []
-  },[filteredCounts,personFilterData,extent,countType])
+  const resetRef = useRef(false)
+  const prevCountType = useRef(countType)
 
-  const ageData = useMemo(() => {
+  useEffect(() => {
+    if (prevCountType.current !== countType) {
+      if ((prevCountType.current === 'person' || prevCountType.current === 'prevalence') && (countType === 'person' || countType === 'prevalence')) return
+      if ((prevCountType.current === 'record' || prevCountType.current === 'measurement') && (countType === 'record' || countType === 'measurement')) return
+      resetRef.current = true
+      prevCountType.current = countType
+    }
+  }, [countType])
+
+  // GRAPH FILTER DATA
+  useEffect(() => {
+    let genderDataVar = []
     let ageDataVar = []
+    const genders = [8507,8532]
     const ages = [0,1,2,3,4,5,6,7,8,9]
     if (!filteredCounts) return 
     if (filteredCounts.all.length > 0) {
-      if (extent) {
-        if (countType === 'record') {
+      if (visitTypeNames && extent) {
+        if (countType === 'record' || countType === 'measurement') {
+          // gender 
+          let sumsGender = []
+          genders.forEach(g => selectedConcepts.forEach(d => sumsGender.push({id: g, sum: d.leaf ? getCounts(d.data.descendant_code_counts.filter(e => (e.calendar_year >= extent[0] && e.calendar_year <= extent[1])).filter(e => e.gender_concept_id === g),'node_record_counts') : getCounts(d.data.code_counts.filter(e => (e.calendar_year >= extent[0] && e.calendar_year <= extent[1])).filter(e => e.gender_concept_id === g),'node_record_counts')})))
+          genders.forEach(g => genderDataVar.push({id:g, sum:d3.sum(sumsGender.filter(d => d.id === g).map(d => d.sum))}))
+          // age
           let ageSums = []
           ages.forEach(a => selectedConcepts.forEach(d => ageSums.push({id: a, sum: d.leaf ? getCounts(d.data.descendant_code_counts.filter(e => (e.calendar_year >= extent[0] && e.calendar_year <= extent[1])).filter(e => e.age_decile === a),'node_record_counts') : getCounts(d.data.code_counts.filter(e => (e.calendar_year >= extent[0] && e.calendar_year <= extent[1])).filter(e => e.age_decile === a),'node_record_counts')})))
           ages.forEach(a => ageDataVar.push({id:a, sum: d3.sum(ageSums.filter(d => d.id === a).map(d => d.sum))}))
-          return ageDataVar   
-        } 
-        else if (countType === 'person' && personFilterData) {
-          if (personFilterData.length > 0) {
-            return personFilterData.filter(f => f.filter === 'age').map(f => ({id:f.stratum,sum:f.person_counts}))
-          }
-        }
-      }
-    } else return []
-  },[filteredCounts,personFilterData,extent,countType])
-
-  const sourceData = useMemo(() => {
-    if (!filteredCounts) return
-    if (filteredCounts.all.length > 0) {
-      if (visitTypeNames && extent) {
-        if (countType === 'record') {
+          // source 
           let sourceSums = []
           visitTypeNames.forEach(obj => selectedConcepts.forEach(d => sourceSums.push({id: obj.visitGroupConceptId,sum: d.leaf ? getCounts(d.data.descendant_code_counts.filter(e => (e.calendar_year >= extent[0] && e.calendar_year <= extent[1])).filter(e => getVisitGroupConceptId(e) === obj.visitGroupConceptId),'node_record_counts') : getCounts(d.data.code_counts.filter(e => (e.calendar_year >= extent[0] && e.calendar_year <= extent[1])).filter(e => getVisitGroupConceptId(e) === obj.visitGroupConceptId),'node_record_counts')})))
           const sourceDataVar = categories.map(obj => ({key:obj.key,codes:visitTypeNames.filter(d => obj.codes.includes(d.conceptCode)).map(d => ({id:d.visitGroupConceptId,code:d.conceptCode,name:d.conceptName,sum:d3.sum(sourceSums.filter(s => s.id === d.visitGroupConceptId).map(s => s.sum))}))}))
@@ -310,10 +296,15 @@ function App() {
             .map(d => ({id:d.visitGroupConceptId,code:d.conceptCode,name:d.conceptName,sum:d3.sum(sourceSums.filter(s => s.id === d.visitGroupConceptId).map(s => s.sum))}))
           if (otherCodes.length > 0) sourceDataVar.push({key:'Other',codes:otherCodes})
           const sorted = sourceDataVar.map(obj => ({...obj,codes:obj.codes.sort((a,b) => a.sum - b.sum)}))
-          return sorted  
+          setFilterData({gender:genderDataVar,age:ageDataVar,source:sorted})
         } 
-        else if (countType === 'person' && personFilterData) {
+        else if ((countType === 'person' || countType === 'prevalence' || countType === 'incidence') && personFilterData) {
           if (personFilterData.length > 0) {
+            // gender
+            genderDataVar = personFilterData.filter(f => f.filter === 'sex').map(f => ({id:f.stratum,sum:f.person_counts})) 
+            // age
+            ageDataVar = personFilterData.filter(f => f.filter === 'age').map(f => ({id:f.stratum,sum:f.person_counts}))
+            // source
             const filterList = personFilterData.filter(f => f.filter === 'visit').map(f => ({id:f.stratum,code:visitTypeNames.find(n => n.visit_group_concept_id === f.stratum).concept_code,name:visitTypeNames.find(n => n.visit_group_concept_id === f.stratum).concept_name,sum:f.person_counts}))
             const byCategory = categories.map(obj => ({...obj,codes:filterList.filter(f => obj.codes.includes(f.code))}))
               .filter(obj => obj.codes.length > 0)
@@ -321,14 +312,14 @@ function App() {
             const otherCodes = filterList.filter(f => !categorizedCodes.has(f.code))
             if (otherCodes.length > 0) byCategory.push({key:'Other',codes:otherCodes})
             const sorted = byCategory.map(obj => ({...obj,codes:obj.codes.sort((a,b) => a.sum - b.sum)}))
-            return sorted  
+            setFilterData({gender:genderDataVar,age:ageDataVar,source:sorted})
           }
         }
-      }
-    } else return []
-  },[filteredCounts,personFilterData,extent,countType])
+      } 
+    } else setFilterData({gender:[],age:[],source:[]})
+  }, [filteredCounts,personFilterData,extent,countType])
 
-  const maxGender = useMemo(() => {if (genderData && genderData.length > 0) return genderData.reduce((max, obj) => obj.sum > max.sum ? obj : max).id},[genderData])
+  const maxGender = useMemo(() => {if (filterData.gender && filterData.gender.length > 0) return filterData.gender.reduce((max, obj) => obj.sum > max.sum ? obj : max).id},[filterData.gender])
 
   // tree positioning
   function linearEmbedding(profiles,ids = Array.from({length:profiles.length},(_,n)=>n), cells = 12, iterations = profiles.length*profiles[0].length, learningRate = 0.1, seed=42) { 
@@ -444,7 +435,7 @@ function App() {
     for (let i = layers.length-2; i >= 0; i--) {
         f(layers[i],i,'down',sorted)
     }
-}
+  }
   function spreadAroundCentroid(nodes,centroid,w) {
     const adjustment = nodes.length % 2 !== 0 ? 0 : w/2
     const median = Math.floor(nodes.length/2) 
@@ -1484,9 +1475,9 @@ function App() {
   
   // person filters
   useEffect(() => {
-    if (!selectedConcepts || selectedConcepts.length > personMax || !extent || countType !== 'person') return
+    if (!selectedConcepts || selectedConcepts.length > personMax || !extent || countType === 'record' || countType === 'measurement') return
     let callName = 'getPersonCountsFilters'
-    if (personVizType === 'incidence') callName = 'getPersonCountsIncidenceFilters'
+    if (countType === 'incidence') callName = 'getPersonCountsIncidenceFilters'
     const controller = new AbortController()
     const timeout = setTimeout(() => {
       const queryString = getFilterQueryString()
@@ -1502,9 +1493,9 @@ function App() {
       } else setPersonFilterData([])
     }, 300)
     return () => { clearTimeout(timeout); controller.abort() }
-  }, [selectedConcepts, countType, yearSelection, personVizType])
+  }, [selectedConcepts, countType, yearSelection])
 
-  // upset / prevalence / incidence data *** CONSIDER PRUNING WHEN NOT UPSET 
+  // upset / prevalence / incidence / lab values
   useEffect(() => {
     if (countType === 'person') {
       if (!selectedConcepts || selectedConcepts.length > personMax || !extent) return
@@ -1513,46 +1504,97 @@ function App() {
             const loadingTimeout = setTimeout(() => {
               setGraphLoading(true)
             }, 500)
-
             const queryString = getQueryString()
             if (queryString.includes('conceptIds')) {
-              const fetchJson = (endpoint, label) =>
-                fetch(`${API_BASE_URL}/${endpoint}?${queryString}`, {
-                  signal: controller.signal
-                }).then(res => {
-                  if (!res.ok) {
-                    throw new Error(`HTTP ${res.status} for ${label} data`)
-                  }
-                  return res.json()
-                })
-
-              Promise.all([
-                fetchJson('getPersonCountsUpset', 'upset'),
-                fetchJson('getPersonCountsPrevalence', 'prevalence'),
-                fetchJson('getPersonCountsIncidence', 'incidence')
-              ])
-                .then(([upset, prevalence, incidence]) => {
-                  console.log('upset data received', upset)
-                  console.log('prevalence data received', prevalence)
-                  console.log('incidence data received', incidence)
-                  setPersonData({upset, prevalence, incidence})
-                  // setUpsetData(upset)
-                  // setPrevalenceData(prevalence)
-                  // setIncidenceData(incidence)
-                  setGraphLoading(false)
-                  clearTimeout(loadingTimeout)
-                })
-                .catch(err => {
-                  clearTimeout(loadingTimeout)
-
-                  if (err.name === 'AbortError') return
-
-                  console.error('Fetch failed:', err.message)
-                  setGraphLoading(false)
-                  d3.select('#error-message').style('display', 'flex')
-                })
+              fetch(`${API_BASE_URL}/getPersonCountsUpset?${queryString}`)
+                  .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status} for person data`); return res.json() })
+                  .then(data => { 
+                    console.log('person data received', data)
+                    setPersonData(data) 
+                    setGraphLoading(false)
+                    clearTimeout(loadingTimeout)
+                  })
+                  .catch(err => {
+                    if (err.name === 'AbortError') return
+                    console.error('Fetch failed:', err.message)
+                    d3.select('#error-message').style('display', 'flex')
+                    setGraphLoading(false)
+                    clearTimeout(loadingTimeout)
+                  }) 
             } else {
-              setPersonData({'upset':[],'prevalence':[],'incidence':[]})
+              setPersonData([])
+              setGraphLoading(false)
+              clearTimeout(loadingTimeout)
+            }
+          }, 300)
+
+        return () => {
+          clearTimeout(fetchTimeout)
+          controller.abort()
+      }
+    }
+    if (countType === 'prevalence') {
+      if (!selectedConcepts || !extent) return
+          const controller = new AbortController()
+          const fetchTimeout = setTimeout(() => {
+            const loadingTimeout = setTimeout(() => {
+              setGraphLoading(true)
+            }, 500)
+            const queryString = getQueryString()
+            if (queryString.includes('conceptIds')) {
+              fetch(`${API_BASE_URL}/getPersonCountsPrevalence?${queryString}`)
+                  .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status} for prevalence data`); return res.json() })
+                  .then(data => { 
+                    console.log('prevalence data received', data)
+                    setPrevalenceData(data) 
+                    setGraphLoading(false)
+                    clearTimeout(loadingTimeout)
+                  })
+                  .catch(err => {
+                    if (err.name === 'AbortError') return
+                    console.error('Fetch failed:', err.message)
+                    d3.select('#error-message').style('display', 'flex')
+                    setGraphLoading(false)
+                    clearTimeout(loadingTimeout)
+                  }) 
+            } else {
+              setPrevalenceData([])
+              setGraphLoading(false)
+              clearTimeout(loadingTimeout)
+            }
+          }, 300)
+
+        return () => {
+          clearTimeout(fetchTimeout)
+          controller.abort()
+      }
+    }
+    if (countType === 'incidence') {
+      if (!selectedConcepts || !extent) return
+          const controller = new AbortController()
+          const fetchTimeout = setTimeout(() => {
+            const loadingTimeout = setTimeout(() => {
+              setGraphLoading(true)
+            }, 500)
+            const queryString = getQueryString()
+            if (queryString.includes('conceptIds')) {
+              fetch(`${API_BASE_URL}/getPersonCountsIncidence?${queryString}`)
+                  .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status} for incidence data`); return res.json() })
+                  .then(data => { 
+                    console.log('incidence data received', data)
+                    setIncidenceData(data) 
+                    setGraphLoading(false)
+                    clearTimeout(loadingTimeout)
+                  })
+                  .catch(err => {
+                    if (err.name === 'AbortError') return
+                    console.error('Fetch failed:', err.message)
+                    d3.select('#error-message').style('display', 'flex')
+                    setGraphLoading(false)
+                    clearTimeout(loadingTimeout)
+                  }) 
+            } else {
+              setIncidenceData([])
               setGraphLoading(false)
               clearTimeout(loadingTimeout)
             }
@@ -1565,15 +1607,40 @@ function App() {
     }
     if (countType === 'measurement') {
       if (!selectedConcepts || !extent) return
-      const queryString = getQueryString()
-      fetch(`${API_BASE_URL}/getMeasurementValueHistogram?${queryString}`)
-          .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status} for filter data`); return res.json() })
-          .then(data => { console.log('measurement data received', data); setMeasurementData(data) })
-          .catch(err => {
-            if (err.name === 'AbortError') return
-            console.error('Fetch failed:', err.message)
-            d3.select('#error-message').style('display', 'flex')
-          }) 
+      if (!selectedConcepts || !extent) return
+          const controller = new AbortController()
+          const fetchTimeout = setTimeout(() => {
+            const loadingTimeout = setTimeout(() => {
+              setGraphLoading(true)
+            }, 500)
+            const queryString = getQueryString()
+            if (queryString.includes('conceptIds')) {
+              fetch(`${API_BASE_URL}/getMeasurementValueHistogram?${queryString}`)
+                  .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status} for measurement data`); return res.json() })
+                  .then(data => { 
+                    console.log('measurement data received', data)
+                    setMeasurementData(data) 
+                    setGraphLoading(false)
+                    clearTimeout(loadingTimeout)
+                  })
+                  .catch(err => {
+                    if (err.name === 'AbortError') return
+                    console.error('Fetch failed:', err.message)
+                    d3.select('#error-message').style('display', 'flex')
+                    setGraphLoading(false)
+                    clearTimeout(loadingTimeout)
+                  }) 
+            } else {
+              setMeasurementData([])
+              setGraphLoading(false)
+              clearTimeout(loadingTimeout)
+            }
+          }, 300)
+
+        return () => {
+          clearTimeout(fetchTimeout)
+          controller.abort()
+      }
     }
   }, [selectedConcepts, graphFilter, yearSelection, countType])
 
@@ -1677,9 +1744,10 @@ function App() {
               setOpenFilters = {setOpenFilters}
               pruned = {pruned}
               setPruned = {setPruned}
-              ageData = {ageData}
-              genderData = {genderData}
-              sourceData = {sourceData}
+              // ageData = {ageData}
+              // genderData = {genderData}
+              // sourceData = {sourceData}
+              filterData = {filterData}
               maxGender = {maxGender}
               setLoading = {setLoading}
               poset = {poset}
@@ -1740,6 +1808,9 @@ function App() {
               personVizType = {personVizType}
               setPersonVizType = {setPersonVizType}
               measurementData = {measurementData}
+              prevalenceData = {prevalenceData}
+              incidenceData = {incidenceData}
+              resetRef = {resetRef}
             />      
           } />
         </Routes>

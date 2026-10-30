@@ -509,8 +509,7 @@ function Header (props) {
                 <div style = {{display:'flex',flexWrap:'wrap',maxWidth:'100%'}} id = "search-filters"></div>
                 {/* <div className = "btn greyBtn" onClick = {() => setShowFilter(false)} style = {{backgroundColor:searchFilter.length > 0 ? '#e8e8e8' : 'transparent',color:searchFilter.length > 0 ? '#36126d' : '#4c4c4c9',alignSelf:'flex-end'}}>Confirm</div> */}
             </div> 
-
-            <div id = 'app-controls' style = {{width: isMeasurement ? 600 : 500,left: expandedSearch && 800 > window.innerWidth/2 - 215 ? '810px' : '50%',transform:expandedSearch && 800 > window.innerWidth/2 - 215 ? 'translateX(0)' : 'translateX(-50%)',display: root && nodes.length > 0 ? 'flex' : 'none'}}>
+            <div id = 'app-controls' style = {{width: isMeasurement ? 800 : 700,left: expandedSearch && 800 > window.innerWidth/2 - 215 ? '810px' : '50%',transform:expandedSearch && 800 > window.innerWidth/2 - 215 ? 'translateX(0)' : 'translateX(-50%)',display: root && nodes.length > 0 ? 'flex' : 'none'}}>
                 <div className = 'toggle' id = "relationship-toggle">
                     <div className = 'mainBtn slider' id='slider-relationship'>''</div>
 
@@ -522,7 +521,9 @@ function Header (props) {
 
                     <div className = 'btn toggle-itm' id = 'record-toggle' onClick={() => {setCountType('record');moveSlider(0,100,'counts')}} style = {{fontWeight:countType === 'record' ? 500 : 400,color:countType === 'record' ? '#36126d' : '#9597a6'}}>Record Counts</div>
                     <div className = 'btn toggle-itm' id = 'person-toggle' onClick={() => {setCountType('person');moveSlider(1,100,'counts')}} style = {{fontWeight:countType === 'person' ? 500 : 400,color:countType === 'person' ? '#36126d' : '#9597a6'}}>Person Counts</div>
-                    <div className = 'btn toggle-itm' id = 'measurement-toggle' onClick={() => {setCountType('measurement');moveSlider(2,100,'counts')}} style = {{display: isMeasurement ? 'flex' : 'none',fontWeight:countType === 'measurement' ? 500 : 400,color:countType === 'measurement' ? '#36126d' : '#9597a6'}}>Lab Values</div>
+                    <div className = 'btn toggle-itm' id = 'prevalence-toggle' onClick={() => {setCountType('prevalence');moveSlider(2,100,'counts')}} style = {{fontWeight:countType === 'prevalence' ? 500 : 400,color:countType === 'prevalence' ? '#36126d' : '#9597a6'}}>Prevalence</div>
+                    <div className = 'btn toggle-itm' id = 'incidence-toggle' onClick={() => {setCountType('incidence');moveSlider(3,100,'counts')}} style = {{fontWeight:countType === 'incidence' ? 500 : 400,color:countType === 'incidence' ? '#36126d' : '#9597a6'}}>Incidence</div>
+                    <div className = 'btn toggle-itm' id = 'measurement-toggle' onClick={() => {setCountType('measurement');moveSlider(4,100,'counts')}} style = {{display: isMeasurement ? 'flex' : 'none',fontWeight:countType === 'measurement' ? 500 : 400,color:countType === 'measurement' ? '#36126d' : '#9597a6'}}>Lab Values</div>
                 </div>
             </div>
 

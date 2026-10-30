@@ -27,6 +27,7 @@ function YearFilter({ minYear, maxYear, yearSelection, setYearSelection, width =
 
     const svg = d3.select(svgRef.current);
     svg.selectAll("*").remove();
+    svg.style('overflow', 'visible');
 
     const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
     const x = d3.scaleLinear().domain([minYear, maxYear]).range([0, innerWidth]).clamp(true);
