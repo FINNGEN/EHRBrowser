@@ -81,6 +81,7 @@ function GraphSection (props) {
     const prevalenceData = props.prevalenceData
     const incidenceData = props.incidenceData
     const resetRef = props.resetRef
+    const drawnGroup = props.drawnGroup
     const graphContainerRef = useRef()
     const upsetContainerRef = useRef()
     const upsetWrapperRef = useRef(null)     
@@ -97,6 +98,7 @@ function GraphSection (props) {
     let hoverTimeout = null
     let currentTarget = null
     const hoveredPointKey = useRef(null)
+    const hoveredBucket = useRef(null)
 
     // DRAWING
 
@@ -550,10 +552,12 @@ function GraphSection (props) {
                 .filter(p => p.id === id)
                 .sort((a, b) => a.year - b.year);
 
-            // Connecting line (unchanged)
-            layer.selectAll('path.plot-connector')
+            const dots = layer.select('g.plot-dots');
+
+            // connector line now lives inside the dot layer
+            dots.selectAll('path.plot-connector')
                 .data(pts.length > 1 ? [pts] : [])
-                .join(enter => enter.insert('path', 'g.plot-dots')
+                .join(enter => enter.append('path')
                     .attr('class', 'plot-connector')
                     .attr('fill', 'none')
                     .attr('stroke-width', 1.5)
@@ -562,7 +566,11 @@ function GraphSection (props) {
                 .attr('opacity', 0.8)
                 .attr('d', connector);
 
-            // Value label only for the hovered point
+            // paint order: other dots < line < hovered concept's dots
+            dots.select('path.plot-connector').raise();
+            dots.selectAll('circle.plot-dot').filter(d => d.id === id).raise();
+
+            // value label only for the hovered point (unchanged)
             const labelPts = activePoint ? [activePoint] : [];
 
             const labels = layer.selectAll('g.plot-value-labels')
@@ -609,9 +617,9 @@ function GraphSection (props) {
                         .attr('cx', d => scaleX(d.year))
                         .attr('cy', d => scaleY(d.value)))
                     .call(sel => sel.transition('fill').duration(200)
-                        .attr('fill', d => hovered.length > 0 && !hovered.includes(d.id) ? d3.interpolateRgb(colorList[d.id], '#fff')(0.8) : colorList[d.id]),
+                        .attr('fill', d => hovered.length > 0 && !hovered.includes(d.id) ? d3.interpolateRgb(colorList[d.id], '#fff')(0.8) : colorList[d.id])),
                 exit => exit.remove()
-            ))
+                )
 
         // hit circles: larger, transparent, and they carry the mouse events
         hitLayer.selectAll('circle.plot-hit-dot')
@@ -799,23 +807,23 @@ function GraphSection (props) {
                 .attr("clip-path", "url(#clip)")
                 .raise()
             containerEnter.append("path")
-                .classed("line-path", true)
+                .classed("line-path-graph", true)
                 .attr("cursor", "pointer")
                 .attr("stroke-width", 3)
                 .style("stroke", "black")
                 .style("fill", "none")
             containerEnter.append("path")
-                .classed("line-path-background", true)
+                .classed("line-path-graph-background", true)
                 .attr("cursor", "pointer")
                 .attr("stroke-width", 8)
                 .style("stroke", "transparent")
                 .style("fill", "none")
             container.merge(containerEnter)
-                .select(".line-path")
+                .select(".line-path-graph")
                 .transition()
                 .attr("d", line)
             container.merge(containerEnter)
-                .select(".line-path-background")
+                .select(".line-path-graph-background")
                 .transition()
                 .attr("d", line)
             container.exit().remove()
@@ -835,7 +843,11 @@ function GraphSection (props) {
     function drawHistogram(data, scaleX, scaleY, concepts) {
         const graph = d3.select("#histogram .chart-content");
 
-        graph.selectAll(".histogram-bars, .histogram-hover-labels").remove();
+        // graph.selectAll(".histogram-bars, .histogram-hover-labels").remove();
+        graph.selectAll(".histogram-hover-labels").remove();
+        let bars = graph.select("g.histogram-bars");
+        if (bars.empty()) bars = graph.append("g").attr("class", "histogram-bars");
+        let activeBucket = hoveredBucket.current;
 
         const buckets = scaleX.domain();
         const bucketTotals = new Map();
@@ -860,10 +872,10 @@ function GraphSection (props) {
         const stackedData = d3.stack()
             .keys(concepts)(groupedData);
 
-        const bars = graph.append("g")
-            .attr("class", "histogram-bars");
+        // const bars = graph.append("g")
+        //     .attr("class", "histogram-bars");
 
-        let activeBucket = null;
+        // let activeBucket = null;
 
         // All stacked segments, including their exact values.
         const segments = stackedData.flatMap(series =>
@@ -879,20 +891,18 @@ function GraphSection (props) {
 
         const rects = bars.selectAll("rect.histogram-segment")
             .data(segments, d => `${d.bucket}-${d.concept}`)
-            .join("rect")
-            .attr("class", "histogram-segment btn")
+            .join(
+                enter => enter.append("rect").attr("class", "histogram-segment btn"),
+                update => update,
+                exit => exit.remove()
+            )
             .attr("data-bucket", d => d.bucket)
             .attr("x", d => scaleX(d.bucket))
             .attr("y", d => scaleY(d.y1))
             .attr("width", scaleX.bandwidth())
-            .attr("height", d =>
-                Math.max(0, scaleY(d.y0) - scaleY(d.y1))
-            )
+            .attr("height", d => Math.max(0, scaleY(d.y0) - scaleY(d.y1)))
             .attr("fill", d => colorList[d.id])
-            .attr("stroke", "none")
-            .attr("opacity", d =>
-                hovered.length > 0 && !hovered.includes(d.id) ? 0.2 : 1
-            );
+            .attr("stroke", "none");
 
         function updateHighlight() {
             rects
@@ -1012,44 +1022,31 @@ function GraphSection (props) {
         rects
             .on("mouseover", (e, d) => {
                 activeBucket = d.bucket;
-                updateHighlight();
-                showBucketLabels(d.bucket);
-
-                // Preserve your existing concept-hover behavior.
-                const node = allNodesMap.get(d.id);
                 const el = e.currentTarget;
-
                 clearTimeout(el.hoverStateTimeout);
-
                 el.hoverStateTimeout = setTimeout(() => {
+                    hoveredBucket.current = d.bucket;
+                    updateHighlight();
+                    showBucketLabels(d.bucket);
+                    const node = allNodesMap.get(d.id);
                     setHovered([d.id]);
-
-                    if (node) {
-                        showTooltipPreview(node, e);
-                    }
+                    if (node) showTooltipPreview(node, e);
                 }, 600);
             })
             .on("mouseout", (e, d) => {
                 clearTimeout(e.currentTarget.hoverStateTimeout);
-
-                // Don't clear the bucket when moving between segments
-                // that belong to the same bucket.
-                const related = e.relatedTarget;
-                const nextRect = related?.closest?.("rect.histogram-segment");
-
-                if (nextRect && nextRect.dataset.bucket === String(d.bucket)) {
-                    return;
-                }
-
+                const nextRect = e.relatedTarget?.closest?.("rect.histogram-segment");
+                if (nextRect && nextRect.dataset.bucket === String(d.bucket)) return;
                 activeBucket = null;
+                hoveredBucket.current = null;
                 graph.selectAll(".histogram-hover-labels").remove();
                 updateHighlight();
-
                 setHovered([]);
                 scheduleHide();
             });
 
         updateHighlight();
+        if (hovered.length > 0 && activeBucket !== null) showBucketLabels(activeBucket);
     }
     function drawHistogramRuler(scaleX, innerWidth, innerHeight) {
         const chart = d3.select("#histogram .chart-content")
@@ -1200,10 +1197,10 @@ function GraphSection (props) {
         annotationMerge.select("circle")
             .classed('btn',true)
             .attr("cx", d => scaleX(d.year) + d.offsetX)
-            .attr("cy", height)
+            .attr("cy", height + 7)
             .attr("r", 5)
             .attr("fill", 'white')
-            .style("filter", "drop-shadow(0px 0px 4px rgba(0, 0, 0, 0.16))")
+            .style("filter", "drop-shadow(0px 0px 4px rgba(0, 0, 0, 0.2))")
             .on("mouseover", function(event, d) {
                 const eventsThatYear = grouped.get(d.year)
                 showAnnotationTooltip('enter',event,d.year,eventsThatYear)
@@ -1264,7 +1261,7 @@ function GraphSection (props) {
                 .ticks(ticks.two)
                 .tickFormat(d3.format("d"))
                 .tickSizeOuter(0)
-                .tickPadding(8);
+                .tickPadding(9);
         } else {
             const bw = scaleX.bandwidth()
             const raw = scaleX.domain().map(b => ({ ...parseBucket(b), x: scaleX(b) }))
@@ -1323,7 +1320,7 @@ function GraphSection (props) {
             .join("text")
             .attr("class", "x-axis-label selectedText")
             .attr("x", innerWidth / 2)
-            .attr("y", xAxisType === 'year' ? innerHeight + chartMargin.bottom - 15 : innerHeight + chartMargin.bottom - 25)
+            .attr("y", xAxisType === 'year' ? innerHeight + chartMargin.bottom - 20 : innerHeight + chartMargin.bottom - 30)
             .attr("text-anchor", "middle")
             .attr("fill", "currentColor")
             .style("font-size", "10px")
@@ -1631,17 +1628,18 @@ function GraphSection (props) {
         return () => document.removeEventListener('click', handleClickOutside)
     }, [])
 
+    const countGroup = t => t === 'person' || t === 'prevalence' ? 'person' : t === 'record' || t === 'measurement' ? 'record' : t 
+
     // DRAW FILTERS
     useEffect(() => {
         if (filterData.gender && filterData.source && filterData.age) {
             if (filterData.gender.length > 0 && filterData.age.length > 0 && filterData.source.length > 0) {
-                // reset 
-                const reset = resetRef.current
-                resetRef.current = false   
+                const group = countGroup(filterData.countType)
+                const reset = group !== drawnGroup.current
+                drawnGroup.current = group  
                 if (reset) {
                     d3.selectAll('#age-viz .age-rect').interrupt().style('height', '0px')
                     d3.selectAll('#source-viz .source-geometry').interrupt().style('width', '0px')
-                    // d3.selectAll('#gender-svg .arc-text, #age-viz .age-p').interrupt().style('opacity', 0)
                 }
                 // gender
                 const genders = [8507,8532]
@@ -1776,10 +1774,11 @@ function GraphSection (props) {
                             .classed('vizActive',(d) => graphFilter.age.includes(d.id) || graphFilter.age.includes(-1) ? true : false)
                             .attr('id', d => 'geometry-'+d.id)
                             .style('width', '42px')
-                            .style('height', d => d.sum === 0 ? '0px' : scaleHeight(d.sum) + 'px')
                             .on('mouseover', (e,d) => filterHover(d.id, 'enter','age'))
                             .on('mouseout', (e,d) => filterHover(d.id, 'leave','age'))
                             .on('click', (e,d) => filterSelect(d.id, 'age'))
+                            .transition() 
+                            .style('height', d => d.sum === 0 ? '0px' : scaleHeight(d.sum) + 'px')
                     },update => {
                         update.select('.age-p')
                             // .classed('labelActive', d => graphFilter.age.includes(d.id) || graphFilter.age.includes(-1) ? true : false)
@@ -1802,10 +1801,23 @@ function GraphSection (props) {
                 const sourceWidth = document.getElementById("graph-filters").clientWidth - document.getElementById('gender-container').clientWidth - document.getElementById('age-container').clientWidth - (5*allSources.length) - subtract
                 const maxWidth = sourceWidth + add
                 document.getElementById("header-sources").style.maxWidth =  maxWidth + 'px'
-                const filteredSources = filterData.source.map(obj => ({...obj,codes:obj.codes.filter(c => c.sum !== 0)})).filter(obj => obj.codes.length > 0)
+                // const filteredSources = filterData.source.map(obj => ({...obj,codes:obj.codes.filter(c => c.sum !== 0)})).filter(obj => obj.codes.length > 0)
+                // const allFiltered = filteredSources.map(d => d.codes).flat().map(d => d.id)
+                // const categorySums = filteredSources.map(obj => d3.sum(obj.codes.map(c => c.sum)))
+                // const scaleWidth = d3.scaleLinear().domain([0,d3.extent(categorySums)[1]]).range([5,sourceWidth])
+                const filteredSources = filterData.source
+                    .map(obj => {
+                        const codes = obj.codes.filter(c => c.sum !== 0)
+                        return { ...obj, codes, total: d3.sum(codes, c => c.sum) }
+                    })
+                    .filter(obj => obj.codes.length > 0)
+                    .sort((a, b) => d3.descending(a.total, b.total))   
+
                 const allFiltered = filteredSources.map(d => d.codes).flat().map(d => d.id)
-                const categorySums = filteredSources.map(obj => d3.sum(obj.codes.map(c => c.sum)))
-                const scaleWidth = d3.scaleLinear().domain([0,d3.extent(categorySums)[1]]).range([5,sourceWidth])
+                const categorySums = filteredSources.map(obj => obj.total)
+                const maxCategorySum = d3.max(categorySums)
+                const minCategorySum = d3.min(categorySums)
+                const scaleWidth = d3.scaleLinear().domain([0, maxCategorySum]).range([5, 100])
                 d3.select('#dropdown-sources').selectAll('.source-section').data(filteredSources, d => d.key)
                     .join(enter => {
                         const category = enter.append('div')
@@ -1911,11 +1923,15 @@ function GraphSection (props) {
                                     .html(d => d.code)
                             })      
                     })
-                d3.select('#source-viz').selectAll('.category').data(filteredSources, d => d.key)
+                d3.select('#dropdown-sources').selectAll('.source-section')
+                    .sort((a, b) => d3.descending(a.total, b.total))
+                const sourceViz = d3.select('#source-viz')
+                sourceViz.selectAll('.category').data(filteredSources, d => d.key)
                     .join(enter => {
                         const category = enter.append('div')
                             .classed('category',true)
                             .style('margin','1px 0px 1px 0px')
+                            .style('widdth','100%')
                         const label = category.append('div')
                             .classed('category-flex flex btn',true)
                             .style("order",0)
@@ -1959,7 +1975,7 @@ function GraphSection (props) {
                                         const max = scaleWidth(d.sum) / 6
                                         return max < 2 ? '' : d.code.length > max ? d.code.substring(0,max) : d.code
                                     })
-                                    .style('width',d => scaleWidth(d.sum) + 'px') 
+                                    .style('width',d => scaleWidth(d.sum) + '%') 
                                     .style('height','18px')
                                     .style('font-size','8px')
                                     .on('mouseover',(e,d) => {
@@ -1989,7 +2005,7 @@ function GraphSection (props) {
                                     })
                                     .on('click',(e,d)=>filterSelect(d.id,'source'))
                                     .transition()
-                                    .style('width',d => scaleWidth(d.sum) + 'px') 
+                                    .style('width',d => scaleWidth(d.sum) + '%') 
                             })   
                     },update => {
                         update.selectAll('.category-flex')
@@ -2022,7 +2038,7 @@ function GraphSection (props) {
                                         const max = scaleWidth(d.sum) / 6
                                         return max < 2 ? '' : d.code.length > max ? d.code.substring(0,max) : d.code
                                     })
-                                    .style('width',d => scaleWidth(d.sum) + 'px') 
+                                    .style('width',d => scaleWidth(d.sum) + '%') 
                                     .style('height','18px')
                                     .style('font-size','8px')
                                     .on('mouseover',(e,d) => {
@@ -2052,9 +2068,33 @@ function GraphSection (props) {
                                     })
                                     .on('click',(e,d)=>filterSelect(d.id,'source'))
                                     .transition()
-                                    .style('width',d => scaleWidth(d.sum) + 'px') 
+                                    .style('width',d => scaleWidth(d.sum) + '%') 
                             }) 
                     })
+                sourceViz.selectAll('.category')
+                    .sort((a, b) => d3.descending(a.total, b.total))
+
+                
+                const axis = sourceViz.selectAll('.source-axis')
+                    .data(maxCategorySum > 0 ? [maxCategorySum] : [])
+                    .join(enter => {
+                        const div = enter.append('div').classed('source-axis num', true)
+                        div.append('p').classed('source-axis-label', true).style('margin', 0)
+                        div.append('div').classed('source-axis-tick', true)
+                        return div
+                    })
+                axis.lower()
+                    .style('width', '100%')
+                    .style('box-sizing', 'border-box')
+                    .style('text-align', 'right')
+                    .style('font-size', '8px')
+                    .style('color', '#9597a6')
+                axis.select('.source-axis-label')
+                    .text(d => abbreviateNumber(d))
+                axis.select('.source-axis-tick')
+                    .style('height', '4px')
+                    .style('border-right', '1px solid #c9c9d5')
+
                 const sourceSelections = !graphFilter.source.includes(-1) && !allSources.filter(s => s.sum > 0).map(s => s.id).every(id => graphFilter.source.includes(id)) ? graphFilter.source.map(id => allSources.find(d => d.id === id).code) : ['All']
                 d3.select('#header-sources').classed('dropdownHeader-flexPadding',!sourceSelections.includes('All') ? true : false)
                 const selections = d3.select('#source-selections')
@@ -2099,7 +2139,7 @@ function GraphSection (props) {
             if (containerWidth < window.innerWidth*0.4 || graphSectionWidth === '40vw') d3.select('#graph-filters').style('display','none')
             else d3.select('#graph-filters').style('display','flex')
             if (countType === 'record') {
-                const chartMargin = { top: 20, right: 0, bottom: 60, left: 50 }
+                const chartMargin = { top: 0, right: 0, bottom: 60, left: 50 }
                 document.getElementById("graph-group").style.height = fullHeight - filterHeight - margin + 'px'
                 const containerHeight = document.getElementById('graph-group').clientHeight - (document.getElementById('graph-group').clientHeight * 0.15 - margin) - (margin*2)
                 document.getElementById("graph-labels").style.maxHeight = document.getElementById('graph-group').clientHeight * 0.15 - margin + 'px'
@@ -2133,7 +2173,7 @@ function GraphSection (props) {
     // PERSON COUNTS
     useEffect(() => {
         if (countType === 'person') {
-            if (personData.length > 0) {
+            if (personData && personData.length > 0) {
                 const fullHeight = document.getElementById('graph-section-container').clientHeight 
                 const filterHeight = document.getElementById('graph-filters').clientHeight + document.getElementById('year-filter').clientHeight + (margin*2)
                 const containerWidth = document.getElementById('graph-section').clientWidth
@@ -2152,7 +2192,7 @@ function GraphSection (props) {
     // PREVALENCE / INCIDENCE 
     useEffect(() => {
         if (countType === 'prevalence' || countType === 'incidence') {
-            const chartMargin = { top: 20, right: 0, bottom: 60, left: 50 }
+            const chartMargin = { top: 0, right: 0, bottom: 60, left: 50 }
             const fullHeight = document.getElementById('graph-section-container').clientHeight
             const filterHeight = 150 + margin
             const containerWidth = document.getElementById('graph-section').clientWidth
@@ -2612,7 +2652,7 @@ function GraphSection (props) {
                             </div>
                         </div> 
 
-                        <div className = "filterContainerVert" id = "source-container" style = {{display: filterData.source ? filterData.source.length === 0 ? 'none' : 'flex' : 'none',borderRight:'none'}}>
+                        <div className = "filterContainerVert" id = "source-container" style = {{display: filterData.source ? filterData.source.length === 0 ? 'none' : 'flex' : 'none',borderRight:'none',flexGrow:1}}>
                             <div className = {`btn flex ${!graphFilter.source.includes(-1) ? "filterActive" : ""}`} onMouseEnter = {()=>d3.select('#reset-source').style('color','#9597a6')} onMouseLeave = {()=>d3.select('#reset-source').style('color','#c9c9d5')} style = {{padding: '4px 8px 4px 8px',borderRadius: '4px',marginBottom:4}}  
                                 onClick = {() => {
                                     setGraphFilter(prev => ({
@@ -2623,8 +2663,8 @@ function GraphSection (props) {
                                 <p className = 'filterLabel'>Visit type</p>
                                 <FontAwesomeIcon style = {{display: !graphFilter.source.includes(-1) ? 'block' : 'none'}} className = "resetFilter fa-solid icon" id = "reset-source" icon={faX} />    
                             </div>
-                            <div className = "filterFlex" style = {{alignItems:'flex-start'}}>
-                                <div className = "filter-viz filterFlex" id = "source-viz" style = {{alignItems:'flex-start'}}></div>
+                            <div className = "filterFlex" style = {{width:'100%',alignItems:'flex-start'}}>
+                                <div className = "filter-viz filterFlex" id = "source-viz" style = {{width:'100%',alignItems:'flex-start'}}></div>
                                 <div className = 'dropdownContainer' id = "source-collapsed" style = {{visibility:'hidden',height:0}}>
                                     <div className = "dropdownHeader btn" id = "header-sources" 
                                         onClick = {() => {

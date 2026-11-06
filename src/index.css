@@ -1324,13 +1324,21 @@ textarea:focus {
   left: 3.2px;
   top: 2.45px;
   background-color: white;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
   border-radius: 50%;
   transition: 0.2s;
 }
 input:checked + .rootline-slider {
-  background-color: #9f9fae;
+  background-color: white;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.04),
+    0 1px 3px rgba(0, 0, 0, 0.12),
+    0 4px 10px rgba(0, 0, 0, 0.08);
 }
 input:checked + .rootline-slider::before {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.25),
+    0 2px 6px rgba(0, 0, 0, 0.15);
   transform: translateX(12px);
 }
 #rootline-container {
@@ -1406,7 +1414,7 @@ input:checked + .rootline-slider::before {
   border-bottom: 1.5px solid #f2f2f4;
 }
 #graph-container {
-  padding: 20px;
+  padding: 0.75em 20px 0.75em 20px;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -1584,11 +1592,13 @@ input:checked + .rootline-slider::before {
   flex-direction: column;
   align-items: flex-start;
   justify-content: flex-start;
+  width: 100%;
 }
 .toggle-container, .category {
   display: flex;
   align-items: center;
   justify-content: flex-start;
+  width: 100%;
 }
 /* .toggle {
   padding-bottom: 3px;
