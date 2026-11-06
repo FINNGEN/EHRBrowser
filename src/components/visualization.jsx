@@ -171,6 +171,8 @@ function Visualization (props) {
 
     // tooltip
     function showTooltipPreview(d, event) {
+        clearHideTimer()    
+        setVisible(false)     
         previewNodeRef.current = d;
         previewEventRef.current = event;
 
@@ -580,6 +582,7 @@ function Visualization (props) {
                 prevalenceData = {prevalenceData}
                 incidenceData = {incidenceData}
                 resetRef = {props.resetRef}
+                drawnGroup = {props.drawnGroup}
             ></GraphSection>
         </div> : null
     )

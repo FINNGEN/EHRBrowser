@@ -259,14 +259,16 @@ function App() {
   const resetRef = useRef(false)
   const prevCountType = useRef(countType)
 
-  useEffect(() => {
-    if (prevCountType.current !== countType) {
-      if ((prevCountType.current === 'person' || prevCountType.current === 'prevalence') && (countType === 'person' || countType === 'prevalence')) return
-      if ((prevCountType.current === 'record' || prevCountType.current === 'measurement') && (countType === 'record' || countType === 'measurement')) return
-      resetRef.current = true
-      prevCountType.current = countType
-    }
-  }, [countType])
+  const drawnGroup = useRef(null)
+
+  // useEffect(() => {
+  //   if (prevCountType.current !== countType) {
+  //     if ((prevCountType.current === 'person' || prevCountType.current === 'prevalence') && (countType === 'person' || countType === 'prevalence')) return
+  //     if ((prevCountType.current === 'record' || prevCountType.current === 'measurement') && (countType === 'record' || countType === 'measurement')) return
+  //     resetRef.current = true
+  //     prevCountType.current = countType
+  //   }
+  // }, [countType])
 
   // GRAPH FILTER DATA
   useEffect(() => {
@@ -286,6 +288,7 @@ function App() {
           let ageSums = []
           ages.forEach(a => selectedConcepts.forEach(d => ageSums.push({id: a, sum: d.leaf ? getCounts(d.data.descendant_code_counts.filter(e => (e.calendar_year >= extent[0] && e.calendar_year <= extent[1])).filter(e => e.age_decile === a),'node_record_counts') : getCounts(d.data.code_counts.filter(e => (e.calendar_year >= extent[0] && e.calendar_year <= extent[1])).filter(e => e.age_decile === a),'node_record_counts')})))
           ages.forEach(a => ageDataVar.push({id:a, sum: d3.sum(ageSums.filter(d => d.id === a).map(d => d.sum))}))
+          ageDataVar = ageDataVar.sort((a,b) => a.id - b.id)
           // source 
           let sourceSums = []
           visitTypeNames.forEach(obj => selectedConcepts.forEach(d => sourceSums.push({id: obj.visitGroupConceptId,sum: d.leaf ? getCounts(d.data.descendant_code_counts.filter(e => (e.calendar_year >= extent[0] && e.calendar_year <= extent[1])).filter(e => getVisitGroupConceptId(e) === obj.visitGroupConceptId),'node_record_counts') : getCounts(d.data.code_counts.filter(e => (e.calendar_year >= extent[0] && e.calendar_year <= extent[1])).filter(e => getVisitGroupConceptId(e) === obj.visitGroupConceptId),'node_record_counts')})))
@@ -296,7 +299,7 @@ function App() {
             .map(d => ({id:d.visitGroupConceptId,code:d.conceptCode,name:d.conceptName,sum:d3.sum(sourceSums.filter(s => s.id === d.visitGroupConceptId).map(s => s.sum))}))
           if (otherCodes.length > 0) sourceDataVar.push({key:'Other',codes:otherCodes})
           const sorted = sourceDataVar.map(obj => ({...obj,codes:obj.codes.sort((a,b) => a.sum - b.sum)}))
-          setFilterData({gender:genderDataVar,age:ageDataVar,source:sorted})
+          setFilterData({gender:genderDataVar,age:ageDataVar,source:sorted,countType})
         } 
         else if ((countType === 'person' || countType === 'prevalence' || countType === 'incidence') && personFilterData) {
           if (personFilterData.length > 0) {
@@ -304,6 +307,7 @@ function App() {
             genderDataVar = personFilterData.filter(f => f.filter === 'sex').map(f => ({id:f.stratum,sum:f.person_counts})) 
             // age
             ageDataVar = personFilterData.filter(f => f.filter === 'age').map(f => ({id:f.stratum,sum:f.person_counts}))
+            ageDataVar = ageDataVar.sort((a,b) => a.id - b.id)
             // source
             const filterList = personFilterData.filter(f => f.filter === 'visit').map(f => ({id:f.stratum,code:visitTypeNames.find(n => n.visit_group_concept_id === f.stratum).concept_code,name:visitTypeNames.find(n => n.visit_group_concept_id === f.stratum).concept_name,sum:f.person_counts}))
             const byCategory = categories.map(obj => ({...obj,codes:filterList.filter(f => obj.codes.includes(f.code))}))
@@ -312,11 +316,11 @@ function App() {
             const otherCodes = filterList.filter(f => !categorizedCodes.has(f.code))
             if (otherCodes.length > 0) byCategory.push({key:'Other',codes:otherCodes})
             const sorted = byCategory.map(obj => ({...obj,codes:obj.codes.sort((a,b) => a.sum - b.sum)}))
-            setFilterData({gender:genderDataVar,age:ageDataVar,source:sorted})
+            setFilterData({gender:genderDataVar,age:ageDataVar,source:sorted,countType})
           }
         }
       } 
-    } else setFilterData({gender:[],age:[],source:[]})
+    } else setFilterData({gender:[],age:[],source:[],countType})
   }, [filteredCounts,personFilterData,extent,countType])
 
   const maxGender = useMemo(() => {if (filterData.gender && filterData.gender.length > 0) return filterData.gender.reduce((max, obj) => obj.sum > max.sum ? obj : max).id},[filterData.gender])
@@ -1811,6 +1815,7 @@ function App() {
               prevalenceData = {prevalenceData}
               incidenceData = {incidenceData}
               resetRef = {resetRef}
+              drawnGroup = {drawnGroup}
             />      
           } />
         </Routes>

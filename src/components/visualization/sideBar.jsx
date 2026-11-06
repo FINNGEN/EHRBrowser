@@ -109,35 +109,35 @@
         let currentTarget = null
         const zoomRef = useRef(null)
         const neighborhoodRef = useRef([])
+        const fitScaleRef = useRef(1)      
+        const treeZoomedRef = useRef(false) 
+        const fittingRef = useRef(false)   
+        const minimapLockedRef = useRef(false)
+        const MINIMAP_MAX_K = 0.3
+        const FIT_TOLERANCE = 1.02 
+        const lockScaleRef = useRef(1)
 
         // TREE AND LIST FUNCTIONS  
         function getContrastColor(nodeColor) {
             const whiteContrast = chroma.contrast(nodeColor, '#ffffff')
             const blackContrast = chroma.contrast(nodeColor, '#36126d')
             return whiteContrast >= blackContrast ? '#ffffff' : '#36126d'
-        }  
-        // function getContrastColor(bgColor) {
-        //     const bg = chroma(bgColor)
-        //     const [h, s, l] = bg.hsl()
-        //     const targetL = l > 0.5 ? 0.15 : 0.9
-        //     const targetS = s * 0.6
-        //     return chroma.hsl(h, targetS, targetL).hex()
-        // }    
-        function getYPosition(source, axis, cy, node) {
-            const mappings = nodes.filter(n => n.name === source.name)[0].mappings
-            const direction = mappings.filter(d => d.name === node.name)[0].direction
-            const generation = countType === 'record' ? mappings.filter(d => d.direction === direction).sort((a,b) => b.record_counts - a.record_counts) : mappings.filter(d => d.direction === direction).sort((a,b) => b.person_counts - a.person_counts)
-            const index = generation.map(d => d.name).indexOf(node.name) 
-            let gap = 0
-            gap = !mapRoot.includes(source.name) ? 10 : 150
-            // else gap = (d3.select("#tree").node().getBoundingClientRect().height/generation.length)/15 + 5
-            const adjustment = generation.length % 2 !== 0 ? 0 : gap/2
-            const median = Math.floor(generation.length/2) 
-            let position = 0
-            if (index >= median) position = cy + ((index - median) * gap) + adjustment
-            else position = cy - ((median - index) * gap) + adjustment
-            return position
-        }  
+        }     
+        // function getYPosition(source, axis, cy, node) {
+        //     const mappings = nodes.filter(n => n.name === source.name)[0].mappings
+        //     const direction = mappings.filter(d => d.name === node.name)[0].direction
+        //     const generation = countType === 'record' ? mappings.filter(d => d.direction === direction).sort((a,b) => b.record_counts - a.record_counts) : mappings.filter(d => d.direction === direction).sort((a,b) => b.person_counts - a.person_counts)
+        //     const index = generation.map(d => d.name).indexOf(node.name) 
+        //     let gap = 0
+        //     gap = !mapRoot.includes(source.name) ? 10 : 150
+        //     // else gap = (d3.select("#tree").node().getBoundingClientRect().height/generation.length)/15 + 5
+        //     const adjustment = generation.length % 2 !== 0 ? 0 : gap/2
+        //     const median = Math.floor(generation.length/2) 
+        //     let position = 0
+        //     if (index >= median) position = cy + ((index - median) * gap) + adjustment
+        //     else position = cy - ((median - index) * gap) + adjustment
+        //     return position
+        // }  
         function hoverMappings(d,mode) {
             if (mode === 'enter') {
                 d3.select('#mappings-btn-'+d.name).transition().style('opacity',1)
@@ -147,12 +147,100 @@
                 d3.selectAll('.map-circle-'+d.name).transition().attr("transform", "translate(0, 0)")
             }
         }
+
+        function setZoomedState(on) {
+            if (on === treeZoomedRef.current) return
+            treeZoomedRef.current = on
+            if (on) {
+                // close the minimap and its collapsed tab, drop any pending hide/hover state
+                clearTimeout(hideTimerRef.current)
+                d3.select('#minimap-container').style('display', 'none')
+                d3.select('#minimap-tab').style('display', 'none')
+                setZoomedNodes([])
+                setZoomedLinks([])
+                setFocused(null)
+            } else if (miniCollapsedRef.current) {
+                // back at fit: restore the tab if the user had collapsed the minimap themselves
+                d3.select('#minimap-tab').style('display', 'flex').style('opacity', 1)
+            }
+        }
+
+        function syncZoomState(k, userInitiated = false) {
+            const fit = fitScaleRef.current
+            const nearFit = k <= fit * FIT_TOLERANCE
+
+           const UNLOCK_FACTOR = 0.65
+            if (userInitiated && minimapLockedRef.current &&
+                (nearFit || k < lockScaleRef.current * UNLOCK_FACTOR)) {
+                minimapLockedRef.current = false
+            }
+
+            // button: any zoom-in, plus right after a minimap zoom
+            d3.select('#zoom-to-fit').style('display', !nearFit || minimapLockedRef.current ? 'block' : 'none')
+
+            // minimap: locked, or zoomed in far enough that it isn't needed
+            const tooClose = k > Math.max(MINIMAP_MAX_K, fit * 1.5)
+            setZoomedState(minimapLockedRef.current || tooClose)
+        }
         function zoomed(e) {
             const {x,y,k} = e.transform
             d3.select("#tree-graphics").attr("transform", "translate(" + x + "," + y + ")" + " scale(" + k + ")");
             if (e.sourceEvent) d3.select('#neighborhood-outline').remove()
+            d3.selectAll('.line-path').attr('stroke-width',1.5 + (1.2/k))
+            const THRESHOLD = 0.16
+            const BOOST = 1.1
+            const scale = Math.min(6 * BOOST, BOOST * Math.sqrt(THRESHOLD / k)) 
+            const LABEL_FULL = 0.5      
+            const LABEL_MAX_K = 4       
+            const LABEL_HIDE = 0.14
+            const labelK = Math.min(LABEL_MAX_K, Math.max(1, LABEL_FULL / k))
+            if (k < LABEL_HIDE) {
+                d3.selectAll('.label').attr('visibility', 'hidden')
+                d3.selectAll('.map-label').attr('visibility', 'hidden')
+            } else {
+                d3.selectAll('.label')
+                    .attr('visibility', 'visible')
+                    .style('transform-box', 'fill-box')
+                    .style('transform-origin', '50% 100%') 
+                    .attr('transform', labelK > 1 ? `scale(${labelK})` : null)
+                d3.selectAll('.map-label').attr('visibility', 'visible')
+                // if (relationship === 'mappings') {
+                    d3.selectAll('.map-label')
+                        .attr('visibility', 'visible')
+                        .style('transform-box', 'fill-box')
+                        .style('transform-origin', '50% 100%') 
+                        .attr('transform', labelK > 1 ? `scale(${labelK})` : null)    
+                // }
+            }
+            if (k < THRESHOLD) {
+                d3.selectAll('.map-drc-group').attr('visibility','hidden')
+                d3.selectAll('.drc-group').attr('visibility','hidden')
+                d3.selectAll('.node-group')
+                    .style('transform-box', 'fill-box')
+                    .style('transform-origin', 'center')
+                    .attr('transform', `scale(${scale})`)
+                if (relationship === 'mappings') {
+                    d3.selectAll('.map-tree-circle')
+                        .style('transform-box', 'fill-box')
+                        .style('transform-origin', 'center')
+                        .attr('transform', `scale(${scale})`)    
+                }
+            } else {
+                d3.selectAll('.map-drc-group').attr('visibility','visible')
+                d3.selectAll('.drc-group').attr('visibility','visible')
+                d3.selectAll('.node-group')
+                    .attr('transform', null)
+                    .style('transform-box', null)
+                    .style('transform-origin', null)   
+                d3.selectAll('.map-tree-circle')
+                    .attr('transform', null)
+                    .style('transform-box', null)
+                    .style('transform-origin', null) 
+            }
+            if (!fittingRef.current) syncZoomState(k, !!e.sourceEvent)
         }
         function zoomToFit(geometry, padding = 20) {
+            minimapLockedRef.current = false
             d3.select('#neighborhood-outline').remove()
             d3.select('#zoom-to-fit').style('display','none')
             const svgNode = d3.select('#tree-container').node()
@@ -179,6 +267,68 @@
 
             d3.select('#tree-graphics').transition()
                 .attr("transform", `translate(${translateX},${translateY}) scale(${scale})`)
+            d3.selectAll('.line-path').attr('stroke-width',1.5 + (1.2/scale))
+            const THRESHOLD = 0.16
+            const BOOST = 1.1
+            const k = Math.min(6 * BOOST, BOOST * Math.sqrt(THRESHOLD / scale)) 
+            const LABEL_FULL = 0.5      
+            const LABEL_MAX_K = 4       
+            const LABEL_HIDE = 0.14
+            const labelK = Math.min(LABEL_MAX_K, Math.max(1, LABEL_FULL / scale))
+            if (scale < LABEL_HIDE) {
+                d3.selectAll('.label').attr('visibility', 'hidden')
+                d3.selectAll('.map-label').attr('visibility', 'hidden')
+            } else {
+                d3.selectAll('.label')
+                    .attr('visibility', 'visible')
+                    .style('transform-box', 'fill-box')
+                    .style('transform-origin', '50% 100%') 
+                    .attr('transform', labelK > 1 ? `scale(${labelK})` : null)
+                d3.selectAll('.map-label').attr('visibility', 'visible')
+                // if (relationship === 'mappings') {
+                    d3.selectAll('.map-label')
+                        .attr('visibility', 'visible')
+                        .style('transform-box', 'fill-box')
+                        .style('transform-origin', '50% 100%') 
+                        .attr('transform', labelK > 1 ? `scale(${labelK})` : null)    
+                // }
+            }
+            if (scale < THRESHOLD) {
+                d3.selectAll('.map-drc-group').attr('visibility','hidden')
+                d3.selectAll('.drc-group').attr('visibility','hidden')
+                d3.selectAll('.node-group')
+                    .style('transform-box', 'fill-box')
+                    .style('transform-origin', 'center')
+                    .attr('transform', `scale(${k})`)
+                if (relationship === 'mappings') {
+                    d3.selectAll('.map-tree-circle')
+                        .style('transform-box', 'fill-box')
+                        .style('transform-origin', 'center')
+                        .attr('transform', `scale(${k})`)    
+                }
+            } else {
+                d3.selectAll('.map-drc-group').attr('visibility','visible')
+                d3.selectAll('.drc-group').attr('visibility','visible')
+                d3.selectAll('.node-group')
+                    .attr('transform', null)
+                    .style('transform-box', null)
+                    .style('transform-origin', null)   
+                d3.selectAll('.map-tree-circle')
+                    .attr('transform', null)
+                    .style('transform-box', null)
+                    .style('transform-origin', null) 
+            }
+            const MAX_ZOOM = 4
+            fitScaleRef.current = scale
+            fittingRef.current = true
+            zoomRef.current.scaleExtent([scale, MAX_ZOOM])
+            const t = d3.zoomIdentity.translate(translateX, translateY).scale(scale)
+            d3.select('#tree').transition().duration(750)
+                .call(zoomRef.current.transform, t)
+                .on('end interrupt', () => {
+                    fittingRef.current = false
+                    syncZoomState(d3.zoomTransform(d3.select('#tree').node()).k)
+                })
         }
         // bounding box of the neighborhood nodes, in #tree-graphics coordinates
         function getNeighborhoodBounds(pad = 24) {
@@ -254,17 +404,23 @@
                 (region.width - padding * 2) / r.width,
                 (region.height - padding * 2) / r.height
             )
+            lockScaleRef.current = scale
             const tx = region.x + region.width / 2 - (r.x + r.width / 2) * scale
             const ty = region.y + region.height / 2 - (r.y + r.height / 2) * scale
-
             // sync d3.zoom with the transform currently on #tree-graphics
+            // const m = gNode.transform.baseVal.consolidate()?.matrix
+            // if (m) svg.call(zoomRef.current.transform, d3.zoomIdentity.translate(m.e, m.f).scale(m.a)
+            // svg.transition().duration(duration)
+            //     .call(zoomRef.current.transform, d3.zoomIdentity.translate(tx, ty).scale(scale))
+            // d3.select('#zoom-to-fit').style('display','block')
             const m = gNode.transform.baseVal.consolidate()?.matrix
-            if (m) svg.call(zoomRef.current.transform, d3.zoomIdentity.translate(m.e, m.f).scale(m.a))
-
+            if (m) {
+                fittingRef.current = true
+                svg.call(zoomRef.current.transform, d3.zoomIdentity.translate(m.e, m.f).scale(m.a))
+                fittingRef.current = false
+            }
             svg.transition().duration(duration)
                 .call(zoomRef.current.transform, d3.zoomIdentity.translate(tx, ty).scale(scale))
-            
-            d3.select('#zoom-to-fit').style('display','block')
             setTimeout(() => {
                 d3.select('#neighborhood-outline').transition().style('opacity',0)
             }, 1000)
@@ -278,6 +434,8 @@
             if (!target || !gNode || !miniEl) return
 
             d3.select('#neighborhood-outline').remove()
+            minimapLockedRef.current = true
+            setZoomedState(true)
 
             // the minimap card's on-screen box, converted into #tree-graphics coordinates
             const mm = miniEl.getBoundingClientRect()
@@ -741,6 +899,46 @@
                 else mapPosition.y = d.person_counts > 0 ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) - scaleRadius(Math.sqrt(d.person_counts)) - 7 : getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) - scaleRadius(Math.sqrt(d.person_counts)) - 9
                 return mapPosition
             }
+
+            const MAX_COLLAPSED = 5
+            const CIRCLE_GAP = 10
+            const bindMappings = node => {
+                const key = countType === 'record' ? 'record_counts' : 'person_counts'
+                d3.group(node.mappings, m => m.direction).forEach(group => {
+                    const sorted = [...group].sort((a, b) => b[key] - a[key])
+                    sorted.forEach((m, i) => {
+                        m._idx = i
+                        m._count = sorted.length   // per direction
+                        m._siblings = sorted
+                    })
+                })
+                return node.mappings
+            }
+            const isMapVisible = d => mapRoot.includes(d.source.name) || d._idx < MAX_COLLAPSED
+            const isCountAnchor = d =>
+                !mapRoot.includes(d.source.name) && d._idx === Math.min(d._count, MAX_COLLAPSED) - 1
+            const countText = d => d._count + (d._count === 1 ? ' mapping' : ' mappings')
+            const countY = d => getYPosition(d.source, 'y', cy + genHeight[d.distance], d) + 24
+
+            function getYPosition(source, axis, cy, node) {
+                const mappings = nodes.filter(n => n.name === source.name)[0].mappings
+                const direction = mappings.filter(d => d.name === node.name)[0].direction
+                const generation = countType === 'record'
+                    ? mappings.filter(d => d.direction === direction).sort((a,b) => b.record_counts - a.record_counts)
+                    : mappings.filter(d => d.direction === direction).sort((a,b) => b.person_counts - a.person_counts)
+                const index = generation.map(d => d.name).indexOf(node.name)
+
+                const collapsed = !mapRoot.includes(source.name)
+                const n = collapsed ? Math.min(generation.length, MAX_COLLAPSED) : generation.length
+                const gap = collapsed ? CIRCLE_GAP : 150
+
+                const adjustment = n % 2 !== 0 ? 0 : gap / 2
+                const median = Math.floor(n / 2)
+                return index >= median
+                    ? cy + ((index - median) * gap) + adjustment
+                    : cy - ((median - index) * gap) + adjustment
+            }
+
             // DRAW LINKS
             function updateLinks() {
                 d3.select('#links').selectAll('.tree-link').data(links, d => d.source.name+d.target.name)
@@ -944,7 +1142,8 @@
                 sel.on('mouseenter', function (e, d) {
                     const el = this
                     el.__hoverTimeout__ = setTimeout(() => {
-                        cancelMinimapHide()   // a pending hide must not close the new minimap
+                        if (treeZoomedRef.current) return
+                        cancelMinimapHide()
                         if (relationship === 'mappings') {
                             setZoomedNodes([d, ...d.mappings])
                         } else {
@@ -968,11 +1167,12 @@
                         const geometry = enter.append('g')
                             .classed('tree-node', true)
                             .attr('id', d => 'tree-node-'+d.name)
-                        geometry.selectAll(".map-node").data(d => d.mappings, d => d.name+d.source.name)
+                        geometry.selectAll(".map-node").data(d => bindMappings(d), d => d.name + d.source.name)
                         //Mappings
                         .join(enter => {
                             const geometry = enter.append('g')
                                 .classed('map-node',true)
+                                .style('display', d => isMapVisible(d) ? null : 'none')
                             const mapNode = geometry.append('g')
                                 .classed('map-node-main btn', true)
                                 .attr('id', d => 'map-node-'+d.name)
@@ -1001,7 +1201,7 @@
                             mapLine.append('path')
                                 .classed('map-tree-arrow', true)
                                 .attr('id', d => 'map-arrow-'+d.name)
-                                .attr('fill', d => d.source.mappings?.map(d => d.name).some(name => inclusions.includes(name)) ? '#c2c2c2' : '#e8e8e8')
+                                .attr('fill', d => d._siblings.some(m => inclusions.includes(m.name)) ? '#c2c2c2' : '#e8e8e8')
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x 
@@ -1062,6 +1262,17 @@
                                 .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
                                 .style('pointer-events', d => mapRoot.includes(d.source.name) ? 'none' : 'all')
                                 .raise()
+                            mapNode.append('text')
+                                .classed('map-count-label num', true)
+                                .attr('text-anchor', 'middle')
+                                .attr('fill', '#36126d')
+                                .style('font-size', '9px')
+                                .style('opacity', 0.6)
+                                .style('pointer-events', 'none')
+                                .style('display', d => isCountAnchor(d) ? 'block' : 'none')
+                                .text(countText)
+                                .attr('x', d => getMap(d).x)
+                                .attr('y', countY)
                             const mapGroup = mapNode.append('g')
                                 .classed('map-group',true)
                                 .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
@@ -1202,6 +1413,8 @@
                                 })
                                 .raise()
                         }, update => {
+                            update
+                                .style('display', d => isMapVisible(d) ? null : 'none')
                             update.select('.map-node-main')
                                 .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.4 : 1)
                             update.select('.map-link')
@@ -1219,7 +1432,7 @@
                                     return curveX({source: [sourceX, sourceY], target: [targetX, targetY]})}
                                 )
                             update.select('.map-tree-arrow')
-                                .attr('fill', d => d.source.mappings?.map(d => d.name).some(name => inclusions.includes(name)) ? '#c2c2c2' : '#e8e8e8')
+                                .attr('fill', d => d._siblings.some(m => inclusions.includes(m.name)) ? '#c2c2c2' : '#e8e8e8')
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x 
@@ -1293,6 +1506,11 @@
                                 })
                                 .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
                                 .style('pointer-events', d => mapRoot.includes(d.source.name) ? 'none' : 'all')
+                            update.select('.map-count-label')
+                                .style('display', d => isCountAnchor(d) ? 'block' : 'none')
+                                .text(countText)
+                                .attr('x', d => getMap(d).x)
+                                .attr('y', countY)
                             update.select('.map-group')
                                 .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
                             update.select('.map-total-counts')
@@ -1820,11 +2038,12 @@
                         d3.selectAll('.prune-curve').lower()
                         return geometry 
                     }, update => {
-                        update.selectAll(".map-node").data(d => d.mappings, d => d.name+d.source.name)
+                        update.selectAll(".map-node").data(d => bindMappings(d), d => d.name + d.source.name)
                         //Mappings
                         .join(enter => {
                             const geometry = enter.append('g')
                                 .classed('map-node',true)
+                                .style('display', d => isMapVisible(d) ? null : 'none')
                             const mapNode = geometry.append('g')
                                 .classed('map-node-main btn', true)
                                 .attr('id', d => 'map-node-'+d.name)
@@ -1853,7 +2072,7 @@
                             mapLine.append('path')
                                 .classed('map-tree-arrow', true)
                                 .attr('id', d => 'map-arrow-'+d.name)
-                                .attr('fill', d => d.source.mappings?.map(d => d.name).some(name => inclusions.includes(name)) ? '#c2c2c2' : '#e8e8e8')
+                                .attr('fill', d => d._siblings.some(m => inclusions.includes(m.name)) ? '#c2c2c2' : '#e8e8e8')
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x 
@@ -1914,6 +2133,17 @@
                                 .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
                                 .style('pointer-events', d => mapRoot.includes(d.source.name) ? 'none' : 'all')
                                 .raise()
+                            mapNode.append('text')
+                                .classed('map-count-label num', true)
+                                .attr('text-anchor', 'middle')
+                                .attr('fill', '#36126d')
+                                .style('font-size', '9px')
+                                .style('opacity', 0.6)
+                                .style('pointer-events', 'none')
+                                .style('display', d => isCountAnchor(d) ? 'block' : 'none')
+                                .text(countText)
+                                .attr('x', d => getMap(d).x)
+                                .attr('y', countY)
                             const mapGroup = mapNode.append('g')
                                 .classed('map-group',true)
                                 .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
@@ -2054,6 +2284,8 @@
                                 })
                                 .raise()
                         }, update => {
+                            update
+                                .style('display', d => isMapVisible(d) ? null : 'none')
                             update.select('.map-node-main')
                                 .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.4 : 1)
                             update.select('.map-link')
@@ -2071,7 +2303,7 @@
                                     return curveX({source: [sourceX, sourceY], target: [targetX, targetY]})}
                                 )
                             update.select('.map-tree-arrow')
-                                .attr('fill', d => d.source.mappings?.map(d => d.name).some(name => inclusions.includes(name)) ? '#c2c2c2' : '#e8e8e8')
+                                .attr('fill', d => d._siblings.some(m => inclusions.includes(m.name)) ? '#c2c2c2' : '#e8e8e8')
                                 .attr("d", d3.symbol().type(d3.symbolTriangle).size(arrowSize))
                                 .attr("transform", d => {
                                     let x 
@@ -2145,6 +2377,11 @@
                                 })
                                 .style('opacity', d => hovered.length > 0 && !hovered.includes(d.name) ? 0.2 : 1)
                                 .style('pointer-events', d => mapRoot.includes(d.source.name) ? 'none' : 'all')
+                            update.select('.map-count-label')
+                                .style('display', d => isCountAnchor(d) ? 'block' : 'none')
+                                .text(countText)
+                                .attr('x', d => getMap(d).x)
+                                .attr('y', countY)
                             update.select('.map-group')
                                 .style('display', d => mapRoot.includes(d.source.name) ? 'block' : 'none')
                             update.select('.map-total-counts')
@@ -6089,6 +6326,7 @@
                 console.log('nodes',nodes)
                 if (view === 'tree') {
                     const zoom = d3.zoom()
+                        .scaleExtent([0.01, 4])
                         .on('start', () => d3.select('#tree-graphics').style('pointer-events', 'none'))
                         .on('zoom', zoomed)
                         .on('end', () => d3.select('#tree-graphics').style('pointer-events', 'all'))
@@ -6471,7 +6709,7 @@
                                         </g>
                                     </g>
                                 </svg>
-                                <button className="minimap-zoom btn greyBtn" onClick={() => {zoomToNeighborhood();collapseMinimap()}}>Zoom</button>
+                                <button className="minimap-zoom btn greyBtn" onClick={zoomToNeighborhood}>Zoom</button>
                                 <button className="minimap-collapse btn" title="Collapse" onClick={() => {collapseMinimap();setZoomClosed(true)}}>
                                     <FontAwesomeIcon icon={faCaretRight} />
                                 </button>
