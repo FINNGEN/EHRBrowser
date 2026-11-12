@@ -42,23 +42,26 @@ only when the user asks.
 ### Page state
 
 ```bash
-playwright-cli -s=ehr --raw eval "() => { const vis = e => !!e && getComputedStyle(e).display !== 'none' && getComputedStyle(e).visibility !== 'hidden'; return { conceptIds: location.pathname.slice(1).split(',').filter(Boolean), loading: location.pathname.length > 1 && [...document.querySelectorAll('.loading, .graphLoading')].some(vis), error: vis(document.getElementById('error-message')), active: [...document.querySelectorAll('.toggle-itm')].filter(e => e.style.fontWeight === '500').map(e => e.id), labValuesAvailable: vis(document.getElementById('measurement-toggle')) } }"
+playwright-cli -s=ehr --raw eval "() => { const vis = e => !!e && getComputedStyle(e).display !== 'none' && getComputedStyle(e).visibility !== 'hidden'; return { conceptIds: location.pathname.slice(1).split(',').filter(Boolean), loading: location.pathname.length > 1 && [...document.querySelectorAll('.loading, .graphLoading')].some(vis), error: vis(document.getElementById('error-message')), active: [...document.querySelectorAll('.toggle-itm')].filter(e => e.style.fontWeight === '500').map(e => e.id), labValuesAvailable: vis(document.getElementById('measurement-toggle')), unselectedFilters: [...document.querySelectorAll('[id^=geometry-].vizInactive')].map(e => e.id.replace('geometry-', '')) } }"
 ```
 
 `active` lists the selected toggles, e.g. `["descendants-toggle", "record-toggle", "set-toggle"]`.
+`unselectedFilters` lists the sex/age/visit-type values the user has switched off (empty = no filter); see Filters below.
 `loading` is always false on the start page (no concept open). `error: true` means the concept was not found or a request failed.
 
 ## Actions
 
 | Goal | Command |
 |---|---|
-| Search by name, code or id | `fill "#searchConcept" "asthma"`, then list the suggestions (below) |
+| Search by name, code or id | `fill "#searchConcept" "asthma"`, then list the suggestions (below). **When a concept is open the box is hidden:** `click "#searchBtn"` first, otherwise `fill` times out |
 | Open a concept from the suggestions | `click "#suggestion-<concept_id> .name-container"` |
 | Open a concept by id directly | `goto "$EHR_URL/<concept_id>"` |
 | Show several concepts together | `goto "$EHR_URL/<id1>,<id2>"` |
 | Show the tree | `click "#tree-toggle"` (Hierarchy); `#set-toggle` = Concept Set table, `#list-toggle` = List |
 | Descendants or Mappings | `click "#descendants-toggle"` / `click "#mappings-toggle"` |
 | Count type | `click "#record-toggle"`, `"#person-toggle"`, `"#prevalence-toggle"`, `"#incidence-toggle"`, `"#measurement-toggle"` (lab values; only if `labValuesAvailable`) |
+
+| Toggle a filter value | `click "#geometry-<value>"`: sex `8507` (male) / `8532` (female), age decile `0`-`9`, visit type `<visit_group_concept_id>` (e.g. `2002330250` PRIM_OUT). Clicking switches that value off or on |
 
 All commands are prefixed with `playwright-cli -s=ehr`.
 
@@ -100,7 +103,11 @@ Which request feeds which view:
 What the page requests by default:
 - Prevalence/incidence/person plots send **one token per concept shown, code only** (`317009S,4191479S,...`) for the full
   year range. So the root's series **excludes** its descendants. For "including descendants", re-call with `<id>SD`.
-- Descendants view sends standard concepts (`S` tokens); Mappings view sends the mapped source codes (`M` tokens).
+- Token letter depends on the concept, not the view: **standard** concepts (e.g. SNOMED) use `S`; **source / non-standard**
+  codes (ICD10, ICD9fi, ICPC, ...) use `M`. A wrong letter silently returns 0 persons (e.g. `45596282S` = 0, `45596282M` > 0).
+  Check `standard_concept` in `getConceptRelationships`, or copy the token the page used.
+- The page applies its **current filters** (`unselectedFilters` in the page state) to these requests. A fresh API call
+  without the same `sexStratum`/`ageStratum`/`visitStratum` gives different numbers: say which one you report.
 - Strata filters restrict both the numerator and the denominator (except visit type: numerator only). For a by-sex
   or by-age comparison, make **one call per stratum** (e.g. `sexStratum=8507`, then `sexStratum=8532`); each returns
   its own `observed_persons_counts`.

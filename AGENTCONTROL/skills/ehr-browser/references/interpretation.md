@@ -40,7 +40,9 @@ descendants) when a concept stands for its whole subtree. Always check the reque
 - **Tree counts vs person-level endpoints.** The tree's `record_counts`/`person_counts` come from the code-counts tables;
   prevalence, incidence, overlap and filter bars come from a separate person-level table. If they disagree by orders of
   magnitude (e.g. 190k persons in the tree vs a few thousand in the filter bars), say so explicitly, don't mix them in one
-  calculation, and ask the user which database is loaded (`getAPIInfo`): a test or partial database is the likely cause.
+  calculation, trust the **shape** of prevalence/incidence over time rather than their absolute level, and ask the user which database is loaded (`getAPIInfo`): a test or partial database is the likely cause.
+- **The black "Total Descendant Counts" line** in the record-counts plot is computed from unfiltered data: it ignores the
+  sex, age and visit-type filters, so it doesn't drop when a filter is switched off. That's expected, not a bug.
 - Counts in different views (Descendants vs Mappings, `S` vs `SD`) answer different questions; say which one you used.
 
 ## Useful analyses

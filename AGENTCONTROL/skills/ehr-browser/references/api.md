@@ -7,13 +7,26 @@ Results are memoised in the R process, so repeated calls are cheap. Counts are e
 ## `conceptIds` grammar (person-count endpoints)
 
 Comma-separated tokens `<conceptId><S|M><D?>`:
-- `S`: match the `concept_id` column; `M`: match the `maps_to_concept_id` column.
+- `S`: match the `concept_id` column; `M`: match the `maps_to_concept_id` column. In practice: use `S` for standard
+  concepts (SNOMED, ...) and `M` for source codes (ICD10, ICD9fi, ICPC, ...); the wrong letter returns 0 persons.
 - Trailing `D`: expand to the concept **and all its descendants** instead of the code alone.
 - Each token is its own series in the result, e.g. `317009SD,45596282M`.
 
 Common optional filters: `yearsRange=start,end`, `sexStratum=<gender_concept_id,...>` (8507 male, 8532 female),
 `ageStratum=<age_decile,...>` (0 = 0-9 years, 1 = 10-19, ...), `visitStratum=<visit_group_concept_id,...>`
-(see `getVisitTypeNames`).
+(see `getVisitTypeNames`; the FinnGen ids, set in `romopapi/runOmopApi.R`, are below).
+
+| visit_group_concept_id | Code | visit_group_concept_id | Code |
+|---|---|---|---|
+| 2002330246 | INPAT | 2002330245 | KANTA |
+| 2002330247 | OPER_IN | 2002330106 | BIOBANK |
+| 2002330248 | OPER_OUT | 2002330186 | KIDNEY |
+| 2002330249 | OUTPAT | 2002330119 | VISION |
+| 2002330250 | PRIM_OUT | 2002330105 | BIRTH_MOTHER |
+| 2002330102 | REIMB | 2002330251 | PRESCRIPTION |
+| 2002330104 | DEATH | 2002330252 | DELIVERY |
+| 2002330101 | PURCH | 2002330253 | PRESCRIPTION_DELIVERY |
+| 2002330103 | CANC | 2002330254 / 2002330255 | DELIVERY_KELA / PRESCRIPTION_DELIVERY_KELA |
 
 The easiest way to get a valid query is to copy the URL the page used (`playwright-cli -s=ehr requests`) and edit it.
 
