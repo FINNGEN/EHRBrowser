@@ -137,7 +137,7 @@ function App() {
   }
   useEffect(() => {
     trackApiRequests(API_BASE_URL)
-    window.ehrAgent = createEhrAgent(() => agentStateRef.current)
+    window.ehrAgent = createEhrAgent(() => agentStateRef.current, API_BASE_URL)
     return () => { delete window.ehrAgent }
   }, [API_BASE_URL])
   

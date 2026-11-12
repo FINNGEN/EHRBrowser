@@ -35,12 +35,16 @@ descendants) when a concept stands for its whole subtree. Always check the reque
   there, and a 1995-1997 discontinuity is expected. A code-only (`S`) series of one vocabulary can look like it starts or ends there.
 - **Visit type filter narrows the numerator only.** With a visit-type filter, prevalence and incidence = persons with the
   concept *in that register* / *all* observed persons, not a rate within the register.
+  For **incidence** precisely (ROMOPAPI SQL): a person counts in year Y if Y is their first year with the concept in **any**
+  register, **and** they have a record of it in a selected register in that year Y. Switching a register off therefore removes
+  people whose first year only had records in it; they are not counted later when they appear in another register.
 - **Recent years are incomplete** (registry lag); the denominator also drops in the last years. Don't read the final drop as a real decline.
 - **Small counts are exact and unsuppressed.** Fine to use inside the sandbox; never copy them outside.
 - **Tree counts vs person-level endpoints.** The tree's `record_counts`/`person_counts` come from the code-counts tables;
   prevalence, incidence, overlap and filter bars come from a separate person-level table. If they disagree by orders of
   magnitude (e.g. 190k persons in the tree vs a few thousand in the filter bars), say so explicitly, don't mix them in one
-  calculation, trust the **shape** of prevalence/incidence over time rather than their absolute level, and ask the user which database is loaded (`getAPIInfo`): a test or partial database is the likely cause.
+  calculation, trust the **shape** of prevalence/incidence over time rather than their absolute level, and tell the user. Round totals (e.g. exactly 1,000 persons per series) are a sign of a sample or test person-level table, even
+  when `getAPIInfo` names a real data freeze. Ask the user to confirm which person-level data is loaded.
 - **The black "Total Descendant Counts" line** in the record-counts plot is computed from unfiltered data: it ignores the
   sex, age and visit-type filters, so it doesn't drop when a filter is switched off. That's expected, not a bug.
 - Counts in different views (Descendants vs Mappings, `S` vs `SD`) answer different questions; say which one you used.

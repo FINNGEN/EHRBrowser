@@ -1,6 +1,6 @@
 # Plan: AI control of EHR Browser via Playwright + skills
 
-Status: **phases 1-2 done and tested** (local docker, headed Chrome); phases 3-6 to do. See `agent-notes.md` (same folder) for the repo inspection.
+Status: **phases 1-3 done and tested** (local docker + dev build, headed Chrome); phases 4-6 to do (interpretation references already partly written). See `agent-notes.md` (same folder) for the repo inspection.
 
 ## 1. Idea in one paragraph
 

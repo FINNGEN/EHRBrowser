@@ -106,7 +106,7 @@ describe('searchConcepts', () => {
 
 describe('createEhrAgent', () => {
   let snapshot
-  const agent = createEhrAgent(() => snapshot)
+  const agent = createEhrAgent(() => snapshot, 'http://localhost:8563/api/')
   beforeEach(() => {
     snapshot = {
       rootConcepts: [317009], treeData, nodes: [{ name: 317009 }], selectedConcepts: [{ name: 317009 }],
@@ -135,9 +135,16 @@ describe('createEhrAgent', () => {
     expect(agent.getData('tree').nodes.length).toBe(4)
     expect(() => agent.getData('nope')).toThrow(/unknown kind/)
     expect(agent.listData().find(d => d.kind === 'prevalence').rows).toBe(1)
-    expect(agent.getQuery()).toBe('conceptIds=317009S&yearsRange=1987,2024')
+    expect(agent.listData().find(d => d.kind === 'tree').rows).toBe(4)
+    expect(agent.getQuery()).toEqual({
+      endpoint: 'getPersonCountsPrevalence', query: 'conceptIds=317009S&yearsRange=1987,2024',
+      url: 'http://localhost:8563/api/getPersonCountsPrevalence?conceptIds=317009S&yearsRange=1987,2024'
+    })
+    expect(agent.getState().apiBaseUrl).toBe('http://localhost:8563/api')
     snapshot.getQueryString = () => { throw new Error('no extent yet') }
-    expect(agent.getQuery()).toBeNull()
+    expect(agent.getQuery().url).toBeNull()
+    snapshot.countType = 'record'
+    expect(agent.getQuery().endpoint).toBeNull()
   })
 
   test('waitUntilIdle waits for loading and API requests to finish', async () => {

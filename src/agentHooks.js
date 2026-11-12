@@ -144,9 +144,22 @@ export function trackApiRequests(apiBaseUrl) {
 
 const filterValues = values => (!values || values.includes(-1) ? 'all' : values)
 
+// endpoint behind each count type's plot (record counts come from getCodeCountsStratified, one call per concept)
+const QUERY_ENDPOINTS = {
+  person: 'getPersonCountsUpset', prevalence: 'getPersonCountsPrevalence',
+  incidence: 'getPersonCountsIncidence', measurement: 'getMeasurementValueHistogram'
+}
+
+// absolute API base URL without trailing slash, e.g. "http://localhost:8563/api"
+function absoluteApiBase(apiBaseUrl) {
+  const base = String(apiBaseUrl ?? '').replace(/\/+$/, '')
+  try { return new URL(base, window.location.origin).href.replace(/\/+$/, '') } catch (e) { return base }
+}
+
 // getSnapshot() returns the latest App state (kept in a ref by App.js).
-export function createEhrAgent(getSnapshot) {
+export function createEhrAgent(getSnapshot, apiBaseUrl = '') {
   const names = s => conceptIndex(s.treeData)
+  const apiBase = absoluteApiBase(apiBaseUrl)
 
   const getState = () => {
     const s = getSnapshot()
@@ -156,6 +169,7 @@ export function createEhrAgent(getSnapshot) {
     const dataLoading = conceptIds.length > 0 && !s.treeData
     return {
       version: EHR_AGENT_VERSION,
+      apiBaseUrl: apiBase,
       conceptIds,
       concepts: conceptIds.map(id => ({ concept_id: id, name: index.get(id)?.name ?? null, vocabulary: index.get(id)?.vocabulary ?? null })),
       view: s.view ?? null,
@@ -189,19 +203,18 @@ export function createEhrAgent(getSnapshot) {
     version: EHR_AGENT_VERSION,
     getState,
     getData,
-    listData: () => {
-      const s = getSnapshot()
-      const sizes = {
-        tree: s.treeData?.concepts?.length ?? 0, counts: s.stackData?.length ?? 0, prevalence: s.prevalenceData?.length ?? 0,
-        incidence: s.incidenceData?.length ?? 0, person: s.personData?.length ?? 0, filters: s.personFilterData?.length ?? 0,
-        measurement: s.measurementData?.length ?? 0
-      }
-      return DATA_KINDS.map(kind => ({ kind, rows: sizes[kind] }))
-    },
-    // the API query string the page uses for the current person-count view, e.g. "conceptIds=317009S&yearsRange=1987,2024"
+    // rows = length of getData(kind) (tree: number of nodes)
+    listData: () => DATA_KINDS.map(kind => {
+      const data = getData(kind)
+      return { kind, rows: kind === 'tree' ? data.nodes.length : data.length }
+    }),
+    // the API request behind the current person-count view; url is null for record counts
     getQuery: () => {
       const s = getSnapshot()
-      try { return s.getQueryString?.() ?? null } catch (e) { return null }
+      let query = null
+      try { query = s.getQueryString?.() ?? null } catch (e) { query = null }
+      const endpoint = QUERY_ENDPOINTS[s.countType] ?? null
+      return { endpoint, query, url: endpoint && query ? `${apiBase}/${endpoint}?${query}` : null }
     },
     search: (query, options) => searchConcepts(getSnapshot().conceptList, query, options),
     // Resolves when nothing is loading and no API request has been active for quietMs.

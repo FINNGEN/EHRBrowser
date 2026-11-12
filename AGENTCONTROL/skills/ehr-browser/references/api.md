@@ -1,7 +1,8 @@
 # ROMOPAPI endpoints (used by EHR Browser)
 
-Base URL: `$EHR_URL/api/`. The full machine-readable spec is at `$EHR_URL/api/openapi.json`
-(UI: `$EHR_URL/api/__docs__/`); read it for exact parameters. This file adds the meaning.
+Base URL: `apiBaseUrl` from `window.ehrAgent.getState()` (normally `$EHR_URL/api`; in a development build the page may call
+another host, so check it or the URLs in `playwright-cli -s=ehr requests`). Below, `$API` = that base. The full machine-readable spec is at `$API/openapi.json`
+(UI: `$API/__docs__/`); read it for exact parameters. This file adds the meaning.
 Results are memoised in the R process, so repeated calls are cheap. Counts are exact; there is no small-count suppression.
 
 ## `conceptIds` grammar (person-count endpoints)
@@ -51,5 +52,5 @@ The easiest way to get a valid query is to copy the URL the page used (`playwrig
 
 ```bash
 # prevalence of SNOMED asthma including descendants, women only, 2000-2023
-curl -s "$EHR_URL/api/getPersonCountsPrevalence?conceptIds=317009SD&yearsRange=2000,2023&sexStratum=8532"
+curl -s "$API/getPersonCountsPrevalence?conceptIds=317009SD&yearsRange=2000,2023&sexStratum=8532"
 ```
