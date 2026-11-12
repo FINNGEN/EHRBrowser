@@ -474,6 +474,7 @@ function Header (props) {
                     <textarea
                         ref={inputRef}
                         id="searchConcept"
+                        aria-label="Search concepts by code, id, or name"
                         placeholder= {!refresh || !root || loading ? "Search by concept code, id, or name" : ''}
                         onClick = {() => {setRefresh(false);d3.select('#searchBtn').style('opacity',1)}}
                         onChange = {() => {
@@ -485,7 +486,7 @@ function Header (props) {
                         onKeyDown = {(e) => {if (e.key === 'Enter') e.preventDefault()}}
                     />
 
-                    <FontAwesomeIcon className = {`fa-search btn ${!expandedSearch ? "searchAsBtnColor" : ""}`} id = "searchBtn" icon={faSearch} onClick = {() => setExpandedSearch(!expandedSearch)}></FontAwesomeIcon>
+                    <FontAwesomeIcon className = {`fa-search btn ${!expandedSearch ? "searchAsBtnColor" : ""}`} id = "searchBtn" role = "button" aria-label = "Search" icon={faSearch} onClick = {() => setExpandedSearch(!expandedSearch)}></FontAwesomeIcon>
                     
                     <div onMouseEnter = {()=>d3.select('#clear-set-icon').style('color','#848698')} onMouseLeave = {()=>d3.select('#clear-set-icon').style('color','#b2b2c3')} onClick = {()=>{navigate(``)}} style = {{display: !root || !expandedSearch ? 'none' : 'flex'}} className = 'btn greyBtn flex' id = "clear-concept-set">
                         <p style = {{margin:0}}>Clear Set</p>
@@ -513,17 +514,17 @@ function Header (props) {
                 <div className = 'toggle' id = "relationship-toggle">
                     <div className = 'mainBtn slider' id='slider-relationship'>''</div>
 
-                    <div className = 'btn toggle-itm' id = 'descendants-toggle' onClick={() => {setRelationship('descendants');moveSlider(0,100,'relationship');updateInclusions('descendants',countType,true)}} style = {{fontWeight:relationship === 'descendants' ? 500 : 400,color:relationship === 'descendants' ? '#36126d' : '#9597a6'}}>Descendants</div>
-                    <div className = 'btn toggle-itm' id = 'mappings-toggle' onClick={() => {setRelationship('mappings');moveSlider(1,100,'relationship');updateInclusions('mappings',countType,true)}} style = {{fontWeight:relationship === 'mappings' ? 500 : 400,color:relationship === 'mappings' ? '#36126d' : '#9597a6'}}>Mappings</div>
+                    <div className = 'btn toggle-itm' role = 'button' aria-pressed = {relationship === 'descendants'} id = 'descendants-toggle' onClick={() => {setRelationship('descendants');moveSlider(0,100,'relationship');updateInclusions('descendants',countType,true)}} style = {{fontWeight:relationship === 'descendants' ? 500 : 400,color:relationship === 'descendants' ? '#36126d' : '#9597a6'}}>Descendants</div>
+                    <div className = 'btn toggle-itm' role = 'button' aria-pressed = {relationship === 'mappings'} id = 'mappings-toggle' onClick={() => {setRelationship('mappings');moveSlider(1,100,'relationship');updateInclusions('mappings',countType,true)}} style = {{fontWeight:relationship === 'mappings' ? 500 : 400,color:relationship === 'mappings' ? '#36126d' : '#9597a6'}}>Mappings</div>
                 </div>
                 <div className = 'toggle' id = "counts-toggle">
                     <div className = 'mainBtn slider' id='slider-counts'>''</div>
 
-                    <div className = 'btn toggle-itm' id = 'record-toggle' onClick={() => {setCountType('record');moveSlider(0,100,'counts')}} style = {{fontWeight:countType === 'record' ? 500 : 400,color:countType === 'record' ? '#36126d' : '#9597a6'}}>Record Counts</div>
-                    <div className = 'btn toggle-itm' id = 'person-toggle' onClick={() => {setCountType('person');moveSlider(1,100,'counts')}} style = {{fontWeight:countType === 'person' ? 500 : 400,color:countType === 'person' ? '#36126d' : '#9597a6'}}>Person Counts</div>
-                    <div className = 'btn toggle-itm' id = 'prevalence-toggle' onClick={() => {setCountType('prevalence');moveSlider(2,100,'counts')}} style = {{fontWeight:countType === 'prevalence' ? 500 : 400,color:countType === 'prevalence' ? '#36126d' : '#9597a6'}}>Prevalence</div>
-                    <div className = 'btn toggle-itm' id = 'incidence-toggle' onClick={() => {setCountType('incidence');moveSlider(3,100,'counts')}} style = {{fontWeight:countType === 'incidence' ? 500 : 400,color:countType === 'incidence' ? '#36126d' : '#9597a6'}}>Incidence</div>
-                    <div className = 'btn toggle-itm' id = 'measurement-toggle' onClick={() => {setCountType('measurement');moveSlider(4,100,'counts')}} style = {{display: isMeasurement ? 'flex' : 'none',fontWeight:countType === 'measurement' ? 500 : 400,color:countType === 'measurement' ? '#36126d' : '#9597a6'}}>Lab Values</div>
+                    <div className = 'btn toggle-itm' role = 'button' aria-pressed = {countType === 'record'} id = 'record-toggle' onClick={() => {setCountType('record');moveSlider(0,100,'counts')}} style = {{fontWeight:countType === 'record' ? 500 : 400,color:countType === 'record' ? '#36126d' : '#9597a6'}}>Record Counts</div>
+                    <div className = 'btn toggle-itm' role = 'button' aria-pressed = {countType === 'person'} id = 'person-toggle' onClick={() => {setCountType('person');moveSlider(1,100,'counts')}} style = {{fontWeight:countType === 'person' ? 500 : 400,color:countType === 'person' ? '#36126d' : '#9597a6'}}>Person Counts</div>
+                    <div className = 'btn toggle-itm' role = 'button' aria-pressed = {countType === 'prevalence'} id = 'prevalence-toggle' onClick={() => {setCountType('prevalence');moveSlider(2,100,'counts')}} style = {{fontWeight:countType === 'prevalence' ? 500 : 400,color:countType === 'prevalence' ? '#36126d' : '#9597a6'}}>Prevalence</div>
+                    <div className = 'btn toggle-itm' role = 'button' aria-pressed = {countType === 'incidence'} id = 'incidence-toggle' onClick={() => {setCountType('incidence');moveSlider(3,100,'counts')}} style = {{fontWeight:countType === 'incidence' ? 500 : 400,color:countType === 'incidence' ? '#36126d' : '#9597a6'}}>Incidence</div>
+                    <div className = 'btn toggle-itm' role = 'button' aria-pressed = {countType === 'measurement'} id = 'measurement-toggle' onClick={() => {setCountType('measurement');moveSlider(4,100,'counts')}} style = {{display: isMeasurement ? 'flex' : 'none',fontWeight:countType === 'measurement' ? 500 : 400,color:countType === 'measurement' ? '#36126d' : '#9597a6'}}>Lab Values</div>
                 </div>
             </div>
 

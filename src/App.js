@@ -10,6 +10,7 @@ import * as d3 from "d3";
 import po from './po.js';
 import { HLL_COUNT } from './mergeHll.js';
 import { UMAP } from 'umap-js';
+import { createEhrAgent, trackApiRequests } from './agentHooks.js';
 
 function App() {
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://127.0.0.1:8564';
@@ -126,6 +127,19 @@ function App() {
     if (fullTree.allNodes) fullTree.allNodes.forEach(n => map.set(n.name, n))
     return map
   }, [fullTree.allNodes])
+
+  // read-only hooks for AI agents (window.ehrAgent, see AGENTCONTROL/); the ref always holds the latest state
+  const agentStateRef = useRef({})
+  agentStateRef.current = {
+    rootConcepts, treeData, nodes, selectedConcepts, conceptList, view, relationship, countType, loading, graphLoading,
+    initialPrune, isMeasurement, extent, yearSelection, graphFilter, stackData, prevalenceData, incidenceData, personData,
+    personFilterData, measurementData, getQueryString
+  }
+  useEffect(() => {
+    trackApiRequests(API_BASE_URL)
+    window.ehrAgent = createEhrAgent(() => agentStateRef.current)
+    return () => { delete window.ehrAgent }
+  }, [API_BASE_URL])
   
   const loadNews = async () => {
     const res = await fetch('/NEWS.md')
