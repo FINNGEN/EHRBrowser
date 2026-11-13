@@ -247,7 +247,9 @@ confidential, individual-level-adjacent, low-count data. So no data leaves the s
 Consequences for the design:
 - The skills must be **harness-agnostic**: plain Markdown and shell commands, nothing Claude-specific. Keep `SKILL.md` readable as a
   normal document, and add an `AGENTS.md`-style pointer if the sandbox harness doesn't load skills.
-- The sandbox has `node`/`npm` and a browser available, so `install.sh` works there as it does locally.
+- The TRE has **no internet**, Node.js 22, Chrome and Firefox, and a send-copy system for files. `install-offline.sh pack`
+  builds a ~4 MB `playwright-cli` tarball outside; `install-offline.sh install <tgz>` installs it in the TRE, links the committed
+  skills, and uses the installed Chrome (no browser download).
 - The sandbox harness supports skills and can read images, so screenshots (§6.3) are usable. JSON data stays the source of numbers.
 - **URL:** `EHR_URL` defaults to `http://localhost:8563`. If the user mentions the **preview** environment, use `http://localhost:18564`.
 

@@ -18,7 +18,8 @@ and you read the data behind each view to explain it.
 
 - `EHR_URL` = `http://localhost:8563` by default. If the user mentions the **preview** environment, use `http://localhost:18564`.
   If the user gives a URL, use theirs.
-- If `playwright-cli` is missing, run `AGENTCONTROL/scripts/install.sh` from the EHRBrowser repo root.
+- If `playwright-cli` is missing, run `AGENTCONTROL/scripts/install.sh` from the EHRBrowser repo root. Without internet
+  (e.g. the FinnGen TRE) use `AGENTCONTROL/scripts/install-offline.sh install <playwright-cli-*.tgz>` instead (ask the user for the file).
 
 Start a visible browser in its own session and turn on action callouts:
 
