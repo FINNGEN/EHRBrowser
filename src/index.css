@@ -1412,6 +1412,7 @@ input:checked + .rootline-slider::before {
   justify-content: flex-start;
   flex-wrap: wrap;
   border-bottom: 1.5px solid #f2f2f4;
+  transition: max-height 0.2s ease;
 }
 #graph-container {
   padding: 0.75em 20px 0.75em 20px;

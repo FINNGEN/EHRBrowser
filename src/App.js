@@ -126,6 +126,10 @@ function App() {
     if (fullTree.allNodes) fullTree.allNodes.forEach(n => map.set(n.name, n))
     return map
   }, [fullTree.allNodes])
+
+  const selectedConceptMap = useMemo(() => {
+    return new Map(selectedConcepts.map(c => [c.name, c]))
+  }, [selectedConcepts])
   
   const loadNews = async () => {
     const res = await fetch('/NEWS.md')
@@ -193,16 +197,18 @@ function App() {
     } else {filtered = countsObj} 
 
     // extent
-    let extent1 = []
-    let extent2 = rootExtent
-    let selectedExtent = d3.extent(filtered.all.map(d => d.calendar_year)) 
-    if (!selectedExtent[0] || !selectedExtent[1]) setExtent(extent2)
-    else {
-        if (selectedExtent[0] <= extent2[0]) extent1[0] = selectedExtent[0] 
-        else extent1[0] = extent2[0]
-        if (selectedExtent[1] >= extent2[1]) extent1[1] = selectedExtent[1] 
-        else extent1[1] = extent2[1]
-        setExtent(extent1) 
+    if (!yearSelection) {
+      let extent1 = []
+      let extent2 = rootExtent
+      let selectedExtent = d3.extent(filtered.all.map(d => d.calendar_year)) 
+      if (!selectedExtent[0] || !selectedExtent[1]) setExtent(extent2)
+      else {
+          if (selectedExtent[0] <= extent2[0]) extent1[0] = selectedExtent[0] 
+          else extent1[0] = extent2[0]
+          if (selectedExtent[1] >= extent2[1]) extent1[1] = selectedExtent[1] 
+          else extent1[1] = extent2[1]
+          setExtent(extent1) 
+      }  
     }
     setFilteredCounts(filtered)
   },[selectedConcepts,graphFilter])
@@ -257,18 +263,7 @@ function App() {
   useEffect(() => {setStackData(getStack())}, [filteredCounts])
 
   const resetRef = useRef(false)
-  const prevCountType = useRef(countType)
-
   const drawnGroup = useRef(null)
-
-  // useEffect(() => {
-  //   if (prevCountType.current !== countType) {
-  //     if ((prevCountType.current === 'person' || prevCountType.current === 'prevalence') && (countType === 'person' || countType === 'prevalence')) return
-  //     if ((prevCountType.current === 'record' || prevCountType.current === 'measurement') && (countType === 'record' || countType === 'measurement')) return
-  //     resetRef.current = true
-  //     prevCountType.current = countType
-  //   }
-  // }, [countType])
 
   // GRAPH FILTER DATA
   useEffect(() => {
@@ -1034,7 +1029,7 @@ function App() {
             'direction': e.levels === "Mapped from" ? -1 : 1,
             'distance': node.distance,
             'source': node,
-            'color': getMapColor(node.color,i,mappings.length),
+            'color': colors[e.child_concept_id] ? colors[e.child_concept_id] : getMapColor(node.color,i,mappings.length),
             'record_counts': data.concepts.find(c => c.concept_id === e.child_concept_id).record_counts ? data.concepts.find(c => c.concept_id === e.child_concept_id).record_counts : 0,
             'person_counts': data.concepts.find(c => c.concept_id === e.child_concept_id).person_counts ? data.concepts.find(c => c.concept_id === e.child_concept_id).person_counts : 0,
             'descendant_record_counts': data.concepts.find(c => c.concept_id === e.child_concept_id).descendant_record_counts ? data.concepts.find(c => c.concept_id === e.child_concept_id).descendant_record_counts : 0,
@@ -1050,7 +1045,7 @@ function App() {
     })
     
     // add mapping colors to colorList
-    nodeData.forEach(node => {node.mappings.forEach(map => colors[map.name] = map.color)})
+    nodeData.forEach(node => {node.mappings.filter(m => !nodeMap.has(m.name)).forEach(map => colors[map.name] = map.color)})
     setColorList(colors)
 
     // check length of -1 level
@@ -1463,6 +1458,7 @@ function App() {
           data: {code_counts: d.leaf ? [] : countsData.filter(c => d.name === c.concept_id), descendant_code_counts: !d.leaf ? [] : relationship === 'descendants' ? countsData.filter(c => d.descendants.filter(d => inclusions.includes(d)).includes(c.concept_id)) : countsData.filter(c => d.descendants.map(name => fullTree.nodes.find(n => n.name === name).mappings.map(m => m.name)).flat().filter(d => inclusions.includes(d)).includes(c.concept_id))}
         }))
       const mapSelections = nodes.map(d => d.mappings).flat()
+          .filter(m => !fullTreeNodeMap.has(m.name))
           .filter(d => inclusions.includes(d.name) && !nodes.find(n => n.name === d.source.name).leaf)
           .map(d => ({
               name: d.name, 
@@ -1816,6 +1812,7 @@ function App() {
               incidenceData = {incidenceData}
               resetRef = {resetRef}
               drawnGroup = {drawnGroup}
+              selectedConceptMap = {selectedConceptMap}
             />      
           } />
         </Routes>

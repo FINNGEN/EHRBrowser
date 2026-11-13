@@ -109,6 +109,7 @@ function Visualization (props) {
     const [upsetZoomedOut, setUpsetZoomedOut] = useState(false)
     const [focused, setFocused] = useState(null)
     const [zoomClosed,setZoomClosed] = useState(false)
+    const [graphHover,setGraphHover] = useState(false)
     const edges = props.edges
     const setEdges = props.setEdges
     const updateConcepts = props.updateConcepts
@@ -279,9 +280,9 @@ function Visualization (props) {
             
             d3.select('#tooltip-counts').style('opacity', () => d.leaf ? 0.2 : 1)
             d3.select('#tooltip-desc-counts').style('opacity', () => d.leaf ? 1 : 0.2)
-            d3.select('#tooltip-counts-num').html(countType === 'record' ? d.record_counts : d.person_counts)
+            d3.select('#tooltip-counts-num').html(countType === 'record' ? formatThousands(d.record_counts) : formatThousands(d.person_counts))
             d3.select('#tooltip-counts-label').html(() => countType === 'record' ? ' RC' : ' PC')
-            d3.select('#tooltip-desc-counts-num').html(countType === 'record' ? d.descendant_record_counts : d.descendant_person_counts)
+            d3.select('#tooltip-desc-counts-num').html(countType === 'record' ? formatThousands(d.descendant_record_counts) : formatThousands(d.descendant_person_counts))
             d3.select('#tooltip-desc-counts-label').html(() => countType === 'record' ? ' DRC' : ' DPC')
             
             d3.select("#tooltip-title").html(concept_info.concept_name)
@@ -583,6 +584,9 @@ function Visualization (props) {
                 incidenceData = {incidenceData}
                 resetRef = {props.resetRef}
                 drawnGroup = {props.drawnGroup}
+                selectedConceptMap = {props.selectedConceptMap}
+                graphHover = {graphHover}
+                setGraphHover = {setGraphHover}
             ></GraphSection>
         </div> : null
     )

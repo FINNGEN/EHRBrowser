@@ -487,7 +487,7 @@ function Header (props) {
 
                     <FontAwesomeIcon className = {`fa-search btn ${!expandedSearch ? "searchAsBtnColor" : ""}`} id = "searchBtn" icon={faSearch} onClick = {() => setExpandedSearch(!expandedSearch)}></FontAwesomeIcon>
                     
-                    <div onMouseEnter = {()=>d3.select('#clear-set-icon').style('color','#848698')} onMouseLeave = {()=>d3.select('#clear-set-icon').style('color','#b2b2c3')} onClick = {()=>{navigate(``)}} style = {{display: !root || !expandedSearch ? 'none' : 'flex'}} className = 'btn greyBtn flex' id = "clear-concept-set">
+                    <div onMouseEnter = {()=>d3.select('#clear-set-icon').style('color','#848698')} onMouseLeave = {()=>d3.select('#clear-set-icon').style('color','#b2b2c3')} onClick = {()=>{navigate(``)}} style = {{display: !root || !expandedSearch ? 'none' : 'flex',backgroundColor:'transparent'}} className = 'btn greyBtn flex' id = "clear-concept-set">
                         <p style = {{margin:0}}>Clear Set</p>
                         <FontAwesomeIcon className = "icon" id = "clear-set-icon" icon={faX} />
                     </div>
