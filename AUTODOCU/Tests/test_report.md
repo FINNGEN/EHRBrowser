@@ -29,12 +29,12 @@ The Time column shows each section's Playwright run time; the Total row sums the
 | 16-concept-control-person-counts | PASS |  |
 | 17-concept-control-prevalence | PASS |  |
 | 18-concept-control-incidence | PASS |  |
-| **2.Exploring_a_single_non-standard_concept** | PASS | 7.8s |
+| **2.Exploring_a_single_non-standard_concept** | PASS | 7.7s |
 | 01-searching-for-a-concept | PASS |  |
 | 02-hierarchy-tree | PASS |  |
 | 03-hierarchy-tree-maps-to | PASS |  |
 | 04-list | PASS |  |
-| **3.Exploring_a_large_tree_ATC_tree_exaple** | PASS | 28.7s |
+| **3.Exploring_a_large_tree_ATC_tree_exaple** | PASS | 25.4s |
 | 01-loading-atc-code-c10aa-hierarchy | PASS |  |
 | 02-loading-atc-code-c10aa-list | PASS |  |
 | 03-loading-atc-code-c10aa-pruning-filters | PASS |  |
@@ -55,4 +55,8 @@ The Time column shows each section's Playwright run time; the Total row sums the
 | 10-person-counts | PASS |  |
 | 11-prevalence | PASS |  |
 | 12-incidence | PASS |  |
-| **Total** | 45/45 | 3.2m |
+| **5.Exploring_a_measurement_concept** | PASS | 9.2s |
+| 01-loading-a-measurement-concept | PASS |  |
+| 02-lab-values-button | PASS |  |
+| 03-lab-values-plot | PASS |  |
+| **Total** | 49/49 | 3.3m |
