@@ -4,7 +4,7 @@ Exploring a measurement Concept
 
 # Description
 
-Measurement concepts, such as laboratory tests, can be explored in the EHR Browser like any other concept: the hierarchy, list, record counts, person counts, prevalence and incidence work exactly as described in section 1. In addition, measurement concepts have an extra 'Lab Values' view, placed after 'Incidence' in the top bar, which shows the distribution of the measured values. This section uses the LOINC group 'C reactive protein|Mass Concentration|Moment in time|Blood, Serum or Plasma' (LG6213-7, id 40652733) as an example. It has 2 children: 'C reactive protein [Mass/volume] in Serum or Plasma' and 'C reactive protein [Mass/volume] in Capillary blood'.
+Measurement concepts, such as laboratory tests, can be explored in the EHR Browser like any other concept: the hierarchy, list, record counts, person counts, prevalence and incidence work exactly as described in section 1. In addition, measurement concepts have an extra 'Lab Values' view, placed after 'Incidence' in the top bar, which shows the distribution of the measured values. This section uses the LOINC group 'C reactive protein|Mass Concentration|Moment in time|Blood, Serum or Plasma' (LG6212-7, id 40652733) as an example. It has 2 children: 'C reactive protein [Mass/volume] in Serum or Plasma' and 'C reactive protein [Mass/volume] in Capillary blood'.
 
 # Sections
 

@@ -2,7 +2,7 @@
 
 Measurement **Concepts**, such as laboratory tests, can be explored in **EHRBrowser** like any other **Concept**: the hierarchy, list, record counts, person counts, prevalence and incidence work exactly as described in [Exploring a single Standard Concept](../1.Exploring_a_single_standard_concept/README.md). In addition, measurement **Concepts** have an extra **Lab Values** view, placed after **Incidence** in the top bar, which shows the distribution of the measured values.
 
-This section uses the LOINC (Logical Observation Identifiers Names and Codes) group 'C reactive protein|Mass Concentration|Moment in time|Blood, Serum or Plasma' (LG6213-7, id 40652733) as an example. It has two children: 'C reactive protein [Mass/volume] in Serum or Plasma' and 'C reactive protein [Mass/volume] in Capillary blood'.
+This section uses the LOINC (Logical Observation Identifiers Names and Codes) group 'C reactive protein|Mass Concentration|Moment in time|Blood, Serum or Plasma' (LG6212-7, id 40652733) as an example. It has two children: 'C reactive protein [Mass/volume] in Serum or Plasma' and 'C reactive protein [Mass/volume] in Capillary blood'.
 
 ## Loading a measurement concept
 
