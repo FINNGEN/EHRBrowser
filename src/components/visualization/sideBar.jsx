@@ -6553,9 +6553,9 @@
                         <div className = 'toggle' id = "view-toggle">
                             <div className = 'mainBtn slider' id='slider-view' style = {{left:5}}>''</div>
                             
-                            <div className = 'btn toggle-itm' id = "set-toggle" onClick={() => {setView('set');moveSlider(0,100,'view')}} style = {{fontWeight:view === 'set' ? 500 : 400,color:view === 'set' ? '#36126d' : '#9597a6'}}>Concept Set</div>
-                            <div className = 'btn toggle-itm' id = "list-toggle" onClick={() => {setView('list');moveSlider(1,100,'view')}} style = {{fontWeight:view === 'list' ? 500 : 400,color:view === 'list' ? '#36126d' : '#9597a6'}}>List</div>
-                            <div className = 'btn toggle-itm' id = "tree-toggle" onClick={() => {setView('tree');moveSlider(2,100,'view')}} style = {{fontWeight:view === 'tree' ? 500 : 400,color:view === 'tree' ? '#36126d' : '#9597a6'}}>Hierarchy</div>
+                            <div className = 'btn toggle-itm' role = 'button' aria-pressed = {view === 'set'} id = "set-toggle" onClick={() => {setView('set');moveSlider(0,100,'view')}} style = {{fontWeight:view === 'set' ? 500 : 400,color:view === 'set' ? '#36126d' : '#9597a6'}}>Concept Set</div>
+                            <div className = 'btn toggle-itm' role = 'button' aria-pressed = {view === 'list'} id = "list-toggle" onClick={() => {setView('list');moveSlider(1,100,'view')}} style = {{fontWeight:view === 'list' ? 500 : 400,color:view === 'list' ? '#36126d' : '#9597a6'}}>List</div>
+                            <div className = 'btn toggle-itm' role = 'button' aria-pressed = {view === 'tree'} id = "tree-toggle" onClick={() => {setView('tree');moveSlider(2,100,'view')}} style = {{fontWeight:view === 'tree' ? 500 : 400,color:view === 'tree' ? '#36126d' : '#9597a6'}}>Hierarchy</div>
                         </div> 
                         <div>
                             <FontAwesomeIcon style = {{display:'block'}} icon={faExpand} id = "expand" className = "fa-thin icon expand-compress" onClick={handleExpand} />

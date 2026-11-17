@@ -5,3 +5,7 @@ build/*
 
 GITHUBPAT.txt
 yarn-error.log
+# agent control: playwright-cli output and local skill links
+.playwright-cli/
+.claude/skills/
+/AGENTCONTROL/scripts/out/
