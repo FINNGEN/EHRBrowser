@@ -1,0 +1,13 @@
+{
+  "name": "autodocu-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Isolated Playwright workspace for AUTODOCU. Self-contained so its dependencies never touch the main app's package.json / package-lock.json. The per-section specs live two levels up in AUTODOCU/Tests/<section>/, so NODE_PATH points Node at this folder's node_modules.",
+  "scripts": {
+    "test": "NODE_PATH=\"$PWD/node_modules\" playwright test",
+    "install-browsers": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
+  }
+}

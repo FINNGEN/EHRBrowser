@@ -15,18 +15,22 @@ fi
 #
 # Get CLI parameters
 #
-
 TAG="latest"
 REBUILD_COUNTS_TABLE="FALSE"
-DATABASE="Sandbox-DF13"
+DATABASE="Sandbox-LATEST"
+ENVIRONMENT="production"
+EXTERNAL_PORT_UI=8563
+EXTERNAL_PORT_API=8564
+CONTAINER_NAME="ehr_browser"
+    
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --tag)
+        -t|--tag)
             TAG="$2"
             shift 2
             ;;
-        --rebuild_count_table)
+        -r|--rebuild_count_table)
             if [[ "$2" != "TRUE" && "$2" != "FALSE" ]]; then
                 echo "Error: --rebuild_count_table must be TRUE or FALSE"
                 exit 1
@@ -34,25 +38,49 @@ while [[ $# -gt 0 ]]; do
             REBUILD_COUNTS_TABLE="$2"
             shift 2
             ;;
-        --database)
+        -d|--database)
             DATABASE="$2"
+            shift 2
+            ;;
+        -e|--environment)
+            if [[ "$2" != "preview" && "$2" != "production" ]]; then
+                echo "Error: --environment must be preview or production"
+                exit 1
+            fi
+            ENVIRONMENT="$2"
             shift 2
             ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--tag TAG] [--rebuild_count_table TRUE|FALSE]"
+            echo "Usage: $0 [-t|--tag TAG] [-r|--rebuild_count_table TRUE|FALSE] [-d|--database DATABASE] [-e|--environment preview|production]"
             exit 1
             ;;
     esac
 done
 
 #
-# Clean previous containers if running
-# 
-if [ "$(docker ps -f name=ehr_browser | grep -v 'CONTAINER' | wc -l)" != "0" ]; then
-    echo "Stopping previous EHR Browser container"
-    docker stop ehr_browser
-    sleep 3s
+# Set environment-specific settings
+#
+if [ "$ENVIRONMENT" = "preview" ]; then
+    # Set default tag to 'dev' for preview if not explicitly provided
+    if [ -z "$TAG" ]; then
+        TAG="dev"
+    fi
+    # Set default database to 'DEV' for preview if not explicitly provided
+    if [ -z "$DATABASE" ]; then
+        DATABASE="Sandbox-DEV"
+    fi
+    EXTERNAL_PORT_UI=18563
+    EXTERNAL_PORT_API=18564
+    CONTAINER_NAME="ehr_browser_preview"
+fi
+
+#
+# Clean previous containers if they exist (running or stopped)
+#
+if [ "$(docker ps -a -f name="^${CONTAINER_NAME}\$" -q)" != "" ]; then
+    echo "Removing previous EHR Browser container ($CONTAINER_NAME)"
+    docker rm -f $CONTAINER_NAME
 fi
 
 #
@@ -60,8 +88,14 @@ fi
 #
 docker pull eu.gcr.io/finngen-sandbox-v3-containers/ehr_browser:${TAG}
 
-docker run --rm -d -p 8563:8563 -p 8564:8564 \
-    --name ehr_browser \
+# Run detached for production, foreground for preview
+DETACHED_FLAG=""
+if [ "$ENVIRONMENT" = "production" ]; then
+    DETACHED_FLAG="-d"
+fi
+
+docker run --rm $DETACHED_FLAG -p ${EXTERNAL_PORT_UI}:8563 \
+    --name $CONTAINER_NAME \
     -e ROMOPAPI_DATABASE="$DATABASE" \
     -e SANDBOX_PROJECT="$SANDBOX_PROJECT" \
     -e SESSION_MANAGER="$SESSION_MANAGER" \
@@ -73,7 +107,7 @@ docker run --rm -d -p 8563:8563 -p 8564:8564 \
 #
 echo "Waiting for EHR Browser to be ready, may take few seconds"
 counter=0
-until [ "$(curl -s -o /dev/null -I -w '%{http_code}' "http://localhost:8564/__docs__/")" -eq 200 ] && [ "$(curl -s -o /dev/null -I -w '%{http_code}' "http://localhost:8563")" -eq 200 ]
+until [ "$(curl -s -o /dev/null -I -w '%{http_code}' "http://localhost:${EXTERNAL_PORT_UI}")" -eq 200 ]
 do
     sleep 1
     ((counter++))
@@ -82,4 +116,4 @@ done
 
 # open the cohort operations in the browser
 echo "Opening EHR Browser in the browser"
-firefox --new-tab 'http://localhost:8563'
+firefox --new-tab "http://localhost:${EXTERNAL_PORT_UI}"

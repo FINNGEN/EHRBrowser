@@ -4,8 +4,8 @@ host <- "0.0.0.0"
 port <- 8564
 
 # check is one of the following databases
-if (!(database %in% c("OnlyCounts-FinnGen", "AtlasDevelopment-BQ5k", "AtlasDevelopment-BQ500k", "Sandbox-DF13", "Sandbox-DF13test"))) {
-    stop("ROMOPAPI_DATABASE must be one of: OnlyCounts-FinnGen, AtlasDevelopment-BQ5K, AtlasDevelopment-BQ500k, Sandbox-DF13, Sandbox-DF13test")
+if (!(database %in% c("OnlyCounts-FinnGen", "AtlasDevelopment-BQ5K", "AtlasDevelopment-BQ", "Sandbox-LATEST", "Sandbox-DEV"))) {
+    stop("ROMOPAPI_DATABASE must be one of: OnlyCounts-FinnGen, AtlasDevelopment-BQ5K, AtlasDevelopment-BQ, Sandbox-LATEST, Sandbox-DEV")
 }
 
 # Create the cohortTableHandlerConfig based on the database
@@ -26,15 +26,15 @@ if (database |> stringr::str_detect("AtlasDevelopment")) {
 
     databasesConfig <- yaml::read_yaml("/romopapi/databasesConfig.yml")
 
-    if (database == "AtlasDevelopment-BQ5k") {
-        cohortTableHandlerConfig <- databasesConfig$BQ5k$cohortTableHandler
-    } else if (database == "AtlasDevelopment-BQ500k") {
-        cohortTableHandlerConfig <- databasesConfig$BQ500k$cohortTableHandler
+    if (database == "AtlasDevelopment-BQ5K") {
+        cohortTableHandlerConfig <- databasesConfig$BQ5K$cohortTableHandler
+    } else if (database == "AtlasDevelopment-BQ") {
+        cohortTableHandlerConfig <- databasesConfig$BQ$cohortTableHandler
     }
 }
 
-if (database |> stringr::str_starts("Sandbox-DF13")) {
-    message("Running Sandbox-DF13 API")
+if (database |> stringr::str_starts("Sandbox")) {
+    message("Running ", database, " API")
 
 
     if (Sys.getenv("SANDBOX_PROJECT") == "") {
@@ -78,10 +78,10 @@ if (database |> stringr::str_starts("Sandbox-DF13")) {
         sandboxProject = Sys.getenv("SANDBOX_PROJECT")
     )
 
-    if (database == "Sandbox-DF13") {
-        cohortTableHandlerConfig <- databasesConfig$DF13$cohortTableHandler
-    } else if (database == "Sandbox-DF13test") {
-        cohortTableHandlerConfig <- databasesConfig$DF13test$cohortTableHandler
+    if (database == "Sandbox-LATEST") {
+        cohortTableHandlerConfig <- databasesConfig$LATEST$cohortTableHandler
+    } else if (database == "Sandbox-DEV") {
+        cohortTableHandlerConfig <- databasesConfig$DEV$cohortTableHandler
     }
 }
 
@@ -94,10 +94,36 @@ if (Sys.getenv("REBUILD_COUNTS_TABLE") != "TRUE") {
     buildCountsTable <- TRUE
 }
 
+visitSourceGroupConceptIds = c(
+    # longitudinal
+    2002330246, # INPAT
+    2002330247, # OPER_IN
+    2002330248, # OPER_OUT
+    2002330249, # OUTPAT
+    2002330250, # PRIM_OUT
+    2002330102, # REIM
+    2002330104, # DEATH
+    2002330101, # PURCH
+    2002330103, # CANC
+    # registers
+    2002330245, # KANTA
+    2002330106, # BIOBANK
+    2002330186, # KIDNEY
+    2002330119, # VISION
+    2002330105, # BIRTH_MOTHER
+    # Drugs
+    2002330251, # PRESCRIPTION
+    2002330252, # DELIVERY
+    2002330253, # PRESCRIPTION_DELIVERY
+    2002330254, # DELIVERY_KELA
+    2002330255 # PRESCRIPTION_DELIVERY_KELA
+)
+
 # run the api server
 ROMOPAPI::runApiServer(
     host = host, 
     port = port, 
     cohortTableHandlerConfig = cohortTableHandlerConfig,
-    buildCountsTable = buildCountsTable
+    buildCountsTable = buildCountsTable, 
+    visitSourceGroupConceptIds = visitSourceGroupConceptIds
 )
