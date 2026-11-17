@@ -89,7 +89,7 @@ Demo environment runs with demo database with few codes available and counts alr
 This table already has the necessary data pre calculated.
 
 ```
-docker run --rm -p 8563:8563 -p 8564:8564  ehr_browser  
+ 
 ```
 
 Open the browser.

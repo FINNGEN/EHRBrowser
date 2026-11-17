@@ -21,17 +21,15 @@ Lives at the repo root. Three sibling trees that **share the same subfolder skel
 
 ```
 AUTODOCU/
-  Outline/                       # INPUT — hand-written by the user (build writes only build_report.md files here)
-    build_report.md              # GENERATED — advisory notes on the root Outline/README.md (overwritten every build)
-    <n.section_slug>/
-      build_report.md            # GENERATED — advisory notes on THIS section's README.md (overwritten when that section is built)
+  Outline/         # INPUT — hand-written by the user (build writes only build_report.md here)
+    build_report.md  # GENERATED — advisory notes on the Outline (overwritten every build)
   Tests/           # GENERATED — per-section specs + a Scripts/ folder of machinery (see below)
   Documentation/   # GENERATED — Markdown pages + screenshots
 ```
 
 Every documentation chapter is a subfolder that appears in **all three** trees with the **identical name**. Folder naming convention: `number.section_in_snake_case` (e.g. `1.exploring_a_single_standard_concept`). The number sets the order; the snake_case part is the slug.
 
-- **`Outline/`** holds the instructions. You only read from it — the sole exception is the `build_report.md` files `build` writes: one at the root (`Outline/build_report.md`, about `Outline/README.md`) and one inside each built section folder (`Outline/<section>/build_report.md`, about that section's `README.md`). See Phase 5.
+- **`Outline/`** holds the instructions. You only read from it — the sole exception is `Outline/build_report.md`, the advisory report `build` writes there (see Phase 5).
 - **`Tests/<section>/`** holds the `.spec.ts` you generate for that section.
 - **`Documentation/<section>/`** holds the rendered `README.md` for that section and its `screenshots/` folder.
 
@@ -110,7 +108,7 @@ Markdown `#` sections:
 
 - **`# Name`** — the chapter/step name.
 - **`# Description`** — overall description of this documentation chapter.
-- **`# Sections`** — the body. Uses `##`, `###`, … headings that define the **exact heading hierarchy** the rendered doc page must mirror. Under each heading is a bullet list of **steps**: navigation actions, described areas, and the two keywords below. The steps are the **minimum information** the documentation must cover — not verbatim paragraphs to copy; the rendered page may be more descriptive (see Phase 3).
+- **`# Sections`** — the body. Uses `##`, `###`, … headings that define the **exact heading hierarchy** the rendered doc page must mirror. Under each heading is a bullet list of **steps**: navigation actions, described areas, and the two keywords below.
 
 ### Keywords inside steps
 
@@ -217,8 +215,7 @@ Once a section's screenshots exist, write `AUTODOCU/Documentation/<section>/READ
 1. Start with the section **Name** as the top `#` heading, then its **Description**.
 2. Reproduce the **exact `##`/`###` heading hierarchy** from the Outline `# Sections`.
 3. Under each heading, embed the screenshot(s) captured there with a relative path (`![...](screenshots/01-....png)`), and write the prose the steps asked for — turn every "describe the …" instruction into clear explanatory text about that area/picture.
-4. **The Outline is a minimum, not a verbatim script.** Its steps and describe-notes are the least that *must* be covered — they are not paragraphs to copy word for word. When rendering the documentation you may (and should) write more than the Outline literally says: add connective prose, context, and explanation that help the reader understand the overall documentation and how the tool works, so the page reads as a coherent guide rather than a terse checklist. Stay grounded in what the screenshots and the app actually show — expand on the tool, never invent UI. How descriptive and how deep to go is governed by the `# Documentation instruction` section: if it specifies tone or depth of explanation, follow it; otherwise aim for clear, helpful explanation.
-5. Follow the global **Documentation instruction** for tone and language throughout. Never invent UI that isn't in the screenshots.
+4. Follow the global **Documentation instruction** for tone and language throughout. Never invent UI that isn't in the screenshots.
 
 ### Phase 4 — Root index
 
@@ -226,21 +223,16 @@ Write `AUTODOCU/Documentation/README.md` (always refresh it, even for a single-s
 - `#` Name and Description from the Outline root.
 - Build the index exactly as the `# Index` section dictates (e.g. a heading "Use cases" followed by a list of `**<section name>**: <brief description>`), linking each entry to its section page (`./<section>/README.md`).
 
-### Phase 5 — Build reports
+### Phase 5 — Build report
 
-Because `build` is usually run one section at a time, the advisory report is **split per file** so each report only ever concerns the input it comments on — building one section never rewrites another section's notes. Write **one report per Outline file**, each overwritten only when that file's input is (re)processed:
-
-- **`AUTODOCU/Outline/build_report.md`** — notes about the **root** `Outline/README.md` only (Name, Description, Index, Run, Documentation instruction). Refresh it on every `build` run, since the root Outline is always read regardless of which section is built.
-- **`AUTODOCU/Outline/<section>/build_report.md`** — notes about **that one section's** `README.md` only. Write it inside the section folder, and overwrite it **only for the sections actually built this run** (a single-section build must not touch the reports of sections it didn't rebuild).
-
-Each report sits next to the input it comments on, and these are the **only** files `build` writes under `Outline/`. They are advisory only, so **never edit the user's Outline content yourself**, just report. Write findings as short, actionable bullets, each with a quote and a suggested fix. Across the reports, cover at least:
+After the requested sections are built, write `AUTODOCU/Outline/build_report.md` (overwrite it every run) summarizing what would make the Outline clearer for future builds. It sits inside `Outline/` next to the input it comments on, but it is the **one** file `build` writes there — it is advisory only, so **never edit the user's Outline content yourself**, just report. Group findings by file (`Outline/README.md`, each `Outline/<section>/README.md`) as short, actionable bullets, each with a quote and a suggested fix. Cover at least:
 
 - **Fuzzy-matched keywords** — every misspelled/loose keyword you accepted (e.g. `highligth` → `highlight`) and where it was.
 - **Ambiguous or contradictory instructions** — steps whose target you had to guess, or that contradict the screenshots (e.g. Outline says "left side" but the element is on the right).
 - **Missing `# Run` fields** — a port or window size you had to infer or default.
 - **Typos and wrong labels** — concept or UI-label names in the Outline that didn't match the app's real text.
 
-Route each finding to the report for the file it concerns: `# Run` / `# Index` / `# Documentation instruction` issues go in the root report; a section's step, heading, and label issues go in that section's report. If a given file needs no improvement, still write its report and state that the file was clean.
+If nothing needs improving, still write the file and state that the Outline was clean.
 
 ## Rules
 
@@ -248,5 +240,5 @@ Route each finding to the report for the file it concerns: `# Run` / `# Index` /
 - **Isolation**: Playwright and all its scratch stay inside `AUTODOCU/Tests/Scripts/playwright`. Never add Playwright to the app's root `package.json`; never run `npm`/`npx`/`playwright-cli` from the repo root for autodocu work — always `cd AUTODOCU/Tests/Scripts/playwright` first, and run tests via `npm test` (which sets `NODE_PATH`).
 - **Names stay identical** across the three trees. Create Tests/Documentation folders to exactly match the Outline folder names.
 - **Screenshots are the source of truth** for the docs — generate them by running tests, then describe only what they show.
-- **Full rebuild, not merge**: re-running `build` deletes each target section's previous `Tests/<section>/` and `Documentation/<section>/` and regenerates them from scratch — it never reuses prior specs, locators, screenshots, or prose. (A future `update` command will preserve prior work; `build` does not.) It never touches `Tests/Scripts/playwright/`, and in `Outline/` it writes only the `build_report.md` files — the root one and each built section's — never the user's input. `init` never overwrites an existing Outline — it stops and asks.
+- **Full rebuild, not merge**: re-running `build` deletes each target section's previous `Tests/<section>/` and `Documentation/<section>/` and regenerates them from scratch — it never reuses prior specs, locators, screenshots, or prose. (A future `update` command will preserve prior work; `build` does not.) It never touches `Tests/Scripts/playwright/`, and in `Outline/` it writes only `build_report.md` (never the user's input). `init` never overwrites an existing Outline — it stops and asks.
 - If a section's Outline is ambiguous (a locator you can't resolve, a missing Run command), stop and ask rather than guessing selectors.

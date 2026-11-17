@@ -76,12 +76,11 @@ if [ "$ENVIRONMENT" = "preview" ]; then
 fi
 
 #
-# Clean previous containers if running
-# 
-if [ "$(docker ps -f name=$CONTAINER_NAME | grep -v 'CONTAINER' | wc -l)" != "0" ]; then
-    echo "Stopping previous EHR Browser container ($CONTAINER_NAME)"
-    docker stop $CONTAINER_NAME
-    sleep 3s
+# Clean previous containers if they exist (running or stopped)
+#
+if [ "$(docker ps -a -f name="^${CONTAINER_NAME}\$" -q)" != "" ]; then
+    echo "Removing previous EHR Browser container ($CONTAINER_NAME)"
+    docker rm -f $CONTAINER_NAME
 fi
 
 #

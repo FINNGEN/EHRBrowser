@@ -89,19 +89,10 @@ cleanup() {
   [ "$APP_STARTED" = "1" ] && { echo "==> Stopping app"; stop_app; }
   rm -rf "$TMP_SHOTS" "$JSON_REPORT" "$LOG"
 }
-# cleanup runs once, on EXIT. INT/TERM just request an exit (with the
-# conventional 128+signal code); that fires the EXIT trap, which does the
-# teardown. Without this, a Ctrl+C during the wait loop would run cleanup but
-# then return to the interrupted sleep — leaving the script un-interruptible.
-trap cleanup EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
+trap cleanup EXIT INT TERM
 
 echo "==> Starting app"
-if ! start_app; then
-  echo "ERROR: start_app failed — is the Docker daemon running? (see the error above)." >&2
-  exit 1
-fi
+start_app
 APP_STARTED=1
 
 echo "==> Waiting for $APP_URL"
