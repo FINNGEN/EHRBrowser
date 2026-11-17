@@ -30,4 +30,4 @@ Clicking the grey circle next to the J45 node expands the standard **Concept** i
 
 Selecting **List** shows the same **Concepts** grouped by tree level (Parents, Level 1, Level 2), each with its RC (Record Counts) and DRC (Descendant Record Counts). For non-standard **Concepts**, the arrow next to each entry expands a **Maps to** section listing the standard **Concepts** it maps to. In the picture, Asthma (J45) is expanded and shows that it maps to the SNOMED **Concept** Asthma (195967001).
 
-The rest of the tool — the Record Counts and Person Counts views, the time plot, and the Sex, Age and Visit Type filters — behaves in the same way as described in [Exploring a single Standard Concept](../1.Exploring_a_single_standard_concept/README.md).
+The rest of the tool — the **Record Counts**, **Person Counts**, **Prevalence** and **Incidence** views, the time plot, and the Sex, Age and Visit Type filters — behaves in the same way as described in [Exploring a single Standard Concept](../1.Exploring_a_single_standard_concept/README.md).

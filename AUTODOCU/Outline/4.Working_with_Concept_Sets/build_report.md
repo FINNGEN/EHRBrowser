@@ -34,3 +34,10 @@ Advisory notes from the last `autodocu build` (full rebuild of this section on 2
 - The expanded search bar overlaps "Send Feedback" and "Record Counts" and blocks clicks on Person Counts; the spec collapses the search with `#searchBtn` after each add.
 - Once, during manual exploration only, the page went blank with `Cannot read properties of undefined (reading 'descendants')` after adding COPD from the List view and switching to Hierarchy. Not reproduced in spec runs.
 - The exclude state is not kept in the URL.
+
+## New Prevalence / Incidence steps
+
+- Built: screenshots 11 (Prevalence) and 12 (Incidence).
+- "'Prevalence' lets us compare, year by year, the proportion of the population with each of these diagnoses" — the comparison is not visible yet: COPD's series sits at 0 every year (consistent with COPD missing from the Person Counts chart), and the rising series is drawn in purple, which matches neither legend colour. Likely an app bug or data gap — confirm, then reword or rebuild.
+- With the left panel expanded, the Sex/Age/Visit type charts are hidden. Optionally collapse the tree (expand/compress icon) before the Prevalence step so the filters are visible.
+- Intermittent: one run timed out right after adding COPD (page lost "FILTERS"), matching the earlier blank-page crash; the rerun passed.

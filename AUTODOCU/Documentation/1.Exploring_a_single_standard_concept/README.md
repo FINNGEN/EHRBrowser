@@ -102,3 +102,11 @@ Earlier we showed how to open the mapped codes of one **Concept**. Clicking **Ma
 ![Person Counts selected in the top bar](screenshots/16-concept-control-person-counts.png)
 
 Switching to **Person Counts** shows **PC** (Person Counts) and **DPC** (Descendant Person Counts) instead of **RC** and **DRC**. The List and the Sex, Age and Visit type charts now count persons. The right panel changes from the time plot to a chart of the number of persons per **Concept** and per combination of **Concepts**, which shows how many persons have records of several of the **Concepts** at once.
+
+![Prevalence selected in the top bar](screenshots/17-concept-control-prevalence.png)
+
+Switching to **Prevalence** brings the time plot back, but as a per-year dot plot instead of stacked areas. For each year there is one dot per **Concept**, coloured as in the legend, showing the proportion of the population with a record of that **Concept** in that year; the y axis is labelled Prevalence. As with Person Counts, the List shows **PC** (Person Counts) and **DPC** (Descendant Person Counts), and the Sex, Age and Visit type charts count persons.
+
+![Incidence selected in the top bar](screenshots/18-concept-control-incidence.png)
+
+**Incidence** uses the same dot plot, but counts only persons whose first record of the **Concept** falls in that year, so it shows the proportion of new cases per year. Comparing it with Prevalence separates new cases from persons who keep receiving the diagnosis year after year: in recent years the Asthma prevalence keeps rising, while its incidence stays lower and flatter.

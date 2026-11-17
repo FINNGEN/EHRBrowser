@@ -11,7 +11,11 @@ In OMOP-CDM terminology, a **Concept** is any medical code found in the vocabula
 Given a single **Concept** or **Concept Set**, EHRBrowser can visualise:
 - Its descendant hierarchy tree
 - Non-standard mappings tree
-- Record counts or person counts over time, stratified by sex, age, and visit type
+- Counts over time, stratified by sex, age, and visit type, using one of four measures:
+  - **Record Counts**: the number of records of each concept in the database per year.
+  - **Person Counts**: the number of distinct persons with at least one record of the concept.
+  - **Prevalence**: the proportion of the population with a record of the concept in each year.
+  - **Incidence**: the proportion of the population with their first record of the concept in each year (new cases).
 
 # Index
 

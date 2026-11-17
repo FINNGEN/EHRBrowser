@@ -115,4 +115,16 @@ test('Working with Concept Sets', async ({ page }) => {
   await highlight(page, page.locator('#person-toggle'));
   await shot(page, SECTION, '10-person-counts');
   await clearHighlights(page);
+
+  // Prevalence, then Incidence. Wait for the y-axis label to switch so the
+  // dot plot has redrawn before capturing.
+  for (const [measure, name] of [['Prevalence', '11-prevalence'], ['Incidence', '12-incidence']]) {
+    const toggle = page.locator(`#${measure.toLowerCase()}-toggle:visible`).first();
+    await toggle.click();
+    await page.locator('#graph text', { hasText: measure }).first().waitFor({ timeout: 120000 });
+    await settle(page, 8000);
+    await highlight(page, toggle);
+    await shot(page, SECTION, name);
+    await clearHighlights(page);
+  }
 });

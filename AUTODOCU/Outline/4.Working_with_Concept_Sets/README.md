@@ -30,3 +30,7 @@ This section shows how to build a concept set for a combined Asthma without alle
 - Describe how for example selecting level 1 will display only the descendant counts for the main concepts and we can compare on the time plot the progression of these 2 concepts over time hand by hand.
 - Click the 'Person Counts', `highlight` 'Person Counts', `take-screenshot`.
 - Describe, similarly if we chose the person counts this will switch to the number of persons counts getting each of these diagnoses over time
+- Click 'Prevalence', `highlight` 'Prevalence', `take-screenshot`.
+- Describe how 'Prevalence' lets us compare, year by year, the proportion of the population with each of these diagnoses.
+- Click 'Incidence', `highlight` 'Incidence', `take-screenshot`.
+- Describe how 'Incidence' compares the proportion of new cases of each diagnosis per year.

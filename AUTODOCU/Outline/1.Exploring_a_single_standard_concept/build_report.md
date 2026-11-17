@@ -24,3 +24,9 @@ Advisory notes from the last `autodocu build` (full rebuild of this section on 2
 ## Typos
 
 - "seach", "Descendans", "Recod", "aimed as displaying", "it's descendants", "conded's info", "highligt", "reocrd", "plots how", "Click the again".
+
+## New Prevalence / Incidence steps
+
+- Built: screenshots 17 (Prevalence) and 18 (Incidence).
+- "Describe that 'Prevalence' replaces the stacked plot …" — in the screenshot the List also switches to PC/DPC and the Sex/Age/Visit type charts count persons. Suggest adding "Mention that, as with Person Counts, the List shows PC/DPC and the filter charts count persons."
+- The definitions ("proportion of the population with a record …", "first record … (new cases)") match the y-axis scale (proportions up to ~0.0012) but the exact denominator and new-case rule were not confirmed in the app source; confirm in ROMOPAPI and state them in the root Outline if it matters.

@@ -30,6 +30,6 @@ The EHR Browser also allows to explore non-standard concepts. In the OMOP-CDM ja
 - Click and `highlight` the 'list' selector in the left area and `take-screenshot`.
 - Describe the image, how now in the list view the arrow on the left shows the 'Maps to' as well 
 
-- Describe how the rest of the tool behaves in the same way that section 1 for exploring the record counts, person counts, and filters 
+- Describe how the rest of the tool behaves in the same way that section 1 for exploring the record counts, person counts, prevalence, incidence, and filters 
 
 

@@ -199,4 +199,19 @@ test('exploring a single standard concept', async ({ page }) => {
   await parkMouse(page);
   await shot(page, SECTION, '16-concept-control-person-counts');
   await clearAll(page);
+
+  // Prevalence / Incidence: the plot redraws with the measure as its y-axis label.
+  for (const [id, label, name] of [
+    ['#prevalence-toggle', 'Prevalence', '17-concept-control-prevalence'],
+    ['#incidence-toggle', 'Incidence', '18-concept-control-incidence'],
+  ]) {
+    await page.locator(id).click();
+    await page.locator('svg text').filter({ hasText: new RegExp(`^${label}$`) }).first()
+      .waitFor({ state: 'visible', timeout: 120_000 });
+    await page.waitForTimeout(3000);
+    await highlight(page, page.locator(id));
+    await parkMouse(page);
+    await shot(page, SECTION, name);
+    await clearAll(page);
+  }
 });

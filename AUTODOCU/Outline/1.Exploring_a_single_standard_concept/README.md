@@ -67,9 +67,13 @@ The EHR Browser lets you load any standard concept from the vocabulary and explo
 
 ### Concept Control (top bar)
 
--  `highlight` the full upper bar of the page with the icon, seach, Descendans/Mappings, Recod Counts/Person Counts, Feedback, `take-screenshot`
+-  `highlight` the full upper bar of the page with the icon, seach, Descendans/Mappings, Recod Counts/Person Counts/Prevalence/Incidence, Feedback, `take-screenshot`
 - Describe, this area serves to control the rest of the lower view. Searching an other concept will update the view to the new concept. 
 - Click 'Mappings', `highlight` 'Mappings', `take-screenshot`. 
 - Describe, before we show how Mapped codes can be show per one concept, but clicking this will open the mapping codes on all the concepts in the tree and list. 
 - Click 'Descendants', Click 'Person Counts', `highlight` 'Person Counts', `take-screenshot`. 
 - Describe that switching to 'Person Counts' will display PC and DPC instead of RC and DRC. This affects the time plot (which rescales to person counts) and the Hierarchy tree node labels; the List counts and the Sex/Age/Visit Type filters stay record-based. 
+- Click 'Prevalence', `highlight` 'Prevalence', `take-screenshot`.
+- Describe that 'Prevalence' replaces the stacked plot with a per-year dot plot showing, for each concept, the proportion of the population with a record of that concept in each year.
+- Click 'Incidence', `highlight` 'Incidence', `take-screenshot`.
+- Describe that 'Incidence' shows the same kind of plot, but counting only persons with their first record of the concept in that year (new cases).

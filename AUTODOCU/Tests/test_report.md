@@ -10,7 +10,7 @@ The Time column shows each section's Playwright run time; the Total row sums the
 
 | Test name | Result | Time |
 |-----------|--------|------|
-| **1.Exploring_a_single_standard_concept** | PASS | 56.3s |
+| **1.Exploring_a_single_standard_concept** | PASS | 1.1m |
 | 01-searching-for-a-concept | PASS |  |
 | 02-overall-view | PASS |  |
 | 03-concept-set | PASS |  |
@@ -27,12 +27,14 @@ The Time column shows each section's Playwright run time; the Total row sums the
 | 14-concept-control | PASS |  |
 | 15-concept-control-mappings | PASS |  |
 | 16-concept-control-person-counts | PASS |  |
-| **2.Exploring_a_single_non-standard_concept** | PASS | 7.9s |
+| 17-concept-control-prevalence | PASS |  |
+| 18-concept-control-incidence | PASS |  |
+| **2.Exploring_a_single_non-standard_concept** | PASS | 7.8s |
 | 01-searching-for-a-concept | PASS |  |
 | 02-hierarchy-tree | PASS |  |
 | 03-hierarchy-tree-maps-to | PASS |  |
 | 04-list | PASS |  |
-| **3.Exploring_a_large_tree_ATC_tree_exaple** | PASS | 28.2s |
+| **3.Exploring_a_large_tree_ATC_tree_exaple** | PASS | 28.7s |
 | 01-loading-atc-code-c10aa-hierarchy | PASS |  |
 | 02-loading-atc-code-c10aa-list | PASS |  |
 | 03-loading-atc-code-c10aa-pruning-filters | PASS |  |
@@ -40,7 +42,7 @@ The Time column shows each section's Playwright run time; the Total row sums the
 | 05-using-max-level-pruning-tool-expanded-tree | PASS |  |
 | 06-using-classes-pruning-tool-dropdown | PASS |  |
 | 07-using-classes-pruning-tool-ingredient | PASS |  |
-| **4.Working_with_Concept_Sets** | PASS | 1.2m |
+| **4.Working_with_Concept_Sets** | PASS | 1.5m |
 | 01-asthma-concept-set | PASS |  |
 | 02-search-allergic-asthma | PASS |  |
 | 03-allergic-asthma-added | PASS |  |
@@ -51,4 +53,6 @@ The Time column shows each section's Playwright run time; the Total row sums the
 | 08-hierarchy-expanded | PASS |  |
 | 09-level-1 | PASS |  |
 | 10-person-counts | PASS |  |
-| **Total** | 41/41 | 2.7m |
+| 11-prevalence | PASS |  |
+| 12-incidence | PASS |  |
+| **Total** | 45/45 | 3.2m |

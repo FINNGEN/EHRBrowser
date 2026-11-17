@@ -45,3 +45,11 @@ Setting the **Level** filter to 1 cuts both trees down to their main **Concepts*
 ![Person Counts](screenshots/10-person-counts.png)
 
 Clicking **Person Counts** in the top bar switches from record counts to person counts. The tree nodes now show PC (Person Counts) and DPC (Descendant Person Counts) instead of RC (Record Counts) and DRC (Descendant Record Counts), and the right panel replaces the time plot with a bar chart of the number of persons per **Concept** — here a single bar for Asthma (195967001) of 8.7K persons.
+
+![Prevalence](screenshots/11-prevalence.png)
+
+Clicking **Prevalence** in the top bar replaces the chart with a per-year dot plot. The y-axis, labelled *Prevalence*, gives the proportion of the population with a record of each **Concept** in each year, and the legend above the plot lists the two **Concepts** in the **Concept Set**: Asthma and Chronic obstructive pulmonary disease. One series rises from below 0.0005 in the 1990s and early 2000s to about 0.002 by 2022, with a single peak above 0.003 around 1995. The other series stays at 0 in every year.
+
+![Incidence](screenshots/12-incidence.png)
+
+Clicking **Incidence** shows the same kind of plot, but counts only new cases: persons with their first record of the **Concept** in that year. The rising series follows a similar shape to the prevalence plot but stays lower in recent years, at around 0.001 by 2020–2022, as only first records are counted. The second series again stays at 0 throughout.
