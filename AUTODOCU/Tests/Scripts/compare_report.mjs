@@ -17,8 +17,9 @@
 //       - no committed baseline -> new image adopted as baseline, PASS (new).
 //       - baseline exists but no new image (test crashed before capturing) -> FAIL.
 //   * Writes test_report.md (in the Tests folder): one bold row per section (its
-//     Playwright pass/fail) followed by one row per screenshot (its diff pass/fail),
-//     and a final **Total** row counting PASS/total. When screenshots changed and were
+//     Playwright pass/fail plus its Playwright run time) followed by one row per
+//     screenshot (its diff pass/fail; no time), and a final **Total** row counting
+//     PASS/total and summing the section run times. When screenshots changed and were
 //     NOT accepted, it appends a "Visual changes to review" section: per section, per
 //     screenshot, the BEFORE and AFTER images shown side by side. The images backing that
 //     section are copied next to the report into a test_report/ folder (stable snapshots,
@@ -166,30 +167,44 @@ function shotsIn(sectionDir) {
 
 function collectPlaywright(jsonFile, sections) {
   const passed = new Map();
+  const durationMs = new Map(); // section -> summed Playwright run time (ms)
   let report;
   try {
     report = JSON.parse(readFileSync(jsonFile, 'utf8'));
   } catch {
-    return passed;
+    return { passed, durationMs };
   }
-  const specs = []; // { file, ok }
+  const specs = []; // { file, ok, ms }
   const walk = (suite) => {
     const sfile = suite.file;
-    for (const spec of suite.specs || []) specs.push({ file: spec.file || sfile, ok: !!spec.ok });
+    for (const spec of suite.specs || []) {
+      // Sum every result's duration (retries included) across the spec's tests.
+      let ms = 0;
+      for (const t of spec.tests || []) for (const r of t.results || []) ms += r.duration || 0;
+      specs.push({ file: spec.file || sfile, ok: !!spec.ok, ms });
+    }
     for (const sub of suite.suites || []) walk(sub);
   };
   for (const top of report.suites || []) walk(top);
 
-  for (const { file, ok } of specs) {
+  for (const { file, ok, ms } of specs) {
     const f = (file || '').replace(/\\/g, '/');
     for (const sec of sections) {
       if (f === sec || f.startsWith(sec + '/') || ('/' + f).includes('/' + sec + '/')) {
         passed.set(sec, (passed.has(sec) ? passed.get(sec) : true) && ok);
+        durationMs.set(sec, (durationMs.get(sec) || 0) + ms);
         break;
       }
     }
   }
-  return passed;
+  return { passed, durationMs };
+}
+
+// Human-readable run time: seconds under a minute, else minutes (matches the
+// Playwright list reporter's "31.1s" / "6.0m" style). Empty string for no data.
+function formatDuration(ms) {
+  if (!ms || ms < 0) return '';
+  return ms >= 60000 ? `${(ms / 60000).toFixed(1)}m` : `${(ms / 1000).toFixed(1)}s`;
 }
 
 // ---------------------------------------------------------------------------- main
@@ -212,15 +227,15 @@ function main() {
   rmSync(reportDir, { recursive: true, force: true });
 
   const sections = listSections(docRoot, tempRoot);
-  const pwPass = collectPlaywright(jsonFile, sections);
+  const { passed: pwPass, durationMs: pwMs } = collectPlaywright(jsonFile, sections);
 
-  const rows = [];    // { name, isSection, result }
+  const rows = [];    // { name, isSection, result, time? } — time only on section rows
   const detail = [];  // human lines for stdout
   const changes = []; // { sec, label, pct, before, after } — populated only in review mode
 
   for (const sec of sections) {
     const pwOk = pwPass.get(sec);
-    rows.push({ name: sec, isSection: true, result: pwOk ? 'PASS' : 'FAIL' });
+    rows.push({ name: sec, isSection: true, result: pwOk ? 'PASS' : 'FAIL', time: formatDuration(pwMs.get(sec)) });
     detail.push(`  ${(pwOk ? 'PASS' : 'FAIL').padEnd(4)} ${sec} (playwright)`);
 
     const baseDir = path.join(docRoot, sec);
@@ -284,13 +299,18 @@ function main() {
     'and its before/after is saved below for review; `./run_test.sh --accept-changes`',
     'adopts the new captures as the baseline for future runs.',
     '',
-    '| Test name | Result |',
-    '|-----------|--------|',
+    'The Time column shows each section\'s Playwright run time; the Total row sums them.',
+    '',
+    '| Test name | Result | Time |',
+    '|-----------|--------|------|',
   ];
   for (const r of rows) {
-    lines.push(`| ${r.isSection ? `**${r.name}**` : r.name} | ${r.result} |`);
+    // Run time is shown only on section rows; screenshot rows leave it blank.
+    const time = r.isSection ? (r.time || '') : '';
+    lines.push(`| ${r.isSection ? `**${r.name}**` : r.name} | ${r.result} | ${time} |`);
   }
-  lines.push(`| **Total** | ${passed}/${total} |`);
+  const totalMs = [...pwMs.values()].reduce((a, b) => a + b, 0);
+  lines.push(`| **Total** | ${passed}/${total} | ${formatDuration(totalMs)} |`);
   lines.push('');
 
   if (changes.length) {
