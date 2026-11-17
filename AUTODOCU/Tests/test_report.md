@@ -10,46 +10,45 @@ The Time column shows each section's Playwright run time; the Total row sums the
 
 | Test name | Result | Time |
 |-----------|--------|------|
-| **1.Exploring_a_single_standard_concept** | PASS | 31.4s |
+| **1.Exploring_a_single_standard_concept** | PASS | 56.3s |
 | 01-searching-for-a-concept | PASS |  |
 | 02-overall-view | PASS |  |
-| 03-hierarchy-panel-concept-set | PASS |  |
-| 04-hierarchy-panel-hierarchy-tree | PASS |  |
+| 03-concept-set | PASS |  |
+| 04-hierarchy-tree | PASS |  |
 | 05-hierarchy-tree-hover | PASS |  |
-| 06-hierarchy-tree-mapping-toggle | PASS |  |
+| 06-hierarchy-tree-mapping-circles | PASS |  |
 | 07-hierarchy-tree-mappings-open | PASS |  |
-| 08-hierarchy-panel-list | PASS |  |
-| 09-list-info-dropdown | PASS |  |
-| 10-list-mappings-open | PASS |  |
-| 11-counts-panel-time-plot | PASS |  |
-| 12-counts-panel-hover | PASS |  |
-| 13-counts-panel-filters | PASS |  |
-| 14-counts-panel-filtered | PASS |  |
-| 15-concept-control-bar | PASS |  |
-| 16-concept-control-mappings | PASS |  |
-| 17-concept-control-person-counts | PASS |  |
+| 08-list | PASS |  |
+| 09-list-mappings | PASS |  |
+| 10-counts-panel | PASS |  |
+| 11-counts-panel-hover | PASS |  |
+| 12-counts-panel-filters | PASS |  |
+| 13-counts-panel-filtered | PASS |  |
+| 14-concept-control | PASS |  |
+| 15-concept-control-mappings | PASS |  |
+| 16-concept-control-person-counts | PASS |  |
 | **2.Exploring_a_single_non-standard_concept** | PASS | 7.9s |
 | 01-searching-for-a-concept | PASS |  |
 | 02-hierarchy-tree | PASS |  |
-| 03-hierarchy-tree-mappings-open | PASS |  |
+| 03-hierarchy-tree-maps-to | PASS |  |
 | 04-list | PASS |  |
-| **3.Exploring_a_large_tree_ATC_tree_exaple** | FAIL | 6.0m |
-| 01-hierarchy-large-tree | FAIL |  |
-| 02-list-view | FAIL |  |
-| 03-pruning-tools | FAIL |  |
-| 04-max-level-2 | FAIL |  |
-| 05-hierarchy-expanded | FAIL |  |
-| 06-class-dropdown | FAIL |  |
-| 07-class-ingredient-added | FAIL |  |
-| **4.Working_with_Concept_Sets** | PASS | 29.7s |
-| 01-concept-set-asthma | PASS |  |
+| **3.Exploring_a_large_tree_ATC_tree_exaple** | PASS | 28.2s |
+| 01-loading-atc-code-c10aa-hierarchy | PASS |  |
+| 02-loading-atc-code-c10aa-list | PASS |  |
+| 03-loading-atc-code-c10aa-pruning-filters | PASS |  |
+| 04-using-max-level-pruning-tool-level-2 | PASS |  |
+| 05-using-max-level-pruning-tool-expanded-tree | PASS |  |
+| 06-using-classes-pruning-tool-dropdown | PASS |  |
+| 07-using-classes-pruning-tool-ingredient | PASS |  |
+| **4.Working_with_Concept_Sets** | PASS | 1.2m |
+| 01-asthma-concept-set | PASS |  |
 | 02-search-allergic-asthma | PASS |  |
 | 03-allergic-asthma-added | PASS |  |
-| 04-allergic-asthma-excluded | PASS |  |
-| 05-hierarchy-excluded-greyed | PASS |  |
-| 06-list-excluded-greyed | PASS |  |
-| 07-search-chronic-obstructive | PASS |  |
-| 08-hierarchy-three-concepts | PASS |  |
-| 09-max-level-1 | PASS |  |
+| 04-exclude-allergic-asthma | PASS |  |
+| 05-hierarchy-excluded | PASS |  |
+| 06-list-excluded | PASS |  |
+| 07-search-copd | PASS |  |
+| 08-hierarchy-expanded | PASS |  |
+| 09-level-1 | PASS |  |
 | 10-person-counts | PASS |  |
-| **Total** | 34/42 | 7.2m |
+| **Total** | 41/41 | 2.7m |

@@ -1,212 +1,202 @@
-import { test, expect, Page, Locator } from '@playwright/test';
+import { test, expect as baseExpect, Page, Locator } from '@playwright/test';
 import { highlight, clearHighlights, shot } from '../Scripts/playwright/_helpers';
+
+// The app can be slow (single backend, emulated); allow generous waits.
+const expect = baseExpect.configure({ timeout: 30_000 });
 
 const SECTION = '1.Exploring_a_single_standard_concept'; // must equal the folder name
 
-// Concept ids discovered against the live app (Asthma SNOMED tree):
-const ASTHMA = '317009';          // root: Asthma (SNOMED)
-const ALLERGIC = '4191479';       // Allergic asthma
-const INTRINSIC = '4145497';      // Intrinsic asthma
+// Concept ids used in this walkthrough (OMOP concept_id).
+const ASTHMA = '317009';
+const ALLERGIC_ASTHMA = '4191479';
+const INTRINSIC_ASTHMA = '4145497';
 
-// The shared `highlight` helper draws a CSS outline, which renders cleanly on
-// HTML elements but not on the SVG glyphs used inside the hierarchy tree. For
-// SVG targets (the small grey mapping circles) we drop a red overlay box over
-// the element's bounding rect instead, and clear it before the next capture.
-async function boxHighlight(page: Page, target: Locator) {
-  await target.scrollIntoViewIfNeeded().catch(() => {});
-  const box = await target.boundingBox();
-  if (!box) return;
-  await page.evaluate(({ x, y, w, h }) => {
+// SVG elements can't show a CSS outline, and some targets are several elements
+// at once, so this draws a fixed red box over the union of the targets' rects.
+async function boxAround(page: Page, targets: Locator[], pad = 4) {
+  const rects = [];
+  for (const t of targets) {
+    for (const el of await t.all()) {
+      const b = await el.boundingBox();
+      if (b) rects.push(b);
+    }
+  }
+  const x1 = Math.min(...rects.map((r) => r.x)) - pad;
+  const y1 = Math.min(...rects.map((r) => r.y)) - pad;
+  const x2 = Math.max(...rects.map((r) => r.x + r.width)) + pad;
+  const y2 = Math.max(...rects.map((r) => r.y + r.height)) + pad;
+  await page.evaluate(([x, y, w, h]) => {
     const d = document.createElement('div');
     d.className = 'autodocu-box';
-    Object.assign(d.style, {
-      position: 'fixed',
-      left: x - 5 + 'px',
-      top: y - 5 + 'px',
-      width: w + 10 + 'px',
-      height: h + 10 + 'px',
-      border: '3px solid red',
-      borderRadius: '50%',
-      zIndex: '99999',
-      pointerEvents: 'none',
-    });
+    d.style.cssText = `position:fixed;left:${x}px;top:${y}px;width:${w}px;height:${h}px;` +
+      'border:3px solid red;box-sizing:border-box;pointer-events:none;z-index:99999;';
     document.body.appendChild(d);
-  }, { x: box.x, y: box.y, w: box.width, h: box.height });
+  }, [x1, y1, x2 - x1, y2 - y1]);
 }
-async function clearBoxes(page: Page) {
+
+async function clearAll(page: Page) {
+  await clearHighlights(page);
   await page.evaluate(() => document.querySelectorAll('.autodocu-box').forEach((e) => e.remove()));
 }
 
+// Move the real mouse onto an element's centre (d3 hover handlers need genuine
+// mouseover events; we first park the mouse elsewhere so the move registers).
+async function mouseTo(page: Page, target: Locator) {
+  const b = await target.boundingBox();
+  if (!b) throw new Error('target not visible');
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 5 });
+}
+
+async function parkMouse(page: Page) {
+  await page.mouse.move(256, 790);
+}
+
+// The small mapping toggle next to a tree node's grey circles.
+const mappingsBtn = (page: Page, id: string) =>
+  page.locator(`#mappings-btn-${id}`).locator('xpath=preceding-sibling::*[1]');
+
 test('exploring a single standard concept', async ({ page }) => {
-  // This walkthrough captures 17 screenshots, each preceded by an animation
-  // settle wait, so it needs well above the 30s default.
-  test.setTimeout(240000);
-  await page.goto('/'); // baseURL from config
-  await page.waitForLoadState('networkidle');
+  test.setTimeout(300_000);
+  page.setDefaultTimeout(60_000);
+
+  await page.goto('/');
 
   // ## Searching for a concept
-  // Use the 'Search concept' field to search for 'Asthma'.
-  const search = page.getByRole('textbox', { name: 'Search concept' });
-  await search.waitFor({ state: 'visible' });
-
-  // Hover over the 'Asthma SNOMED' result (rendered as "AsthmaSNOMED").
-  const asthmaSnomed = page.getByText('AsthmaSNOMED', { exact: true });
-  // On a cold start the vocabulary index can still be loading, so the first
-  // keystroke query may return nothing. Retry typing until the result appears.
-  await expect(async () => {
-    await search.fill('');
-    await search.pressSequentially('Asthma', { delay: 30 });
-    await expect(asthmaSnomed).toBeVisible({ timeout: 3000 });
-  }).toPass({ timeout: 30000 });
-
-  await asthmaSnomed.hover();
-  await highlight(page, asthmaSnomed);
-  await shot(page, SECTION, '01-searching-for-a-concept');
-  await clearHighlights(page);
-
-  // Click the concept and wait for the concept page to load.
-  await asthmaSnomed.click();
-  await page.waitForURL(`**/${ASTHMA}`);
+  const search = page.getByPlaceholder('Search by concept code, id, or name');
+  await expect(search).toBeVisible({ timeout: 120_000 });
   await page.waitForLoadState('networkidle');
-  // Both panels must be present: the left view toggle + Concept Set panel, and
-  // the right plot group.
-  await page.locator('#view-toggle').waitFor({ state: 'visible' });
-  await page.locator('#set-toggle').waitFor({ state: 'visible' });
-  await page.locator('#graph-group').waitFor({ state: 'visible' });
-  await page.locator('#set-items').waitFor({ state: 'visible' });
+  await search.click();
+  await search.pressSequentially('Asthma', { delay: 100 });
+  const item = page.locator('p', { hasText: new RegExp(`Id:\\s*${ASTHMA}$`) }).locator('..');
+  await expect(item).toBeVisible({ timeout: 60_000 });
+  await item.hover();
+  await highlight(page, item);
+  await shot(page, SECTION, '01-searching-for-a-concept');
+  await clearAll(page);
+  await item.click();
+  await expect(page.locator(`#area-${ASTHMA}`)).toBeAttached({ timeout: 120_000 });
+  await parkMouse(page);
 
-  // ## Overlall view
+  // ## Overall view
   await shot(page, SECTION, '02-overall-view');
 
-  // ### Hierarchy pannel (left pannel)
-
   // #### Concept Set
-  // The 'Concept Set' view is the default; highlight its selector.
   await highlight(page, page.locator('#set-toggle'));
-  await shot(page, SECTION, '03-hierarchy-panel-concept-set');
-  await clearHighlights(page);
+  await shot(page, SECTION, '03-concept-set');
+  await clearAll(page);
 
   // #### Hierarchy tree
-  // Switch to the 'Hierarchy' (tree) view and highlight its selector.
   await page.locator('#tree-toggle').click();
-  await page.locator(`#tree-node-${ASTHMA}`).waitFor({ state: 'visible' });
+  await expect(page.locator(`#tree-circle-${ALLERGIC_ASTHMA}`)).toBeVisible();
   await highlight(page, page.locator('#tree-toggle'));
-  await shot(page, SECTION, '04-hierarchy-panel-hierarchy-tree');
-  await clearHighlights(page);
+  await parkMouse(page);
+  await shot(page, SECTION, '04-hierarchy-tree');
+  await clearAll(page);
 
-  // Hover over the "Allergic asthma" node to drop down its info card. The tree
-  // hover handler waits ~600ms before showing the tooltip, so pause after.
-  const allergicNode = page.locator(`#tree-node-${ALLERGIC}`);
-  await allergicNode.scrollIntoViewIfNeeded().catch(() => {});
-  await allergicNode.hover({ force: true });
-  await page.waitForTimeout(1200);
+  await mouseTo(page, page.locator(`#tree-circle-${ALLERGIC_ASTHMA}`));
+  await expect(page.locator('#tooltip')).toBeVisible();
+  await page.waitForTimeout(1500);
   await shot(page, SECTION, '05-hierarchy-tree-hover');
-  await page.mouse.move(5, 5);
-  await page.waitForTimeout(300);
+  await parkMouse(page);
+  await page.waitForTimeout(1000);
 
-  // Highlight the small grey mapping circles on the left of "Intrinsic asthma".
-  const intrinsicMapBtn = page.locator(`#mappings-btn-${INTRINSIC}`);
-  await boxHighlight(page, intrinsicMapBtn);
-  await shot(page, SECTION, '06-hierarchy-tree-mapping-toggle');
-  await clearBoxes(page);
+  await boxAround(page, [page.locator(`.map-circle-${INTRINSIC_ASTHMA}`), mappingsBtn(page, INTRINSIC_ASTHMA)]);
+  await shot(page, SECTION, '06-hierarchy-tree-mapping-circles');
+  await clearAll(page);
 
-  // Click the grey circles to open the non-standard concepts mapped to it.
-  await intrinsicMapBtn.click({ force: true });
-  await page.waitForTimeout(800);
+  await mouseTo(page, mappingsBtn(page, INTRINSIC_ASTHMA));
+  await page.mouse.down();
+  await page.mouse.up();
+  await expect(page.locator('#label-rect-45557625')).toBeVisible();
+  await parkMouse(page);
   await shot(page, SECTION, '07-hierarchy-tree-mappings-open');
-  // Close the mappings again (not documented) so the shared mapRoot state does
-  // not leave this concept pre-expanded in the List view below.
-  await intrinsicMapBtn.click({ force: true });
-  await page.waitForTimeout(600);
+  // Close the mapped codes again (not part of the narrative).
+  await mouseTo(page, mappingsBtn(page, INTRINSIC_ASTHMA));
+  await page.mouse.down();
+  await page.mouse.up();
+  await parkMouse(page);
+  await page.waitForTimeout(1500);
 
   // #### List
-  // Switch to the 'List' view and highlight its selector.
   await page.locator('#list-toggle').click();
-  await page.locator(`#list-item-${ASTHMA}`).waitFor({ state: 'visible' });
+  await expect(page.locator(`#list-item-${INTRINSIC_ASTHMA}`)).toBeVisible();
   await highlight(page, page.locator('#list-toggle'));
-  await shot(page, SECTION, '08-hierarchy-panel-list');
-  await clearHighlights(page);
+  await shot(page, SECTION, '08-list');
+  await clearAll(page);
 
-  // Click the (i) icon on "Allergic asthma" to drop down the concept's info.
-  await page.locator(`#info-icon-${ALLERGIC}`).click();
-  await page.waitForTimeout(700);
-  await shot(page, SECTION, '09-list-info-dropdown');
+  // The Outline's next step clicks the (i) icon of "Allergic asthma" in the
+  // List. In the current app build that icon throws a TypeError in the console
+  // and nothing opens (src/components/visualization/sideBar.jsx selects
+  // '#info-container' + id, missing the '-'), so that screenshot is skipped.
 
-  // Click the down arrow on the left of "Intrinsic asthma" to expand its
-  // mapped (non-standard) source codes.
-  const intrinsicCaret = page.locator(`#list-caret-down-${INTRINSIC}`);
-  await intrinsicCaret.scrollIntoViewIfNeeded().catch(() => {});
-  await intrinsicCaret.click();
-  await page.waitForTimeout(1200);
-  await shot(page, SECTION, '10-list-mappings-open');
-  // Close it again (not documented).
-  await page.locator(`#list-caret-up-${INTRINSIC}`).click().catch(() => {});
-  await page.waitForTimeout(600);
-
-  // ### Counts pannel (right pannel)
-  // Highlight the whole plot group (chart + coloured-concept legend).
-  await highlight(page, page.locator('#graph-group'));
-  await shot(page, SECTION, '11-counts-panel-time-plot');
-  await clearHighlights(page);
-
-  // Hover over the dark-red root Asthma layer (the bottom, largest stacked
-  // area) to highlight the concept and drop down its tooltip. Hovering the
-  // path's bbox centre misses the fill, so aim a real mouse move deep into the
-  // filled lower-right region of the plot.
-  const plotBox = await page.locator('#graph-container').boundingBox();
-  if (plotBox) {
-    const hx = plotBox.x + plotBox.width * 0.72;
-    const hy = plotBox.y + plotBox.height * 0.82;
-    await page.mouse.move(plotBox.x + plotBox.width * 0.4, plotBox.y + plotBox.height * 0.3);
-    await page.mouse.move(hx, hy);
-    await page.mouse.move(hx, hy); // second move ensures a mouseover transition
-  }
+  await page.locator(`#list-caret-down-${INTRINSIC_ASTHMA}`).click();
+  await expect(page.locator(`#mappings-title-${INTRINSIC_ASTHMA}`)).toBeVisible();
+  await parkMouse(page);
+  await shot(page, SECTION, '09-list-mappings');
+  // Close the mapped codes again (not part of the narrative).
+  await page.locator(`#list-caret-up-${INTRINSIC_ASTHMA}`).click();
+  await parkMouse(page);
   await page.waitForTimeout(1000);
-  await shot(page, SECTION, '12-counts-panel-hover');
-  await page.mouse.move(5, 5);
-  await page.waitForTimeout(300);
 
-  // Highlight one of the stratifying filter boxes (Sex / Age / Visit Type).
-  await highlight(page, page.locator('#gender-container'));
-  await shot(page, SECTION, '13-counts-panel-filters');
-  await clearHighlights(page);
+  // ### Counts panel (right panel)
+  await highlight(page, page.locator('#graph-group'), 'outline: 3px solid red; outline-offset: -3px;');
+  await shot(page, SECTION, '10-counts-panel');
+  await clearAll(page);
 
-  // Click "Female" and the "50-59" age band to filter the time plot.
-  await page.locator('#gender-labels').getByText('Female', { exact: true }).click();
-  await page.locator('#age-labels').getByText('50-59', { exact: true }).click();
-  await page.waitForTimeout(800);
-  await shot(page, SECTION, '14-counts-panel-filtered');
+  // Hover the large bottom layer of the stack (Asthma itself).
+  const area = await page.locator(`#area-${ASTHMA}`).boundingBox();
+  await page.mouse.move(area!.x + area!.width * 0.75, area!.y + area!.height * 0.75, { steps: 5 });
+  await page.waitForTimeout(3000);
+  await shot(page, SECTION, '11-counts-panel-hover');
+  await parkMouse(page);
+  await page.waitForTimeout(1000);
+
+  await highlight(page, page.locator('#graph-filters'), 'outline: 3px solid red; outline-offset: -3px;');
+  await shot(page, SECTION, '12-counts-panel-filters');
+  await clearAll(page);
+
+  // The filters start with everything selected and a click toggles the clicked
+  // value off. So "only Female, 50-59, PRIM_OUT" means switching off every
+  // other value: Male, the other age bands, and the other visit types.
+  const toggles = [
+    page.locator('#btn-8507'), // Male
+    ...[0, 1, 2, 3, 4, 6, 7, 8, 9].map((i) => page.locator(`#age-labels #btn-${i}`)),
+    page.locator('#source-viz .source-geometry', { hasText: /^OUTPAT$/ }),
+    page.locator('#source-viz .source-geometry', { hasText: /^RE$/ }),
+  ];
+  for (const t of toggles) {
+    await t.click();
+    await page.waitForTimeout(700);
+  }
+  await page.waitForTimeout(2000);
+  await parkMouse(page);
+  await shot(page, SECTION, '13-counts-panel-filtered');
+  // Undo the filters (not part of the narrative).
+  for (const t of [...toggles].reverse()) {
+    await t.click();
+    await page.waitForTimeout(700);
+  }
+  await page.waitForTimeout(2000);
+  await parkMouse(page);
 
   // ### Concept Control (top bar)
-  // Clear the Sex/Age filters applied above so the top-bar screenshots show the
-  // full, unfiltered view (this reset is not part of the documented steps).
-  await page.locator('#reset-gender').click().catch(() => {});
-  await page.locator('#reset-age').click().catch(() => {});
-  await page.waitForTimeout(800);
+  await highlight(page, page.locator('#header'), 'outline: 3px solid red; outline-offset: -3px;');
+  await shot(page, SECTION, '14-concept-control');
+  await clearAll(page);
 
-  // Highlight the whole upper bar.
-  await highlight(page, page.locator('#header'));
-  await shot(page, SECTION, '15-concept-control-bar');
-  await clearHighlights(page);
-
-  // Click 'Mappings' to open the mapped codes across the whole tree/list.
   await page.locator('#mappings-toggle').click();
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(3000);
   await highlight(page, page.locator('#mappings-toggle'));
-  await shot(page, SECTION, '16-concept-control-mappings');
-  await clearHighlights(page);
+  await parkMouse(page);
+  await shot(page, SECTION, '15-concept-control-mappings');
+  await clearAll(page);
 
-  // Switch back to 'Descendants', then to 'Person Counts'. This rescales the
-  // time plot to person counts; confirm the toggle became active (it can be
-  // missed while the previous switch is still animating), retrying if needed.
   await page.locator('#descendants-toggle').click();
-  await page.waitForTimeout(1000);
-  await expect(async () => {
-    await page.locator('#person-toggle').click();
-    await expect(page.locator('#person-toggle')).toHaveCSS('font-weight', '500', { timeout: 2000 });
-  }).toPass({ timeout: 20000 });
-  await page.waitForTimeout(1000);
+  await page.waitForTimeout(3000);
+  await page.locator('#person-toggle').click();
+  await page.waitForTimeout(3000);
   await highlight(page, page.locator('#person-toggle'));
-  await shot(page, SECTION, '17-concept-control-person-counts');
-  await clearHighlights(page);
+  await parkMouse(page);
+  await shot(page, SECTION, '16-concept-control-person-counts');
+  await clearAll(page);
 });

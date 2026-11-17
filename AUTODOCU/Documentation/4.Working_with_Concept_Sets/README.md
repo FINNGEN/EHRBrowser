@@ -1,73 +1,47 @@
 # Working with Concept Sets
 
-Beyond looking at a single **Concept**, **EHRBrowser** lets you build and explore a **Concept Set**. A **Concept Set** is a mechanism for describing a group of **Concepts** without having to list every individual code: instead of enumerating codes one by one, it leans on the vocabulary hierarchy to *include* whole branches of the tree and to *exclude* specific sub-branches you do not want. You can read more about **Concept Sets** in the [Book of OHDSI](https://ohdsi.github.io/TheBookOfOhdsi/Cohorts.html#conceptSets).
+In addition to looking at a single **Concept**, **EHRBrowser** allows you to build and explore **Concept Sets**. A **Concept Set** is a mechanism to create groups of **Concepts** without needing to list every code in the group. Instead, a **Concept Set** uses the code hierarchy to include whole trees of codes, or to remove specific branches from a tree. See more about **Concept Sets** in [The Book of OHDSI](https://ohdsi.github.io/TheBookOfOhdsi/Cohorts.html#conceptSets).
 
-This chapter builds a worked example: a combined asthma **Concept Set** that keeps **Asthma** and its descendants but removes allergic asthma, and then adds **Chronic obstructive pulmonary disease** (**COPD**) alongside it. Along the way it shows how including, excluding, and pruning change both the counts and the way the set is drawn.
+This section shows how to build a **Concept Set** that combines Asthma without allergic asthma with Chronic Obstructive Pulmonary Disease.
 
-## Starting from a single Concept
+![The Asthma Concept Set](screenshots/01-asthma-concept-set.png)
 
-We start from the **Asthma** (**SNOMED**) **Concept** introduced in the first chapter, opened directly at its concept page. **EHRBrowser** does not treat this as a bare single code: it loads it as a one-item **Concept Set**, shown in the **Concept Set** panel on the left.
+We start with the Asthma (SNOMED 195967001) **Concept** described in [Exploring a single Standard Concept](../1.Exploring_a_single_standard_concept/README.md). In the **Concept Set** view on the left, the **Concept** appears as the only row of the set. Unlike in Atlas, a **Concept** added to a **Concept Set** is included with all its descendants by default: the **Descendants** box is ticked, meaning the **Concept Set** contains the Asthma code and every code below it in the hierarchy. The DRC (Descendant Record Counts) column shows 481,732, which is also the **Total Descendant Counts** of the whole set.
 
-![The Asthma Concept Set, with the Descendants box marked](screenshots/01-concept-set-asthma.png)
+![Searching for Allergic asthma](screenshots/02-search-allergic-asthma.png)
 
-Notice the **Descendants** box next to the **Asthma** row is ticked. Unlike in ATLAS — where a newly added **Concept** covers only itself — a **Concept** added here is included *with all of its descendants* by default. That is why the single row already reports a **DRC** (Descendant Record Counts) of **481,732**, matching the **Total Descendant Counts** for the whole set: the set currently means "**Asthma** and everything beneath it in the hierarchy". The stacked time plot on the right shows the same thing, broken down by the coloured descendant **Concepts** in the legend.
+Click the magnifying glass in the top bar to open the search box. When a **Concept Set** is loaded, the search box starts with a **Clear Set** button, which empties the current set when clicked. Type the new search after it — here "Aller". Each result has a **+ Concept set** button on its right: clicking it adds that **Concept** to the current set rather than replacing it. The highlighted result is Allergic asthma (SNOMED 389145006, Id 4191479).
 
-## Adding a Concept to the set
+![Allergic asthma added to the Concept Set](screenshots/03-allergic-asthma-added.png)
 
-New **Concepts** are added by searching *behind* the **Clear Set** box. Open the search, and type — here `Aller` — into the field that appears to the right of the **Clear Set** button. A drop-down of matching **Concepts** appears; each row carries its name, vocabulary, code and identifier, and a **Concept set** button to add it.
+Allergic asthma now appears as a second row of the **Concept Set**, with its own DRC (Descendant Record Counts) of 79,448. Because Allergic asthma is a child of Asthma, its records are already part of the Asthma tree, so the **Total Descendant Counts** of the set stays at 481,732.
 
-![Searching for Allergic asthma behind the Clear Set box](screenshots/02-search-allergic-asthma.png)
+![Excluding Allergic asthma](screenshots/04-exclude-allergic-asthma.png)
 
-The highlighted suggestion is the **SNOMED** **Allergic asthma** **Concept** (code 389145006, id 4191479). Take care with the **Clear Set** box itself: clicking it empties the whole set, so it is deliberately separated from the search that adds to the set.
+Ticking the **Exclude** box of Allergic asthma removes it from the set. As **Descendants** is also ticked, the exclusion applies to Allergic asthma and all its descendants. The DRC (Descendant Record Counts) of Allergic asthma drops to 0 and the **Total Descendant Counts** of the set drops from 481,732 to 402,284 — exactly the 79,448 records of the excluded branch. The Allergic asthma row is greyed out, and its areas disappear from the time plot, where the black line still shows the counts before the exclusion.
 
-![Allergic asthma is now part of the set](screenshots/03-allergic-asthma-added.png)
+![The Hierarchy view with Allergic asthma excluded](screenshots/05-hierarchy-excluded.png)
 
-**Allergic asthma** has now been added as a second row. Because it is *already a descendant* of **Asthma**, it was counted in the set before we added it explicitly — so the **Total Descendant Counts** does not change and stays at **481,732**. Adding it on its own line simply gives us a handle to act on that branch directly.
+Switching to **Hierarchy** shows the same effect on the tree: Allergic asthma and its child IgE-mediated allergic asthma are greyed out, meaning they are no longer included in the **Concept Set**. Both nodes show 0 DRC (Descendant Record Counts), while their RC (Record Counts) are still visible.
 
-## Excluding a Concept
+![The List view with Allergic asthma excluded](screenshots/06-list-excluded.png)
 
-That handle lets us remove a branch. Ticking the **Exclude** box on the **Allergic asthma** row excludes that **Concept** *and all of its descendants* from the set.
+The same happens in the **List** view: Allergic asthma (level 2) and IgE-mediated allergic asthma (level 3) are greyed out with 0 DRC (Descendant Record Counts), and the DRC of Asthma at level 1 is now 402,284.
 
-![Allergic asthma excluded from the set](screenshots/04-allergic-asthma-excluded.png)
+![Searching for Chronic obstructive pulmonary disease](screenshots/07-search-copd.png)
 
-The effect is immediate: the **Allergic asthma** row now reports a **DRC** (Descendant Record Counts) of **0**, and the **Total Descendant Counts** for the set drops by exactly that branch's contribution, from 481,732 to **402,284**. In the time plot the allergic-asthma layer has disappeared from the stack and from the legend — the set now means "**Asthma** and its descendants, *but not* allergic asthma or anything under it".
+To add Chronic Obstructive Pulmonary Disease, open the search box again and type "Chronic obs" after the **Clear Set** button. The highlighted result is Chronic obstructive pulmonary disease (SNOMED 13645005, Id 255573); clicking its **+ Concept set** button adds it to the set.
 
-## Seeing the exclusion in the Hierarchy and List views
+![The Hierarchy view with both trees, expanded](screenshots/08-hierarchy-expanded.png)
 
-The same set can be viewed as a tree or as a list, and both make the exclusion visible.
+In the **Hierarchy** view, after clicking the expand/compress icon at the top right of the left panel to enlarge it, a new tree appears next to the Asthma tree with Chronic obstructive pulmonary disease and its descendants (Acute exacerbation of chronic obstructive pulmonary disease, Pulmonary emphysema and their children). The excluded Allergic asthma branch stays greyed out in the Asthma tree. The time plot on the right now stacks the record counts of the descendants of both trees.
 
-![The Hierarchy view greys out the excluded branch](screenshots/05-hierarchy-excluded-greyed.png)
+The pruning tools described in [Exploring a large tree, ATC tree example](../3.Exploring_a_large_tree_ATC_tree_exaple/README.md) can be used to simplify the plot.
 
-In the **Hierarchy** view, **Allergic asthma** and its child **IgE-mediated allergic asthma** are greyed out: they are drawn in place so you can see where they sit in the tree, but faded to signal that they are no longer part of the **Concept Set**. The excluded node's **RC** (Record Counts) bubble still shows, while its **DRC** (Descendant Record Counts) reads 0.
+![Level filter set to 1](screenshots/09-level-1.png)
 
-![The List view greys out the same rows](screenshots/06-list-excluded-greyed.png)
+Setting the **Level** filter to 1 cuts both trees down to their main **Concepts**. The time plot now shows only two areas — the DRC (Descendant Record Counts) of Asthma and of Chronic obstructive pulmonary disease — so the progression of the two diagnoses over time can be compared side by side.
 
-The **List** view — the same descendants compacted into a per-level list — shows the exclusion the same way: the **Allergic asthma** row, and the descendants that fall under it, are greyed with a **DRC** (Descendant Record Counts) of 0, while the rest of the set keeps its counts.
+![Person Counts](screenshots/10-person-counts.png)
 
-## Adding a third Concept
-
-A **Concept Set** is not limited to one hierarchy. Back in the **Concept Set** view, searching again — this time for `Chronic obs` — lets us add a **Concept** from a completely separate part of the vocabulary.
-
-![Searching for Chronic obstructive pulmonary disease](screenshots/07-search-chronic-obstructive.png)
-
-The highlighted suggestion is the **SNOMED** **Chronic obstructive pulmonary disease** **Concept** (id 255573). Because it is not a descendant of **Asthma**, adding it introduces a second, independent tree into the set.
-
-![The set now spans two separate trees](screenshots/08-hierarchy-three-concepts.png)
-
-Switching to the **Hierarchy** view and enlarging it with the expand icon (top right of the panel) shows both hierarchies side by side: the **Asthma** tree on the left and the new **Chronic obstructive pulmonary disease** tree on the right. The set now describes both conditions at once, each contributing its own descendants.
-
-## Simplifying the view with the Max Level pruning tool
-
-With two full trees on screen the plot becomes busy. The same pruning tools shown in the ATC chapter apply here. Setting **Max Level** to `1` collapses each tree to just its main **Concept**, so only the top-level descendant counts remain.
-
-![Max Level set to 1 collapses each tree to its main concept](screenshots/09-max-level-1.png)
-
-Now the tree shows only the two roots — **Asthma** and **Chronic obstructive pulmonary disease** — and the time plot reduces to two clean areas. This makes it easy to compare the two conditions' descendant counts hand in hand over time.
-
-## Switching to Person Counts
-
-Finally, the whole view can be switched from **Record Counts** to **Person Counts** from the top bar.
-
-![The set shown as person counts over time](screenshots/10-person-counts.png)
-
-With **Person Counts** selected, the plot rescales to the *number of distinct persons* receiving each diagnosis over time, rather than the number of records. The two conditions of the **Concept Set** — **Asthma** and **Chronic obstructive pulmonary disease** — are now compared by how many people they reach each year.
+Clicking **Person Counts** in the top bar switches from record counts to person counts. The tree nodes now show PC (Person Counts) and DPC (Descendant Person Counts) instead of RC (Record Counts) and DRC (Descendant Record Counts), and the right panel replaces the time plot with a bar chart of the number of persons per **Concept** — here a single bar for Asthma (195967001) of 8.7K persons.

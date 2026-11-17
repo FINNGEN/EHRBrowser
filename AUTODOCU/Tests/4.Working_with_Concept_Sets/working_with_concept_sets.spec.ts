@@ -1,136 +1,117 @@
 import { test, expect, Page } from '@playwright/test';
 import { highlight, clearHighlights, shot } from '../Scripts/playwright/_helpers';
 
-const SECTION = '4.Working_with_Concept_Sets'; // must equal the folder name
+const SECTION = '4.Working_with_Concept_Sets';
 
-// Concept ids discovered against the live app:
-const ASTHMA = '317009';    // Asthma (SNOMED) — the starting concept
-const ALLERGIC = '4191479'; // Allergic asthma (SNOMED), code 389145006
-const COPD = '255573';      // Chronic obstructive pulmonary disease (SNOMED)
+// Suggestion rows sit inside a scrolling dropdown, so draw the box inside the
+// element's edge (negative offset) to keep it from being clipped.
+const INNER_BOX = 'outline: 3px solid red; outline-offset: -3px;';
 
-// The concept-set search box is collapsed until the magnifier (#searchBtn)
-// expands it; then #searchConcept accepts typing and #suggestion-<id> rows
-// appear. Type behind the "Clear Set" box and click the wanted suggestion.
-async function addBySearch(page: Page, query: string, conceptId: string) {
-  await page.locator('#searchBtn').click();
-  await page.waitForTimeout(500);
+// The backend can be slow (amd64 image under emulation, shared with other runs).
+async function settle(page: Page, ms = 4000) {
+  await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
+  await page.waitForTimeout(ms);
+}
+
+// Open the header search (if collapsed) and type a query.
+async function search(page: Page, text: string) {
   const box = page.locator('#searchConcept');
-  const suggestion = page.locator(`#suggestion-${conceptId}`);
-  // On a cold vocabulary index the first keystrokes may return nothing; retry.
-  await expect(async () => {
-    await box.fill('');
-    await box.pressSequentially(query, { delay: 40 });
-    await expect(suggestion).toBeVisible({ timeout: 3000 });
-  }).toPass({ timeout: 30000 });
-  return suggestion;
+  if (!(await box.isVisible())) await page.locator('#searchBtn').click();
+  await box.click();
+  await box.fill('');
+  await box.pressSequentially(text, { delay: 50 });
+  await settle(page, 2000);
 }
 
-// The Max Level dropdown: #open-levels toggles #dropdown-levels; picking an
-// option can close it, so reopen only when it is not already visible.
-async function ensureLevelsOpen(page: Page) {
-  const dd = page.locator('#dropdown-levels');
-  if (!(await dd.isVisible().catch(() => false))) {
-    await page.locator('#open-levels').click();
-  }
-  await dd.waitFor({ state: 'visible' });
-  await page.waitForTimeout(400);
+// Close the suggestions dropdown by clicking a neutral label in the left panel,
+// then collapse the search bar (expanded, it overlaps the header buttons).
+async function closeSearch(page: Page) {
+  await page.getByText('FILTERS', { exact: true }).click();
+  await page.waitForTimeout(500);
+  await page.locator('#searchBtn').click();
+  await page.waitForTimeout(1000);
 }
 
-test('working with concept sets', async ({ page }) => {
-  // Ten screenshots, each after an animation-settle wait, so well above 30s.
-  test.setTimeout(300000);
+test('Working with Concept Sets', async ({ page }) => {
+  test.setTimeout(600_000);
 
-  // Start from the Asthma concept (as in section 1). It loads as a Concept Set
-  // holding Asthma with its 'Descendants' box marked.
-  await page.goto(`/${ASTHMA}`, { waitUntil: 'networkidle', timeout: 120000 });
-  await page.locator('#set-items').waitFor({ state: 'visible' });
-  await page.locator(`#set-item-${ASTHMA}`).waitFor({ state: 'visible' });
-  await page.waitForTimeout(1200);
-  await shot(page, SECTION, '01-concept-set-asthma');
+  // Start from the Asthma (SNOMED) concept set.
+  await page.goto('/317009');
+  await expect(page.locator('#set-item-317009')).toBeVisible({ timeout: 180_000 });
+  await settle(page);
+  await shot(page, SECTION, '01-asthma-concept-set');
 
-  // Search behind the "Clear Set" box for "Aller" and highlight the SNOMED
-  // "Allergic asthma" suggestion.
-  const allergicSuggestion = await addBySearch(page, 'Aller', ALLERGIC);
-  await highlight(page, allergicSuggestion);
+  // Search "Aller" next to the "Clear Set" box and highlight Allergic asthma (SNOMED).
+  await search(page, 'Aller');
+  const allergic = page.locator('#suggestion-4191479');
+  await expect(allergic).toBeVisible({ timeout: 60_000 });
+  await highlight(page, allergic, INNER_BOX);
   await shot(page, SECTION, '02-search-allergic-asthma');
   await clearHighlights(page);
 
-  // Click the suggestion to add it. Allergic asthma is a child of Asthma, so the
-  // total descendant count is unchanged.
-  await allergicSuggestion.click();
-  await page.locator(`#set-item-${ALLERGIC}`).waitFor({ state: 'visible' });
-  await page.waitForTimeout(1200);
+  // Add it with the "+ Concept set" control.
+  await page.locator('#cs-btn-container-4191479').click();
+  await expect(page.locator('#set-item-4191479')).toBeVisible({ timeout: 120_000 });
+  await settle(page);
+  await closeSearch(page);
+  await settle(page, 2000);
   await shot(page, SECTION, '03-allergic-asthma-added');
 
-  // Exclude Allergic asthma: its DRC drops to 0 and the set total loses that
-  // amount. Highlight the 'Exclude' box for that concept.
-  const excludeBox = page.locator(`#set-item-${ALLERGIC} .exclude-box`);
-  await excludeBox.click();
-  await page.waitForTimeout(1200);
-  await highlight(page, excludeBox);
-  await shot(page, SECTION, '04-allergic-asthma-excluded');
+  // Exclude Allergic asthma.
+  const exclude = page.locator('#set-item-4191479 .exclude-box');
+  await exclude.click();
+  await settle(page, 6000);
+  await highlight(page, exclude);
+  await shot(page, SECTION, '04-exclude-allergic-asthma');
   await clearHighlights(page);
 
-  // Hierarchy view: the excluded Allergic asthma (and its IgE-mediated child)
-  // are greyed out — no longer part of the set.
+  // Hierarchy view.
   await page.locator('#tree-toggle').click();
-  await page.locator(`#tree-node-${ASTHMA}`).waitFor({ state: 'visible' });
-  await page.waitForTimeout(1500);
+  await settle(page, 5000);
   await highlight(page, page.locator('#tree-toggle'));
-  await shot(page, SECTION, '05-hierarchy-excluded-greyed');
+  await shot(page, SECTION, '05-hierarchy-excluded');
   await clearHighlights(page);
 
-  // List view: the same exclusion shows as greyed rows.
+  // List view.
   await page.locator('#list-toggle').click();
-  await page.locator('#list-container').waitFor({ state: 'visible' });
-  await page.waitForTimeout(1200);
+  await settle(page, 4000);
   await highlight(page, page.locator('#list-toggle'));
-  await shot(page, SECTION, '06-list-excluded-greyed');
+  await shot(page, SECTION, '06-list-excluded');
   await clearHighlights(page);
 
-  // Back to the Concept Set view, search "Chronic obs" and highlight the SNOMED
-  // "Chronic obstructive pulmonary disease" suggestion.
-  await page.locator('#set-toggle').click();
-  await page.waitForTimeout(800);
-  const copdSuggestion = await addBySearch(page, 'Chronic obs', COPD);
-  await highlight(page, copdSuggestion);
-  await shot(page, SECTION, '07-search-chronic-obstructive');
+  // Search "Chronic obs" and highlight Chronic obstructive pulmonary disease (SNOMED).
+  await search(page, 'Chronic obs');
+  const copd = page.locator('#suggestion-255573');
+  await expect(copd).toBeVisible({ timeout: 60_000 });
+  await highlight(page, copd, INNER_BOX);
+  await shot(page, SECTION, '07-search-copd');
   await clearHighlights(page);
 
-  // Add COPD (a third, separate concept), then view the Hierarchy and enlarge it
-  // with the expand icon so the new tree is visible.
-  await copdSuggestion.click();
-  await page.locator(`#set-item-${COPD}`).waitFor({ state: 'visible' });
-  await page.waitForTimeout(1000);
+  // Add COPD, switch to Hierarchy and expand the panel.
+  await page.locator('#cs-btn-container-255573').click();
+  await settle(page, 8000);
+  await closeSearch(page);
   await page.locator('#tree-toggle').click();
-  await page.locator(`#tree-node-${COPD}`).waitFor({ state: 'visible' });
-  await page.waitForTimeout(1500);
+  await settle(page, 5000);
+  await expect(page.locator('#tree-toggle')).toBeVisible();
   await page.locator('#expand').click();
-  await page.waitForTimeout(2000);
-  await shot(page, SECTION, '08-hierarchy-three-concepts');
+  await settle(page, 4000);
+  await shot(page, SECTION, '08-hierarchy-expanded');
 
-  // Prune with the 'Max Level' tool (as in section 3): set level 1 so only the
-  // main concepts' descendant counts show, side by side over time.
-  await ensureLevelsOpen(page);
+  // Level filter: set to 1, then reopen the dropdown to show the selection.
+  await page.locator('#header-levels').click();
   await page.locator('#level-1').click();
-  await page.waitForTimeout(2500);
-  await ensureLevelsOpen(page);
+  await settle(page, 6000);
+  await page.locator('#header-levels').click();
+  await page.waitForTimeout(800);
   await highlight(page, page.locator('#level-1'));
-  await shot(page, SECTION, '09-max-level-1');
+  await shot(page, SECTION, '09-level-1');
   await clearHighlights(page);
-  if (await page.locator('#dropdown-levels').isVisible().catch(() => false)) {
-    await page.locator('#close-levels').click().catch(() => {});
-    await page.waitForTimeout(400);
-  }
+  await page.locator('#header-levels').click();
 
-  // Switch to 'Person Counts': the plot rescales to the number of persons
-  // getting each diagnosis over time. Retry the toggle in case a prior
-  // animation swallows the click.
-  await expect(async () => {
-    await page.locator('#person-toggle').click();
-    await expect(page.locator('#person-toggle')).toHaveCSS('font-weight', '500', { timeout: 2000 });
-  }).toPass({ timeout: 20000 });
-  await page.waitForTimeout(1500);
+  // Person Counts.
+  await page.locator('#person-toggle').click();
+  await settle(page, 8000);
   await highlight(page, page.locator('#person-toggle'));
   await shot(page, SECTION, '10-person-counts');
   await clearHighlights(page);

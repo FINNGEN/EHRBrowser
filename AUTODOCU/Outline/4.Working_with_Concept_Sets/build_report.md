@@ -1,25 +1,36 @@
 # Build report — `4.Working_with_Concept_Sets`
 
-Advisory notes from the last `autodocu build` (first build of this section). Generated — overwritten only when this section is rebuilt; it comments **only** on this section's `README.md`.
+Advisory notes from the last `autodocu build` (full rebuild of this section on 2026-11-17, after merging `development`). Generated — overwritten only when this section is rebuilt; it comments **only** on this section's `README.md`. Your Outline input was **not** modified.
 
-**The section built cleanly:** the spec ran against the live app (starting from Asthma **SNOMED** id `317009`) and all **10 screenshots** were captured from a passing run. Every quantitative claim in the Outline was verified true against the app (see below). The label/typo findings previously listed here have since been corrected in the Outline (wrong highlight tab, `number 2` → `number 1`, concept-name casing, the collapsed-search-box and expand/compress phrasing, and the prose typos), so future runs read cleanly.
+**Result:** spec passed; **10 screenshots** captured. DRC figures checked: adding Allergic asthma keeps the total at 481,732; excluding it drops the total to 402,284 (481,732 − 79,448) and Allergic asthma's DRC to 0.
 
 ## Keywords
 
-- **No fuzzy keyword matches.** `take-screenshot` and `highlight` are spelled correctly everywhere they appear.
+- No fuzzy keyword matches.
 
-## Verified against the app (no contradictions)
+## Missing steps
 
-- Adding **Allergic asthma** (a descendant of **Asthma**) leaves the **Total Descendant Counts** unchanged at **481,732** — confirmed (`03`).
-- Excluding **Allergic asthma** drives its **DRC** to **0** and drops the set total to **402,284** — i.e. the total loses exactly that branch — confirmed (`04`).
-- The excluded branch (**Allergic asthma** + **IgE-mediated allergic asthma**) is greyed in both the **Hierarchy** (`05`) and **List** (`06`) views.
-- Adding **Chronic obstructive pulmonary disease** introduces a second, separate tree; **Max Level** 1 collapses each tree to its main **Concept** for a side-by-side time comparison (`08`, `09`).
+- After "`highlight` the SNOMED "Allergic asthma" 4191479, `take-screenshot`" there is a bare `take-screenshot` with no step that adds the concept. The spec clicks the **+ Concept set** control on the search result. Suggest adding "Click '+ Concept set' next to Allergic asthma".
+- Same for COPD: no step adds it before "Click on the 'Hierarchy'". Suggest adding the same click.
 
-## Structure (your call)
+## Labels that no longer match the app
 
-- **The `# Sections` body has no `##`/`###` headings** — it is a single flat bullet list, so there is no heading hierarchy to mirror. To keep the rendered page readable, short descriptive `##` headings were introduced (Starting from a single Concept → Adding → Excluding → Hierarchy/List → Adding a third Concept → Max Level → Person Counts). If you want a fixed, deterministic structure across future runs, add the headings you want directly to the Outline.
+- "after the "Clear Set" box type the string …" — concepts are now added with the **+ Concept set** control next to each search result.
+- "Click on Max level and set level 1" — the dropdown is **Level**, under FILTERS.
+- "Chronic Obstructive ..." 255573 — the app shows "Chronic obstructive pulmonary disease" (SNOMED 13645005).
+- "'Descendants' [v] box" — suggest "the 'Descendants' checkbox is ticked".
+- "Ige-.." — suggest "IgE-mediated allergic asthma".
 
-## Result
+## Behaviour that differs from the Outline
 
-- Playwright: **1/1 spec passed**. **10/10 screenshots** captured at `1280 × 800`. This is a new section; with `Documentation/` absent before the build, all captures were adopted as fresh baselines.
-- No `# Run` field was defaulted; the direct navigation target (`/317009`) was taken from the Outline. The notes above are cosmetic/advisory, not blocking.
+- "if we chose the person counts this will switch to the number of persons counts … over time" — the app now replaces the time plot with a persons-per-**Concept** bar chart; with Level 1 it shows only **Asthma (8.7K)** and COPD is missing. Possibly an app bug or a data gap — confirm intended behaviour and update the wording.
+
+## Structure
+
+- `# Sections` has no `##` headings, so the doc is one flat page. Suggest headings like "Adding a Concept", "Excluding a Concept", "Adding a second tree", "Simplifying the view".
+
+## App issues seen while building (not Outline issues)
+
+- The expanded search bar overlaps "Send Feedback" and "Record Counts" and blocks clicks on Person Counts; the spec collapses the search with `#searchBtn` after each add.
+- Once, during manual exploration only, the page went blank with `Cannot read properties of undefined (reading 'descendants')` after adding COPD from the List view and switching to Hierarchy. Not reproduced in spec runs.
+- The exclude state is not kept in the URL.
