@@ -6,6 +6,7 @@ import { faCaretDown } from '@fortawesome/free-solid-svg-icons'
 import { faCaretUp } from '@fortawesome/free-solid-svg-icons'
 import { faCheck } from '@fortawesome/free-solid-svg-icons'
 import { faX } from '@fortawesome/free-solid-svg-icons'
+import { faMessage } from '@fortawesome/free-solid-svg-icons'
 import openedEye from '../../img/opened-eye.svg'
 import closedEye from '../../img/closed-eye.svg'
 import rootLineIcon from '../../img/root-line.svg'
@@ -85,7 +86,11 @@ function GraphSection (props) {
     const selectedConceptMap = props.selectedConceptMap
     const graphHover = props.graphHover
     const setGraphHover = props.setGraphHover
+    const stackOrder = props.stackOrder
+    const setStackOrder = props.setStackOrder
     const graphContainerRef = useRef()
+    const upsetBarHoveredRef = useRef(false)   // true while an upset column is hovered, so the hovered effect doesn't override its highlight
+    const annotationYearRef = useRef(null)   // year whose annotation tooltip is open via the ruler
     const upsetContainerRef = useRef()
     const upsetWrapperRef = useRef(null)     
     const upsetScrollRef = useRef(null)      
@@ -116,7 +121,7 @@ function GraphSection (props) {
         const patternId = `pattern-${svgSelector.replace('#', '')}-${key}`
         if (!defs.select(`#${CSS.escape(patternId)}`).empty()) return `url(#${patternId})`
 
-        const size = 4
+        const size = 2
         const patt = defs.append('pattern')
             .attr('id', patternId)
             .attr('patternUnits', 'userSpaceOnUse')
@@ -125,15 +130,72 @@ function GraphSection (props) {
         patt.append('path')
             .attr('d', `M0,${size} L${size},0 M-${size/2},${size/2} L${size/2},-${size/2}`)
             .attr('stroke', color)
-            .attr('stroke-width', 1.5)
+            .attr('stroke-width', 1)
             .attr('fill', 'none')
         patt.append('path')
             .attr('d', `M0,${size*2} L${size*2},0 M-${size},${size} L${size},-${size}`)
             .attr('stroke', color)
-            .attr('stroke-width', 1.5)
+            .attr('stroke-width', 1)
             .attr('fill', 'none')
         return `url(#${patternId})`
     }
+    function createTopGradient(key, color, svgSelector) {
+        const svg = d3.select(svgSelector)
+        let defs = svg.select('defs')
+        if (defs.empty()) defs = svg.insert('defs', ':first-child')
+
+        const id = `hist-grad-${key}`
+        let grad = defs.select(`#${id}`)
+        if (grad.empty()) {
+            grad = defs.append('linearGradient')
+                .attr('id', id)
+                .attr('x1', 0).attr('y1', 0)
+                .attr('x2', 0).attr('y2', 1)   // top to bottom, relative to each rect
+            grad.append('stop').attr('class', 'grad-top').attr('offset', '0%')
+            grad.append('stop').attr('class', 'grad-bottom').attr('offset', '100%')
+        }
+
+        const base = d3.color(color) || d3.color('#999')
+        grad.select('.grad-top').attr('stop-color', base.darker(0.5).formatHex())
+        grad.select('.grad-bottom').attr('stop-color', base.formatHex())
+        return `url(#${id})`
+    }
+    // UPSET HIGHLIGHTING
+    // isActiveGroup(group) -> is this intersection highlighted; activeConcepts -> which set rows stay highlighted
+    function applyUpsetHighlight(isActiveGroup, activeConcepts) {
+        const on = isActiveGroup !== null
+        d3.selectAll('.upsets')
+            .transition()
+            .style('opacity', d => !on || isActiveGroup(d[0]) ? 1 : 0.2)
+        d3.selectAll('.matrix-dot')
+            .transition()
+            .style('opacity', d => {
+                if (on && !isActiveGroup(d.group)) return 0.2
+                return d.active ? 1 : 0.1
+            })
+        d3.selectAll('.intersection-line')
+            .transition()
+            .style('opacity', d => !on || isActiveGroup(d.group) ? 0.5 : 0.1)
+        d3.selectAll('.set-bar')
+            .transition()
+            .style('opacity', d => !on || activeConcepts.includes(d.concept) ? 1 : 0.2)
+        d3.selectAll('.set-label')
+            .transition()
+            .style('opacity', d => !on || activeConcepts.includes(d.concept) ? 1 : 0.2)
+    }
+    // highlight a single intersection (column hover); null clears
+    function highlightUpset(activeGroup) {
+        if (!activeGroup) return applyUpsetHighlight(null, [])
+        applyUpsetHighlight(group => group === activeGroup, activeGroup.split('-'))
+    }
+    // highlight every intersection that contains a concept (concept id as a number)
+    const upsetConceptId = concept => parseInt(String(concept).replace(/\D/g, ""))
+    function highlightUpsetConcept(conceptId) {
+        const conceptKey = d3.selectAll('.set-label').data().map(d => d.concept).find(c => upsetConceptId(c) === conceptId)
+        if (conceptKey === undefined) return highlightUpset(null)
+        applyUpsetHighlight(group => group.split('-').includes(conceptKey), [conceptKey])
+    }
+
     function drawUpset() {
         if (!Array.isArray(personData) || personData.length === 0) return
         d3.select('#sets-layer').selectAll('*').remove()
@@ -324,29 +386,6 @@ function GraphSection (props) {
             .attr('stroke', '#eeeef2')
             .attr('stroke-width', 1)
 
-        function highlightUpset(activeGroup) {
-            const activeConcepts = activeGroup ? activeGroup.split('-') : []
-            d3.selectAll('.upsets')
-                .transition()
-                .style('opacity', d => !activeGroup ? 1 : d[0] === activeGroup ? 1 : 0.2)
-            d3.selectAll('.matrix-dot')
-                .transition()
-                .style('opacity', d => {
-                    if (!activeGroup) return d.active ? 1 : 0.1
-                    if (d.group !== activeGroup) return 0.2
-                    return d.active ? 1 : 0.1
-                })
-            d3.selectAll('.intersection-line')
-                .transition()
-                .style('opacity', d => !activeGroup ? 0.5 : d.group === activeGroup ? 0.5 : 0.1)
-            d3.selectAll('.set-bar')
-                .transition()
-                .style('opacity', d => !activeGroup ? 1 : activeConcepts.includes(d.concept) ? 1 : 0.2)
-            d3.selectAll('.set-label')
-                .transition()
-                .style('opacity', d => !activeGroup ? 1 : activeConcepts.includes(d.concept) ? 1 : 0.2)
-        }
-
         const upsets_g = d3.select('#upsets-layer').selectAll('.upsets')
             .data(upsets, d => d[0])
             .join(enter => {
@@ -374,6 +413,7 @@ function GraphSection (props) {
             .attr('width', columnWidth)
             .attr('height', d => (barHeight - yScale(d[1])) + 16)
             .on('mouseover',(e,d)=>{
+                upsetBarHoveredRef.current = true
                 highlightUpset(d[0])
                 const el = e.currentTarget
                 el.__hoverTimeout__ = setTimeout(() => {
@@ -382,6 +422,7 @@ function GraphSection (props) {
             })
             .on('mouseout',(e,d)=>{
                 clearTimeout(e.currentTarget.__hoverTimeout__)
+                upsetBarHoveredRef.current = false
                 setHovered([])
                 highlightUpset(null)
             })
@@ -860,6 +901,7 @@ function GraphSection (props) {
         }
         const stackedData = d3.stack()
             .keys(selectedConcepts.map(c => c.name))
+            .order(stackOrder === 'size' ? d3.stackOrderDescending : d3.stackOrderNone)
             .value((d, key) => d[key] ?? 0)
             (rollup)
         updateStack(stackedData)  
@@ -923,12 +965,13 @@ function GraphSection (props) {
             .attr("width", scaleX.bandwidth())
             .attr("height", d => Math.max(0, scaleY(d.y0) - scaleY(d.y1)))
             .attr('fill', d => {
-                if (getConceptInfo(d.id)) {
-                    if (!getConceptInfo(d.id).standard_concept || (relationship === 'mappings' && selectedConceptMap.get(d.id).leaf)) {
-                        const url = createLinePattern(d.id, colorList[d.id], '#histogram')
-                        return url 
-                    } else return colorList[d.id]    
-                } else return colorList[d.id] 
+                const info = getConceptInfo(d.id)
+                if (info) {
+                    if (!info.standard_concept || (relationship === 'mappings' && selectedConceptMap.get(d.id).leaf)) {
+                        return createLinePattern(d.id, colorList[d.id], '#histogram')  
+                    }
+                }
+                return createTopGradient(d.id, colorList[d.id], '#histogram')
             })
             // .attr("fill", d => colorList[d.id])
             .attr("stroke", "none");
@@ -1214,51 +1257,69 @@ function GraphSection (props) {
         }
     }
     // draw annotations
+    const ANNOTATION_ICON_SIZE = 14
     function drawAnnotations(scaleX,height) {
         const filteredAnnotations = annotations.filter(a => a.year >= extent[0] && a.year <= extent[1])
-        const grouped = d3.group(filteredAnnotations, d => d.year)
-        const spreadAnnotations = []
-        grouped.forEach((values, year) => {
-            const count = values.length;
-            const spacing = 5
-            values.forEach((d, i) => {
-                const offsetIndex = i - (count - 1) / 2
-                spreadAnnotations.push({
-                ...d,
-                offsetX: offsetIndex * spacing
-                })
-            })
-        })
-        const annotation = d3.select('#graph')
+        // one marker per year; the tooltip lists every event in that year
+        const annotationData = Array.from(d3.group(filteredAnnotations, d => d.year), ([year, events]) => ({ year, events }))
+
+        // dashed lines sit beneath the chart
+        d3.select('#graph')
             .selectAll(".annotation")
-            .data(spreadAnnotations, d => d.year)
-        const annotationEnter = annotation.enter()
-            .append("g")
-            .attr("class", "annotation")
-        annotationEnter.append("line")
-        annotationEnter.append("circle")
-        const annotationMerge = annotationEnter.merge(annotation)
-        annotationMerge.select("line")
+            .data(annotationData, d => d.year)
+            .join(enter => enter.append("g").attr("class", "annotation").call(g => g.append("line")))
+            .select("line")
             .attr('x1', d => scaleX(d.year))
             .attr('x2', d => scaleX(d.year))
-            .attr('y1', 0)
-            .attr('y2', height - 5)
+            .attr('y1', ANNOTATION_ICON_SIZE)
+            .attr('y2', height)
             .attr('stroke','#a0a0b6')
             .attr('stroke-width',1)
             .attr("stroke-dasharray", "3,3")
-        annotationMerge.select("circle")
-            .classed('btn',true)
-            .attr("cx", d => scaleX(d.year) + d.offsetX)
-            .attr("cy", height + 7)
-            .attr("r", 5)
-            .attr("fill", 'white')
-            .style("filter", "drop-shadow(0px 0px 4px rgba(0, 0, 0, 0.2))")
-            .on("mouseover", function(event, d) {
-                const eventsThatYear = grouped.get(d.year)
-                showAnnotationTooltip('enter',event,d.year,eventsThatYear)
+
+        // message icons at the top of each line, kept in their own layer so they can sit above the chart and ruler
+        const [iconW, iconH, , , iconPath] = faMessage.icon
+        const iconScale = ANNOTATION_ICON_SIZE / Math.max(iconW, iconH)
+        d3.select('#graph')
+            .selectAll(".annotation-icon")
+            .data(annotationData, d => d.year)
+            .join(enter => {
+                const g = enter.append("g")
+                    .attr("class", "annotation-icon btn")
+                    .style("filter", "drop-shadow(0px 0px 3px rgba(0, 0, 0, 0.2))")
+                // transparent hit area so the gaps around the glyph still count as hovering it
+                g.append("rect")
+                    .attr("x", -ANNOTATION_ICON_SIZE / 2 - 3)
+                    .attr("y", -3)
+                    .attr("width", ANNOTATION_ICON_SIZE + 6)
+                    .attr("height", ANNOTATION_ICON_SIZE + 6)
+                    .attr("fill", "transparent")
+                g.append("path")
+                    .attr("d", iconPath)
+                    .attr("transform", `translate(${-ANNOTATION_ICON_SIZE / 2},0) scale(${iconScale})`)
+                    .attr("fill", "#c9c9d5")
+                return g
             })
-            .on("mouseout", function() {showAnnotationTooltip('leave')})
-        annotation.exit().remove()
+            .attr("transform", d => `translate(${scaleX(d.year)},0)`)
+            .classed("active", false)
+            .select("path").attr("fill", "#c9c9d5")
+        // hovering the icon is handled by the ruler (it snaps to this year), see updateAnnotationForYear
+    }
+    // show/hide the annotation tooltip for the year the ruler is on
+    function updateAnnotationForYear(year) {
+        if (annotationYearRef.current === year) return
+        annotationYearRef.current = year
+        const icons = d3.select('#graph').selectAll(".annotation-icon")
+        icons.classed("active", false).select("path").attr("fill", "#c9c9d5")
+        const icon = icons.filter(d => d.year === year)
+        if (year === null || icon.empty()) {
+            showAnnotationTooltip('leave')
+            return
+        }
+        icon.classed("active", true).select("path").attr("fill", "#a0a0b6")
+        const rect = icon.node().getBoundingClientRect()
+        const d = icon.datum()
+        showAnnotationTooltip('enter', { x: rect.right, y: rect.bottom }, d.year, d.events)
     }
     // FUNCTIONS
     const resetZoom = (e) => {
@@ -1285,9 +1346,11 @@ function GraphSection (props) {
         rulerSel.style("display", null)
             .attr("transform", `translate(${snappedX},0)`)
         rulerSel.select(".ruler-label").text(clampedYear)
+        updateAnnotationForYear(clampedYear)
     }
     function hideRuler() {
         d3.select("#graph").select(".hover-ruler").style("display", "none")
+        updateAnnotationForYear(null)
     }
     const parseBucket = b => {
         const toks = String(b).match(/[-+]?(?:inf(?:inity)?|\d+(?:\.\d+)?(?:e[+-]?\d+)?)/gi) || []
@@ -1505,6 +1568,8 @@ function GraphSection (props) {
             .attr("fill", "#565867")
 
         d3.select("#graph").select(".hover-ruler").raise()
+        d3.select("#graph").selectAll(".annotation-icon").raise()
+        annotationYearRef.current = null   // redraw resets icon state
     }
     // hover filter
     function filterHover(id,mode,type) {
@@ -2420,7 +2485,7 @@ function GraphSection (props) {
                 drawAxisLabels(innerWidth, innerHeight, chartMargin, "Year", "Record counts")
             } 
         }
-    }, [countType,extent,stackData,graphSectionWidth,openFilters,showRootLine,labelsOpen])
+    }, [countType,extent,stackData,graphSectionWidth,openFilters,showRootLine,labelsOpen,stackOrder])
 
     // PERSON COUNTS
     useEffect(() => {
@@ -2576,14 +2641,28 @@ function GraphSection (props) {
         layoutUpset()
     }, [upsetZoomedOut])
 
+    // when a single concept is hovered anywhere, highlight every upset intersection containing it
+    useEffect(() => {
+        if (countType !== 'person' || upsetBarHoveredRef.current) return
+        if (d3.selectAll('.upsets').empty()) return
+        if (hovered.length === 1) highlightUpsetConcept(upsetConceptId(hovered[0]))
+        else highlightUpset(null)
+    }, [hovered])
+
     useEffect(() => {
         window.addEventListener('resize', drawUpset) 
         return () => window.removeEventListener('resize', drawUpset)
     }, [])
 
+    const orderedConcepts = useMemo(() => {
+        if (stackOrder !== 'size' || !stackData || stackData.length === 0) return selectedConcepts
+        const total = c => d3.sum(stackData, row => row[c.name] ?? 0)
+        return [...selectedConcepts].sort((a, b) => total(b) - total(a))
+    }, [selectedConcepts, stackData, stackOrder])
+
     // LABELS
     useEffect(()=> {
-        const groups = d3.group(selectedConcepts, d => d.name)
+        const groups = d3.group(orderedConcepts, d => d.name)
         function getNode(name) {return nodes.find(n => n.name === name) ? nodes.find(n => n.name === name) : nodes.map(n => n.mappings).flat().find(n => n.name === name)}
 
         function setActionsVisible(el, show) {
@@ -2687,7 +2766,7 @@ function GraphSection (props) {
                         .attr('id', d => 'label-' + d[0])
                         .style('background-color','white')
                         .style('box-shadow','0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.1)')
-                        .style('border', d => rootConcepts.includes(d[0]) ? '1px solid #7728ED' : 'none')
+                        .style('border', d => rootConcepts.includes(d[0]) ? '2px solid #7728ED' : 'none')
                         .style('border-radius', '20px')
                         .style('transition','0.5s opacity')
                         .style('opacity', d => hovered.length > 0 && !hovered.includes(d[0]) ? 0.2 : 1)
@@ -2760,16 +2839,18 @@ function GraphSection (props) {
                         .style('opacity', 0.3)
 
                     bindActions(labels)
+                    return labels  
                 }, update => {
                     update
-                        .style('border', d => rootConcepts.includes(d[0]) ? '1px solid #7728ED' : 'none')
+                        .style('border', d => rootConcepts.includes(d[0]) ? '2px solid #7728ED' : 'none')
                         .style('opacity', d => hovered.length > 0 && !hovered.includes(d[0]) ? 0.2 : 1)
                     bindLabelEvents(update)
                     bindActions(update)
-                },exit => exit.remove())    
+                    return update   
+                },exit => exit.remove())  
         }
         updateLabels(groups)
-    },[selectedConcepts,hovered])
+    },[orderedConcepts,hovered])
 
     useEffect(() => {
         const FADE = 0.8 
@@ -3004,6 +3085,13 @@ function GraphSection (props) {
                                 <div className = {`btn flex ${yearSelection ? "filterActive" : "selectedText"}`} onMouseEnter = {()=>d3.select('#reset-year-graph').style('color','#9597a6')} onMouseLeave = {()=>d3.select('#reset-year-graph').style('color','#c9c9d5')} style = {{padding: '4px 8px 4px 8px',borderRadius: '4px',marginBottom:4}} onClick = {() => resetZoom()}>
                                     <p className = 'filterLabel'>{extent && extent[0]+'-'+extent[1]}</p>
                                     <FontAwesomeIcon style = {{display: yearSelection ? 'block' : 'none'}} className = "resetFilter fa-solid icon" id = "reset-year-graph" icon={faX} />
+                                </div>
+                                <div className="flex" style={{gap: 10,display: countType === 'record' ? 'flex' : 'none'}}>
+                                    <p>Order by:</p>
+                                    <p className={`btn textBtn`} style={{ fontWeight: stackOrder === 'hierarchy' ? 500 : 400, color: stackOrder === 'hierarchy' ? '#36126d' : undefined }}
+                                        onClick={() => setStackOrder('hierarchy')}>Hierarchy</p>
+                                    <p className={`btn textBtn`} style={{ fontWeight: stackOrder === 'size' ? 500 : 400, color: stackOrder === 'size' ? '#36126d' : undefined }}
+                                        onClick={() => setStackOrder('size')}>Size</p>
                                 </div>
                                 <div className='flex' style = {{display: countType === 'record' ? 'flex' : 'none'}}>
                                     <div className = 'flex btn' style = {{pointerEvents:showRootLine ? 'all' : 'none'}} onMouseEnter={() => {setHovered(['rootline'])}} onMouseLeave={() => {setHovered([])}}>

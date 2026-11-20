@@ -1,5 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
-import { highlight, clearHighlights, shot } from '../Scripts/playwright/_helpers';
+import { highlight, clearHighlights, shot, selectCountType } from '../Scripts/playwright/_helpers';
 
 const SECTION = '4.Working_with_Concept_Sets';
 
@@ -110,17 +110,16 @@ test('Working with Concept Sets', async ({ page }) => {
   await page.locator('#header-levels').click();
 
   // Person Counts.
-  await page.locator('#person-toggle').click();
+  const personControl = await selectCountType(page, 'person');
   await settle(page, 8000);
-  await highlight(page, page.locator('#person-toggle'));
+  await highlight(page, personControl);
   await shot(page, SECTION, '10-person-counts');
   await clearHighlights(page);
 
   // Prevalence, then Incidence. Wait for the y-axis label to switch so the
   // dot plot has redrawn before capturing.
-  for (const [measure, name] of [['Prevalence', '11-prevalence'], ['Incidence', '12-incidence']]) {
-    const toggle = page.locator(`#${measure.toLowerCase()}-toggle:visible`).first();
-    await toggle.click();
+  for (const [measure, name] of [['Prevalence', '11-prevalence'], ['Incidence', '12-incidence']] as const) {
+    const toggle = await selectCountType(page, measure === 'Prevalence' ? 'prevalence' : 'incidence');
     await page.locator('#graph text', { hasText: measure }).first().waitFor({ timeout: 120000 });
     await settle(page, 8000);
     await highlight(page, toggle);

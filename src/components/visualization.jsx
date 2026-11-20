@@ -587,6 +587,8 @@ function Visualization (props) {
                 selectedConceptMap = {props.selectedConceptMap}
                 graphHover = {graphHover}
                 setGraphHover = {setGraphHover}
+                stackOrder = {props.stackOrder}
+                setStackOrder = {props.setStackOrder}
             ></GraphSection>
         </div> : null
     )

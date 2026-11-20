@@ -1,5 +1,5 @@
 import { test, expect as baseExpect, Page, Locator } from '@playwright/test';
-import { highlight, clearHighlights, shot } from '../Scripts/playwright/_helpers';
+import { highlight, clearHighlights, shot, selectCountType } from '../Scripts/playwright/_helpers';
 
 // The app can be slow (single backend, emulated); allow generous waits.
 const expect = baseExpect.configure({ timeout: 30_000 });
@@ -193,23 +193,23 @@ test('exploring a single standard concept', async ({ page }) => {
 
   await page.locator('#descendants-toggle').click();
   await page.waitForTimeout(3000);
-  await page.locator('#person-toggle').click();
+  const personControl = await selectCountType(page, 'person');
   await page.waitForTimeout(3000);
-  await highlight(page, page.locator('#person-toggle'));
+  await highlight(page, personControl);
   await parkMouse(page);
   await shot(page, SECTION, '16-concept-control-person-counts');
   await clearAll(page);
 
   // Prevalence / Incidence: the plot redraws with the measure as its y-axis label.
-  for (const [id, label, name] of [
-    ['#prevalence-toggle', 'Prevalence', '17-concept-control-prevalence'],
-    ['#incidence-toggle', 'Incidence', '18-concept-control-incidence'],
-  ]) {
-    await page.locator(id).click();
+  for (const [value, label, name] of [
+    ['prevalence', 'Prevalence', '17-concept-control-prevalence'],
+    ['incidence', 'Incidence', '18-concept-control-incidence'],
+  ] as const) {
+    const control = await selectCountType(page, value);
     await page.locator('svg text').filter({ hasText: new RegExp(`^${label}$`) }).first()
       .waitFor({ state: 'visible', timeout: 120_000 });
     await page.waitForTimeout(3000);
-    await highlight(page, page.locator(id));
+    await highlight(page, control);
     await parkMouse(page);
     await shot(page, SECTION, name);
     await clearAll(page);

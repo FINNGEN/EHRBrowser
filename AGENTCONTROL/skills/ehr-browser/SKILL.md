@@ -34,7 +34,8 @@ only when the user asks.
 
 ## Workflow
 
-1. Do **one action at a time**. After each action, wait until the page is idle and check its state:
+1. Do **one action at a time**. **Before each click or fill, narrate it** with `point` (see "Showing the user what you do"),
+   so the user can follow along like a tutorial. After each action, wait until the page is idle and check its state:
    `playwright-cli -s=ehr --raw eval "async () => await window.ehrAgent.waitUntilIdle()"`
    (returns `{ idle, waitedMs, state }`; if `idle` is false after its 30 s timeout, call it again; the first load after
    the server starts can be slow).
@@ -44,7 +45,8 @@ only when the user asks.
 
 ### Page hooks: `window.ehrAgent`
 
-The app exposes a read-only API for agents. It never changes the UI; use clicks for that, so the user sees them.
+The app exposes an API for agents. It reads state and data and never changes the app; use clicks for that, so the user sees them.
+The only exception is the agent cursor (`point`, `say`, `showCursor`, `hideCursor`), which draws an overlay and nothing else.
 Call it with `playwright-cli -s=ehr --raw eval "<function>"`:
 
 | Call | Returns |
@@ -56,7 +58,33 @@ Call it with `playwright-cli -s=ehr --raw eval "<function>"`:
 | `() => window.ehrAgent.getData('<kind>')` | The data behind the current view, with the page's filters applied (see "Reading data") |
 | `() => window.ehrAgent.getQuery()` | The request behind the current person-count plot: `{ endpoint, query, url }`; `url` can be passed straight to `curl` (null for record counts) |
 
+| `async () => await window.ehrAgent.point('#prevalence-toggle', 'Switching to prevalence…')` | Moves the agent cursor to the element and shows the caption; resolves after the move: `{ ok, x, y }` |
+| `() => window.ehrAgent.say('…')` | Changes the caption without moving (empty text clears it) |
+| `() => window.ehrAgent.hideCursor()` / `showCursor()` | Hides or shows the agent cursor and caption |
+
 `error: true` means the concept was not found or a request failed.
+
+### Showing the user what you do
+
+Playwright clicks don't move the real mouse pointer, so the app draws an **agent cursor**: a purple dot that follows your clicks and
+typing, with a caption next to it. It turns on by itself in a Playwright-launched browser; in the user's own Chrome
+(`attach --extension`) it turns on with the first `point` call. It never blocks clicks.
+
+Before each action, point at its target and say in one short sentence what you are about to do and why, then do it:
+
+```bash
+playwright-cli -s=ehr --raw eval "async () => await window.ehrAgent.point('#prevalence-toggle', 'Switching to prevalence to see how common asthma is each year')"
+playwright-cli -s=ehr click "#prevalence-toggle"
+```
+
+- Write captions for the user, in plain language, under ~20 words; explain the purpose, not the selector.
+- To explain what is on screen after a view loads, point at the plot or element you are talking about, e.g. `point('#graph-stack', '…')`.
+- If `point` returns `ok: false`, the selector matched nothing: check it before clicking.
+- For a search, point at `#searchConcept`, then `fill`; the dot follows the typing.
+- When you finish, call `say('')` to clear the caption; `hideCursor()` only if the user asks.
+- The user can press **Esc** to hide the cursor and use the app themselves. Your next `point` shows it again, so once the user
+  says they are taking over, stop calling `point`. Avoid `press Escape` yourself unless needed: it hides the cursor too.
+- Skip `point` if the app has no `window.ehrAgent.point` (older versions); `video-show-actions` still shows each action.
 
 **Older app versions** have no `window.ehrAgent` (the eval returns `undefined` or throws). Then use this snippet for the state,
 poll it every ~2 s until `loading` is false, and get data from the page's requests (see "Reading data"):
@@ -77,11 +105,26 @@ Here `active` lists the selected toggles and `unselectedFilters` the sex/age/vis
 | Show several concepts together | `goto "$EHR_URL/<id1>,<id2>"` |
 | Show the tree | `click "#tree-toggle"` (Hierarchy); `#set-toggle` = Concept Set table, `#list-toggle` = List |
 | Descendants or Mappings | `click "#descendants-toggle"` / `click "#mappings-toggle"` |
-| Count type | `click "#record-toggle"`, `"#person-toggle"`, `"#prevalence-toggle"`, `"#incidence-toggle"`, `"#measurement-toggle"` (lab values; only if `labValuesAvailable`) |
+| Count type | `click "#record-toggle"`, `"#person-toggle"`, `"#prevalence-toggle"`, `"#incidence-toggle"`, `"#measurement-toggle"` (lab values; only if `labValuesAvailable`). **On a narrow window these buttons are hidden** and a dropdown is shown instead (see below) |
 
 | Toggle a filter value | `click "#geometry-<value>"`: sex `8507` (male) / `8532` (female), age decile `0`-`9`, visit type `<visit_group_concept_id>` (e.g. `2002330250` PRIM_OUT). Clicking switches that value off or on |
 
 All commands are prefixed with `playwright-cli -s=ehr`.
+
+**Count type dropdown.** When the search box is open and the window is too narrow, the count-type buttons are hidden
+(`#counts-toggle` has `display: none`) and a dropdown replaces them. Clicking a hidden `#…-toggle` times out, so check first:
+
+```bash
+playwright-cli -s=ehr --raw eval "() => getComputedStyle(document.getElementById('counts-toggle')).display !== 'none'"
+```
+
+- `true`: use the buttons as above.
+- `false`: `click "#header-counts"` to open the dropdown, then `click "#<type>-option"`: `#record-option`, `#person-option`,
+  `#prevalence-option`, `#incidence-option`, `#measurement-option` (lab values; only listed when available).
+  Point at `#header-counts` instead of the hidden button.
+- Lab values are available if `#measurement-option` exists in that case (not `#measurement-toggle`, which is hidden).
+- The graph has its own `#prevalence-toggle` (person-count view type). To be sure you target the header button, use
+  `#counts-toggle #prevalence-toggle`.
 
 **Careful:** when a concept is already open, clicking a search suggestion **adds** it to the open set (URL `/<old>,<new>`).
 To replace it, use `goto "$EHR_URL/<concept_id>"`.

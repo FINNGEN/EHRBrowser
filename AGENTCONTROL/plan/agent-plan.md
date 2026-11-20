@@ -255,6 +255,12 @@ Consequences for the design:
 
 No open questions remain. The playwright-cli skill is installed by `install.sh`, with a committed snapshot as fallback.
 
+### 5.3 Agent cursor (tutorial mode)
+`src/agentCursor.js` draws a dot that follows the agent's mouse and focus events, plus a caption (`ehrAgent.point(selector, text)`,
+`say`, `showCursor`, `hideCursor`). It is plain DOM with `pointer-events: none`, so it never re-renders App or blocks Playwright clicks.
+It turns on with `navigator.webdriver` (Playwright-launched browser), `?agent` in the URL, or the first `point`/`showCursor` call.
+It is the one exception to "ehrAgent never changes the UI": it only draws an overlay, never app state.
+
 ## 10. Later, if needed
 - **Bridge/MCP design** (previous plan): for non-technical users or in-page Stop/confirm. Build it over the same `window.ehrAgent` API.
 - **Show agent-made plots inside the app** (e.g. an overlay that displays a PNG or Vega spec the harness provides).

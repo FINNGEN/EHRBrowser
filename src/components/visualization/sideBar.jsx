@@ -1,4 +1,4 @@
-    import React, { useEffect, useState, useRef } from 'react';
+    import React, { useEffect, useState, useRef, useMemo } from 'react';
     import { useNavigate } from 'react-router-dom';
     import '@fortawesome/fontawesome-free/css/all.min.css';
     import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
@@ -22,6 +22,7 @@
     import textures from 'textures';
     import chroma from 'chroma-js';
     import { hover } from '@testing-library/user-event/dist/hover.js';
+    import TreeLegend from './treeLegend';
 
     function SideBar (props) {
         const navigate = useNavigate()
@@ -120,6 +121,95 @@
         const [expandedTop, setExpandedTop] = useState([])
         const [topList, setTopList] = useState(null)     
         const [topQuery, setTopQuery] = useState('')
+        // list view: per-section collapse state chosen by the user, keyed by section name ('Parents', 'Root', 'Level 2', ...)
+        const listSectionCollapsedRef = useRef({})
+
+        // DERIVED DATA (memoized so redraws don't recompute them)
+        // list view: sections grouped by relationship level
+        const sectionData = useMemo(() => {
+            if (!nodes?.length) return []
+            const parentsArray = nodes.filter(d => d.relationship === "-1")
+            const rootArray = nodes.filter(d => d.relationship === "0")
+            const childrenArray = nodes
+                .filter(d => d.relationship.includes('-') && d.relationship !== "-1")
+                .sort((x, y) => {
+                    const [a1, a2] = x.relationship.split('-').map(Number)
+                    const [b1, b2] = y.relationship.split('-').map(Number)
+                    return a1 - b1 || a2 - b2
+                })
+            const childrenGroups = childrenArray.reduce((acc, obj) => {
+                const groupKey = parseInt(obj.relationship.split('-')[0]) + 1
+                if (!acc[groupKey]) acc[groupKey] = []
+                acc[groupKey].push(obj)
+                return acc
+            }, {})
+            const childrenSections = Object.entries(childrenGroups).map(([key, nodes]) => ({
+                section: 'Level ' + key,
+                nodes: nodes
+            }))
+            return [
+                {section:'Parents',nodes:parentsArray},
+                {section:'Root',nodes:rootArray},
+                ...childrenSections
+            ].filter(d => d.nodes.length > 0)
+        }, [nodes])
+
+        // list view: bar width scale
+        // **** this should not be dynamic ***
+        const listScaleWidth = useMemo(() => {
+            const useRecords = countType === 'record' || countType === 'measurement'
+            const sums = []
+            ;(nodes ?? []).filter(n => n.levels !== '-1').forEach(node => {
+                sums.push(useRecords ? node.record_counts : node.person_counts)
+                sums.push(useRecords ? node.descendant_record_counts : node.descendant_person_counts)
+                node.mappings.forEach(map => {
+                    sums.push(useRecords ? map.record_counts : map.person_counts)
+                    sums.push(useRecords ? map.descendant_record_counts : map.descendant_person_counts)
+                })
+            })
+            const extent = d3.extent(sums)
+            return d3.scaleLinear().domain([0, extent[1]]).range(extent[1] === 0 ? [0,0] : [0, 70])
+        }, [nodes, countType])
+
+        // set view: one entry per root concept
+        const conceptSetData = useMemo(() => {
+            if (!fullTree?.nodes || !rootConcepts?.length) return []
+            const inclusionSet = new Set(inclusions)
+            return rootConcepts
+                .map(root => {
+                    const treeNode = fullTree.nodes.find(n => n.name === root)
+                    if (!treeNode) return null
+                    const visibleNode = (nodes ?? []).find(n => n.name === root)
+                    // Root not in the current view: sum the included descendants
+                    // (and mappings of those descendants) from the full tree.
+                    // Each concept is counted once, even if it is mapped from
+                    // several descendants.
+                    let personSum = 0, recordSum = 0
+                    if (!visibleNode) {
+                        const descendantSet = new Set(treeNode.descendants)
+                        const counted = new Set()
+                        fullTree.allNodes.forEach(node => {
+                            const inBranch = node.source ? descendantSet.has(node.source.name) : descendantSet.has(node.name)
+                            if (inBranch && inclusionSet.has(node.name) && !counted.has(node.name)) {
+                                counted.add(node.name)
+                                personSum += node.person_counts || 0
+                                recordSum += node.record_counts || 0
+                            }
+                        })
+                    }
+                    return {
+                        name: root,
+                        color: treeNode.color,
+                        leaf: visibleNode ? visibleNode.leaf : false,
+                        descendant_person_counts: visibleNode ? visibleNode.descendant_person_counts : personSum,
+                        descendant_record_counts: visibleNode ? visibleNode.descendant_record_counts : recordSum,
+                        concept: treeNode.data.concept,
+                        descendants: !descendantsFilter.includes(root),
+                        exclude: excludeList.includes(root)
+                    }
+                })
+                .filter(Boolean)
+        }, [rootConcepts, fullTree, nodes, inclusions, descendantsFilter, excludeList])
         const skipNextFitRef = useRef(false)
 
         // TREE AND LIST FUNCTIONS  
@@ -318,6 +408,7 @@
             if (!fittingRef.current) syncZoomState(k, !!e.sourceEvent)
         }
         function zoomToFit(geometry, padding = 20) {
+            const MIN_ZOOM_FACTOR = 0.8
             minimapLockedRef.current = false
             d3.select('#neighborhood-outline').remove()
             d3.select('#zoom-to-fit').style('display','none')
@@ -332,23 +423,25 @@
             const { width, height, x, y } = bbox
             if (width === 0 || height === 0) return
 
-            // subtract padding on both sides (top+bottom, left+right) exactly once
+            const LEGEND_RESERVE = 30   // collapsed legend (25.5px) + its margins; tune to taste
+
             let scale = Math.min(
                 (svgWidth - padding * 2) / width,
-                (svgHeight - padding * 6) / height
+                (svgHeight - padding * 6 - LEGEND_RESERVE) / height
             )
+
             if (nodes.length === 1) scale = scale / 2
 
             // center within the REAL container dimensions
             const translateX = (svgWidth - width * scale) / 2 - x * scale
-            const translateY = (svgHeight - height * scale) / 2 - y * scale - padding*2
+            const translateY = (svgHeight - LEGEND_RESERVE - height * scale) / 2 - y * scale - padding * 2
 
             const pendingName = pendingMapZoomRef.current
             if (pendingName !== null) {
                 pendingMapZoomRef.current = null
 
                 fitScaleRef.current = scale
-                zoomRef.current.scaleExtent([scale, 4])
+                zoomRef.current.scaleExtent([scale, 4]) 
 
                 const node = nodes.find(n => n.name === pendingName)
                 if (node) {
@@ -380,7 +473,7 @@
                     }
                 }
                 const k = Math.max(t.k, scale)
-                zoomRef.current.scaleExtent([scale, 4])
+                zoomRef.current.scaleExtent([scale, 4]) 
                 fittingRef.current = true
                 svg.call(zoomRef.current.transform, d3.zoomIdentity.translate(t.x, t.y).scale(k))
                 fittingRef.current = false
@@ -618,7 +711,6 @@
         // DRAWING
         // concept set
         function drawSet() {
-            const conceptSetData = rootConcepts.map(root => ({name:root,color:fullTree.nodes.find(n => n.name === root).color,leaf:nodes.find(n => n.name === root) ? nodes.find(n => n.name === root).leaf : false, descendant_person_counts:nodes.find(n => n.name === root) ? nodes.find(n => n.name === root).descendant_person_counts : d3.sum(fullTree.allNodes.filter(node => !node.source ? fullTree.nodes.find(n => n.name === 4191479).descendants.includes(node.name) : (node.source && fullTree.nodes.find(n => n.name === 4191479).descendants.includes(node.source.name))).filter(node => inclusions.includes(node.name)).map(node => node.person_counts)),  descendant_record_counts: nodes.find(n => n.name === root) ? nodes.find(n => n.name === root).descendant_record_counts : d3.sum(fullTree.allNodes.filter(node => !node.source ? fullTree.nodes.find(n => n.name === 4191479).descendants.includes(node.name) : (node.source && fullTree.nodes.find(n => n.name === 4191479).descendants.includes(node.source.name))).filter(node => inclusions.includes(node.name)).map(node => node.record_counts)),concept:fullTree.nodes.find(n => n.name === root).data.concept,descendants:descendantsFilter.includes(root) ? false : true,exclude:excludeList.includes(root) ? true : false}))
             d3.select('#set-items').selectAll('.set-item').data(conceptSetData, d => d.name)
             .join(enter => {
                 const container = enter.append('div')
@@ -664,7 +756,7 @@
                     .style('flex-direction','column')
                     .style('box-shadow', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
                     .style('background-color', d => d.levels === '-1' ? 'none' : inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 'white' : '#f2f2f4')
-                    .style('border', '1px solid #7728ED')
+                    .style('border', '2px solid #7728ED')
                     .style('margin-right','20px')
                 const title = conceptCard.append('div')
                     .classed('set-item-title btn',true)
@@ -723,15 +815,15 @@
                     .attr('id', d => 'set-info-icon-'+d.name)  
                     // .style('opacity', 0.2)
                     .on('mouseover',(e,d) => {e.stopPropagation();d3.select('#set-trash-' + d.name).transition(1000).style('max-width', '0px').style('opacity', 0).style('margin-right', '0px');d3.select('#set-info-icon-'+d.name).transition().style('color','#9597a6')})
-                    .on('mouseout', (e,d) => {if(d3.select('#set-info-container-'+d.name).style('height') !== '45px') d3.select('#set-info-icon-'+d.name).transition().style('color','#c9c9d5')})
+                    .on('mouseout', (e,d) => {if(!d3.select('#set-info-container-'+d.name).classed('info-open')) d3.select('#set-info-icon-'+d.name).transition().style('color','#c9c9d5')})
                     .on('click', (e,d) => {
-                        if (d3.select('#set-info-container-'+d.name).style('height') === '45px') {
+                        if (d3.select('#set-info-container-'+d.name).classed('info-open')) {
                             d3.select('#set-info-icon-'+d.name).transition().style('color','#c9c9d5')
-                            d3.select('#set-info-container-'+d.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
+                            d3.select('#set-info-container-'+d.name).classed('info-open', false).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                             d3.select('#set-card-'+d.name).transition().style('border-radius','20px')
                         } else {
                             d3.select('#set-info-icon-'+d.name).transition().style('color','#9597a6')
-                            d3.select('#set-info-container-'+d.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
+                            d3.select('#set-info-container-'+d.name).classed('info-open', true).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                             d3.select('#set-card-'+d.name).transition().style('border-radius','12px')
                         }
                     })
@@ -875,15 +967,15 @@
                     .style('opacity', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 1 : 0.6)
                 update.select('.set-info-icon')
                     .on('mouseover',(e,d) => {e.stopPropagation();d3.select('#set-trash-' + d.name).transition(1000).style('max-width', '0px').style('opacity', 0).style('margin-right', '0px');d3.select('#set-info-icon-'+d.name).transition().style('color','#9597a6')})
-                    .on('mouseout', (e,d) => {if(d3.select('#set-info-container-'+d.name).style('height') !== '45px') d3.select('#set-info-icon-'+d.name).transition().style('color','#c9c9d5')})
+                    .on('mouseout', (e,d) => {if(!d3.select('#set-info-container-'+d.name).classed('info-open')) d3.select('#set-info-icon-'+d.name).transition().style('color','#c9c9d5')})
                     .on('click', (e,d) => {
-                        if (d3.select('#set-info-container-'+d.name).style('height') === '45px') {
+                        if (d3.select('#set-info-container-'+d.name).classed('info-open')) {
                             d3.select('#set-info-icon-'+d.name).transition().style('color','#c9c9d5')
-                            d3.select('#set-info-container-'+d.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
+                            d3.select('#set-info-container-'+d.name).classed('info-open', false).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                             d3.select('#set-card-'+d.name).transition().style('border-radius','20px')
                         } else {
                             d3.select('#set-info-icon-'+d.name).transition().style('color','#9597a6')
-                            d3.select('#set-info-container-'+d.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
+                            d3.select('#set-info-container-'+d.name).classed('info-open', true).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                             d3.select('#set-card-'+d.name).transition().style('border-radius','12px')
                         }
                     })
@@ -1382,7 +1474,7 @@
                                     }
                                 })
                                 .attr('stroke', d => mapRoot.includes(d.source.name) ? inclusions.includes(d.name) ? d.source.leaf ? d.source.color : d.color : (countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) ? 'none' : '#dfdfe0' : d.source.leaf && relationship === 'mappings' && countType !== 'person' ? d.source.color : 'white')
-                                .attr('stroke-width', 1.5)
+                                .attr('stroke-width', 2)
                                 .attr('cx', d => getMap(d).x)
                                 .attr('cy', d => mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : getYPosition(d.source, 'z', cy + (genHeight[d.distance]), d))
                                 .on('mouseover',(e,d) => {
@@ -1524,7 +1616,7 @@
                                 .attr('y', d => getMap(d).y - 35)
                                 .attr('fill', d => inclusions.includes(d.name) ? 'white' : '#f2f2f4')
                                 .style("filter", d => inclusions.includes(d.name) ? "drop-shadow(0px 0px 4px rgba(0, 0, 0, 0.16))" : 'none')
-                                .attr('stroke-width',1)
+                                .attr('stroke-width', d => rootConcepts.includes(d.name) ? 2 : 1)
                                 .attr('stroke', d => rootConcepts.includes(d.name) ? '#7728ED' : 'transparent')
                                 .lower()
                             geometry.append('rect')
@@ -1691,6 +1783,7 @@
                                 .attr('y', d => getMap(d).y - 35)
                                 .attr('fill', d => inclusions.includes(d.name) ? 'white' : '#f2f2f4')
                                 .style("filter", d => inclusions.includes(d.name) ? "drop-shadow(0px 0px 4px rgba(0, 0, 0, 0.16))" : 'none')
+                                .attr('stroke-width', d => rootConcepts.includes(d.name) ? 2 : 1)
                                 .attr('stroke', d => rootConcepts.includes(d.name) ? '#7728ED' : 'transparent')
                         },exit => exit.remove())
                         //Subsumes node
@@ -1740,7 +1833,7 @@
                             .classed('tree-circle btn', true)
                             .attr('id', d => 'tree-circle-' + d.name)
                             .attr('r', d => countType === 'record' || countType === 'measurement' ? scaleRadius(Math.sqrt(d.record_counts)) : scaleRadius(Math.sqrt(d.person_counts)))
-                            .attr('stroke-width',1.5)
+                            .attr('stroke-width', 2)
                             .attr('stroke', d => (countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) ? 'none' : inclusions.includes(d.name) ? d.color : '#dfdfe0')
                             .attr('fill', d => {
                                 if ((countType === 'record' && d.record_counts === 0) || (d.leaf && relationship !== 'mappings') || (countType === 'person' && d.person_counts === 0)) return 'white'
@@ -2053,7 +2146,7 @@
                             .attr('y', d => getLabel(d).y - 35)
                             .attr('fill', d => inclusions.includes(d.name) || (countType === 'record' && d.leaf) || (countType === 'person' && d.leaf && relationship !== 'mappings') ? 'white' : '#f2f2f4')
                             .style("filter", d => inclusions.includes(d.name) || (countType === 'record' && d.leaf) || (countType === 'person' && d.leaf && relationship !== 'mappings') ? "drop-shadow(0px 0px 4px rgba(0, 0, 0, 0.16))" : 'none')
-                            .attr('stroke-width',1)
+                            .attr('stroke-width', d => rootConcepts.includes(d.name) ? 2 : 1)
                             .attr('stroke', d => d.collapsed ? 'white' : rootConcepts.includes(d.name) ? '#7728ED' : 'transparent')
                             .lower()
                         label.append('text')
@@ -2258,7 +2351,7 @@
                                     }
                                 })
                                 .attr('stroke', d => mapRoot.includes(d.source.name) ? inclusions.includes(d.name) ? d.source.leaf ? d.source.color : d.color : (countType === 'record' && d.record_counts === 0) || (countType === 'person' && d.person_counts === 0) ? 'none' : '#dfdfe0' : d.source.leaf && relationship === 'mappings' && countType !== 'person' ? d.source.color : 'white')
-                                .attr('stroke-width', 1.5)
+                                .attr('stroke-width', 2)
                                 .attr('cx', d => getMap(d).x)
                                 .attr('cy', d => mapRoot.includes(d.source.name) ? getYPosition(d.source, 'y', cy + (genHeight[d.distance]), d) : getYPosition(d.source, 'z', cy + (genHeight[d.distance]), d))
                                 .on('mouseover',(e,d) => {
@@ -2400,7 +2493,7 @@
                                 .attr('y', d => getMap(d).y - 35)
                                 .attr('fill', d => inclusions.includes(d.name) ? 'white' : '#f2f2f4')
                                 .style("filter", d => inclusions.includes(d.name) ? "drop-shadow(0px 0px 4px rgba(0, 0, 0, 0.16))" : 'none')
-                                .attr('stroke-width',1)
+                                .attr('stroke-width', d => rootConcepts.includes(d.name) ? 2 : 1)
                                 .attr('stroke', d => rootConcepts.includes(d.name) ? '#7728ED' : 'transparent')
                                 .lower()
                             geometry.append('rect')
@@ -2567,6 +2660,7 @@
                                 .attr('y', d => getMap(d).y - 35)
                                 .attr('fill', d => inclusions.includes(d.name) ? 'white' : '#f2f2f4')
                                 .style("filter", d => inclusions.includes(d.name) ? "drop-shadow(0px 0px 4px rgba(0, 0, 0, 0.16))" : 'none')
+                                .attr('stroke-width', d => rootConcepts.includes(d.name) ? 2 : 1)
                                 .attr('stroke', d => rootConcepts.includes(d.name) ? '#7728ED' : 'transparent')
                         },exit => exit.remove())
                         //Subsumes node
@@ -2843,6 +2937,7 @@
                             .attr('y', d => getLabel(d).y - 35)
                             .attr('fill', d => inclusions.includes(d.name) || (countType === 'record' && d.leaf) || (countType === 'person' && d.leaf && relationship !== 'mappings') ? 'white' : '#f2f2f4')
                             .style("filter", d => inclusions.includes(d.name) || (countType === 'record' && d.leaf) || (countType === 'person' && d.leaf && relationship !== 'mappings') ? "drop-shadow(0px 0px 4px rgba(0, 0, 0, 0.16))" : 'none')
+                            .attr('stroke-width', d => rootConcepts.includes(d.name) ? 2 : 1)
                             .attr('stroke', d => d.collapsed ? 'white' : rootConcepts.includes(d.name) ? '#7728ED' : 'transparent')
                         update.select('.top-count-label')
                             .style('display', d => d.collapsedCount ? 'block' : 'none')
@@ -3187,7 +3282,7 @@
                             .attr('y', d => countType === 'record' || countType === 'measurement' ? (d.data.concept.concept_code ? -scaleRadius(Math.sqrt(d.record_counts)) - 22 : -scaleRadius(Math.sqrt(d.record_counts)) - 7) : (d.data.concept.concept_code ? -scaleRadius(Math.sqrt(d.person_counts)) - 22 : -scaleRadius(Math.sqrt(d.person_counts)) - 7))
                             .attr('fill', d => inclusions.includes(d.name) || (countType === 'record' && d.leaf) || (countType === 'person' && d.leaf && relationship !== 'mappings') ? 'white' : '#f2f2f4')
                             .style("filter", d => inclusions.includes(d.name) || (countType === 'record' && d.leaf) || (countType === 'person' && d.leaf && relationship !== 'mappings') ? "drop-shadow(0px 0px 4px rgba(0, 0, 0, 0.16))" : 'none')
-                            .attr('stroke-width', 1)
+                            .attr('stroke-width', d => rootConcepts.includes(d.name) ? 2 : 1)
                             .attr('stroke', d => rootConcepts.includes(d.name) ? '#7728ED' : 'transparent')
                             .lower()
                         return g
@@ -3220,62 +3315,39 @@
                 .attr('transform', `translate(${translateX},${translateY}) scale(${scale})`)
         }
         // list
-        function drawList() {
-            let sums = []
-            nodes.filter(n => n.levels !== '-1').forEach(node => {
-                if (countType === 'record' || countType === 'measurement') {
-                    sums.push(node.record_counts)
-                    sums.push(node.descendant_record_counts)    
-                } else {
-                    sums.push(node.person_counts)
-                    sums.push(node.descendant_person_counts)    
-                }
-                
-                node.mappings.forEach(map => {
-                    if (countType === 'record' || countType === 'measurement') {
-                        sums.push(map.record_counts)
-                        sums.push(map.descendant_record_counts)    
-                    } else {
-                        sums.push(map.person_counts)
-                        sums.push(map.descendant_person_counts)    
-                    }
-                })
+        // list sections: Parents starts collapsed when it has more than 10 concepts, every other section starts expanded
+        function isListSectionCollapsed(d) {
+            const userChoice = listSectionCollapsedRef.current[d.section]
+            if (userChoice !== undefined) return userChoice
+            return d.section === 'Parents' && d.nodes.length > 10
+        }
+        function applyListSectionCollapse(sectionSel) {
+            sectionSel.each(function(d) {
+                const collapsed = isListSectionCollapsed(d)
+                const sel = d3.select(this)
+                sel.selectAll(':scope > .list-item-container').style('display', collapsed ? 'none' : 'block')
+                sel.select('.list-section-caret')
+                    .classed('fa-chevron-up', !collapsed)
+                    .classed('fa-chevron-down', collapsed)
             })
-            const extent = d3.extent(sums)
-            // **** this should not be dynamic ***
-            const scaleWidth = d3.scaleLinear().domain([0, extent[1]]).range(extent[1] === 0 ? [0,0] : [0, 70])
-            let parentsArray = nodes.filter(d => d.relationship === "-1")
-            let rootArray = nodes.filter(d => d.relationship === "0")
-            let childrenArray = nodes.filter(d => d.relationship.includes('-') && d.relationship !== "-1").sort((x,y) => {
-                const [a1, a2] = x.relationship.split('-').map(Number)
-                const [b1, b2] = y.relationship.split('-').map(Number)
-                return a1 - b1 || a2 - b2
-                })
-            let childrenGroups = childrenArray.reduce((acc, obj) => {
-                const groupKey = parseInt(obj.relationship.split('-')[0]) + 1
-                if (!acc[groupKey]) acc[groupKey] = []
-                acc[groupKey].push(obj)
-                return acc
-            }, {})
-            let sectionData = [
-                {section:'Parents',nodes:parentsArray},
-                {section:'Root',nodes:rootArray},
-            ]
-            let childrenSections = Object.entries(childrenGroups).map(([key, nodes]) => ({
-                section: 'Level ' + key,   
-                nodes: nodes    
-            }))
-            sectionData = [...sectionData,...childrenSections]
-            sectionData = sectionData.filter(d => d.nodes.length > 0) 
+        }
+        function toggleListSection(e, d) {
+            e.stopPropagation()
+            listSectionCollapsedRef.current[d.section] = !isListSectionCollapsed(d)
+            applyListSectionCollapse(d3.select(e.currentTarget.closest('.list-section')))
+        }
+        function drawList() {
+            const scaleWidth = listScaleWidth
             // console.log('list',sectionData)
             d3.select('#list-container').selectAll('.list-section').data(sectionData, d => d.section)
             .join(enter => {
                 const section = enter.append('div')  
                     .classed('list-section',true)
                 const title = section.append('div')    
-                    .classed('list-section-title',true)
+                    .classed('list-section-title btn',true)
                     .style('opacity', d => hovered.length > 0 ? 0.2 : 1)
                     .style('border-bottom','1px solid color-mix(in srgb, #b3b3bf, white 70%)')
+                    .on('click', toggleListSection)   // whole header toggles the section
                 title.append('i')
                     .classed('list-section-arrow fa-solid fa-arrow-up',true)
                     .style('transform', d => d.section === 'Root' ? 'rotate('+90+'deg)' : d.section !== 'Parents' ? 'rotate('+180+'deg)' : 'none')
@@ -3285,26 +3357,9 @@
                     .classed('list-level-number selectedText',true)
                     .html(d => d.section === 'Root' ? 'Level 1' : d.section)
                 title.append('i')
-                    .classed('parents-caret-down fa-solid fa-caret-down iconLg',true)
-                    .attr('id', d => 'parents-caret-down-'+d.name)
-                    .style('display', d => d.section === 'Parents' && nodes.filter(n => n.levels === '-1').length > 10 ? 'block' : 'none')
-                    .style("margin-left",'6px')
-                    .on('click',(e,d) => {
-                        d3.selectAll(".list-item-container"+'-1').transition(2000).style('height','auto').style('display','block')
-                        d3.select('#parents-caret-down-'+d.name).style('display','none')
-                        d3.select('#parents-caret-up-'+d.name).style('display','block')
-                    })
-                title.append('i')
-                    .classed('parents-caret-up fa-solid fa-caret-up iconLg',true)
-                    .attr('id', d => 'parents-caret-up-'+d.name)
-                    .style('opacity',1)
-                    .style("margin-left",'6px')
-                    .style('display', 'none')
-                    .on('click',(e,d) => {
-                        d3.selectAll(".list-item-container"+'-1').transition(2000).style('height','0px').style('display','none')
-                        d3.select('#parents-caret-down-'+d.name).style('display','block')
-                        d3.select('#parents-caret-up-'+d.name).style('display','none')
-                    })
+                    .classed('list-section-caret fa-solid',true)
+                    .style('margin-left','auto')
+                    .style('font-size','10px')   // colour comes from .list-section-caret in index.css
                 // CONCEPT LIST
                 section.selectAll(".list-item-container").data(d => d.nodes, d => d.name)
                 .join(enter => {
@@ -3312,8 +3367,6 @@
                         .classed('list-item-container',true)
                         .each(function(d) {this.classList.add(`list-item-container${d.levels}`)})
                         .style('border-bottom', d => d.levels === '-1' ? '0.5px solid #d3d3d3' : '0.5px solid #e8e8e8')
-                        .style('display', d => d.levels === '-1' && d.collapsed ? 'none' : 'block')
-                        .style('height', d => d.levels === '-1' && d.collapsed ? '0px' : 'auto')
                     const item = itemContainer.append('div')
                         .classed('list-item',true)
                         .attr('id', d => 'list-item-'+d.name)
@@ -3328,7 +3381,7 @@
                         .style('flex-direction','column')
                         .style('box-shadow', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
                         .style('background-color', d => d.levels === '-1' ? 'none' : inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 'white' : '#f2f2f4')
-                        .style('border', d => rootConcepts.includes(d.name) ? '1px solid #7728ED' : 'none')
+                        .style('border', d => rootConcepts.includes(d.name) ? '2px solid #7728ED' : 'none')
                     const title = conceptCard.append('div')
                         .classed('list-item-title',true)
                     const title1 = title.append('div')
@@ -3482,15 +3535,15 @@
                         .style('color', '#c9c9d5')
                         .style('display', d => d.levels === '-1' || !d.levels ? 'none' : 'block')
                         .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name).transition().style('color','#9597a6'))
-                        .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name).style('height') !== '45px') d3.select('#info-icon-'+d.name).transition().style('color','#c9c9d5')})
+                        .on('mouseout', (e,d) => {if(!d3.select('#info-container-'+d.name).classed('info-open')) d3.select('#info-icon-'+d.name).transition().style('color','#c9c9d5')})
                         .on('click', (e,d) => {
-                            if (d3.select('#info-container'+d.name).style('height') === '45px') {
+                            if (d3.select('#info-container-'+d.name).classed('info-open')) {
                                 d3.select('#info-icon-'+d.name).transition().style('color','#c9c9d5')
-                                d3.select('#info-container-'+d.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
+                                d3.select('#info-container-'+d.name).classed('info-open', false).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                                 d3.select('#list-card-'+d.name).transition().style('border-radius','20px')
                             } else {
                                 d3.select('#info-icon-'+d.name).transition().style('color','#9597a6')
-                                d3.select('#info-container-'+d.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
+                                d3.select('#info-container-'+d.name).classed('info-open', true).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                                 d3.select('#list-card-'+d.name).transition().style('border-radius','12px')
                             }
                         })
@@ -3808,15 +3861,15 @@
                             .attr('id', d => 'info-icon-'+d.name+d.source.name)  
                             // .style('opacity', 0.2)
                             .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6'))
-                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')})
+                            .on('mouseout', (e,d) => {if(!d3.select('#info-container-'+d.name+d.source.name).classed('info-open')) d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')})
                             .on('click', (e,d) => {
-                                if (d3.select('#info-container-'+d.name+d.source.name).style('height') === '45px') {
+                                if (d3.select('#info-container-'+d.name+d.source.name).classed('info-open')) {
                                     d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')
-                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
+                                    d3.select('#info-container-'+d.name+d.source.name).classed('info-open', false).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','20px')
                                 } else {
                                     d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6')
-                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
+                                    d3.select('#info-container-'+d.name+d.source.name).classed('info-open', true).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','12px')
                                 }
                             })
@@ -4039,15 +4092,15 @@
                             .style('opacity', d => inclusions.includes(d.name) ? 1 : 0.6)
                         update.select('.map-info-icon')
                             .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6'))
-                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')})
+                            .on('mouseout', (e,d) => {if(!d3.select('#info-container-'+d.name+d.source.name).classed('info-open')) d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')})
                             .on('click', (e,d) => {
-                                if (d3.select('#info-container-'+d.name+d.source.name).style('height') === '45px') {
+                                if (d3.select('#info-container-'+d.name+d.source.name).classed('info-open')) {
                                     d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')
-                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
+                                    d3.select('#info-container-'+d.name+d.source.name).classed('info-open', false).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','20px')
                                 } else {
                                     d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6')
-                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
+                                    d3.select('#info-container-'+d.name+d.source.name).classed('info-open', true).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','12px')
                                 }
                             })
@@ -4194,15 +4247,15 @@
                     update.select('.info-icon')
                         .style('display', d => d.levels === '-1' || !d.levels ? 'none' : 'block')
                         .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name).transition().style('color','#9597a6'))
-                        .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name).style('height') !== '45px') d3.select('#info-icon-'+d.name).transition().style('color','#c9c9d5')})
+                        .on('mouseout', (e,d) => {if(!d3.select('#info-container-'+d.name).classed('info-open')) d3.select('#info-icon-'+d.name).transition().style('color','#c9c9d5')})
                         .on('click', (e,d) => {
-                            if (d3.select('#info-container-'+d.name).style('height') === '45px') {
+                            if (d3.select('#info-container-'+d.name).classed('info-open')) {
                                 d3.select('#info-icon-'+d.name).transition().style('color','#c9c9d5')
-                                d3.select('#info-container-'+d.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
+                                d3.select('#info-container-'+d.name).classed('info-open', false).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                                 d3.select('#list-card-'+d.name).transition().style('border-radius','20px')
                             } else {
                                 d3.select('#info-icon-'+d.name).transition().style('color','#9597a6')
-                                d3.select('#info-container-'+d.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
+                                d3.select('#info-container-'+d.name).classed('info-open', true).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                                 d3.select('#list-card-'+d.name).transition().style('border-radius','12px')
                             }
                         })
@@ -4437,15 +4490,15 @@
                             .attr('id', d => 'info-icon-'+d.name+d.source.name)  
                             .style('opacity', 0.2)
                             .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6'))
-                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')})
+                            .on('mouseout', (e,d) => {if(!d3.select('#info-container-'+d.name+d.source.name).classed('info-open')) d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')})
                             .on('click', (e,d) => {
-                                if (d3.select('#info-container-'+d.name+d.source.name).style('height') === '45px') {
+                                if (d3.select('#info-container-'+d.name+d.source.name).classed('info-open')) {
                                     d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')
-                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
+                                    d3.select('#info-container-'+d.name+d.source.name).classed('info-open', false).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','20px')
                                 } else {
                                     d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6')
-                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
+                                    d3.select('#info-container-'+d.name+d.source.name).classed('info-open', true).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','12px')
                                 }
                             })
@@ -4668,15 +4721,15 @@
                             .style('opacity', d => inclusions.includes(d.name) ? 1 : 0.6)
                         update.select('.map-info-icon')
                             .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6'))
-                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')})
+                            .on('mouseout', (e,d) => {if(!d3.select('#info-container-'+d.name+d.source.name).classed('info-open')) d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')})
                             .on('click', (e,d) => {
-                                if (d3.select('#info-container-'+d.name+d.source.name).style('height') === '45px') {
+                                if (d3.select('#info-container-'+d.name+d.source.name).classed('info-open')) {
                                     d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')
-                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
+                                    d3.select('#info-container-'+d.name+d.source.name).classed('info-open', false).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','20px')
                                 } else {
                                     d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6')
-                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
+                                    d3.select('#info-container-'+d.name+d.source.name).classed('info-open', true).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','12px')
                                 }
                             })
@@ -4703,6 +4756,7 @@
                             .style('width', d => countType === 'record' || countType === 'measurement' ? scaleWidth(d.descendant_record_counts) + 'px' : scaleWidth(d.descendant_person_counts) + 'px')
                     })
                 })
+                applyListSectionCollapse(section)
             },update => {
                 // CONCEPT LIST
                 update.selectAll(".list-item-container").data(d => d.nodes, d => d.name)
@@ -4711,8 +4765,6 @@
                         .classed('list-item-container',true)
                         .each(function(d) {this.classList.add(`list-item-container${d.levels}`)})
                         .style('border-bottom', d => d.levels === '-1' ? '0.5px solid #d3d3d3' : '0.5px solid #e8e8e8')
-                        .style('display', d => d.levels === '-1' && d.collapsed ? 'none' : 'block')
-                        .style('height', d => d.levels === '-1' && d.collapsed ? '0px' : 'auto')
                     const item = itemContainer.append('div')
                         .classed('list-item',true)
                         .attr('id', d => 'list-item-'+d.name)
@@ -4727,7 +4779,7 @@
                         .style('flex-direction','column')
                         .style('box-shadow', d => inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? '0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.15)' : 'none')
                         .style('background-color', d => d.levels === '-1' ? 'none' : inclusions.includes(d.name) || (d.leaf && countType === 'record') || (d.leaf && countType === 'person' && relationship !== 'mappings') ? 'white' : '#f2f2f4')
-                        .style('border', d => rootConcepts.includes(d.name) ? '1px solid #7728ED' : 'none')
+                        .style('border', d => rootConcepts.includes(d.name) ? '2px solid #7728ED' : 'none')
                     const title = conceptCard.append('div')
                         .classed('list-item-title',true)
                     const title1 = title.append('div')
@@ -4881,15 +4933,15 @@
                         .style('color', '#c9c9d5')
                         .style('display', d => d.levels === '-1' || !d.levels ? 'none' : 'block')
                         .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name).transition().style('color','#9597a6'))
-                        .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name).style('height') !== '45px') d3.select('#info-icon-'+d.name).transition().style('color','#c9c9d5')})
+                        .on('mouseout', (e,d) => {if(!d3.select('#info-container-'+d.name).classed('info-open')) d3.select('#info-icon-'+d.name).transition().style('color','#c9c9d5')})
                         .on('click', (e,d) => {
-                            if (d3.select('#info-container'+d.name).style('height') === '45px') {
+                            if (d3.select('#info-container-'+d.name).classed('info-open')) {
                                 d3.select('#info-icon-'+d.name).transition().style('color','#c9c9d5')
-                                d3.select('#info-container-'+d.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
+                                d3.select('#info-container-'+d.name).classed('info-open', false).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                                 d3.select('#list-card-'+d.name).transition().style('border-radius','20px')
                             } else {
                                 d3.select('#info-icon-'+d.name).transition().style('color','#9597a6')
-                                d3.select('#info-container-'+d.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
+                                d3.select('#info-container-'+d.name).classed('info-open', true).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                                 d3.select('#list-card-'+d.name).transition().style('border-radius','12px')
                             }
                         })
@@ -5207,15 +5259,15 @@
                             .attr('id', d => 'info-icon-'+d.name+d.source.name)  
                             // .style('opacity', 0.2)
                             .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6'))
-                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')})
+                            .on('mouseout', (e,d) => {if(!d3.select('#info-container-'+d.name+d.source.name).classed('info-open')) d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')})
                             .on('click', (e,d) => {
-                                if (d3.select('#info-container-'+d.name+d.source.name).style('height') === '45px') {
+                                if (d3.select('#info-container-'+d.name+d.source.name).classed('info-open')) {
                                     d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')
-                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
+                                    d3.select('#info-container-'+d.name+d.source.name).classed('info-open', false).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','20px')
                                 } else {
                                     d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6')
-                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
+                                    d3.select('#info-container-'+d.name+d.source.name).classed('info-open', true).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','12px')
                                 }
                             })
@@ -5438,15 +5490,15 @@
                             .style('opacity', d => inclusions.includes(d.name) ? 1 : 0.6)
                         update.select('.map-info-icon')
                             .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6'))
-                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')})
+                            .on('mouseout', (e,d) => {if(!d3.select('#info-container-'+d.name+d.source.name).classed('info-open')) d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')})
                             .on('click', (e,d) => {
-                                if (d3.select('#info-container-'+d.name+d.source.name).style('height') === '45px') {
+                                if (d3.select('#info-container-'+d.name+d.source.name).classed('info-open')) {
                                     d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')
-                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
+                                    d3.select('#info-container-'+d.name+d.source.name).classed('info-open', false).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','20px')
                                 } else {
                                     d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6')
-                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
+                                    d3.select('#info-container-'+d.name+d.source.name).classed('info-open', true).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','12px')
                                 }
                             })
@@ -5593,15 +5645,15 @@
                     update.select('.info-icon')
                         .style('display', d => d.levels === '-1' || !d.levels ? 'none' : 'block')
                         .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name).transition().style('color','#9597a6'))
-                        .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name).style('height') !== '45px') d3.select('#info-icon-'+d.name).transition().style('color','#c9c9d5')})
+                        .on('mouseout', (e,d) => {if(!d3.select('#info-container-'+d.name).classed('info-open')) d3.select('#info-icon-'+d.name).transition().style('color','#c9c9d5')})
                         .on('click', (e,d) => {
-                            if (d3.select('#info-container-'+d.name).style('height') === '45px') {
+                            if (d3.select('#info-container-'+d.name).classed('info-open')) {
                                 d3.select('#info-icon-'+d.name).transition().style('color','#c9c9d5')
-                                d3.select('#info-container-'+d.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
+                                d3.select('#info-container-'+d.name).classed('info-open', false).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                                 d3.select('#list-card-'+d.name).transition().style('border-radius','20px')
                             } else {
                                 d3.select('#info-icon-'+d.name).transition().style('color','#9597a6')
-                                d3.select('#info-container-'+d.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
+                                d3.select('#info-container-'+d.name).classed('info-open', true).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                                 d3.select('#list-card-'+d.name).transition().style('border-radius','12px')
                             }
                         })
@@ -5836,15 +5888,15 @@
                             .attr('id', d => 'info-icon-'+d.name+d.source.name)  
                             .style('opacity', 0.2)
                             .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6'))
-                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')})
+                            .on('mouseout', (e,d) => {if(!d3.select('#info-container-'+d.name+d.source.name).classed('info-open')) d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')})
                             .on('click', (e,d) => {
-                                if (d3.select('#info-container-'+d.name+d.source.name).style('height') === '45px') {
+                                if (d3.select('#info-container-'+d.name+d.source.name).classed('info-open')) {
                                     d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')
-                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
+                                    d3.select('#info-container-'+d.name+d.source.name).classed('info-open', false).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','20px')
                                 } else {
                                     d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6')
-                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
+                                    d3.select('#info-container-'+d.name+d.source.name).classed('info-open', true).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','12px')
                                 }
                             })
@@ -6067,15 +6119,15 @@
                             .style('opacity', d => inclusions.includes(d.name) ? 1 : 0.6)
                         update.select('.map-info-icon')
                             .on('mouseover',(e,d) => d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6'))
-                            .on('mouseout', (e,d) => {if(d3.select('#info-container-'+d.name+d.source.name).style('height') !== '45px') d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')})
+                            .on('mouseout', (e,d) => {if(!d3.select('#info-container-'+d.name+d.source.name).classed('info-open')) d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')})
                             .on('click', (e,d) => {
-                                if (d3.select('#info-container-'+d.name+d.source.name).style('height') === '45px') {
+                                if (d3.select('#info-container-'+d.name+d.source.name).classed('info-open')) {
                                     d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#c9c9d5')
-                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
+                                    d3.select('#info-container-'+d.name+d.source.name).classed('info-open', false).transition().style('opacity',0).style('height','0px').style('padding-top','0px').style('margin','0px 0px 0px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','20px')
                                 } else {
                                     d3.select('#info-icon-'+d.name+d.source.name).transition().style('color','#9597a6')
-                                    d3.select('#info-container-'+d.name+d.source.name).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
+                                    d3.select('#info-container-'+d.name+d.source.name).classed('info-open', true).transition().style('opacity',1).style('height','45px').style('padding-top','4px').style('margin','4px 4px 4px 22px')
                                     d3.select('#list-card-'+d.name+d.source.name).transition().style('border-radius','12px')
                                 }
                             })
@@ -6109,19 +6161,8 @@
                     .style('transform', d => d.section === 'Root' ? 'rotate('+90+'deg)' : d.section !== 'Parents' ? 'rotate('+180+'deg)' : 'none')
                 update.select('.list-level-number')
                     .html(d => d.section === 'Root' ? 'Level 1' : d.section)
-                update.select('.parents-caret-down')
-                    .style('display', d => d.section === 'Parents' && nodes.filter(n => n.levels === '-1').length > 10 ? 'block' : 'none')
-                    .on('click',(e,d) => {
-                        d3.selectAll(".list-item-container"+'-1').transition(2000).style('height','auto').style('max-height','100px').style('display','block')
-                        d3.select('#parents-caret-down-'+d.name).style('display','none')
-                        d3.select('#parents-caret-up-'+d.name).style('display','block')
-                    })
-                update.select('.parents-caret-up')
-                    .on('click',(e,d) => {
-                        d3.selectAll(".list-item-container"+'-1').transition(2000).style('height','0px').style('max-height','0px').style('display','none')
-                        d3.select('#parents-caret-down-'+d.name).style('display','block')
-                        d3.select('#parents-caret-up-'+d.name).style('display','none')
-                    })
+                update.select('.list-section-title').on('click', toggleListSection)
+                applyListSectionCollapse(update)
             })
         }
         // expand and collapse tree
@@ -6510,9 +6551,9 @@
                     drawSet()     
                 }    
             }
-        },[nodes,inclusions,view,mapRoot,countType,graphSectionWidth,expandedTop])
+        },[nodes,inclusions,view,mapRoot,countType,graphSectionWidth,expandedTop,sectionData,listScaleWidth,conceptSetData])
 
-        useEffect(() => { setExpandedTop([]); setTopList(null) }, [rootConcepts])
+        useEffect(() => { setExpandedTop([]); setTopList(null); listSectionCollapsedRef.current = {} }, [rootConcepts])
 
         useEffect(() => {
             if (!topList) return
@@ -6841,6 +6882,7 @@
                     </div>
                     <div className = 'sidebarContainer' id = "list-container" style = {{display: view === 'List' ? 'block' : 'none'}}></div>
                     <div id = "tree-container" style = {{display: view === 'Tree' ? 'block' : 'none'}}>  
+                        <TreeLegend />
                         <button className = "btn greyBtn" id = 'zoom-to-fit' onClick={() => zoomToFit(d3.select('#nodes'))} style = {{zIndex:5000,position: 'absolute',display: 'none',marginTop:'0.75em',marginLeft:'0.75em'}}>Zoom to fit</button>
                         <button className="btn greyBtn" id="top-list-btn" onClick={openTopList}
                             style={{ zIndex: 5000, position: 'absolute', display: 'none', bottom: '0.75em', left: '0.75em' }}>
