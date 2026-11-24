@@ -416,8 +416,10 @@
             const gNode = geometry.node().parentElement
 
             // actual container dimensions — no padding baked in here
-            const svgWidth = window.innerWidth * ((100 - parseInt(graphSectionWidth)) / 100)
-            const svgHeight = svgNode.getBoundingClientRect().height
+            // measured, not derived from graphSectionWidth: that is '60vw' initially but a pixel number after a drag
+            const svgRect = svgNode.getBoundingClientRect()
+            const svgWidth = svgRect.width
+            const svgHeight = svgRect.height
 
             const bbox = gNode.getBBox()
             const { width, height, x, y } = bbox
@@ -1164,7 +1166,7 @@
                     this.__hoverTimeout__ = setTimeout(() => {
                         if (inclusions.includes(d.name)) setHovered([d.name])
                         if (d.levels !== '-1') tooltipHover(d, 'enter', e)
-                    }, 600)
+                    }, 1000)
                 })
                 .on('mouseleave', function (e, d) {
                     clearTimeout(this.__hoverTimeout__)
@@ -1377,6 +1379,8 @@
                     const el = this
                     el.__hoverTimeout__ = setTimeout(() => {
                         if (treeZoomedRef.current || d.collapsed) return
+                        // pointer is on the mapping circles / mappings button: they handle their own hover
+                        if (el.querySelector('.map-node:hover, .mappings-btn-group:hover')) return
                         cancelMinimapHide()
                         if (relationship === 'mappings') {
                             setZoomedNodes([d, ...d.mappings])
@@ -1482,11 +1486,24 @@
                                     overrideNodeHover(e)
                                     hoverMappings(d.source,'enter')
                                     setVisible(false)
-                                })
-                                .on('mouseout',(e,d) => {hoverMappings(d.source,'leave');setVisible(false)})
-                                .on('click',(e,d) => {
+                                    // same delayed action label as the mappings caret, only while the mappings are closed
                                     if (!mapRoot.includes(d.source.name)) {
-                                        pendingMapZoomRef.current = d.name
+                                        const el = e.currentTarget
+                                        clearTimeout(el.__hoverTimeout__)
+                                        el.__hoverTimeout__ = setTimeout(() => showActionLabel('Open mappings','enter',e), 1200)
+                                    }
+                                })
+                                .on('mouseout',(e,d) => {
+                                    hoverMappings(d.source,'leave')
+                                    setVisible(false)
+                                    clearTimeout(e.currentTarget.__hoverTimeout__)
+                                    showActionLabel('','leave',e)
+                                })
+                                .on('click',(e,d) => {
+                                    clearTimeout(e.currentTarget.__hoverTimeout__)
+                                    showActionLabel('','leave')
+                                    if (!mapRoot.includes(d.source.name)) {
+                                        pendingMapZoomRef.current = d.source.name   // zoom to the node that owns these mappings, not a same-id node elsewhere
                                         setMapRoot([...mapRoot,d.source.name])
                                         updateWidth([...mapRoot,d.source.name])    
                                     } 
@@ -1567,7 +1584,7 @@
                                     el.__hoverTimeout__ = setTimeout(() => {
                                         if (inclusions.includes(d.name)) setHovered([d.name])
                                         if (d.levels !== '-1') tooltipHover(d, "enter", e)  
-                                    }, 600)    
+                                    }, 1000)    
                                 })
                                 .on('mouseout', function (e,d) {
                                     const el = this
@@ -1700,11 +1717,24 @@
                                     overrideNodeHover(e)
                                     hoverMappings(d.source,'enter')
                                     setVisible(false)
-                                })
-                                .on('mouseout',(e,d) => {hoverMappings(d.source,'leave');setVisible(false)})
-                                .on('click',(e,d) => {
+                                    // same delayed action label as the mappings caret, only while the mappings are closed
                                     if (!mapRoot.includes(d.source.name)) {
-                                        pendingMapZoomRef.current = d.name
+                                        const el = e.currentTarget
+                                        clearTimeout(el.__hoverTimeout__)
+                                        el.__hoverTimeout__ = setTimeout(() => showActionLabel('Open mappings','enter',e), 1200)
+                                    }
+                                })
+                                .on('mouseout',(e,d) => {
+                                    hoverMappings(d.source,'leave')
+                                    setVisible(false)
+                                    clearTimeout(e.currentTarget.__hoverTimeout__)
+                                    showActionLabel('','leave',e)
+                                })
+                                .on('click',(e,d) => {
+                                    clearTimeout(e.currentTarget.__hoverTimeout__)
+                                    showActionLabel('','leave')
+                                    if (!mapRoot.includes(d.source.name)) {
+                                        pendingMapZoomRef.current = d.source.name   // zoom to the node that owns these mappings, not a same-id node elsewhere
                                         setMapRoot([...mapRoot,d.source.name])
                                         updateWidth([...mapRoot,d.source.name])    
                                     } 
@@ -1755,7 +1785,7 @@
                                     el.__hoverTimeout__ = setTimeout(() => {
                                         if (inclusions.includes(d.name)) setHovered([d.name])
                                         if (d.levels !== '-1') tooltipHover(d, "enter", e)  
-                                    }, 600)    
+                                    }, 1000)    
                                 })
                                 .on('mouseout', function (e,d) {
                                     const el = this
@@ -1812,7 +1842,7 @@
                                     // setZoomedNodes(neighborhoodNodes)
                                     // setZoomedLinks(neighborhoodLinks)
                                     if (d.levels !== '-1') tooltipHover(d, "enter", e)  
-                                }, 600)    
+                                }, 1000)    
                             })
                             .on('mouseout', function (e,d) {
                                 const el = this
@@ -1991,6 +2021,8 @@
                             })
                             .on('click',(e,d) => {
                                 e.stopPropagation()
+                                clearTimeout(e.currentTarget.__hoverTimeout__)   // don't leave 'Open/Close mappings' behind after the redraw
+                                showActionLabel('','leave')
                                 if (mapRoot.includes(d.name)) {
                                     pendingMapZoomRef.current = null
                                     const el = document.getElementById('tree-circle-' + d.name)
@@ -2069,14 +2101,20 @@
                                     el.__hoverTimeout__ = setTimeout(() => showActionLabel('Choose top-level concepts','enter',e), 1200)
                                     return
                                 }
-                                if (!rootConcepts.includes(d.name)) {
-                                    el.__hoverTimeout__ = setTimeout(() => showActionLabel('Select concept','enter',e), 1200)
-                                }
+                                // same as hovering the node: highlight it and show its tooltip
+                                clearTimeout(el.__hoverTimeout__)
+                                el.__hoverTimeout__ = setTimeout(() => {
+                                    setHovered([d.name])
+                                    if (d.levels !== '-1') tooltipHover(d, 'enter', e)
+                                }, 1000)
                             })
                             .on('mouseout', (e,d) => {
                                 clearTimeout(e.currentTarget.__hoverTimeout__)
                                 showActionLabel('','leave',e)
-                                showConfirmationPopup(d,'leave')
+                                if (!d.collapsed) {
+                                    setHovered([])
+                                    tooltipHover(d, 'leave', e)
+                                }
                             })
                             .on('click', (e, d) => {
                                 clearTimeout(e.currentTarget.__hoverTimeout__)
@@ -2273,7 +2311,8 @@
                             .lower()
                         bindTreeNodeHover(geometry)
                         // d3.selectAll('.subsumes-nodes').lower()
-                        // d3.selectAll('.map-node').raise()
+                        // mapping circles above the node's hover rect (so they get hover/click), mappings button on top
+                        geometry.selectAll(':scope > .map-node').raise()
                         mappingsBtnGroup.raise()
                         d3.selectAll('.prune-curve').lower()
                         return geometry 
@@ -2359,11 +2398,24 @@
                                     overrideNodeHover(e)
                                     hoverMappings(d.source,'enter')
                                     setVisible(false)
-                                })
-                                .on('mouseout',(e,d) => {hoverMappings(d.source,'leave');setVisible(false)})
-                                .on('click',(e,d) => {
+                                    // same delayed action label as the mappings caret, only while the mappings are closed
                                     if (!mapRoot.includes(d.source.name)) {
-                                        pendingMapZoomRef.current = d.name
+                                        const el = e.currentTarget
+                                        clearTimeout(el.__hoverTimeout__)
+                                        el.__hoverTimeout__ = setTimeout(() => showActionLabel('Open mappings','enter',e), 1200)
+                                    }
+                                })
+                                .on('mouseout',(e,d) => {
+                                    hoverMappings(d.source,'leave')
+                                    setVisible(false)
+                                    clearTimeout(e.currentTarget.__hoverTimeout__)
+                                    showActionLabel('','leave',e)
+                                })
+                                .on('click',(e,d) => {
+                                    clearTimeout(e.currentTarget.__hoverTimeout__)
+                                    showActionLabel('','leave')
+                                    if (!mapRoot.includes(d.source.name)) {
+                                        pendingMapZoomRef.current = d.source.name   // zoom to the node that owns these mappings, not a same-id node elsewhere
                                         setMapRoot([...mapRoot,d.source.name])
                                         updateWidth([...mapRoot,d.source.name])    
                                     } 
@@ -2444,7 +2496,7 @@
                                     el.__hoverTimeout__ = setTimeout(() => {
                                         if (inclusions.includes(d.name)) setHovered([d.name])
                                         if (d.levels !== '-1') tooltipHover(d, "enter", e)  
-                                    }, 600)    
+                                    }, 1000)    
                                 })
                                 .on('mouseout', function (e,d) {
                                     const el = this
@@ -2577,11 +2629,24 @@
                                     overrideNodeHover(e)
                                     hoverMappings(d.source,'enter')
                                     setVisible(false)
-                                })
-                                .on('mouseout',(e,d) => {hoverMappings(d.source,'leave');setVisible(false)})
-                                .on('click',(e,d) => {
+                                    // same delayed action label as the mappings caret, only while the mappings are closed
                                     if (!mapRoot.includes(d.source.name)) {
-                                        pendingMapZoomRef.current = d.name
+                                        const el = e.currentTarget
+                                        clearTimeout(el.__hoverTimeout__)
+                                        el.__hoverTimeout__ = setTimeout(() => showActionLabel('Open mappings','enter',e), 1200)
+                                    }
+                                })
+                                .on('mouseout',(e,d) => {
+                                    hoverMappings(d.source,'leave')
+                                    setVisible(false)
+                                    clearTimeout(e.currentTarget.__hoverTimeout__)
+                                    showActionLabel('','leave',e)
+                                })
+                                .on('click',(e,d) => {
+                                    clearTimeout(e.currentTarget.__hoverTimeout__)
+                                    showActionLabel('','leave')
+                                    if (!mapRoot.includes(d.source.name)) {
+                                        pendingMapZoomRef.current = d.source.name   // zoom to the node that owns these mappings, not a same-id node elsewhere
                                         setMapRoot([...mapRoot,d.source.name])
                                         updateWidth([...mapRoot,d.source.name])    
                                     } 
@@ -2632,7 +2697,7 @@
                                     el.__hoverTimeout__ = setTimeout(() => {
                                         if (inclusions.includes(d.name)) setHovered([d.name])
                                         if (d.levels !== '-1') tooltipHover(d, "enter", e)  
-                                    }, 600)    
+                                    }, 1000)    
                                 })
                                 .on('mouseout', function (e,d) {
                                     const el = this
@@ -2683,7 +2748,7 @@
                                     // setZoomedNodes(neighborhoodNodes)
                                     // setZoomedLinks(neighborhoodLinks)
                                     if (d.levels !== '-1') tooltipHover(d, "enter", e)  
-                                }, 600)    
+                                }, 1000)    
                             })
                             .on('mouseout', function (e,d) {
                                 const el = this
@@ -2805,6 +2870,8 @@
                             })
                             .on('click',(e,d) => {
                                 e.stopPropagation()
+                                clearTimeout(e.currentTarget.__hoverTimeout__)   // don't leave 'Open/Close mappings' behind after the redraw
+                                showActionLabel('','leave')
                                 if (mapRoot.includes(d.name)) {
                                     pendingMapZoomRef.current = null
                                     const el = document.getElementById('tree-circle-' + d.name)
@@ -2864,14 +2931,20 @@
                                     el.__hoverTimeout__ = setTimeout(() => showActionLabel('Choose top-level concepts','enter',e), 1200)
                                     return
                                 }
-                                if (!rootConcepts.includes(d.name)) {
-                                    el.__hoverTimeout__ = setTimeout(() => showActionLabel('Select concept','enter',e), 1200)
-                                }
+                                // same as hovering the node: highlight it and show its tooltip
+                                clearTimeout(el.__hoverTimeout__)
+                                el.__hoverTimeout__ = setTimeout(() => {
+                                    setHovered([d.name])
+                                    if (d.levels !== '-1') tooltipHover(d, 'enter', e)
+                                }, 1000)
                             })
                             .on('mouseout', (e,d) => {
                                 clearTimeout(e.currentTarget.__hoverTimeout__)
                                 showActionLabel('','leave',e)
-                                showConfirmationPopup(d,'leave')
+                                if (!d.collapsed) {
+                                    setHovered([])
+                                    tooltipHover(d, 'leave', e)
+                                }
                             })
                             .on('click', (e, d) => {
                                 clearTimeout(e.currentTarget.__hoverTimeout__)
@@ -3038,7 +3111,9 @@
                         })
                         bindTreeNodeHover(update)
                         // d3.selectAll('.subsumes-nodes').lower()
-                        // d3.selectAll('.map-node').raise()
+                        // keep newly entered mapping circles above the node's hover rect, mappings button on top
+                        update.selectAll(':scope > .map-node').raise()
+                        update.select(':scope > .mappings-btn-group').raise()
                         d3.selectAll('.prune-curve').lower()
                         return update
                     }, exit => exit.remove())
@@ -3321,20 +3396,66 @@
             if (userChoice !== undefined) return userChoice
             return d.section === 'Parents' && d.nodes.length > 10
         }
+        const LIST_SECTION_DURATION = 250
+        // caret is always a down chevron; expanded sections rotate it to point up
+        function setListSectionCaret(sel, collapsed, animate) {
+            sel.select('.list-section-caret')
+                .classed('fa-chevron-down', true)
+                .classed('fa-chevron-up', false)
+                .classed('caret-open', !collapsed)
+                .style('transition', animate ? `transform ${LIST_SECTION_DURATION}ms ease` : null)
+                .style('transform', collapsed ? 'rotate(0deg)' : 'rotate(180deg)')
+        }
+        // instant version, used on (re)draw
         function applyListSectionCollapse(sectionSel) {
             sectionSel.each(function(d) {
                 const collapsed = isListSectionCollapsed(d)
                 const sel = d3.select(this)
-                sel.selectAll(':scope > .list-item-container').style('display', collapsed ? 'none' : 'block')
-                sel.select('.list-section-caret')
-                    .classed('fa-chevron-up', !collapsed)
-                    .classed('fa-chevron-down', collapsed)
+                sel.interrupt('collapse')
+                sel.style('height', null).style('overflow', null)
+                sel.selectAll(':scope > .list-item-container')
+                    .interrupt('collapse')
+                    .style('display', collapsed ? 'none' : 'block')
+                    .style('opacity', null)
+                setListSectionCaret(sel, collapsed, false)
             })
+        }
+        // animated version, used when the user clicks a section header
+        function animateListSection(sectionNode, collapsed) {
+            const sel = d3.select(sectionNode)
+            const items = sel.selectAll(':scope > .list-item-container')
+            const titleHeight = sel.select('.list-section-title').node().offsetHeight
+            setListSectionCaret(sel, collapsed, true)
+            sel.interrupt('collapse')
+            items.interrupt('collapse')
+
+            const startHeight = sectionNode.offsetHeight
+            let endHeight
+            if (collapsed) {
+                endHeight = titleHeight
+            } else {
+                items.style('display', 'block').style('opacity', 0)
+                sel.style('height', null)
+                endHeight = sectionNode.scrollHeight
+            }
+
+            sel.style('overflow', 'hidden').style('height', startHeight + 'px')
+            items.transition('collapse').duration(collapsed ? LIST_SECTION_DURATION * 0.6 : LIST_SECTION_DURATION)
+                .delay(collapsed ? 0 : LIST_SECTION_DURATION * 0.3)
+                .style('opacity', collapsed ? 0 : 1)
+            sel.transition('collapse').duration(LIST_SECTION_DURATION).ease(d3.easeCubicInOut)
+                .style('height', endHeight + 'px')
+                .on('end', () => {
+                    if (collapsed) items.style('display', 'none')
+                    items.style('opacity', null)
+                    sel.style('height', null).style('overflow', null)
+                })
         }
         function toggleListSection(e, d) {
             e.stopPropagation()
-            listSectionCollapsedRef.current[d.section] = !isListSectionCollapsed(d)
-            applyListSectionCollapse(d3.select(e.currentTarget.closest('.list-section')))
+            const collapsed = !isListSectionCollapsed(d)
+            listSectionCollapsedRef.current[d.section] = collapsed
+            animateListSection(e.currentTarget.closest('.list-section'), collapsed)
         }
         function drawList() {
             const scaleWidth = listScaleWidth

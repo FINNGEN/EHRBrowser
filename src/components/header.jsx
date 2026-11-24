@@ -122,6 +122,41 @@ function Header (props) {
         )
     }
 
+    // rank: exact code > exact id > exact name > starts-with > contains
+    // (numeric queries rank code/id prefixes before name prefixes, text queries the other way round)
+    function searchRank(d, input) {
+        const code = input.toUpperCase()
+        if (d._code === code) return 0
+        if (d._id === input) return 1
+        if (d._name === input) return 2
+        const numeric = !isNaN(input)
+        const codeStarts = d._code.startsWith(code)
+        const idStarts = d._id.startsWith(input)
+        const nameStarts = d._name.startsWith(input)
+        if (numeric) {
+            if (codeStarts) return 3
+            if (idStarts) return 4
+            if (nameStarts) return 5
+        } else {
+            if (nameStarts) return 3
+            if (codeStarts) return 4
+            if (idStarts) return 5
+        }
+        return 6
+    }
+    function sortSearchResults(list, input) {
+        const numeric = !isNaN(input)
+        return list.sort((a, b) => {
+            const diff = searchRank(a, input) - searchRank(b, input)
+            if (diff !== 0) return diff
+            // tie-break: shorter (closer) matches first, then alphabetical
+            const ka = numeric ? a._code : a._name
+            const kb = numeric ? b._code : b._name
+            if (ka.length !== kb.length) return ka.length - kb.length
+            return ka.localeCompare(kb)
+        })
+    }
+
     function handleChange() {
         const rawInput = inputRef.current.value
         const input = rawInput.toLowerCase()
@@ -149,21 +184,7 @@ function Header (props) {
             ? results.filter(d => searchFilter.includes(d.vocabulary_id))
             : [...results]
 
-        vocabFiltered.sort((a, b) => {
-            if (!isNaN(input)) {
-                const aStarts = a._id.startsWith(input)
-                const bStarts = b._id.startsWith(input)
-                if (aStarts !== bStarts) return aStarts ? -1 : 1
-                return a._id.localeCompare(b._id)
-            }
-            const aNameStarts = a._name.startsWith(input)
-            const bNameStarts = b._name.startsWith(input)
-            if (aNameStarts !== bNameStarts) return aNameStarts ? -1 : 1
-            const aCodeStarts = a._code.startsWith(input)
-            const bCodeStarts = b._code.startsWith(input)
-            if (aCodeStarts !== bCodeStarts) return aCodeStarts ? -1 : 1
-            return a._name.localeCompare(b._name)
-        })
+        sortSearchResults(vocabFiltered, input)
         setSuggestions(vocabFiltered.slice(0, 50))
         setPrevSearch(rawInput)
     }
@@ -209,6 +230,8 @@ function Header (props) {
     useEffect(() => {
         if (suggestions.length > 0) {
             const vocabFiltered = searchResults.filter(d => (searchFilter === undefined || searchFilter.length === 0) || searchFilter.includes(d.vocabulary_id))
+            const input = inputRef.current ? inputRef.current.value.toLowerCase() : ''
+            if (input) sortSearchResults(vocabFiltered, input)
             setSuggestions(vocabFiltered.slice(0,50))
         }
     },[searchFilter])

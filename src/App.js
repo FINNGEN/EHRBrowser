@@ -1305,6 +1305,7 @@ function App() {
     fetch(`${API_BASE_URL}/getListOfConcepts`)
       .then(res=> res.json())
       .then(data=>{
+        console.log('search data',data)
         const vocabList = [
           ...new Set(
             data
@@ -1328,6 +1329,9 @@ function App() {
 
   // on root load
   useEffect(()=>{
+    let cleanup = () => {}
+    // clear any previous 'Concept not found' overlay: it covers the whole screen until hidden
+    d3.select('#error-message').style('display','none')
     setLoading(true)
     moveSlider(0,0,'relationship')
     moveSlider(0,0,'view')
@@ -1337,6 +1341,12 @@ function App() {
       setLoading(false)
     } else {
       fetchedRef.current = true
+      // cancel this set's requests if the set changes before they finish (e.g. concepts added quickly),
+      // so a late response for an older set can't overwrite the newer one
+      const controller = new AbortController()
+      const { signal } = controller
+      const isAbort = err => err.name === 'AbortError' || signal.aborted
+      cleanup = () => controller.abort()
       const rootArray = root.split(',').map(Number)
       setRootConcepts(rootArray)
       if (expression.length > 0) {
@@ -1346,11 +1356,11 @@ function App() {
       // concept relationships
       Promise.all(
         rootArray.map(r =>
-          fetch(`${API_BASE_URL}/getConceptRelationships?conceptId=${r}`)
+          fetch(`${API_BASE_URL}/getConceptRelationships?conceptId=${r}`, { signal })
             .then(res => {
-              if (!res.ok) {
+              if (!res.ok && !signal.aborted) {
                 setLoading(false)
-                d3.select('#error-message').style('display','block')
+                d3.select('#error-message').style('display','flex')
                 throw new Error(`HTTP ${res.status} for conceptId ${r}`)
               }
               return res.json()
@@ -1358,25 +1368,27 @@ function App() {
         )
       )
       .then(data => {
+        if (signal.aborted) return
         console.log('tree data received',data)
         setTreeDataArray(data)
         setLoading(false)
       })
       .catch(err => {
+        if (isAbort(err)) return
         setLoading(false)
         setGraphLoading(false)
         console.error("Fetch failed:", err.message)
-        d3.select('#error-message').style('display','block')
+        d3.select('#error-message').style('display','flex')
       })  
       // code counts
       Promise.all(
         rootArray.map(r =>
-          fetch(`${API_BASE_URL}/getCodeCountsStratified?conceptId=${r}`)
+          fetch(`${API_BASE_URL}/getCodeCountsStratified?conceptId=${r}`, { signal })
             .then(res => {
-              if (!res.ok) {
+              if (!res.ok && !signal.aborted) {
                 setLoading(false)
                 setGraphLoading(false)
-                d3.select('#error-message').style('display','block')
+                d3.select('#error-message').style('display','flex')
                 throw new Error(`HTTP ${res.status} for conceptId ${r}`)
               }
               return res.json()
@@ -1384,17 +1396,20 @@ function App() {
         )
       )
       .then(data => {
+        if (signal.aborted) return
         console.log('counts data received',data)
         setCountsDataArray(data)
         setGraphLoading(false)
       })
       .catch(err => {
+        if (isAbort(err)) return
         setLoading(false)
         setGraphLoading(false)
         console.error("Fetch failed:", err.message)
-        d3.select('#error-message').style('display','block')
+        d3.select('#error-message').style('display','flex')
       })  
     }
+    return () => cleanup()
   },[root])
 
   useEffect(()=>{if(treeDataArray && !countsDataArray && !loading && nodes.length > 0) setGraphLoading(true)},[loading])
