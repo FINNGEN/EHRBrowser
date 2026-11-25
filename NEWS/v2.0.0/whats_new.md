@@ -11,4 +11,4 @@
 - **New filters**: limit the plots to a time range, age or visit type, and use Level and Class to simplify large trees
 - **User guide**: step-by-step guide with screenshots, in the handbook
 
-![EHR Browser v2.0.0 tour](videos/ehrbrowser_v2_tour.gif)
+![EHR Browser v2.0.0 documentation]([videos/ehrbrowser_v2_tour.gif](https://docs.finngen.fi/working-in-the-sandbox/which-tools-are-available/ehr-browser))
