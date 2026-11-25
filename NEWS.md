@@ -1,3 +1,15 @@
+# EHR Browser v2.0.1
+
+- Fixed the FinnGen logo not loading in the Linux/Docker build (file name case)
+- Fixed zoom issues in the graph
+- Fixed tree and search issues: search results now ranked by exact code, id or name match first, and stale requests are cancelled when concepts are added quickly
+- Fixed the "Concept not found" message staying on screen after loading another concept
+- Level and graph filters, and graph labels, can be collapsed
+- New tree legend, stack order toggle and dynamic tree spacing
+- Upset plot is interactive
+- Count type buttons become a dropdown on narrow windows
+- Agent cursor: shows what an AI agent is clicking, with a caption (`AGENTCONTROL/`)
+
 # EHR Browser v2.0.0
 
 ## Concept Sets
