@@ -21,7 +21,7 @@ if ! command -v npm > /dev/null; then
     echo "ERROR: npm not found. Install Node.js (>= 18) first." >&2
     exit 1
 fi
-installed_version="$(npm ls -g --depth=0 @playwright/cli 2> /dev/null | sed -n 's/.*@playwright\/cli@\([0-9.]*\).*/\1/p')"
+installed_version="$( (npm ls -g --depth=0 @playwright/cli 2> /dev/null || true) | sed -n 's/.*@playwright\/cli@\([0-9.]*\).*/\1/p')"
 if [ "$installed_version" != "$PLAYWRIGHT_CLI_VERSION" ]; then
     echo "Installing @playwright/cli@$PLAYWRIGHT_CLI_VERSION (found: ${installed_version:-none})..."
     npm install -g "@playwright/cli@$PLAYWRIGHT_CLI_VERSION"

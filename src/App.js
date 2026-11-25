@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Navigate, Routes, Route, useNavigate, useParams, useLocation } from 'react-router-dom';
 import '@fortawesome/fontawesome-free/css/all.min.css';
-import finngen from './img/finngen_logo.svg'
+import finngen from './img/finnGen_logo.svg'
 import CryptoJS from "crypto-js";
 import Header from './components/header'
 import Visualization from './components/visualization'
@@ -11,6 +11,7 @@ import po from './po.js';
 import { HLL_COUNT } from './mergeHll.js';
 import { UMAP } from 'umap-js';
 import { createEhrAgent, trackApiRequests } from './agentHooks.js';
+import { agentCursorApi, initAgentCursor } from './agentCursor.js';
 
 function App() {
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://127.0.0.1:8564';
@@ -104,6 +105,7 @@ function App() {
   const personMax = 25
   const [yearSelection, setYearSelection] = useState(null)
   const [maxPersonLevel,setMaxPersonLevel] = useState()
+  const [stackOrder, setStackOrder] = useState('hierarchy')
   const [annotations,setAnnotations] = useState([{key:'PURCH',year:1995},{key:'REIM',year:1964},{key:'PRIM_OUT',year:2011},{key:'INPAT',year:1969},{key:'OUTPAT',year:1998},{key:'CANC',year:1953},{key:'DEATH',year:1969},{key:'OPER_IN',year:1969},{key:'OPER_OUT',year:1969},{key:'BIRTH_MOTHER',year:1953}])
   const [categories, setCategories] = useState([
     {key:'Long.',codes:['INPAT','OPER_IN','OPER_OUT','OUTPAT','PRIM_OUT','REIM','DEATH','PURCH','CANC']},
@@ -128,6 +130,10 @@ function App() {
     return map
   }, [fullTree.allNodes])
 
+  const selectedConceptMap = useMemo(() => {
+    return new Map(selectedConcepts.map(c => [c.name, c]))
+  }, [selectedConcepts])
+
   // read-only hooks for AI agents (window.ehrAgent, see AGENTCONTROL/); the ref always holds the latest state
   const agentStateRef = useRef({})
   agentStateRef.current = {
@@ -137,7 +143,9 @@ function App() {
   }
   useEffect(() => {
     trackApiRequests(API_BASE_URL)
-    window.ehrAgent = createEhrAgent(() => agentStateRef.current, API_BASE_URL)
+    // point/say/showCursor/hideCursor only draw the agent cursor overlay; they never change app state
+    window.ehrAgent = { ...createEhrAgent(() => agentStateRef.current, API_BASE_URL), ...agentCursorApi }
+    initAgentCursor()
     return () => { delete window.ehrAgent }
   }, [API_BASE_URL])
   
@@ -207,16 +215,18 @@ function App() {
     } else {filtered = countsObj} 
 
     // extent
-    let extent1 = []
-    let extent2 = rootExtent
-    let selectedExtent = d3.extent(filtered.all.map(d => d.calendar_year)) 
-    if (!selectedExtent[0] || !selectedExtent[1]) setExtent(extent2)
-    else {
-        if (selectedExtent[0] <= extent2[0]) extent1[0] = selectedExtent[0] 
-        else extent1[0] = extent2[0]
-        if (selectedExtent[1] >= extent2[1]) extent1[1] = selectedExtent[1] 
-        else extent1[1] = extent2[1]
-        setExtent(extent1) 
+    if (!yearSelection) {
+      let extent1 = []
+      let extent2 = rootExtent
+      let selectedExtent = d3.extent(filtered.all.map(d => d.calendar_year)) 
+      if (!selectedExtent[0] || !selectedExtent[1]) setExtent(extent2)
+      else {
+          if (selectedExtent[0] <= extent2[0]) extent1[0] = selectedExtent[0] 
+          else extent1[0] = extent2[0]
+          if (selectedExtent[1] >= extent2[1]) extent1[1] = selectedExtent[1] 
+          else extent1[1] = extent2[1]
+          setExtent(extent1) 
+      }  
     }
     setFilteredCounts(filtered)
   },[selectedConcepts,graphFilter])
@@ -271,18 +281,7 @@ function App() {
   useEffect(() => {setStackData(getStack())}, [filteredCounts])
 
   const resetRef = useRef(false)
-  const prevCountType = useRef(countType)
-
   const drawnGroup = useRef(null)
-
-  // useEffect(() => {
-  //   if (prevCountType.current !== countType) {
-  //     if ((prevCountType.current === 'person' || prevCountType.current === 'prevalence') && (countType === 'person' || countType === 'prevalence')) return
-  //     if ((prevCountType.current === 'record' || prevCountType.current === 'measurement') && (countType === 'record' || countType === 'measurement')) return
-  //     resetRef.current = true
-  //     prevCountType.current = countType
-  //   }
-  // }, [countType])
 
   // GRAPH FILTER DATA
   useEffect(() => {
@@ -784,12 +783,13 @@ function App() {
     let newNodes = nodes
         .map(e => ({
             ...e,
-            included_descendants: [...e.descendants.filter(d => inclusionSet.has(d)),...e.descendants.map(d => nodeMap.get(d).mappings.map(m => m.name)).flat().filter(d => inclusionSet.has(d))]
+            // Set: a mapping shared by several descendants is only counted once
+            included_descendants: [...new Set([...e.descendants.filter(d => inclusionSet.has(d)),...e.descendants.map(d => nodeMap.get(d).mappings.map(m => m.name)).flat().filter(d => inclusionSet.has(d))])]
         }))
         .map(e => ({
             ...e,
-            descendant_record_counts:d3.sum(fullTree.allNodes.filter(node => e.included_descendants.includes(node.name)).map(node => node.record_counts)),
-            descendant_person_counts:d3.sum(fullTree.allNodes.filter(node => e.included_descendants.includes(node.name)).map(node => node.person_counts)),
+            descendant_record_counts:d3.sum(e.included_descendants, name => allNodeMap.get(name)?.record_counts ?? 0),
+            descendant_person_counts:d3.sum(e.included_descendants, name => allNodeMap.get(name)?.person_counts ?? 0),
             leaf: e.included_descendants.filter(d => d !== e.name  && !e.mappings.map(m => m.name).includes(d)).length > 0 && ((e.distance === maxLevel && !links.map(d => d.source).map(d => d.name).includes(e.name)) && e.levels !== '-1') ? true : false}
         ))
 
@@ -818,21 +818,49 @@ function App() {
     let n = nodes
     if (nList) n = nList
     let positions = {}
-    poset.forEach((pos,i) => {
-        const nodeWidth = openedMappings.filter(r => pos.elements.includes(r.toString())).length > 0 ? nWidth*2 : nWidth
-        linearLayout(pos,edges,nodeWidth,subspaces[i]) 
-    })
-    spaceSubspaces(poset,openedMappings.length > 0 ? nWidth*2 : nWidth)
+    poset.forEach((pos,i) => linearLayout(pos,edges,nWidth,subspaces[i]))
+    spaceSubspaces(poset,nWidth)
     poset.forEach(pos => pos.elements.forEach(e => positions[e] = pos.featureOf(e,'x')))
 
     const nodeList = n.map(d => d.name)
-    let nodesArray = n
-        .map(d => ({...d,x:positions[d.name]}))
+    let nodesArray = spreadForOpenMappings(n.map(d => ({...d,x:positions[d.name]})), openedMappings, nWidth)
         .map(e => ({...e,mappings: e.mappings.map(map => ({...map,source: e}))}))
     nodesArray = nodesArray.map(d => ({...d,connections:d.connections.map(c => ({...c,x:d.x,mid:getMidX(c.parents,nodesArray)}))}))
     const linksArray = links.map(d=>({source: nodesArray[nodeList.indexOf(d.source.name)], target: nodesArray[nodeList.indexOf(d.target.name)]}))
     setNodes(nodesArray)
     setLinks(linksArray)    
+  }
+
+  // Open mappings are drawn MAP_OFFSET to the left ("Mapped from") and right ("Maps to") of their concept
+  // (getMap in sideBar.jsx). Instead of spacing out the whole tree, widen only the gaps next to open concepts:
+  // for neighbouring concepts in the same layer, the gap must fit the base width plus any open mapping columns
+  // between them. Shifting everything from the right-hand concept onwards keeps left-to-right order and
+  // alignment across layers, and only ever widens gaps, so earlier fixes stay valid.
+  // Vertical room for mapping stacks is handled separately (genHeight in sideBar.jsx).
+  function spreadForOpenMappings(nodeList, openRoots, baseWidth) {
+    const MAP_OFFSET = 200
+    const open = new Set(openRoots)
+    if (open.size === 0) return nodeList
+    const x = new Map(nodeList.filter(d => d.x != null).map(d => [d.name, d.x]))
+    const room = (node, direction) => open.has(node.name) && node.mappings.some(m => m.direction === direction) ? MAP_OFFSET : 0
+
+    const pairs = []
+    d3.group(nodeList.filter(d => x.has(d.name)), d => d.distance).forEach(layer => {
+      const sorted = [...layer].sort((a, b) => x.get(a.name) - x.get(b.name))
+      for (let i = 0; i < sorted.length - 1; i++) {
+        const extra = room(sorted[i], 1) + room(sorted[i + 1], -1)
+        if (extra > 0) pairs.push({ a: sorted[i].name, b: sorted[i + 1].name, required: baseWidth + extra })
+      }
+    })
+
+    pairs.sort((p, q) => x.get(p.a) - x.get(q.a))
+    pairs.forEach(({ a, b, required }) => {
+      const xa = x.get(a), xb = x.get(b)
+      const shortfall = required - (xb - xa)
+      if (xb <= xa || shortfall <= 0) return
+      x.forEach((value, name) => { if (value >= xb) x.set(name, value + shortfall) })
+    })
+    return nodeList.map(d => x.has(d.name) ? { ...d, x: x.get(d.name) } : d)
   }
 
   function getMidX(ids,nodeList) {
@@ -1048,7 +1076,7 @@ function App() {
             'direction': e.levels === "Mapped from" ? -1 : 1,
             'distance': node.distance,
             'source': node,
-            'color': getMapColor(node.color,i,mappings.length),
+            'color': colors[e.child_concept_id] ? colors[e.child_concept_id] : getMapColor(node.color,i,mappings.length),
             'record_counts': data.concepts.find(c => c.concept_id === e.child_concept_id).record_counts ? data.concepts.find(c => c.concept_id === e.child_concept_id).record_counts : 0,
             'person_counts': data.concepts.find(c => c.concept_id === e.child_concept_id).person_counts ? data.concepts.find(c => c.concept_id === e.child_concept_id).person_counts : 0,
             'descendant_record_counts': data.concepts.find(c => c.concept_id === e.child_concept_id).descendant_record_counts ? data.concepts.find(c => c.concept_id === e.child_concept_id).descendant_record_counts : 0,
@@ -1064,7 +1092,7 @@ function App() {
     })
     
     // add mapping colors to colorList
-    nodeData.forEach(node => {node.mappings.forEach(map => colors[map.name] = map.color)})
+    nodeData.forEach(node => {node.mappings.filter(m => !nodeMap.has(m.name)).forEach(map => colors[map.name] = map.color)})
     setColorList(colors)
 
     // check length of -1 level
@@ -1129,13 +1157,12 @@ function App() {
             .setLayers()
             .feature("node_degree", (node) => fullPos.featureOf(node, 'node_degree'))
             .print()
-          const nodeWidth = mapRoot.filter(r => newPos.elements.includes(r.toString())).length > 0 ? nWidth * 2 : nWidth
-          linearLayout(newPos, newEdges, nodeWidth, fullPos)
+          linearLayout(newPos, newEdges, nWidth, fullPos)
           newPos.elements.forEach(e => positions[e] = newPos.featureOf(e, 'x'))
           newPosetArray.push(newPos)
         }
       })
-      spaceSubspaces(newPosetArray, mapRoot.length > 0 ? nWidth * 2 : nWidth)
+      spaceSubspaces(newPosetArray, nWidth)
       newPosetArray.forEach(pos => pos.elements.forEach(e => positions[e] = pos.featureOf(e, 'x')))
 
       const maxFilteredDistance = d3.max(filteredNodes.map(n => n.distance))
@@ -1153,7 +1180,9 @@ function App() {
           x: positions[e.name]
         }
       })
-      if (relationship.includes('mappings')) setMapRoot(filteredNodes.filter(n => n.mappings.length > 0).map(n => n.name))
+      const openRoots = relationship.includes('mappings') ? filteredNodes.filter(n => n.mappings.length > 0).map(n => n.name) : mapRoot
+      if (relationship.includes('mappings')) setMapRoot(openRoots)
+      filteredNodes = spreadForOpenMappings(filteredNodes, openRoots, nWidth)
 
       // inclusions — dedupe via Set, use maps instead of repeated find
       const filteredNodeMap = new Map(filteredNodes.map(n => [n.name, n]))
@@ -1180,10 +1209,11 @@ function App() {
       // update nodes based on inclusions — map instead of find, Set instead of includes
       filteredNodes = filteredNodes.map(e => ({
         ...e,
-        included_descendants: [
+        // Set: a mapping shared by several descendants is only counted once
+        included_descendants: [...new Set([
           ...e.descendants.filter(d => newInclusionsSet.has(d)),
           ...e.descendants.flatMap(d => fullTreeNodeMap.get(d).mappings.map(m => m.name)).filter(d => newInclusionsSet.has(d))
-        ]
+        ])]
       }))
 
       filteredNodes = filteredNodes.map(e => {
@@ -1275,6 +1305,7 @@ function App() {
     fetch(`${API_BASE_URL}/getListOfConcepts`)
       .then(res=> res.json())
       .then(data=>{
+        console.log('search data',data)
         const vocabList = [
           ...new Set(
             data
@@ -1298,6 +1329,9 @@ function App() {
 
   // on root load
   useEffect(()=>{
+    let cleanup = () => {}
+    // clear any previous 'Concept not found' overlay: it covers the whole screen until hidden
+    d3.select('#error-message').style('display','none')
     setLoading(true)
     moveSlider(0,0,'relationship')
     moveSlider(0,0,'view')
@@ -1307,6 +1341,12 @@ function App() {
       setLoading(false)
     } else {
       fetchedRef.current = true
+      // cancel this set's requests if the set changes before they finish (e.g. concepts added quickly),
+      // so a late response for an older set can't overwrite the newer one
+      const controller = new AbortController()
+      const { signal } = controller
+      const isAbort = err => err.name === 'AbortError' || signal.aborted
+      cleanup = () => controller.abort()
       const rootArray = root.split(',').map(Number)
       setRootConcepts(rootArray)
       if (expression.length > 0) {
@@ -1316,11 +1356,11 @@ function App() {
       // concept relationships
       Promise.all(
         rootArray.map(r =>
-          fetch(`${API_BASE_URL}/getConceptRelationships?conceptId=${r}`)
+          fetch(`${API_BASE_URL}/getConceptRelationships?conceptId=${r}`, { signal })
             .then(res => {
-              if (!res.ok) {
+              if (!res.ok && !signal.aborted) {
                 setLoading(false)
-                d3.select('#error-message').style('display','block')
+                d3.select('#error-message').style('display','flex')
                 throw new Error(`HTTP ${res.status} for conceptId ${r}`)
               }
               return res.json()
@@ -1328,25 +1368,27 @@ function App() {
         )
       )
       .then(data => {
+        if (signal.aborted) return
         console.log('tree data received',data)
         setTreeDataArray(data)
         setLoading(false)
       })
       .catch(err => {
+        if (isAbort(err)) return
         setLoading(false)
         setGraphLoading(false)
         console.error("Fetch failed:", err.message)
-        d3.select('#error-message').style('display','block')
+        d3.select('#error-message').style('display','flex')
       })  
       // code counts
       Promise.all(
         rootArray.map(r =>
-          fetch(`${API_BASE_URL}/getCodeCountsStratified?conceptId=${r}`)
+          fetch(`${API_BASE_URL}/getCodeCountsStratified?conceptId=${r}`, { signal })
             .then(res => {
-              if (!res.ok) {
+              if (!res.ok && !signal.aborted) {
                 setLoading(false)
                 setGraphLoading(false)
-                d3.select('#error-message').style('display','block')
+                d3.select('#error-message').style('display','flex')
                 throw new Error(`HTTP ${res.status} for conceptId ${r}`)
               }
               return res.json()
@@ -1354,17 +1396,20 @@ function App() {
         )
       )
       .then(data => {
+        if (signal.aborted) return
         console.log('counts data received',data)
         setCountsDataArray(data)
         setGraphLoading(false)
       })
       .catch(err => {
+        if (isAbort(err)) return
         setLoading(false)
         setGraphLoading(false)
         console.error("Fetch failed:", err.message)
-        d3.select('#error-message').style('display','block')
+        d3.select('#error-message').style('display','flex')
       })  
     }
+    return () => cleanup()
   },[root])
 
   useEffect(()=>{if(treeDataArray && !countsDataArray && !loading && nodes.length > 0) setGraphLoading(true)},[loading])
@@ -1467,7 +1512,12 @@ function App() {
   useEffect(()=> {
     if (countsData && nodes) {
       // selected concepts 
-      const selectedNodes = nodes
+      let orderedNodes = nodes
+      // if (subspaces.length > 1) {
+
+      // }
+      // console.log('subspaces',subspaces)
+      const selectedNodes = orderedNodes
         .filter(d => !d.leaf ? inclusions.includes(d.name) : d)
         .map(d => ({
           name: d.name, 
@@ -1476,7 +1526,8 @@ function App() {
           distance: d.distance ? d.distance : d.source.distance, 
           data: {code_counts: d.leaf ? [] : countsData.filter(c => d.name === c.concept_id), descendant_code_counts: !d.leaf ? [] : relationship === 'descendants' ? countsData.filter(c => d.descendants.filter(d => inclusions.includes(d)).includes(c.concept_id)) : countsData.filter(c => d.descendants.map(name => fullTree.nodes.find(n => n.name === name).mappings.map(m => m.name)).flat().filter(d => inclusions.includes(d)).includes(c.concept_id))}
         }))
-      const mapSelections = nodes.map(d => d.mappings).flat()
+      const mapSelections = orderedNodes.map(d => d.mappings).flat()
+          .filter(m => !fullTreeNodeMap.has(m.name))
           .filter(d => inclusions.includes(d.name) && !nodes.find(n => n.name === d.source.name).leaf)
           .map(d => ({
               name: d.name, 
@@ -1663,6 +1714,7 @@ function App() {
   }, [selectedConcepts, graphFilter, yearSelection, countType])
 
   useEffect(()=>{
+    setStackOrder('hierarchy')
     if (countType === 'person') {
       if (selectedConcepts.length > personMax) {
         prunePersonCounts()
@@ -1830,6 +1882,9 @@ function App() {
               incidenceData = {incidenceData}
               resetRef = {resetRef}
               drawnGroup = {drawnGroup}
+              selectedConceptMap = {selectedConceptMap}
+              stackOrder = {stackOrder}
+              setStackOrder = {setStackOrder}
             />      
           } />
         </Routes>

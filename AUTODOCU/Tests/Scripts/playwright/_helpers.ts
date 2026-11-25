@@ -74,3 +74,32 @@ export async function shot(page: Page, section: string, name: string) {
   const file = path.join(DOC_ROOT, section, 'screenshots', `${name}.png`);
   await page.screenshot({ path: file, fullPage: false });
 }
+
+// Count type control in the header. On a narrow header (expanded search with
+// < 500px to spare) the toggle (#counts-toggle) is hidden and a dropdown
+// (#counts-dropdown, opened via #header-counts) is shown instead.
+// Scoped to #counts-toggle because the graph has its own #prevalence-toggle.
+export type CountType = 'record' | 'person' | 'prevalence' | 'incidence' | 'measurement';
+
+// The visible control for a count type: its toggle button, or the dropdown header.
+export async function countTypeControl(page: Page, value: CountType): Promise<Locator> {
+  const toggle = page.locator(`#counts-toggle #${value}-toggle`);
+  return (await toggle.isVisible()) ? toggle : page.locator('#header-counts');
+}
+
+// Lab Values is available (shown either as a toggle button or a dropdown option).
+export function labValuesOption(page: Page): Locator {
+  return page.locator('#counts-toggle #measurement-toggle:visible, #counts-dropdown #measurement-option');
+}
+
+// Switch the count type and return the control to highlight afterwards.
+export async function selectCountType(page: Page, value: CountType): Promise<Locator> {
+  const toggle = page.locator(`#counts-toggle #${value}-toggle`);
+  if (await toggle.isVisible()) {
+    await toggle.click();
+    return toggle;
+  }
+  await page.locator('#header-counts').click();
+  await page.locator(`#counts-dropdown #${value}-option`).click();
+  return page.locator('#header-counts');
+}

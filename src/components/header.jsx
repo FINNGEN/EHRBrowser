@@ -5,6 +5,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faSearch } from '@fortawesome/free-solid-svg-icons'
 import { faFilter } from '@fortawesome/free-solid-svg-icons'
 import { faX } from '@fortawesome/free-solid-svg-icons'
+import { faCaretDown, faCaretUp } from '@fortawesome/free-solid-svg-icons'
 import * as d3 from "d3";
 
 function Header (props) {
@@ -53,6 +54,20 @@ function Header (props) {
     const [text,setText] = useState('')
     const navigate = useNavigate()
     const fileInputRef = useRef(null);
+
+    // COUNT TYPE: toggle, or a dropdown when the expanded search would be narrower than MIN_SEARCH_WIDTH
+    const MIN_SEARCH_WIDTH = 500
+    const countOptions = [
+        { value: 'record', label: 'Record Counts' },
+        { value: 'person', label: 'Person Counts' },
+        { value: 'prevalence', label: 'Prevalence' },
+        { value: 'incidence', label: 'Incidence' },
+        { value: 'measurement', label: 'Lab Values' },
+    ]
+    const [compactCounts, setCompactCounts] = useState(false)
+    const [countsDropdownOpen, setCountsDropdownOpen] = useState(false)
+    const countsToggleWidthRef = useRef(0)      // width of the full toggle, measured while it is visible
+    const countsDropdownRef = useRef(null)
 
     async function sendFeedback(text) {
         const response = await fetch(`${API_BASE_URL}/sendFeedback`, {
@@ -107,6 +122,41 @@ function Header (props) {
         )
     }
 
+    // rank: exact code > exact id > exact name > starts-with > contains
+    // (numeric queries rank code/id prefixes before name prefixes, text queries the other way round)
+    function searchRank(d, input) {
+        const code = input.toUpperCase()
+        if (d._code === code) return 0
+        if (d._id === input) return 1
+        if (d._name === input) return 2
+        const numeric = !isNaN(input)
+        const codeStarts = d._code.startsWith(code)
+        const idStarts = d._id.startsWith(input)
+        const nameStarts = d._name.startsWith(input)
+        if (numeric) {
+            if (codeStarts) return 3
+            if (idStarts) return 4
+            if (nameStarts) return 5
+        } else {
+            if (nameStarts) return 3
+            if (codeStarts) return 4
+            if (idStarts) return 5
+        }
+        return 6
+    }
+    function sortSearchResults(list, input) {
+        const numeric = !isNaN(input)
+        return list.sort((a, b) => {
+            const diff = searchRank(a, input) - searchRank(b, input)
+            if (diff !== 0) return diff
+            // tie-break: shorter (closer) matches first, then alphabetical
+            const ka = numeric ? a._code : a._name
+            const kb = numeric ? b._code : b._name
+            if (ka.length !== kb.length) return ka.length - kb.length
+            return ka.localeCompare(kb)
+        })
+    }
+
     function handleChange() {
         const rawInput = inputRef.current.value
         const input = rawInput.toLowerCase()
@@ -134,21 +184,7 @@ function Header (props) {
             ? results.filter(d => searchFilter.includes(d.vocabulary_id))
             : [...results]
 
-        vocabFiltered.sort((a, b) => {
-            if (!isNaN(input)) {
-                const aStarts = a._id.startsWith(input)
-                const bStarts = b._id.startsWith(input)
-                if (aStarts !== bStarts) return aStarts ? -1 : 1
-                return a._id.localeCompare(b._id)
-            }
-            const aNameStarts = a._name.startsWith(input)
-            const bNameStarts = b._name.startsWith(input)
-            if (aNameStarts !== bNameStarts) return aNameStarts ? -1 : 1
-            const aCodeStarts = a._code.startsWith(input)
-            const bCodeStarts = b._code.startsWith(input)
-            if (aCodeStarts !== bCodeStarts) return aCodeStarts ? -1 : 1
-            return a._name.localeCompare(b._name)
-        })
+        sortSearchResults(vocabFiltered, input)
         setSuggestions(vocabFiltered.slice(0, 50))
         setPrevSearch(rawInput)
     }
@@ -194,6 +230,8 @@ function Header (props) {
     useEffect(() => {
         if (suggestions.length > 0) {
             const vocabFiltered = searchResults.filter(d => (searchFilter === undefined || searchFilter.length === 0) || searchFilter.includes(d.vocabulary_id))
+            const input = inputRef.current ? inputRef.current.value.toLowerCase() : ''
+            if (input) sortSearchResults(vocabFiltered, input)
             setSuggestions(vocabFiltered.slice(0,50))
         }
     },[searchFilter])
@@ -454,7 +492,7 @@ function Header (props) {
 
     useEffect(() => {
         if (expandedSearch && d3.select('#search-container')) {
-            d3.select('#input-container').transition().style('width','550px')
+            d3.select('#input-container').transition().style('width','100%')
             d3.select('#searchConcept').transition().style('display','block')
         }
         else {
@@ -464,6 +502,49 @@ function Header (props) {
             inputRef.current.value = ''
         }
     },[expandedSearch])
+
+    // switch the count toggle to a dropdown when the expanded search has less than MIN_SEARCH_WIDTH
+    useEffect(() => {
+        const searchEl = document.getElementById('search-container')
+        const headerEl = document.getElementById('header')
+        if (!searchEl || !headerEl) return
+        const check = () => {
+            if (!expandedSearch) { setCompactCounts(false); return }
+            const searchWidth = searchEl.getBoundingClientRect().width
+            setCompactCounts(compact => {
+                if (!compact) {
+                    const toggleEl = document.getElementById('counts-toggle')
+                    if (toggleEl && toggleEl.offsetWidth > 0) countsToggleWidthRef.current = toggleEl.offsetWidth
+                    return searchWidth < MIN_SEARCH_WIDTH
+                }
+                // compact: only go back if the search would still have room once the full toggle returns
+                const dropdownWidth = countsDropdownRef.current ? countsDropdownRef.current.offsetWidth : 0
+                const widthWithToggle = searchWidth - (countsToggleWidthRef.current - dropdownWidth)
+                return widthWithToggle < MIN_SEARCH_WIDTH
+            })
+        }
+        check()
+        const observer = new ResizeObserver(check)
+        observer.observe(headerEl)
+        observer.observe(searchEl)
+        return () => observer.disconnect()
+    }, [expandedSearch, root, nodes, isMeasurement])
+
+    // close the count dropdown on outside click, or when it is no longer shown
+    useEffect(() => {
+        if (!compactCounts) { setCountsDropdownOpen(false); return }
+        if (!countsDropdownOpen) return
+        const onDown = e => { if (countsDropdownRef.current && !countsDropdownRef.current.contains(e.target)) setCountsDropdownOpen(false) }
+        document.addEventListener('mousedown', onDown)
+        return () => document.removeEventListener('mousedown', onDown)
+    }, [compactCounts, countsDropdownOpen])
+
+    function selectCountType(value) {
+        const index = countOptions.findIndex(o => o.value === value)
+        setCountType(value)
+        moveSlider(index, 100, 'counts')   // keep the toggle's slider in sync for when it comes back
+        setCountsDropdownOpen(false)
+    }
 
     return (
         <div id = "header">
@@ -475,7 +556,7 @@ function Header (props) {
                         ref={inputRef}
                         id="searchConcept"
                         aria-label="Search concepts by code, id, or name"
-                        placeholder= {!refresh || !root || loading ? "Search by concept code, id, or name" : ''}
+                        placeholder= {expandedSearch || !root || loading ? "Search by concept code, id, or name" : ''}
                         onClick = {() => {setRefresh(false);d3.select('#searchBtn').style('opacity',1)}}
                         onChange = {() => {
                             const timeout = setTimeout(() => {
@@ -488,7 +569,7 @@ function Header (props) {
 
                     <FontAwesomeIcon className = {`fa-search btn ${!expandedSearch ? "searchAsBtnColor" : ""}`} id = "searchBtn" role = "button" aria-label = "Search" aria-hidden = {false} icon={faSearch} onClick = {() => setExpandedSearch(!expandedSearch)}></FontAwesomeIcon>
                     
-                    <div onMouseEnter = {()=>d3.select('#clear-set-icon').style('color','#848698')} onMouseLeave = {()=>d3.select('#clear-set-icon').style('color','#b2b2c3')} onClick = {()=>{navigate(``)}} style = {{display: !root || !expandedSearch ? 'none' : 'flex'}} className = 'btn greyBtn flex' id = "clear-concept-set">
+                    <div onMouseEnter = {()=>d3.select('#clear-set-icon').style('color','#848698')} onMouseLeave = {()=>d3.select('#clear-set-icon').style('color','#b2b2c3')} onClick = {()=>{navigate(``)}} style = {{display: !root || !expandedSearch ? 'none' : 'flex',backgroundColor:'transparent'}} className = 'btn greyBtn flex' id = "clear-concept-set">
                         <p style = {{margin:0}}>Clear Set</p>
                         <FontAwesomeIcon className = "icon" id = "clear-set-icon" icon={faX} />
                     </div>
@@ -500,24 +581,44 @@ function Header (props) {
                     <div onClick = {()=>setShowFilter(!showFilter)} onMouseOver={()=>d3.select('#filter-search').style('color','#36126d')} onMouseOut={()=>d3.select('#filter-search').style('color',()=>searchFilter.length > 0 || showFilter ? '#36126d' : '#9597a6')} style = {{display: !expandedSearch ? 'none' : 'block', fontWeight: searchFilter.length > 0 ? 500 : 400, color: searchFilter.length > 0 || showFilter ? '#36126d' : '#9597a6'}} className = "btn" id = "filter-search">Filter</div>
                 </div>   
                 <button className = "btn mainBtn highlight" id = "upload-btn" onClick={()=>d3.select('#json-overlay').style('display','flex')}>Paste Concept Set</button>
+                <div className = "dropShadow" id = "search-filter-container" style = {{display:showFilter ? 'flex' : 'none', flexDirection:'column',alignItems:'flex-start',justifyContent:'center',zIndex:3000}}>
+                    <div style = {{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                        <h1 style = {{marginRight:10,fontWeight:400,paddingBottom:5}}>Vocabulary Filter</h1>
+                        <div className = "btn textBtn" onClick = {() => setSearchFilter([])} style = {{display: searchFilter.length > 0 ? 'block' : 'none'}}>Clear</div> 
+                    </div>
+                    <div style = {{display:'flex',flexWrap:'wrap',maxWidth:'100%'}} id = "search-filters"></div>
+                    {/* <div className = "btn greyBtn" onClick = {() => setShowFilter(false)} style = {{backgroundColor:searchFilter.length > 0 ? '#e8e8e8' : 'transparent',color:searchFilter.length > 0 ? '#36126d' : '#4c4c4c9',alignSelf:'flex-end'}}>Confirm</div> */}
+                </div> 
             </div>
             
-            <div className = "dropShadow" id = "search-filter-container" style = {{display:showFilter ? 'flex' : 'none', flexDirection:'column',alignItems:'flex-start',justifyContent:'center',zIndex:3000}}>
-                <div style = {{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                    <h1 style = {{marginRight:10,fontWeight:400,paddingBottom:5}}>Vocabulary Filter</h1>
-                    <div className = "btn textBtn" onClick = {() => setSearchFilter([])} style = {{display: searchFilter.length > 0 ? 'block' : 'none'}}>Clear</div> 
-                </div>
-                <div style = {{display:'flex',flexWrap:'wrap',maxWidth:'100%'}} id = "search-filters"></div>
-                {/* <div className = "btn greyBtn" onClick = {() => setShowFilter(false)} style = {{backgroundColor:searchFilter.length > 0 ? '#e8e8e8' : 'transparent',color:searchFilter.length > 0 ? '#36126d' : '#4c4c4c9',alignSelf:'flex-end'}}>Confirm</div> */}
-            </div> 
-            <div id = 'app-controls' style = {{width: isMeasurement ? 800 : 700,left: expandedSearch && 800 > window.innerWidth/2 - 215 ? '810px' : '50%',transform:expandedSearch && 800 > window.innerWidth/2 - 215 ? 'translateX(0)' : 'translateX(-50%)',display: root && nodes.length > 0 ? 'flex' : 'none'}}>
+            <div id = 'app-controls'
+                className = {expandedSearch ? '' : 'controls-centered'}
+                style = {{display: root && nodes.length > 0 ? 'flex' : 'none'}}>
                 <div className = 'toggle' id = "relationship-toggle">
                     <div className = 'mainBtn slider' id='slider-relationship'>''</div>
 
                     <div className = 'btn toggle-itm' role = 'button' aria-pressed = {relationship === 'descendants'} id = 'descendants-toggle' onClick={() => {setRelationship('descendants');moveSlider(0,100,'relationship');updateInclusions('descendants',countType,true)}} style = {{fontWeight:relationship === 'descendants' ? 500 : 400,color:relationship === 'descendants' ? '#36126d' : '#9597a6'}}>Descendants</div>
                     <div className = 'btn toggle-itm' role = 'button' aria-pressed = {relationship === 'mappings'} id = 'mappings-toggle' onClick={() => {setRelationship('mappings');moveSlider(1,100,'relationship');updateInclusions('mappings',countType,true)}} style = {{fontWeight:relationship === 'mappings' ? 500 : 400,color:relationship === 'mappings' ? '#36126d' : '#9597a6'}}>Mappings</div>
                 </div>
-                <div className = 'toggle' id = "counts-toggle">
+                {compactCounts && (
+                    <div className = 'dropdownContainer' id = 'counts-dropdown' ref = {countsDropdownRef} style = {{flexGrow:0,fontSize:10}}>
+                        <div className = 'dropdownHeader btn' id = 'header-counts' style = {{overflow:'hidden'}} onClick = {() => setCountsDropdownOpen(!countsDropdownOpen)}>
+                            <p className = 'dropdownTitle' style = {{color:'#36126d',whiteSpace:'nowrap'}}>{(countOptions.find(o => o.value === countType) || countOptions[0]).label}</p>
+                            <FontAwesomeIcon className = 'dropBtn icon' icon = {countsDropdownOpen ? faCaretUp : faCaretDown}/>
+                        </div>
+                        <div className = 'dropdownContent dropShadow' id = 'dropdown-counts' style = {{visibility: countsDropdownOpen ? 'visible' : 'hidden', left:0}}>
+                            {countOptions.filter(o => o.value !== 'measurement' || isMeasurement).map(o => (
+                                <p key = {o.value} className = 'btn counts-option' id = {o.value + '-option'} role = 'button' aria-pressed = {countType === o.value}
+                                    onClick = {() => selectCountType(o.value)}
+                                    style = {{fontWeight: countType === o.value ? 500 : 400, color: countType === o.value ? '#36126d' : undefined}}>
+                                    {o.label}
+                                </p>
+                            ))}
+                        </div>
+                    </div>
+                )}
+                {/* kept mounted (hidden) in compact mode so the slider position and element ids survive */}
+                <div className = 'toggle' id = "counts-toggle" style = {{display: compactCounts ? 'none' : 'flex'}}>
                     <div className = 'mainBtn slider' id='slider-counts'>''</div>
 
                     <div className = 'btn toggle-itm' role = 'button' aria-pressed = {countType === 'record'} id = 'record-toggle' onClick={() => {setCountType('record');moveSlider(0,100,'counts')}} style = {{fontWeight:countType === 'record' ? 500 : 400,color:countType === 'record' ? '#36126d' : '#9597a6'}}>Record Counts</div>

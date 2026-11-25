@@ -6,6 +6,7 @@ import { faCaretDown } from '@fortawesome/free-solid-svg-icons'
 import { faCaretUp } from '@fortawesome/free-solid-svg-icons'
 import { faCheck } from '@fortawesome/free-solid-svg-icons'
 import { faX } from '@fortawesome/free-solid-svg-icons'
+import { faMessage } from '@fortawesome/free-solid-svg-icons'
 import openedEye from '../../img/opened-eye.svg'
 import closedEye from '../../img/closed-eye.svg'
 import rootLineIcon from '../../img/root-line.svg'
@@ -82,7 +83,14 @@ function GraphSection (props) {
     const incidenceData = props.incidenceData
     const resetRef = props.resetRef
     const drawnGroup = props.drawnGroup
+    const selectedConceptMap = props.selectedConceptMap
+    const graphHover = props.graphHover
+    const setGraphHover = props.setGraphHover
+    const stackOrder = props.stackOrder
+    const setStackOrder = props.setStackOrder
     const graphContainerRef = useRef()
+    const upsetBarHoveredRef = useRef(false)   // true while an upset column is hovered, so the hovered effect doesn't override its highlight
+    const annotationYearRef = useRef(null)   // year whose annotation tooltip is open via the ruler
     const upsetContainerRef = useRef()
     const upsetWrapperRef = useRef(null)     
     const upsetScrollRef = useRef(null)      
@@ -98,33 +106,127 @@ function GraphSection (props) {
     let hoverTimeout = null
     let currentTarget = null
     const hoveredPointKey = useRef(null)
+    const plotDotHoveredRef = useRef(false)   // pointer is on a time plot dot: no annotation tooltip
     const hoveredBucket = useRef(null)
+    const headerHeightRef = useRef(0)
+    const [labelsOpen, setLabelsOpen] = useState(true)
+    const labelsDragRef = useRef(null)
 
     // DRAWING
 
-    function createLinePattern(key, color) {
-        const patternId = `pattern-${key}`
-        const defs = d3.select('#graph').select("defs")
-        const existing = defs.select(`#${CSS.escape(patternId)}`)
-        if (!existing.empty()) return `url(#${patternId})`
-        const size = 4
-        const patt = defs.append("pattern")
-            .attr("id", patternId)
-            .attr("patternUnits", "userSpaceOnUse")
-            .attr("width", size)
-            .attr("height", size)
-        patt.append("path")
-            .attr("d", `M0,${size} L${size},0 M-${size/2},${size/2} L${size/2},-${size/2}`)
-            .attr("stroke", color)
-            .attr("stroke-width", 1.5)
-            .attr("fill", "none")
-        patt.append("path")
-            .attr("d", `M0,${size*2} L${size*2},-0 M-${size},${size} L${size},-${size}`)
-            .attr("stroke", color)
-            .attr("stroke-width", 1.5)
-            .attr("fill", "none")
+    function createLinePattern(key, color, svgSelector = '#graph') {
+        const svg = d3.select(svgSelector)
+        let defs = svg.select('defs')
+        if (defs.empty()) defs = svg.insert('defs', ':first-child')
+
+        const patternId = `pattern-${svgSelector.replace('#', '')}-${key}`
+        if (!defs.select(`#${CSS.escape(patternId)}`).empty()) return `url(#${patternId})`
+
+        const size = 2
+        const patt = defs.append('pattern')
+            .attr('id', patternId)
+            .attr('patternUnits', 'userSpaceOnUse')
+            .attr('width', size)
+            .attr('height', size)
+        patt.append('path')
+            .attr('d', `M0,${size} L${size},0 M-${size/2},${size/2} L${size/2},-${size/2}`)
+            .attr('stroke', color)
+            .attr('stroke-width', 1)
+            .attr('fill', 'none')
+        patt.append('path')
+            .attr('d', `M0,${size*2} L${size*2},0 M-${size},${size} L${size},-${size}`)
+            .attr('stroke', color)
+            .attr('stroke-width', 1)
+            .attr('fill', 'none')
         return `url(#${patternId})`
     }
+    function createTopGradient(key, color, svgSelector) {
+        const svg = d3.select(svgSelector)
+        let defs = svg.select('defs')
+        if (defs.empty()) defs = svg.insert('defs', ':first-child')
+
+        const id = `hist-grad-${key}`
+        let grad = defs.select(`#${id}`)
+        if (grad.empty()) {
+            grad = defs.append('linearGradient')
+                .attr('id', id)
+                .attr('x1', 0).attr('y1', 0)
+                .attr('x2', 0).attr('y2', 1)   // top to bottom, relative to each rect
+            grad.append('stop').attr('class', 'grad-top').attr('offset', '0%')
+            grad.append('stop').attr('class', 'grad-bottom').attr('offset', '100%')
+        }
+
+        const base = d3.color(color) || d3.color('#999')
+        grad.select('.grad-top').attr('stop-color', base.darker(0.5).formatHex())
+        grad.select('.grad-bottom').attr('stop-color', base.formatHex())
+        return `url(#${id})`
+    }
+    // UPSET HIGHLIGHTING
+    // isActiveGroup(group) -> is this intersection highlighted; activeConcepts -> which set rows stay highlighted
+    const UPSET_FADE_OPACITY = 0.35   // transparency of unhighlighted elements
+    const UPSET_FADE_WHITE = 0.6      // how much white is mixed into unhighlighted elements (0-1)
+    // filter that blends an element's colours toward white: c' = c*(1-k) + k
+    function ensureUpsetFadeFilter() {
+        const svg = d3.select('#upset-right-svg')
+        if (svg.empty() || !d3.select('#upset-fade').empty()) return
+        let defs = svg.select('defs')
+        if (defs.empty()) defs = svg.insert('defs', ':first-child')
+        const k = UPSET_FADE_WHITE, a = 1 - k
+        // userSpaceOnUse so zero-width elements (vertical intersection lines) still render
+        defs.append('filter')
+            .attr('id', 'upset-fade')
+            .attr('filterUnits', 'userSpaceOnUse')
+            .attr('x', -10000).attr('y', -10000)
+            .attr('width', 20000).attr('height', 20000)
+            .append('feColorMatrix')
+            .attr('type', 'matrix')
+            .attr('values', `${a} 0 0 0 ${k}  0 ${a} 0 0 ${k}  0 0 ${a} 0 ${k}  0 0 0 1 0`)
+    }
+    function applyUpsetHighlight(isActiveGroup, activeConcepts) {
+        const on = isActiveGroup !== null
+        if (on) ensureUpsetFadeFilter()
+        const fadeFilter = faded => faded ? 'url(#upset-fade)' : null
+
+        const groupFaded = d => on && !isActiveGroup(d[0])
+        d3.selectAll('.upsets')
+            .style('filter', d => fadeFilter(groupFaded(d)))
+            .transition()
+            .style('opacity', d => groupFaded(d) ? UPSET_FADE_OPACITY : 1)
+
+        const dotFaded = d => on && !isActiveGroup(d.group)
+        d3.selectAll('.matrix-dot')
+            .style('filter', d => fadeFilter(dotFaded(d)))
+            .transition()
+            .style('opacity', d => {
+                const base = d.active ? 1 : 0.1
+                return dotFaded(d) ? base * UPSET_FADE_OPACITY : base
+            })
+
+        const lineFaded = d => on && !isActiveGroup(d.group)
+        d3.selectAll('.intersection-line')
+            .style('filter', d => fadeFilter(lineFaded(d)))
+            .transition()
+            .style('opacity', d => lineFaded(d) ? 0.5 * UPSET_FADE_OPACITY : 0.5)
+
+        const conceptFaded = d => on && !activeConcepts.includes(d.concept)
+        d3.selectAll('.set-bar, .set-label')
+            .style('filter', d => fadeFilter(conceptFaded(d)))
+            .transition()
+            .style('opacity', d => conceptFaded(d) ? UPSET_FADE_OPACITY : 1)
+    }
+    // highlight a single intersection (column hover); null clears
+    function highlightUpset(activeGroup) {
+        if (!activeGroup) return applyUpsetHighlight(null, [])
+        applyUpsetHighlight(group => group === activeGroup, activeGroup.split('-'))
+    }
+    // highlight every intersection that contains a concept (concept id as a number)
+    const upsetConceptId = concept => parseInt(String(concept).replace(/\D/g, ""))
+    function highlightUpsetConcept(conceptId) {
+        const conceptKey = d3.selectAll('.set-label').data().map(d => d.concept).find(c => upsetConceptId(c) === conceptId)
+        if (conceptKey === undefined) return highlightUpset(null)
+        applyUpsetHighlight(group => group.split('-').includes(conceptKey), [conceptKey])
+    }
+
     function drawUpset() {
         if (!Array.isArray(personData) || personData.length === 0) return
         d3.select('#sets-layer').selectAll('*').remove()
@@ -263,7 +365,18 @@ function GraphSection (props) {
             .attr('height', setYScale.bandwidth())
             .attr('stroke-width',1)
             .attr('stroke', d => d.type === 'individual' ? d.node.color : '#c9c9d5')
-            .attr('fill', d => d.type === 'individual' ? d.node.color : 'white')
+            .attr('fill', d => {
+                if (d.type === 'individual') {
+                    if (getConceptInfo(parseInt(d.concept.replace(/\D/g, "")))) {
+                        if (!getConceptInfo(parseInt(d.concept.replace(/\D/g, ""))).standard_concept || (relationship === 'mappings' && selectedConceptMap.get(parseInt(d.concept.replace(/\D/g, "")))?.leaf)) {
+                            const url = createLinePattern(parseInt(d.concept.replace(/\D/g, "")), d.node.color, '#upset-left-svg')
+                            return url 
+                        } else return d.node.color   
+                    } else return d.node.color     
+                } else return 'white'
+                
+            })
+            // .attr('fill', d => d.type === 'individual' ? d.node.color : 'white')
             .on('mouseover',(e,d)=>{
                 if (d.type === 'individual') showUpsetTooltip('enter',e,d.counts,'Individual counts') 
                 else showUpsetTooltip('enter',e,d.counts,'Intersection counts') 
@@ -284,10 +397,15 @@ function GraphSection (props) {
             .attr('fill','#565867')
             .text(d => d.code)
             .on('mouseover',(e,d)=>{
-                setHovered([d.name])
-                tooltipHover(d.node,'enter',e)
+                const el = e.currentTarget
+                clearTimeout(el.__hoverTimeout__)
+                el.__hoverTimeout__ = setTimeout(() => {
+                    setHovered([d.name])
+                    tooltipHover(d.node,'enter',e)
+                }, 800)
             })
             .on('mouseout',(e,d)=>{
+                clearTimeout(e.currentTarget.__hoverTimeout__)
                 setHovered([])
                 tooltipHover(d.node,'leave')
             })
@@ -303,29 +421,6 @@ function GraphSection (props) {
             .attr('y2', d => yScale(d))
             .attr('stroke', '#eeeef2')
             .attr('stroke-width', 1)
-
-        function highlightUpset(activeGroup) {
-            const activeConcepts = activeGroup ? activeGroup.split('-') : []
-            d3.selectAll('.upsets')
-                .transition()
-                .style('opacity', d => !activeGroup ? 1 : d[0] === activeGroup ? 1 : 0.2)
-            d3.selectAll('.matrix-dot')
-                .transition()
-                .style('opacity', d => {
-                    if (!activeGroup) return d.active ? 1 : 0.1
-                    if (d.group !== activeGroup) return 0.2
-                    return d.active ? 1 : 0.1
-                })
-            d3.selectAll('.intersection-line')
-                .transition()
-                .style('opacity', d => !activeGroup ? 0.5 : d.group === activeGroup ? 0.5 : 0.1)
-            d3.selectAll('.set-bar')
-                .transition()
-                .style('opacity', d => !activeGroup ? 1 : activeConcepts.includes(d.concept) ? 1 : 0.2)
-            d3.selectAll('.set-label')
-                .transition()
-                .style('opacity', d => !activeGroup ? 1 : activeConcepts.includes(d.concept) ? 1 : 0.2)
-        }
 
         const upsets_g = d3.select('#upsets-layer').selectAll('.upsets')
             .data(upsets, d => d[0])
@@ -354,14 +449,16 @@ function GraphSection (props) {
             .attr('width', columnWidth)
             .attr('height', d => (barHeight - yScale(d[1])) + 16)
             .on('mouseover',(e,d)=>{
+                upsetBarHoveredRef.current = true
                 highlightUpset(d[0])
                 const el = e.currentTarget
                 el.__hoverTimeout__ = setTimeout(() => {
                     setHovered(d[0].split('-').map(s => Number(s.replace(/[^0-9]/g, ''))))
-                }, 600)
+                }, 800)
             })
             .on('mouseout',(e,d)=>{
                 clearTimeout(e.currentTarget.__hoverTimeout__)
+                upsetBarHoveredRef.current = false
                 setHovered([])
                 highlightUpset(null)
             })
@@ -373,7 +470,18 @@ function GraphSection (props) {
             .attr('height', d => barHeight - yScale(d[1]))
             .attr('stroke', d => !d[0].includes('-') ? colorList[parseInt(d[0].replace(/\D/g, ""))] : '#c9c9d5')
             .attr('stroke-width',1)
-            .attr('fill', d => !d[0].includes('-') ? colorList[parseInt(d[0].replace(/\D/g, ""))] : 'white')
+            .attr('fill', d => {
+                if (!d[0].includes('-')) {
+                    if (getConceptInfo(parseInt(d[0].replace(/\D/g, "")))) {
+                        if (!getConceptInfo(parseInt(d[0].replace(/\D/g, ""))).standard_concept || (relationship === 'mappings' && selectedConceptMap.get(parseInt(d[0].replace(/\D/g, "")))?.leaf)) {
+                            const url = createLinePattern(parseInt(d[0].replace(/\D/g, "")), colorList[parseInt(d[0].replace(/\D/g, ""))], '#upset-right-svg')
+                            return url 
+                        } else return colorList[parseInt(d[0].replace(/\D/g, ""))]   
+                    } else return colorList[parseInt(d[0].replace(/\D/g, ""))]     
+                } else return 'white'
+                
+            })
+            // .attr('fill', d => !d[0].includes('-') ? colorList[parseInt(d[0].replace(/\D/g, ""))] : 'white')
 
         upsets_g.select('.upset-count')
             .attr('x', d => xScale(sortedIndexMap.get(d[0])) + columnWidth / 2)
@@ -547,6 +655,31 @@ function GraphSection (props) {
             .x(p => scaleX(p.year))
             .y(p => scaleY(p.value))
 
+        // always-visible faint connector per concept (colour mixed with white), under the dots;
+        // the hovered concept's full-colour connector is drawn on top of it in showConnector
+        const PLOT_FAINT_LINE_WHITE = 0.85 // how much white is mixed into the faint lines (0-1)
+        const conceptLines = Array.from(d3.group(points, p => p.id), ([id, pts]) => ({
+            id,
+            pts: [...pts].sort((a, b) => a.year - b.year)
+        })).filter(d => d.pts.length > 1)
+        const baseLineLayer = layer.selectAll('g.plot-base-connectors').data([null]).join('g').attr('class', 'plot-base-connectors')
+        baseLineLayer.selectAll('path.plot-base-connector')
+            .data(conceptLines, d => d.id)
+            .join(
+                enter => enter.append('path')
+                    .classed('plot-base-connector', true)
+                    .attr('fill', 'none')
+                    .attr('stroke-width', 1.5)
+                    .style('pointer-events', 'none')
+                    .attr('d', d => connector(d.pts))
+                    .attr('opacity', 0)
+                    .call(sel => sel.transition().duration(500).ease(d3.easeCubicOut).attr('opacity', 1)),
+                update => update
+                    .call(sel => sel.transition().duration(500).attr('d', d => connector(d.pts))),
+                exit => exit.remove()
+            )
+            .attr('stroke', d => d3.interpolateRgb(colorList[d.id], '#fff')(PLOT_FAINT_LINE_WHITE))
+
         function showConnector(id, activePoint) {
             const pts = points
                 .filter(p => p.id === id)
@@ -563,7 +696,7 @@ function GraphSection (props) {
                     .attr('stroke-width', 1.5)
                     .style('pointer-events', 'none'))
                 .attr('stroke', colorList[id])
-                .attr('opacity', 0.8)
+                .attr('opacity', 1)   // full colour on hover, over the faint always-on line
                 .attr('d', connector);
 
             // paint order: other dots < line < hovered concept's dots
@@ -573,11 +706,13 @@ function GraphSection (props) {
             // value label only for the hovered point (unchanged)
             const labelPts = activePoint ? [activePoint] : [];
 
-            const labels = layer.selectAll('g.plot-value-labels')
+            // lives at the top level of #graph (not in the plot layer) so it can sit above the annotation icons
+            const labels = d3.select('#graph').selectAll('g.plot-value-labels')
                 .data([labelPts])
                 .join('g')
                 .attr('class', 'plot-value-labels num')
-                .style('pointer-events', 'none');
+                .style('pointer-events', 'none')
+                .raise();
 
             labels.selectAll('text')
                 .data(labelPts, d => d.key)
@@ -591,7 +726,7 @@ function GraphSection (props) {
 
         function hideConnector() {
             layer.selectAll('path.plot-connector').remove();
-            layer.selectAll('g.plot-value-labels').remove();
+            d3.select('#graph').selectAll('g.plot-value-labels').remove();
         }
 
         const hitLayer = layer.selectAll('g.plot-hit').data([null]).join('g').attr('class', 'plot-hit')
@@ -644,6 +779,12 @@ function GraphSection (props) {
                 const node = allNodesMap.get(d.id);
                 const el = e.currentTarget;
 
+                // always hide the annotation tooltip directly: a redraw can reset annotationYearRef
+                // while the tooltip is still visible, which would make updateAnnotationForYear(null) a no-op
+                plotDotHoveredRef.current = true
+                annotationYearRef.current = null
+                d3.select('#graph').selectAll('.annotation-icon').classed('active', false).select('path').attr('fill', 'white')
+                showAnnotationTooltip('leave')
                 clearTimeout(el.hoverStateTimeout);
 
                 el.hoverStateTimeout = setTimeout(() => {
@@ -654,11 +795,12 @@ function GraphSection (props) {
                     if (node) {
                         showTooltipPreview(node, e);
                     }
-                }, 600);
+                }, 800);
             })
             .on('mouseout', (e, d) => {
                 clearTimeout(e.currentTarget.hoverStateTimeout);
 
+                plotDotHoveredRef.current = false
                 hoveredPointKey.current = null;
                 setHovered([]);
                 hideConnector();
@@ -674,7 +816,7 @@ function GraphSection (props) {
     }
     function drawGraph(rollup, scaleX, scaleY) {
         d3.select('#graph-plot').remove()
-        const selectedConceptMap = new Map(selectedConcepts.map(c => [c.name, c]))
+        d3.select('#graph').selectAll('g.plot-value-labels').remove()
         function highestPoint(d) {
             return d[1].reduce((best, p) => {
                 return scaleY(+p[2]) < scaleY(+best[2]) ? p : best
@@ -697,7 +839,7 @@ function GraphSection (props) {
                     .attr('stroke','white')
                     .attr('fill', d => {
                         if (getConceptInfo(d.key)) {
-                            if (!getConceptInfo(d.key).standard_concept || (relationship === 'mappings' && selectedConceptMap.get(d.key).leaf)) {
+                            if (!getConceptInfo(d.key).standard_concept || (relationship === 'mappings' && selectedConceptMap.get(d.key)?.leaf)) {
                                 const url = createLinePattern(d.key, colorList[d.key])
                                 return url 
                             } else return colorList[d.key]    
@@ -723,7 +865,7 @@ function GraphSection (props) {
                         el.hoverStateTimeout = setTimeout(() => {
                             setHovered([d.key])
                             tooltipHover(node,'enter',e)
-                        }, 600)
+                        }, 800)
                     })
                     .on("mouseout", function (e,d) {
                         const node = allNodesMap.get(d.key)
@@ -758,7 +900,7 @@ function GraphSection (props) {
                     )
                     .attr('fill', d => {
                         if (getConceptInfo(d.key)) {
-                            if (!getConceptInfo(d.key).standard_concept || (relationship === 'mappings' && selectedConceptMap.get(d.key).leaf)) {
+                            if (!getConceptInfo(d.key).standard_concept || (relationship === 'mappings' && selectedConceptMap.get(d.key)?.leaf)) {
                                 const url = createLinePattern(d.key, colorList[d.key])
                                 return url 
                             } else return colorList[d.key]    
@@ -771,7 +913,7 @@ function GraphSection (props) {
                         el.hoverStateTimeout = setTimeout(() => {
                             setHovered([d.key])
                             tooltipHover(node,'enter',e)
-                        }, 600)
+                        }, 800)
                     })
                     .on("mouseout", function (e,d) {
                         const node = allNodesMap.get(d.key)
@@ -828,11 +970,9 @@ function GraphSection (props) {
                 .attr("d", line)
             container.exit().remove()
         }
-        // const stackedData = d3.stack()
-        //     .keys(selectedConcepts.map(c => c.name))
-        //     (rollup)  
         const stackedData = d3.stack()
             .keys(selectedConcepts.map(c => c.name))
+            .order(stackOrder === 'size' ? d3.stackOrderDescending : d3.stackOrderNone)
             .value((d, key) => d[key] ?? 0)
             (rollup)
         updateStack(stackedData)  
@@ -842,7 +982,6 @@ function GraphSection (props) {
     }
     function drawHistogram(data, scaleX, scaleY, concepts) {
         const graph = d3.select("#histogram .chart-content");
-
         // graph.selectAll(".histogram-bars, .histogram-hover-labels").remove();
         graph.selectAll(".histogram-hover-labels").remove();
         let bars = graph.select("g.histogram-bars");
@@ -872,11 +1011,6 @@ function GraphSection (props) {
         const stackedData = d3.stack()
             .keys(concepts)(groupedData);
 
-        // const bars = graph.append("g")
-        //     .attr("class", "histogram-bars");
-
-        // let activeBucket = null;
-
         // All stacked segments, including their exact values.
         const segments = stackedData.flatMap(series =>
             series.map(d => ({
@@ -887,7 +1021,7 @@ function GraphSection (props) {
                 y0: d[0],
                 y1: d[1]
             }))
-        );
+        ).filter(d => d.value > 0);
 
         const rects = bars.selectAll("rect.histogram-segment")
             .data(segments, d => `${d.bucket}-${d.concept}`)
@@ -901,7 +1035,16 @@ function GraphSection (props) {
             .attr("y", d => scaleY(d.y1))
             .attr("width", scaleX.bandwidth())
             .attr("height", d => Math.max(0, scaleY(d.y0) - scaleY(d.y1)))
-            .attr("fill", d => colorList[d.id])
+            .attr('fill', d => {
+                const info = getConceptInfo(d.id)
+                if (info) {
+                    if (!info.standard_concept || (relationship === 'mappings' && selectedConceptMap.get(d.id)?.leaf)) {
+                        return createLinePattern(d.id, colorList[d.id], '#histogram')  
+                    }
+                }
+                return createTopGradient(d.id, colorList[d.id], '#histogram')
+            })
+            // .attr("fill", d => colorList[d.id])
             .attr("stroke", "none");
 
         function updateHighlight() {
@@ -966,6 +1109,14 @@ function GraphSection (props) {
                 .attr("stroke-width", 1)
                 .attr("opacity", 0.9);
 
+            // background pill, sized after the text is measured
+            labelGroups.append("rect")
+                .attr("class", "value-label-bg")
+                .attr("fill", "white")
+                .attr("fill-opacity", 0.8)
+                .attr("rx", 3)
+                .attr("ry", 3);
+
             labelGroups.append("text")
                 .text(d => d.value)
                 .attr("font-size", 11)
@@ -973,7 +1124,7 @@ function GraphSection (props) {
                 .attr("fill", "currentColor")
                 .attr("stroke", "none");
 
-            // Use the actual rendered text width to place labels beyond the bar.
+            // Use the actual rendered text width to size the backgrounds.
             labelGroups.each(function(d) {
                 d.labelWidth = this.querySelector("text").getComputedTextLength();
             });
@@ -1017,6 +1168,19 @@ function GraphSection (props) {
                 .attr("x", d => d.placeLeft ? 0 : 0)
                 .attr("y", 0)
                 .attr("text-anchor", d => d.placeLeft ? "end" : "start");
+
+            const padX = 3, padY = 1;
+
+            labelGroups.select("text")
+                .attr("x", d => d.placeLeft ? -padX : padX)
+                .attr("y", 0)
+                .attr("text-anchor", d => d.placeLeft ? "end" : "start");
+
+            labelGroups.select("rect.value-label-bg")
+                .attr("width", d => d.labelWidth + padX * 2)
+                .attr("height", labelHeight + padY * 2)
+                .attr("x", d => d.placeLeft ? -(d.labelWidth + padX * 2) : 0)
+                .attr("y", -(labelHeight / 2) - padY);
         }
 
         rects
@@ -1030,8 +1194,9 @@ function GraphSection (props) {
                     showBucketLabels(d.bucket);
                     const node = allNodesMap.get(d.id);
                     setHovered([d.id]);
+                    setGraphHover(true)
                     if (node) showTooltipPreview(node, e);
-                }, 600);
+                }, 800);
             })
             .on("mouseout", (e, d) => {
                 clearTimeout(e.currentTarget.hoverStateTimeout);
@@ -1042,6 +1207,7 @@ function GraphSection (props) {
                 graph.selectAll(".histogram-hover-labels").remove();
                 updateHighlight();
                 setHovered([]);
+                setGraphHover(false)
                 scheduleHide();
             });
 
@@ -1139,6 +1305,7 @@ function GraphSection (props) {
     }
     // show annotation tooltip
     function showAnnotationTooltip(mode,event=null,value=null,name=null) {
+        if (mode === 'enter' && plotDotHoveredRef.current) mode = 'leave'   // never over a time plot dot
         if (mode === 'enter') {
             const html = 'Start of ' + name.map(e => e.key).join("<br/>")
             d3.select('#annotation-value').html(value)
@@ -1162,51 +1329,70 @@ function GraphSection (props) {
         }
     }
     // draw annotations
+    const ANNOTATION_ICON_SIZE = 14
+    const ANNOTATION_ICON_Y = -10  // vertical offset of the annotation icons (negative = higher)
     function drawAnnotations(scaleX,height) {
         const filteredAnnotations = annotations.filter(a => a.year >= extent[0] && a.year <= extent[1])
-        const grouped = d3.group(filteredAnnotations, d => d.year)
-        const spreadAnnotations = []
-        grouped.forEach((values, year) => {
-            const count = values.length;
-            const spacing = 5
-            values.forEach((d, i) => {
-                const offsetIndex = i - (count - 1) / 2
-                spreadAnnotations.push({
-                ...d,
-                offsetX: offsetIndex * spacing
-                })
-            })
-        })
-        const annotation = d3.select('#graph')
+        // one marker per year; the tooltip lists every event in that year
+        const annotationData = Array.from(d3.group(filteredAnnotations, d => d.year), ([year, events]) => ({ year, events }))
+
+        // dashed lines sit beneath the chart
+        d3.select('#graph')
             .selectAll(".annotation")
-            .data(spreadAnnotations, d => d.year)
-        const annotationEnter = annotation.enter()
-            .append("g")
-            .attr("class", "annotation")
-        annotationEnter.append("line")
-        annotationEnter.append("circle")
-        const annotationMerge = annotationEnter.merge(annotation)
-        annotationMerge.select("line")
+            .data(annotationData, d => d.year)
+            .join(enter => enter.append("g").attr("class", "annotation").call(g => g.append("line")))
+            .select("line")
             .attr('x1', d => scaleX(d.year))
             .attr('x2', d => scaleX(d.year))
-            .attr('y1', 0)
+            .attr('y1', ANNOTATION_ICON_Y + ANNOTATION_ICON_SIZE)
             .attr('y2', height - 5)
             .attr('stroke','#a0a0b6')
             .attr('stroke-width',1)
             .attr("stroke-dasharray", "3,3")
-        annotationMerge.select("circle")
-            .classed('btn',true)
-            .attr("cx", d => scaleX(d.year) + d.offsetX)
-            .attr("cy", height + 7)
-            .attr("r", 5)
-            .attr("fill", 'white')
-            .style("filter", "drop-shadow(0px 0px 4px rgba(0, 0, 0, 0.2))")
-            .on("mouseover", function(event, d) {
-                const eventsThatYear = grouped.get(d.year)
-                showAnnotationTooltip('enter',event,d.year,eventsThatYear)
+
+        // message icons at the top of each line, kept in their own layer so they can sit above the chart and ruler
+        const [iconW, iconH, , , iconPath] = faMessage.icon
+        const iconScale = ANNOTATION_ICON_SIZE / Math.max(iconW, iconH)
+        d3.select('#graph')
+            .selectAll(".annotation-icon")
+            .data(annotationData, d => d.year)
+            .join(enter => {
+                const g = enter.append("g")
+                    .attr("class", "annotation-icon btn")
+                    .style("filter", "drop-shadow(0px 0px 3px rgba(0, 0, 0, 0.2))")
+                // transparent hit area so the gaps around the glyph still count as hovering it
+                g.append("rect")
+                    .attr("x", -ANNOTATION_ICON_SIZE / 2 - 3)
+                    .attr("y", -3)
+                    .attr("width", ANNOTATION_ICON_SIZE + 6)
+                    .attr("height", ANNOTATION_ICON_SIZE + 6)
+                    .attr("fill", "transparent")
+                g.append("path")
+                    .attr("d", iconPath)
+                    .attr("transform", `translate(${-ANNOTATION_ICON_SIZE / 2},0) scale(${iconScale})`)
+                    .attr("fill", "white")
+                return g
             })
-            .on("mouseout", function() {showAnnotationTooltip('leave')})
-        annotation.exit().remove()
+            .attr("transform", d => `translate(${scaleX(d.year)},${ANNOTATION_ICON_Y})`)
+            .classed("active", false)
+            .select("path").attr("fill", "white")
+        // hovering the icon is handled by the ruler (it snaps to this year), see updateAnnotationForYear
+    }
+    // show/hide the annotation tooltip for the year the ruler is on
+    function updateAnnotationForYear(year) {
+        if (annotationYearRef.current === year) return
+        annotationYearRef.current = year
+        const icons = d3.select('#graph').selectAll(".annotation-icon")
+        icons.classed("active", false).select("path").attr("fill", "white")
+        const icon = icons.filter(d => d.year === year)
+        if (year === null || icon.empty()) {
+            showAnnotationTooltip('leave')
+            return
+        }
+        icon.classed("active", true).select("path").attr("fill", "#a0a0b6")
+        const rect = icon.node().getBoundingClientRect()
+        const d = icon.datum()
+        showAnnotationTooltip('enter', { x: rect.right, y: rect.bottom }, d.year, d.events)
     }
     // FUNCTIONS
     const resetZoom = (e) => {
@@ -1215,9 +1401,9 @@ function GraphSection (props) {
             e.stopPropagation()    
         }
         if (d3.select("#zoomUI").nodes().length === 0) {
-            let extent = d3.extent(selectedConcepts.map(d => d.data.code_counts).flat().map(d => d.calendar_year))
-            if (!extent[0] || !extent[1]) extent = d3.extent(rootLine, d => d[0])
-            setExtent(extent)
+            let newExtent = d3.extent(selectedConcepts.map(d => d.data.code_counts).flat().map(d => d.calendar_year))
+            if (!newExtent[0] || !newExtent[1]) newExtent = d3.extent(rootLine, d => d[0])
+            setExtent(newExtent)
             setYearSelection(null)
             d3.select("#zoomUI").remove()
             zooming = false
@@ -1232,10 +1418,14 @@ function GraphSection (props) {
         const rulerSel = d3.select("#graph").select(".hover-ruler")
         rulerSel.style("display", null)
             .attr("transform", `translate(${snappedX},0)`)
-        rulerSel.select(".ruler-label").text(clampedYear)
+        // 5px higher on years with an annotation icon
+        const hasAnnotation = annotations.some(a => a.year === clampedYear)
+        rulerSel.select(".ruler-label").text(clampedYear).attr("y", hasAnnotation ? -13 : -8)
+        updateAnnotationForYear(plotDotHoveredRef.current ? null : clampedYear)
     }
     function hideRuler() {
         d3.select("#graph").select(".hover-ruler").style("display", "none")
+        updateAnnotationForYear(null)
     }
     const parseBucket = b => {
         const toks = String(b).match(/[-+]?(?:inf(?:inity)?|\d+(?:\.\d+)?(?:e[+-]?\d+)?)/gi) || []
@@ -1320,7 +1510,7 @@ function GraphSection (props) {
             .join("text")
             .attr("class", "x-axis-label selectedText")
             .attr("x", innerWidth / 2)
-            .attr("y", xAxisType === 'year' ? innerHeight + chartMargin.bottom - 20 : innerHeight + chartMargin.bottom - 30)
+            .attr("y", innerHeight + chartMargin.bottom - 20)
             .attr("text-anchor", "middle")
             .attr("fill", "currentColor")
             .style("font-size", "10px")
@@ -1332,7 +1522,7 @@ function GraphSection (props) {
             .attr("class", "y-axis-label selectedText")
             .attr("transform", "rotate(-90)")
             .attr("x", -innerHeight / 2)
-            .attr("y", xAxisType === 'year' ? -chartMargin.left - 5 : -chartMargin.left + 20)
+            .attr("y", -chartMargin.left - 5)
             .attr("text-anchor", "middle")
             .attr("fill", "currentColor")
             .style("font-size", "10px")
@@ -1354,56 +1544,80 @@ function GraphSection (props) {
         let scaleX = d3.scaleLinear().domain(extent).range([0, width])
         let scaleY = d3.scaleLinear().domain([0, maxY*1.05]).range([height, 0])
         drawAxes(scaleX, scaleY, width, height, ticks)
-        let animationFrameId = null
-        const handleMouseMove = (e) => {
-            if (!zooming) return
-            if (animationFrameId) cancelAnimationFrame(animationFrameId)
-            animationFrameId = requestAnimationFrame(() => {
-                const [x] = d3.pointer(e, d3.select('#graph').node())
-                x2 = x;
-                if (x2 < x1) {
-                d3.select("#zoomUI").attr("x", x2).attr("width", (x1 - x2))
-                } else {
-                d3.select("#zoomUI").attr("x", x1).attr("width", (x2 - x1))
-                }
-            })
+
+        const graphSvg = d3.select('#graph')
+        const graphNode = graphSvg.node()
+
+        // client coordinates -> svg user space, clamped to the plot area
+        const svgX = (e) => {
+            const pt = graphNode.createSVGPoint()
+            pt.x = e.clientX
+            pt.y = e.clientY
+            const x = pt.matrixTransform(graphNode.getScreenCTM().inverse()).x
+            return Math.max(0, Math.min(width, x))
         }
-        //zoom
-        let x1,x2
+
+        // selection state (local to this draw, so it can't clash with ageBrush's x1/x2)
+        let selStart = null
+        let animationFrameId = null
         let rulerFrameId = null
-        d3.select('#graph')
-            .on("mousedown",function(e){
-                const [x] = d3.pointer(e, this)
+
+        const updateSelectionRect = (xEnd) => {
+            const a = Math.min(selStart, xEnd)
+            const b = Math.max(selStart, xEnd)
+            d3.select("#zoomUI").attr("x", a).attr("width", b - a)
+        }
+
+        const finishSelection = (e) => {
+            if (!zooming || selStart === null) return
+            if (animationFrameId) cancelAnimationFrame(animationFrameId)
+            const end = svgX(e)   // use the release position itself, not the last animation frame
+            const y1 = Math.round(scaleX.invert(Math.min(selStart, end)))
+            const y2 = Math.round(scaleX.invert(Math.max(selStart, end)))
+            if (y1 !== y2) {
+                setYearSelection([y1, y2])
+                setZoomed(true)
+            }
+            d3.select("#zoomUI").remove()
+            zooming = false
+            selStart = null
+        }
+
+        const handleMouseMove = (e) => {
+            if (!zooming || selStart === null) return
+            if (animationFrameId) cancelAnimationFrame(animationFrameId)
+            animationFrameId = requestAnimationFrame(() => updateSelectionRect(svgX(e)))
+        }
+
+        // zoom
+        graphSvg
+            .on("mousedown", function (e) {
+                selStart = svgX(e)
                 zooming = true
-                x1 = x
-                d3.select(this).append("rect")
-                .attr("id","zoomUI")
-                .style("pointer-events","none")
-                    .attr("height",height)
-                    .attr("width",1)
-                    .attr("x",x1)
-            })
-            .on("mouseup",(e)=>{
-                if ((x1 && x2) && (Math.round(scaleX.invert(x1)) !== Math.round(scaleX.invert(x2)))) {
-                    if (x1 < x2) {setYearSelection([Math.round(scaleX.invert(x1)), Math.round(scaleX.invert(x2))])}
-                    else {setYearSelection([Math.round(scaleX.invert(x2)), Math.round(scaleX.invert(x1))])} 
-                    setZoomed(true)   
-                }
                 d3.select("#zoomUI").remove()
-                zooming = false
+                d3.select(this).append("rect")
+                    .attr("id", "zoomUI")
+                    .style("pointer-events", "none")
+                    .attr("height", height)
+                    .attr("width", 1)
+                    .attr("x", selStart)
             })
+            .on("mouseup", finishSelection)
             .on("mousemove.zoom", handleMouseMove)
             .on("mousemove.ruler", (e) => {
                 if (zooming) { hideRuler(); return }
                 if (rulerFrameId) cancelAnimationFrame(rulerFrameId)
                 rulerFrameId = requestAnimationFrame(() => {
-                    const [x] = d3.pointer(e, d3.select('#graph').node())
-                    updateRuler(x, scaleX, extent, height)
+                    updateRuler(svgX(e), scaleX, extent, height)
                 })
             })
             .on("mouseleave.ruler", hideRuler)
             .on("dblclick", resetZoom)
-        drawAnnotations(scaleX,height)
+
+        // releasing outside the svg still completes (or cancels) the selection
+        d3.select(window).on("mouseup.zoomsel", finishSelection)
+
+        drawAnnotations(scaleX, height)
         if (type === 'graph') drawGraph(rollup, scaleX, scaleY)
         if (type === 'plot') drawTimePlot(rollup, scaleX, scaleY)
 
@@ -1429,6 +1643,10 @@ function GraphSection (props) {
             .attr("fill", "#565867")
 
         d3.select("#graph").select(".hover-ruler").raise()
+        d3.select("#graph").select("#graph-plot").raise()   // time plot dots sit above the ruler
+        d3.select("#graph").selectAll(".annotation-icon").raise()
+        d3.select("#graph").selectAll(".plot-value-labels").raise()   // hovered dot's value sits above the annotation icons
+        annotationYearRef.current = null   // redraw resets icon state
     }
     // hover filter
     function filterHover(id,mode,type) {
@@ -1489,78 +1707,78 @@ function GraphSection (props) {
         }
     }
     // age filter brushing
-    function ageBrush(e,mode) {
-        const scaleX = d3.scaleLinear().domain([d3.select('#age-filter').node().getBoundingClientRect().x, d3.select('#age-filter').node().getBoundingClientRect().x + d3.select('#age-filter').node().getBoundingClientRect().width]).range([0,380])
+    function brushedAges(startAge, endAge) {
+        const allIds = filterData.age.map(d => d.id)
+        const current = graphFilter.age.includes(-1) ? allIds : graphFilter.age
+        let ages = [...current]
+        for (let i = startAge; i <= endAge; i++) {
+            if (!allIds.includes(i)) continue
+            ages = ages.includes(i) ? ages.filter(a => a !== i) : [...ages, i]
+        }
+        if (ages.length === 0) return graphFilter.age        
+        if (ages.length === allIds.length) return [-1]       
+        return ages
+    }
+
+    function ageBrush(e, mode) {
+        const rect = d3.select('#age-filter').node().getBoundingClientRect()
+        const scaleX = d3.scaleLinear().domain([rect.x, rect.x + rect.width]).range([0, 380])
+        const range = (a, b) => {
+            const lo = Math.min(a, b), hi = Math.max(a, b)
+            return [Math.trunc(scaleX(lo) / 38), Math.trunc(scaleX(hi) / 38)]
+        }
+
         if (mode === 'down') {
             brushing = true
             x1 = e.clientX
+            x2 = undefined                                   
+            return
         }
+
         if (mode === 'up') {
-            let startAge,endAge
-            let ages = graphFilter.age
-            ages = graphFilter.age.includes(-1) ? filterData.age.map(d => d.id) : ages
-            if (x1 !== x2) {
-                if (x1 < x2) {
-                    startAge = Math.trunc(scaleX(x1)/38)
-                    endAge = Math.trunc(scaleX(x2)/38)        
-                }
-                else {
-                    startAge = Math.trunc(scaleX(x2)/38)
-                    endAge = Math.trunc(scaleX(x1)/38) 
-                }
-                for (let i = startAge; i <= endAge; i++) {
-                    if (!ages.includes(i)) {
-                        ages = [...ages,i]
-                        if (ages.length === filterData.age.length) ages = [-1]
-                    }
-                    else ages = ages.filter(age => age !== i)
-                }
-                setGraphFilter(prev => ({...prev,age: ages}))
+            if (brushing && x2 !== undefined && x1 !== x2) {
+                const [startAge, endAge] = range(x1, x2)
+                const result = brushedAges(startAge, endAge)
+                const changed = result.length !== graphFilter.age.length || result.some(a => !graphFilter.age.includes(a))
+                if (changed) setGraphFilter(prev => ({ ...prev, age: result }))
             }
             brushing = false
-        } else {
-            if (brushing) {
-                let startAge,endAge
-                x2 = e.clientX
-                if (x1 < x2) {
-                    startAge = Math.trunc(scaleX(x1)/38)
-                    endAge = Math.trunc(scaleX(x2)/38)        
-                }
-                else {
-                    startAge = Math.trunc(scaleX(x2)/38)
-                    endAge = Math.trunc(scaleX(x1)/38) 
-                }
-                for (let i = startAge; i <= endAge; i++) {
-                    if (!graphFilter.age.includes(i) && !graphFilter.age.includes(-1)) {
-                        d3.select('#btn-'+i)
-                            .classed('filterHoverInactive',false)
-                            .classed('filterHoverActive',false)
-                            .classed('filterActiveDrag', true)
-                            .classed('filterActiveRight', true)
-                            .classed('filterInactiveDrag', false)
-                            .classed('filterInactiveRight', false)
-                        d3.select('#geometry-' + i)
-                            .classed('vizHoverInactive',false)
-                            .classed('vizHoverActive',false) 
-                            .classed('vizActive',true) 
-                            .classed('vizInactive',false)
-                        // d3.select('#viz-label-'+i).classed('labelActive',true) 
-                    } else {
-                        d3.select('#btn-'+i)
-                            .classed('filterHoverInactive',false)
-                            .classed('filterHoverActive',false)
-                            .classed('filterActiveDrag',false)
-                            .classed('filterActiveRight', false)
-                            .classed('filterInactiveDrag', true)
-                            .classed('filterInactiveRight', true)
-                        d3.select('#geometry-' + i)
-                            .classed('vizHoverInactive',false)
-                            .classed('vizHoverActive',false)    
-                            .classed('vizActive',false)
-                            .classed('vizInactive',true)
-                        // d3.select('#viz-label-'+i).classed('labelActive',false) 
-                    }
-                }
+            return
+        }
+
+        if (!brushing) return
+        x2 = e.clientX
+        const [startAge, endAge] = range(x1, x2)
+        const result = brushedAges(startAge, endAge)
+        const isOn = i => result.includes(-1) || result.includes(i)
+
+        for (let i = startAge; i <= endAge; i++) {
+            if (isOn(i)) {
+                d3.select('#btn-' + i)
+                    .classed('filterHoverInactive', false)
+                    .classed('filterHoverActive', false)
+                    .classed('filterActiveDrag', true)
+                    .classed('filterActiveRight', true)
+                    .classed('filterInactiveDrag', false)
+                    .classed('filterInactiveRight', false)
+                d3.select('#geometry-' + i)
+                    .classed('vizHoverInactive', false)
+                    .classed('vizHoverActive', false)
+                    .classed('vizActive', true)
+                    .classed('vizInactive', false)
+            } else {
+                d3.select('#btn-' + i)
+                    .classed('filterHoverInactive', false)
+                    .classed('filterHoverActive', false)
+                    .classed('filterActiveDrag', false)
+                    .classed('filterActiveRight', false)
+                    .classed('filterInactiveDrag', true)
+                    .classed('filterInactiveRight', true)
+                d3.select('#geometry-' + i)
+                    .classed('vizHoverInactive', false)
+                    .classed('vizHoverActive', false)
+                    .classed('vizActive', false)
+                    .classed('vizInactive', true)
             }
         }
     }
@@ -1615,20 +1833,141 @@ function GraphSection (props) {
 
     useEffect(() => {
         function handleClickOutside(e) {
-            if (document.getElementById('dropdown-sources')) {
-                const sourceContainer = document.getElementById('source-collapsed')
-                if (sourceContainer && !sourceContainer.contains(e.target)) {
-                    d3.select('#open-sources').style('display', 'block')
-                    d3.select('#close-sources').style('display', 'none')
-                    d3.select('#dropdown-sources').style('visibility', 'hidden')
+            [['sources', 'source-collapsed'], ['gender', 'gender-collapsed'], ['age', 'age-collapsed']].forEach(([key, containerId]) => {
+                if (!document.getElementById('dropdown-' + key)) return
+                const container = document.getElementById(containerId)
+                if (container && !container.contains(e.target)) {
+                    d3.select('#open-' + key).style('display', 'block')
+                    d3.select('#close-' + key).style('display', 'none')
+                    d3.select('#dropdown-' + key).style('visibility', 'hidden')
                 }
-            }
+            })
         }
         document.addEventListener('click', handleClickOutside)
         return () => document.removeEventListener('click', handleClickOutside)
     }, [])
 
+    function sizeLabelArea() {
+        const group = document.getElementById('graph-group')
+        const h = group.clientHeight
+        const toggleH = document.getElementById('labels-handle')?.offsetHeight ?? 0
+        const body = labelsOpen ? Math.max(h * 0.15 - margin, 0) : 0
+
+        d3.select('#graph-labels')
+            .style('max-height', body + 'px')
+            .style('overflow-y', labelsOpen ? 'scroll' : 'hidden')
+            .style('border-bottom-width', labelsOpen ? '1.5px' : '0px')
+
+        // ROOTLINE_EXTRA_GAP: extra space between the toolbar (#rootline-container) and the graph,
+        // matches the margin-bottom added in index.css (24px vs the original 10px)
+        const ROOTLINE_EXTRA_GAP = 14
+        return h - body - toggleH - margin * 2 - ROOTLINE_EXTRA_GAP
+    }
+
+    function startLabelsDrag(e) {
+        if (e.button !== 0) return
+        e.preventDefault()
+        e.currentTarget.setPointerCapture(e.pointerId)
+        const labels = document.getElementById('graph-labels')
+        const full = Math.max(document.getElementById('graph-group').clientHeight * 0.15 - margin, 0)
+        const natural = Math.min(full, labels.scrollHeight)      // few labels: don't need the full height
+        labelsDragRef.current = {
+            startY: e.clientY,
+            startH: labelsOpen ? labels.offsetHeight : 0,
+            natural, moved: false, h: labelsOpen ? labels.offsetHeight : 0
+        }
+        d3.select(labels).style('transition', 'none').style('overflow-y', 'hidden')
+    }
+
+    function moveLabelsDrag(e) {
+        const d = labelsDragRef.current
+        if (!d) return
+        const dy = e.clientY - d.startY
+        if (Math.abs(dy) > 3) d.moved = true
+        d.h = Math.min(d.natural, Math.max(0, d.startH + dy))
+        d3.select('#graph-labels').style('max-height', d.h + 'px')
+    }
+
+    function endLabelsDrag(e) {
+        const d = labelsDragRef.current
+        if (!d) return
+        labelsDragRef.current = null
+        e.currentTarget.releasePointerCapture?.(e.pointerId)
+        d3.select('#graph-labels').style('transition', null)
+
+        let open
+        if (!d.moved) open = !labelsOpen                  
+        else if (labelsOpen) open = d.h > d.natural * 0.7       
+        else open = d.h > d.natural * 0.3                  
+
+        if (open === labelsOpen) sizeLabelArea()                 
+        else setLabelsOpen(open)                                
+    }
+
     const countGroup = t => t === 'person' || t === 'prevalence' ? 'person' : t === 'record' || t === 'measurement' ? 'record' : t 
+
+    const isCompact = () => {
+        const w = document.getElementById('graph-section')?.clientWidth ?? 0
+        return w < window.innerWidth * 0.4 || graphSectionWidth === '40vw'
+    }
+
+    function sizeDropdownHeaders() {
+        const bar = document.getElementById('graph-filters')
+        if (!bar || !isCompact()) return
+
+        const total = bar.clientWidth
+        const SOURCE_MIN = 110      
+        const SPACING = 40          
+
+        const genderMax = Math.max(total * 0.3, 80)
+        const ageMax = Math.max(total - genderMax - SOURCE_MIN - SPACING, 80)
+
+        ;[['gender', genderMax], ['age', ageMax]].forEach(([key, max]) => {
+            const hd = document.getElementById('header-' + key)
+            const dd = document.getElementById('dropdown-' + key)
+            if (!hd) return
+            hd.style.maxWidth = max + 'px'
+            hd.style.overflow = 'hidden'
+            const wanted = dd ? Math.max(dd.clientWidth - 12, 0) : 0
+            hd.style.minWidth = Math.min(wanted, max) + 'px'
+        })
+    }
+
+    function applyFilterLayout() {
+        if (!document.getElementById('graph-filters')) return
+        const compact = isCompact()
+        const collapsed = compact || !openFilters
+
+        d3.select('#graph-filters').style('display', 'flex')
+        d3.selectAll('#gender-viz, #age-viz, #source-viz').style('display', collapsed ? 'none' : 'flex')
+
+        d3.selectAll('#gender-filter, #age-filter').style('display', compact ? 'none' : null)
+        d3.selectAll('#gender-collapsed, #age-collapsed')
+            .style('visibility', compact ? 'visible' : 'hidden')
+            .style('height', compact ? 'auto' : 0)
+
+        d3.select('#source-collapsed')
+            .style('visibility', collapsed ? 'visible' : 'hidden')
+            .style('height', collapsed ? 'auto' : 0)
+
+        d3.select('#open-btn').style('display', !compact && !openFilters ? 'flex' : 'none')
+        d3.select('#close-btn').style('display', !compact && openFilters ? 'flex' : 'none')
+
+        sizeDropdownHeaders()
+    }
+
+    function toggleDropdown(key) {
+        const open = d3.select('#open-' + key).style('display') === 'block'
+        d3.select('#open-' + key).style('display', open ? 'none' : 'block')
+        d3.select('#close-' + key).style('display', open ? 'block' : 'none')
+        d3.select('#dropdown-' + key).style('visibility', open ? 'visible' : 'hidden')
+    }
+
+    useEffect(() => {
+        applyFilterLayout()
+        window.addEventListener('resize', applyFilterLayout)
+        return () => window.removeEventListener('resize', applyFilterLayout)
+    }, [openFilters, graphSectionWidth, filterData])
 
     // DRAW FILTERS
     useEffect(() => {
@@ -1702,7 +2041,7 @@ function GraphSection (props) {
                             .attr("y", radius/2 + piMargin) 
                             .attr("text-anchor", d => d.data.id === genders[0] ? "end" : "start") 
                             .style('font-weight', d => graphFilter.gender.includes(d.data.id) || graphFilter.gender.includes(-1) ? 500 : 400)
-                            .style('fill', d => graphFilter.gender.includes(-1) || graphFilter.gender.includes(d.data.id) ? d.data.id === maxGender ? '#36126d' : 'color-mix(in srgb, #36126d, white 40%)' : '#9597a6')
+                            .style('fill', d => graphFilter.gender.includes(-1) || graphFilter.gender.includes(d.data.id) ? d.data.id === maxGender ? '#36126d' : 'color-mix(in srgb, #36126d, white 60%)' : '#9597a6')
                             .attr("transform", `translate(${width/2}, ${height/2 - piMargin})`)
                     },update=>{
                         update.select('.arc-path')
@@ -1721,7 +2060,7 @@ function GraphSection (props) {
                             .attr("y", radius/2 + piMargin) 
                             .attr("text-anchor", d => d.data.id === genders[0] ? "end" : "start") 
                             .style('font-weight', d => graphFilter.gender.includes(d.data.id) || graphFilter.gender.includes(-1) ? 500 : 400)
-                            .style('fill', d => graphFilter.gender.includes(-1) || graphFilter.gender.includes(d.data.id) ? d.data.id === maxGender ? '#36126d' : 'color-mix(in srgb, #36126d, white 40%)' : '#9597a6')
+                            .style('fill', d => graphFilter.gender.includes(-1) || graphFilter.gender.includes(d.data.id) ? d.data.id === maxGender ? '#36126d' : 'color-mix(in srgb, #36126d, white 60%)' : '#9597a6')
                     })
                 // age
                 const ageExtent = d3.extent(filterData.age.map(d => d.sum))
@@ -1766,7 +2105,7 @@ function GraphSection (props) {
                             // .classed('labelActive', d => graphFilter.age.includes(d.id) || graphFilter.age.includes(-1) ? true : false)
                             .attr('id',d=>'viz-label-'+d.id)
                             .style('font-weight', d => graphFilter.age.includes(d.id) || graphFilter.age.includes(-1) ? 500 : 400)
-                            .style('color', d => graphFilter.age.includes(-1) || graphFilter.age.includes(d.id) ? ageExtent.includes(d.sum) ? '#36126d' : 'color-mix(in srgb, #36126d, white 40%)' : ageExtent.includes(d.sum) ? '#9597a6' : 'color-mix(in srgb, #9597a6, white 40%)')
+                            .style('color', d => graphFilter.age.includes(-1) || graphFilter.age.includes(d.id) ? ageExtent.includes(d.sum) ? '#36126d' : 'color-mix(in srgb, #36126d, white 60%)' : ageExtent.includes(d.sum) ? '#9597a6' : 'color-mix(in srgb, #9597a6, white 40%)')
                             .html(d => d.sum === 0 ? '' : abbreviateNumber(d.sum))
                         container.append('div')
                             .classed('age-rect btn viz',true)
@@ -1783,7 +2122,7 @@ function GraphSection (props) {
                         update.select('.age-p')
                             // .classed('labelActive', d => graphFilter.age.includes(d.id) || graphFilter.age.includes(-1) ? true : false)
                             .style('font-weight', d => graphFilter.age.includes(d.id) || graphFilter.age.includes(-1) ? 500 : 400)
-                            .style('color', d => graphFilter.age.includes(-1) || graphFilter.age.includes(d.id) ? ageExtent.includes(d.sum) ? '#36126d' : 'color-mix(in srgb, #36126d, white 40%)' : ageExtent.includes(d.sum) ? '#9597a6' : 'color-mix(in srgb, #9597a6, white 40%)')
+                            .style('color', d => graphFilter.age.includes(-1) || graphFilter.age.includes(d.id) ? ageExtent.includes(d.sum) ? '#36126d' : 'color-mix(in srgb, #36126d, white 60%)' : ageExtent.includes(d.sum) ? '#9597a6' : 'color-mix(in srgb, #9597a6, white 40%)')
                             .html(d => d.sum === 0 ? '' : abbreviateNumber(d.sum))
                         update.select('.age-rect')
                             .classed('vizInactive',(d) => !graphFilter.age.includes(d.id) && !graphFilter.age.includes(-1) ? true : false)
@@ -2130,19 +2469,77 @@ function GraphSection (props) {
         }
     },[filterData,graphSectionWidth])
 
+    // FILTER DROPDOWNS (gender / age)
+    useEffect(() => {
+        if (!filterData.gender || !filterData.age) return
+        const configs = [
+            { key: 'gender', data: filterData.gender, label: d => d.id === 8507 ? 'Male' : 'Female' },
+            { key: 'age', data: filterData.age, label: d => d.id * 10 + '-' + (d.id * 10 + 9) }
+        ]
+        configs.forEach(({ key, data, label }) => {
+            if (data.length === 0) return
+            const items = data.map(d => ({ id: d.id, label: label(d) }))
+            const current = graphFilter[key]
+            const isOn = id => current.includes(-1) || current.includes(id)
+            const selected = items.filter(i => isOn(i.id))
+            const allOn = selected.length === items.length
+
+            const rows = d3.select('#dropdown-' + key).selectAll('.source').data(items, d => d.id)
+                .join(enter => {
+                    const c = enter.append('div').classed('source flex', true)
+                    c.append('div').classed('source-check-box checkBox', true)
+                    c.append('p').classed('source-p btn', true)
+                    return c
+                })
+            rows.select('.source-check-box')
+                .style('background-color', d => isOn(d.id) ? '#36125d' : 'transparent')
+                .style('border', d => isOn(d.id) ? '1px solid #36125d' : '1px solid #cccccc')
+                .on('click', (e, d) => { e.stopPropagation(); filterSelect(d.id, key) })
+            rows.select('.source-p')
+                .style('font-weight', d => isOn(d.id) ? 500 : 400)
+                .style('color', d => isOn(d.id) ? '#36125d' : '#9597a6')
+                .html(d => d.label)
+                .on('click', (e, d) => { e.stopPropagation(); filterSelect(d.id, key) })
+
+            const chips = allOn ? [{ id: 'all', label: 'All' }] : selected
+            const canRemove = !allOn && chips.length > 1         
+            d3.select('#' + key + '-selections').selectAll('.source-selection').data(chips, d => d.id)
+                .join(enter => {
+                    const div = enter.append('div').classed('source-selection flex', true)
+                    div.append('p')
+                    div.append('i').classed('fa-solid fa-x icon', true)
+                    return div
+                })
+                .classed('dropdownTitleEl', !allOn)
+                .classed('filterActive', !allOn)
+                .style('flex-shrink', 0)
+                .style('pointer-events', canRemove ? 'all' : 'none')
+                .on('click', (e, d) => filterSelect(d.id, key))
+                .each(function (d) {
+                    d3.select(this).select('p').html(d.label)
+                    d3.select(this).select('i').style('display', canRemove ? 'block' : 'none')
+                })
+
+            d3.select('#header-' + key).classed('dropdownHeader-flexPadding', !allOn)
+            // const dd = document.getElementById('dropdown-' + key)
+            // const hd = document.getElementById('header-' + key)
+            // if (dd && hd) hd.style.minWidth = Math.max(dd.clientWidth - 12, 0) + 'px'
+        })
+        sizeDropdownHeaders()
+    }, [filterData, graphFilter])
+
     // RECORD COUNTS
     useEffect(() => {
         if (graphContainerRef.current && upsetContainerRef.current && extent) {
             const fullHeight = document.getElementById('graph-section-container').clientHeight 
             const filterHeight = 150 + margin
             const containerWidth = document.getElementById('graph-section').clientWidth
-            if (containerWidth < window.innerWidth*0.4 || graphSectionWidth === '40vw') d3.select('#graph-filters').style('display','none')
-            else d3.select('#graph-filters').style('display','flex')
+            // if (containerWidth < window.innerWidth*0.4 || graphSectionWidth === '40vw') d3.select('#graph-filters').style('display','none')
+            // else d3.select('#graph-filters').style('display','flex')
             if (countType === 'record') {
                 const chartMargin = { top: 0, right: 0, bottom: 60, left: 50 }
                 document.getElementById("graph-group").style.height = fullHeight - filterHeight - margin + 'px'
-                const containerHeight = document.getElementById('graph-group').clientHeight - (document.getElementById('graph-group').clientHeight * 0.15 - margin) - (margin*2)
-                document.getElementById("graph-labels").style.maxHeight = document.getElementById('graph-group').clientHeight * 0.15 - margin + 'px'
+                const containerHeight = sizeLabelArea()
                 document.getElementById("graph-container").style.height = document.getElementById("graph-group").clientHeight - filterHeight - margin + 'px'
 
                 const outerWidth = containerWidth - margin * 2
@@ -2168,14 +2565,14 @@ function GraphSection (props) {
                 drawAxisLabels(innerWidth, innerHeight, chartMargin, "Year", "Record counts")
             } 
         }
-    }, [countType,extent,stackData,graphSectionWidth,openFilters,showRootLine])
+    }, [countType,extent,stackData,graphSectionWidth,openFilters,showRootLine,labelsOpen,stackOrder])
 
     // PERSON COUNTS
     useEffect(() => {
         if (countType === 'person') {
             if (personData && personData.length > 0) {
                 const fullHeight = document.getElementById('graph-section-container').clientHeight 
-                const filterHeight = document.getElementById('graph-filters').clientHeight + document.getElementById('year-filter').clientHeight + (margin*2)
+                const filterHeight = document.getElementById('graph-filters').clientHeight + document.getElementById('year-filter').clientHeight + margin
                 const containerWidth = document.getElementById('graph-section').clientWidth
                 document.getElementById("upset-container").style.height = fullHeight - filterHeight - margin + 'px'
                 document.getElementById("upset-container").style.width = containerWidth - (margin*2) + 'px'
@@ -2196,11 +2593,10 @@ function GraphSection (props) {
             const fullHeight = document.getElementById('graph-section-container').clientHeight
             const filterHeight = 150 + margin
             const containerWidth = document.getElementById('graph-section').clientWidth
-            if (containerWidth < window.innerWidth * 0.4 || graphSectionWidth === '40vw') d3.select('#graph-filters').style('display', 'none')
-            else d3.select('#graph-filters').style('display', 'flex')
+            // if (containerWidth < window.innerWidth * 0.4 || graphSectionWidth === '40vw') d3.select('#graph-filters').style('display', 'none')
+            // else d3.select('#graph-filters').style('display', 'flex')
             document.getElementById("graph-group").style.height = fullHeight - filterHeight - margin + 'px'
-            const containerHeight = document.getElementById('graph-group').clientHeight - (document.getElementById('graph-group').clientHeight * 0.15 - margin) - (margin*2)
-            document.getElementById("graph-labels").style.maxHeight = document.getElementById('graph-group').clientHeight * 0.15 - margin + 'px'
+            const containerHeight = sizeLabelArea()
             document.getElementById("graph-container").style.height = document.getElementById("graph-group").clientHeight - filterHeight - margin + 'px'
 
             const outerWidth = containerWidth - margin * 2
@@ -2229,25 +2625,23 @@ function GraphSection (props) {
             getGraph(plotData, innerWidth, innerHeight, ticks, 'plot')
             drawAxisLabels(innerWidth, innerHeight, chartMargin, "Year", yLabel)
         }
-    }, [prevalenceData,incidenceData,graphSectionWidth,openFilters,extent,hovered])
+    }, [prevalenceData,incidenceData,graphSectionWidth,openFilters,extent,hovered,labelsOpen])
 
     // LAB VALUES
     useEffect(()=>{
         if (countType === 'measurement' && measurementData.length > 0) {
-            const fullHeight = document.getElementById('graph-section-container').clientHeight 
-            const filterHeight = 150 
-            const containerWidth = document.getElementById('graph-section').clientWidth + margin
-            document.getElementById("histogram-container").style.height = fullHeight - filterHeight - margin + 'px'
-            document.getElementById("histogram-container").style.width = containerWidth - (margin*2) + 'px'
+            const chartMargin = { top: 0, right: 0, bottom: 60, left: 50 }
+            const fullHeight = document.getElementById('graph-section-container').clientHeight
+            const filterHeight = 150 + margin
+            const containerWidth = document.getElementById('graph-section').clientWidth
+            // if (containerWidth < window.innerWidth * 0.4 || graphSectionWidth === '40vw') d3.select('#graph-filters').style('display', 'none')
+            // else d3.select('#graph-filters').style('display', 'flex')
+            document.getElementById("graph-group").style.height = fullHeight - filterHeight - margin + 'px'
+            const containerHeight = sizeLabelArea()
+            document.getElementById("graph-container").style.height = document.getElementById("graph-group").clientHeight - filterHeight - margin + 'px'
 
-            const chartMargin = {
-                top: 20,
-                right: 0,
-                bottom: 70,
-                left: 70
-            }
             const outerWidth = containerWidth - margin * 2
-            const outerHeight = fullHeight - filterHeight - margin
+            const outerHeight = containerHeight
             const innerWidth = outerWidth - chartMargin.left - chartMargin.right
             const innerHeight = outerHeight - chartMargin.top - chartMargin.bottom
 
@@ -2282,11 +2676,16 @@ function GraphSection (props) {
 
             const filteredData = measurementData.filter(d => +d.n_events > 0)
 
+            const totalsByConcept = d3.rollup(filteredData, v => d3.sum(v, d => +d.n_events), d => d.tagged_conceptid)
+            const concepts = Array.from(totalsByConcept)
+                .filter(([, total]) => total > 0)
+                .map(([id]) => id)
+
             const key = b => { const { lo } = parseBucket(b); return Number.isNaN(lo) ? Infinity : lo }
             const buckets = Array.from(new Set(filteredData.map(d => d.measured_value_bucket)))
                 .sort((a, b) => { const ka = key(a), kb = key(b); return ka < kb ? -1 : ka > kb ? 1 : 0 })
 
-            const concepts = Array.from(new Set(filteredData.map(d => d.tagged_conceptid)))
+            // const concepts = Array.from(new Set(filteredData.map(d => d.tagged_conceptid)))
 
             const scaleX = d3.scaleBand()
                 .domain(buckets)
@@ -2311,29 +2710,41 @@ function GraphSection (props) {
 
             console.log(filteredData[0])
             const unit = filteredData[0]?.unit ?? ""
-
             drawAxes(scaleX, scaleY, innerWidth, innerHeight, null, "bucket");
             drawHistogram(filteredData, scaleX, scaleY, concepts); 
             drawHistogramRuler(scaleX, innerWidth, innerHeight); 
             drawAxisLabels(innerWidth,innerHeight,chartMargin,unit ? `Measured value (${unit})` : "Measured value","Record counts",'bucket')
         }
-    },[measurementData,graphSectionWidth,openFilters,extent])
+    },[measurementData,graphSectionWidth,openFilters,labelsOpen])
 
     useEffect(() => {
         layoutUpset()
     }, [upsetZoomedOut])
+
+    // when a single concept is hovered anywhere, highlight every upset intersection containing it
+    useEffect(() => {
+        if (countType !== 'person' || upsetBarHoveredRef.current) return
+        if (d3.selectAll('.upsets').empty()) return
+        if (hovered.length === 1) highlightUpsetConcept(upsetConceptId(hovered[0]))
+        else highlightUpset(null)
+    }, [hovered])
 
     useEffect(() => {
         window.addEventListener('resize', drawUpset) 
         return () => window.removeEventListener('resize', drawUpset)
     }, [])
 
+    const orderedConcepts = useMemo(() => {
+        if (stackOrder !== 'size' || !stackData || stackData.length === 0) return selectedConcepts
+        const total = c => d3.sum(stackData, row => row[c.name] ?? 0)
+        return [...selectedConcepts].sort((a, b) => total(b) - total(a))
+    }, [selectedConcepts, stackData, stackOrder])
+
     // LABELS
     useEffect(()=> {
-        const groups = d3.group(selectedConcepts, d => d.name)
-        function getNode(name) {return nodes.find(n => n.name === name)}
+        const groups = d3.group(orderedConcepts, d => d.name)
+        function getNode(name) {return nodes.find(n => n.name === name) ? nodes.find(n => n.name === name) : nodes.map(n => n.mappings).flat().find(n => n.name === name)}
 
-        // cross-fade code/vocab and icons; no size changes
         function setActionsVisible(el, show) {
             const label = d3.select(el)
             label.select('.label-meta').transition().duration(200)
@@ -2344,12 +2755,11 @@ function GraphSection (props) {
             label.select('.label-icons').style('pointer-events', show ? 'auto' : 'none')
         }
 
-        // label-level events, shared by enter and update
         function bindLabelEvents(sel) {
             sel.on('mouseenter', (e, d) => {
                     const el = e.currentTarget
                     setActionsVisible(el, true)
-                    el.hoverStateTimeout = setTimeout(() => setHovered([d[0]]), 600)
+                    el.hoverStateTimeout = setTimeout(() => setHovered([d[0]]), 800)
                 })
                 .on('mouseleave', (e, d) => {
                     const el = e.currentTarget
@@ -2364,7 +2774,6 @@ function GraphSection (props) {
                 // })
         }
 
-        // icon visibility and click handlers, same rules as the list
         function bindActions(labels) {
             labels.each(function (d) {
                 const name = d[0]
@@ -2437,7 +2846,7 @@ function GraphSection (props) {
                         .attr('id', d => 'label-' + d[0])
                         .style('background-color','white')
                         .style('box-shadow','0 0 0 1px rgba(0, 0, 0, 0.02),0 2px 10px rgba(0, 0, 0, 0.1)')
-                        .style('border', d => rootConcepts.includes(d[0]) ? '1px solid #7728ED' : 'none')
+                        .style('border', d => rootConcepts.includes(d[0]) ? '2px solid #7728ED' : 'none')
                         .style('border-radius', '20px')
                         .style('transition','0.5s opacity')
                         .style('opacity', d => hovered.length > 0 && !hovered.includes(d[0]) ? 0.2 : 1)
@@ -2465,7 +2874,6 @@ function GraphSection (props) {
                         .attr('id', d => 'label-text-' + d[0])
                         .html(d => getConceptInfo(d[0]).concept_name)
 
-                    // code/vocab and icons share one grid cell
                     const swap = text.append('span')
                         .classed('label-swap', true)
                         .style('display', 'inline-grid')
@@ -2501,7 +2909,6 @@ function GraphSection (props) {
                         .classed('label-search fa fa-search iconLg marginRight', true)
                         .style('transform', 'scaleX(-1)')
 
-                    // the closed eye stays outside the swap, always faintly visible
                     const right = labels.append('div')
                         .classed('label-right', true)
                         .style('display', 'flex')
@@ -2512,16 +2919,18 @@ function GraphSection (props) {
                         .style('opacity', 0.3)
 
                     bindActions(labels)
+                    return labels  
                 }, update => {
                     update
-                        .style('border', d => rootConcepts.includes(d[0]) ? '1px solid #7728ED' : 'none')
+                        .style('border', d => rootConcepts.includes(d[0]) ? '2px solid #7728ED' : 'none')
                         .style('opacity', d => hovered.length > 0 && !hovered.includes(d[0]) ? 0.2 : 1)
                     bindLabelEvents(update)
                     bindActions(update)
-                },exit => exit.remove())    
+                    return update   
+                },exit => exit.remove())  
         }
         updateLabels(groups)
-    },[selectedConcepts,hovered])
+    },[orderedConcepts,hovered])
 
     useEffect(() => {
         const FADE = 0.8 
@@ -2529,11 +2938,9 @@ function GraphSection (props) {
         const fade2 = c => d3.interpolateRgb(c, '#fff')(0.5)
         const dim = id => hovered.length > 0 && !hovered.includes(id)
 
-        d3.selectAll('.area-path')
-            .attr('fill', d => dim(d.key) ? fade(colorList[d.key]) : colorList[d.key])
+        d3.selectAll('.area-path').attr('opacity', d => dim(d.key) ? 0.2 : 1)
 
-        // d3.selectAll('.plot-dot')
-        //     .attr('fill', d => dim(d.id) ? fade(colorList[d.id]) : colorList[d.id])
+        if (!graphHover) d3.selectAll('.histogram-segment').attr('opacity', d => dim(d.id) ? 0.2 : 1)
 
         d3.selectAll('.year-line')
             .attr('stroke', hovered.length > 0 ? fade2('#c9c9d5') : '#c9c9d5')
@@ -2629,9 +3036,17 @@ function GraphSection (props) {
                                 <p className = 'filterLabel'>Sex</p>
                                 <FontAwesomeIcon style = {{display: !graphFilter.gender.includes(-1) ? 'block' : 'none'}} className = "resetFilter fa-solid icon" id = "reset-gender" icon={faX} />    
                             </div>
-                            <div className = "filterFlex">
+                            <div className = "filterFlex" id = 'gender-filter'>
                                 <div className = "filter-viz" id = "gender-viz"><svg id = "gender-svg"></svg></div>
                                 <div className = "flex" id = "gender-labels" style = {{marginTop:2}} ></div>
+                            </div>
+                            <div className = 'dropdownContainer' id = "gender-collapsed" style = {{visibility:'hidden',height:0}}>
+                                <div className = "dropdownHeader btn" id = "header-gender" onClick = {() => toggleDropdown('gender')}>
+                                    <div className = "dropdownTitle dropdownTitleScrollable" id = 'gender-selections'></div>
+                                    <FontAwesomeIcon className = "dropBtn icon" id = 'open-gender' icon={faCaretDown} style = {{display:'block'}}/>
+                                    <FontAwesomeIcon className = "dropBtn icon" id = 'close-gender' icon={faCaretUp} style = {{display:'none'}}/>
+                                </div>
+                                <div className = "dropdownContent dropShadow" id = "dropdown-gender" style = {{left:2}}></div>
                             </div>
                         </div>
 
@@ -2649,6 +3064,14 @@ function GraphSection (props) {
                             <div className = "filterFlex btn" id = "age-filter" onMouseDown = {(e) => ageBrush(e,'down')} onMouseUp = {(e) => ageBrush(e,'up')} onMouseMove = {(e) => ageBrush(e,'move')}>
                                 <div className = "filter-viz" id = "age-viz"></div>
                                 <div className = "flex" id = "age-labels" style = {{marginTop:2}}></div>
+                            </div>
+                            <div className = 'dropdownContainer' id = "age-collapsed" style = {{visibility:'hidden',height:0}}>
+                                <div className = "dropdownHeader btn" id = "header-age" onClick = {() => toggleDropdown('age')}>
+                                    <div className = "dropdownTitle dropdownTitleScrollable" id = 'age-selections'></div>
+                                    <FontAwesomeIcon className = "dropBtn icon" id = 'open-age' icon={faCaretDown} style = {{display:'block'}}/>
+                                    <FontAwesomeIcon className = "dropBtn icon" id = 'close-age' icon={faCaretUp} style = {{display:'none'}}/>
+                                </div>
+                                <div className = "dropdownContent dropShadow" id = "dropdown-age" style = {{left:2}}></div>
                             </div>
                         </div> 
 
@@ -2726,12 +3149,29 @@ function GraphSection (props) {
                         </div>
                     </div>}    
                     <div id = "graph-group" style = {{display: !graphLoading ? 'block' : 'none',position:'relative'}}>
-                        <div id = "graph-subheader"><div className = "margin" id = "graph-labels"></div></div> 
-                        <div id = "graph-container" ref={graphContainerRef} style = {{display: countType === 'record' || countType === 'prevalence' || countType === 'incidence' ? 'block' : 'none',position:'relative'}}>
+                        <div id = "graph-subheader" style = {{flexDirection:'column', alignItems:'stretch'}}>
+                            <div className = "margin" id = "graph-labels"></div>
+                            <div id = "labels-handle" title = {labelsOpen ? 'Pull up to collapse' : 'Pull down to expand'}
+                                onPointerDown = {startLabelsDrag}
+                                onPointerMove = {moveLabelsDrag}
+                                onPointerUp = {endLabelsDrag}
+                                onPointerCancel = {endLabelsDrag}
+                                style = {{height:12, display:'flex', justifyContent:'center', alignItems:'center', cursor:'ns-resize', touchAction:'none'}}>
+                                <div style = {{width:36, height:4, borderRadius:2, background:'#d2d2d9'}} />
+                            </div>
+                        </div>
+                        <div id = "graph-container" ref={graphContainerRef} style = {{display: (countType === 'record' || countType === 'prevalence' || countType === 'incidence' || countType === 'measurement') && !graphLoading ? 'block' : 'none',position:'relative'}}>
                             <div className = 'flex' id = "rootline-container">
                                 <div className = {`btn flex ${yearSelection ? "filterActive" : "selectedText"}`} onMouseEnter = {()=>d3.select('#reset-year-graph').style('color','#9597a6')} onMouseLeave = {()=>d3.select('#reset-year-graph').style('color','#c9c9d5')} style = {{padding: '4px 8px 4px 8px',borderRadius: '4px',marginBottom:4}} onClick = {() => resetZoom()}>
                                     <p className = 'filterLabel'>{extent && extent[0]+'-'+extent[1]}</p>
                                     <FontAwesomeIcon style = {{display: yearSelection ? 'block' : 'none'}} className = "resetFilter fa-solid icon" id = "reset-year-graph" icon={faX} />
+                                </div>
+                                <div className="flex" style={{gap: 10,display: countType === 'record' ? 'flex' : 'none'}}>
+                                    <p>Order by:</p>
+                                    <p className={`btn textBtn`} style={{ fontWeight: stackOrder === 'hierarchy' ? 500 : 400, color: stackOrder === 'hierarchy' ? '#36126d' : undefined }}
+                                        onClick={() => setStackOrder('hierarchy')}>Hierarchy</p>
+                                    <p className={`btn textBtn`} style={{ fontWeight: stackOrder === 'size' ? 500 : 400, color: stackOrder === 'size' ? '#36126d' : undefined }}
+                                        onClick={() => setStackOrder('size')}>Size</p>
                                 </div>
                                 <div className='flex' style = {{display: countType === 'record' ? 'flex' : 'none'}}>
                                     <div className = 'flex btn' style = {{pointerEvents:showRootLine ? 'all' : 'none'}} onMouseEnter={() => {setHovered(['rootline'])}} onMouseLeave={() => {setHovered([])}}>
@@ -2748,7 +3188,7 @@ function GraphSection (props) {
                                     </label>
                                 </div> 
                             </div>
-                            <svg id = "graph">
+                            <svg id = "graph" style = {{display: countType === 'record' || countType === 'prevalence' || countType === 'incidence' ? 'block' : 'none', overflow: 'visible'}}>
                                 <g className = "brush"></g>
                                 <g className = "x-grid"></g>
                                 <g className = "axis-grid"></g>
@@ -2759,6 +3199,7 @@ function GraphSection (props) {
                                 <g id = "graph-line"></g>
                                 <circle id = "focus"></circle>
                             </svg>
+                            <svg id="histogram" style = {{overflow:'visible',display: countType === 'measurement' ? 'block' : 'none'}}></svg>
                         </div> 
                         <div id="upset-container" ref={upsetContainerRef} style={{ display: countType === 'person' && !graphLoading ? 'block' : 'none', position: 'relative', overflow: 'hidden', width: '100%', height: '100%' }}>
                             {((upsetOverflowing || upsetZoomedOut) && (countType === 'person')) && (
@@ -2817,9 +3258,9 @@ function GraphSection (props) {
                                 }}
                             />
                         </div>   
-                        <div id="histogram-container" style={{ display: countType === 'measurement' && !graphLoading ? 'block' : 'none', position: 'relative', overflow: 'visible', width: '100%', height: '100%' }}>
+                        {/* <div id="histogram-container" style={{ display: countType === 'measurement' && !graphLoading ? 'block' : 'none', position: 'relative', overflow: 'visible', width: '100%', height: '100%' }}>
                             <svg id="histogram"></svg>
-                        </div> 
+                        </div>  */}
                     </div> 
                 </div>
             </div>  
